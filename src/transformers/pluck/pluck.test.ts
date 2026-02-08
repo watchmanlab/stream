@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { Stream } from "../../src/stream";
+import { Stream } from "../../stream";
 import { pluck } from "./pluck";
 
 describe("pluck pattern", () => {

@@ -1,4 +1,5 @@
 import { Stream } from "../../stream";
+import { derive } from "../derive";
 
 /**
  * Temporarily HOT transformer that captures values pushed before listener is added.
@@ -33,36 +34,26 @@ import { Stream } from "../../stream";
  * settings.listen(cfg => applyConfig(cfg));
  * ```
  */
-export function microbatch<T>(): Stream.Transformer<Stream<T>, Stream<T>> {
-  return function (stream: Stream<T>): Stream<T> {
-    const queue: T[] = [];
+export function microbatch<VALUE>(): Stream.Transformer<Stream<VALUE>> {
+  return function (source) {
+    const queue: VALUE[] = [];
 
-    const output = new Stream<T>();
+    const output = source.pipe(derive());
 
     // HOT phase: Listen immediately to capture early pushes
-    let abort = stream.listen((value) => {
+    let controller = source.listen((value) => {
       queue.push(value);
     });
 
     // Abort HOT listener after first microtask
     queueMicrotask(() => {
-      abort();
+      controller.abort();
       if (queue.length) {
-        output.push(...(queue as [T, ...T[]]));
+        output.push(...(queue as [VALUE, ...VALUE[]]));
         queue.length = 0;
       }
     });
 
-    // COLD phase: Direct passthrough after HOT phase
-    return new Stream<T>(async function* () {
-      const abort = stream.listen((value) => output.push(value));
-      try {
-        for await (const value of output) {
-          yield value;
-        }
-      } finally {
-        abort();
-      }
-    });
+    return output;
   };
 }

@@ -1,4 +1,5 @@
-import { map } from "../map";
+import { Stream } from "../../stream";
+import { map } from "../sequential";
 
 /**
  * Extract object property
@@ -8,4 +9,11 @@ import { map } from "../map";
  * stream.pipe(pluck("name"))
  * ```
  */
-export const pluck = <T, K extends keyof T>(key: K) => map<T, {}, T[K]>({}, (_, value) => [value[key], {}]);
+
+export function pluck<VALUE extends object, KEY extends keyof VALUE>(
+  key: KEY,
+): Stream.Transformer<Stream<VALUE>, Stream<VALUE[KEY]>> {
+  return function (stream) {
+    return stream.pipe(map((value) => value[key]));
+  };
+}

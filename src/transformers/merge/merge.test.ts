@@ -58,7 +58,7 @@ describe("merge transformer", () => {
       const stream1 = new Stream<number>();
       const stream2 = new Stream<number>();
       const stream3 = new Stream<number>();
-      const merged = stream1.pipe(merge(stream2, stream3));
+      const merged = stream1.pipe(merge(stream2)).pipe(merge(stream3));
 
       const results: number[] = [];
       merged.listen((value) => results.push(value));
@@ -77,7 +77,7 @@ describe("merge transformer", () => {
       const numberStream = new Stream<number>();
       const stringStream = new Stream<string>();
       const booleanStream = new Stream<boolean>();
-      const merged = numberStream.pipe(merge(stringStream, booleanStream));
+      const merged = numberStream.pipe(merge(stringStream)).pipe(merge(booleanStream));
 
       const results: (number | string | boolean)[] = [];
       merged.listen((value) => results.push(value));
@@ -140,7 +140,7 @@ describe("merge transformer", () => {
       const merged = stream1.pipe(merge(stream2));
 
       let listenerCount = 0;
-      const cleanup = merged.listen(() => listenerCount++);
+      const controller = merged.listen(() => listenerCount++);
 
       stream1.push(1);
       stream2.push(2);
@@ -149,7 +149,7 @@ describe("merge transformer", () => {
       expect(listenerCount).toBe(2);
 
       // Cleanup
-      cleanup();
+      controller.abort();
 
       stream1.push(3);
       stream2.push(4);

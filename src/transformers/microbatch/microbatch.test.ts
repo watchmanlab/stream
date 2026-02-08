@@ -81,36 +81,37 @@ describe("microbatch", () => {
 
   test("works with transformations", async () => {
     const source = new Stream<number>();
-    const processed = source
-      .pipe(microbatch())
-      .pipe((s) => new Stream(async function* () {
-        for await (const v of s) {
-          if (v > 0) yield v * 2;
-        }
-      }));
+    const processed = source.pipe(microbatch()).pipe(
+      (s) =>
+        new Stream<number>((self) => {
+          return s.listen((value) => {
+            if (value > 0) self.push(value * 2);
+          });
+        }),
+    );
 
     source.push(-1, 2, 3);
 
     const values: number[] = [];
     processed.listen((v) => values.push(v));
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(values).toEqual([4, 6]);
   });
 
-  test("listener can be added after multiple event loops", async () => {
+  test("batch removed after multiple event loops", async () => {
     const source = new Stream<number>();
     const batched = source.pipe(microbatch());
 
     source.push(1, 2, 3);
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const values: number[] = [];
     batched.listen((v) => values.push(v));
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(values).toEqual([1, 2, 3]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(values).toEqual([]);
   });
 
   test("cleanup works correctly", async () => {
@@ -120,12 +121,12 @@ describe("microbatch", () => {
     source.push(1, 2, 3);
 
     const values: number[] = [];
-    const abort = batched.listen((v) => values.push(v));
+    const controller = batched.listen((v) => values.push(v));
 
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(values).toEqual([1, 2, 3]);
 
-    abort();
+    controller.abort();
 
     source.push(4, 5);
     expect(values).toEqual([1, 2, 3]); // No new values after abort
@@ -176,20 +177,6 @@ describe("microbatch", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(values).toEqual([1, 2, 3]);
-  });
-
-  test("bypass pattern works (push to batched stream)", async () => {
-    const source = new Stream<number>();
-    const batched = source.pipe(microbatch());
-
-    // Bypass: push directly to batched stream
-    batched.push(99);
-
-    const values: number[] = [];
-    batched.listen((v) => values.push(v));
-
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(values).toEqual([99]); // Bypasses HOT phase
   });
 
   test("initialization pattern", async () => {

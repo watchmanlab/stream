@@ -1,4 +1,5 @@
 import { statefull } from "../statefull";
+import { Stream } from "../../stream";
 
 /**
  * Emit array of last N values (sliding window)
@@ -12,8 +13,18 @@ import { statefull } from "../statefull";
  * // 4 → [2, 3, 4]
  * ```
  */
-export const history = <T>(size: number) =>
-  statefull<T, { window: T[] }, T[]>({ window: [] }, (state, value) => {
-    const newWindow = [...state.window, value].slice(-size);
-    return [newWindow, { window: newWindow }];
-  });
+
+export function history<VALUE>(size: number): Stream.Transformer<Stream<VALUE>, Stream<VALUE[]>> {
+  return function (source) {
+    return new Stream((self) => {
+      let window: VALUE[] = [];
+
+      return source
+        .listen((value) => {
+          window = [...window, value].slice(-size);
+          self.push(window);
+        })
+        .addCleanup(() => (window.length = 0));
+    });
+  };
+}
