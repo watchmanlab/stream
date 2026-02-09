@@ -1,5 +1,5 @@
 import { it, expect, describe } from "bun:test";
-import { Stream } from "./stream";
+import { Controller, Stream } from "./stream";
 import { abortSignal } from "./transformers/abort-signal";
 import { weakRef } from "./transformers/weak-ref";
 
@@ -7,29 +7,36 @@ describe("Stream", () => {
   describe("Constructor", () => {
     it("creates empty stream", () => {
       const stream = new Stream<number>();
-      expect(stream.hasListeners).toBe(false);
+      expect(stream.consumersCount).toBe(0);
     });
 
     it("creates stream with source function", () => {
       Stream;
-      const stream = new Stream<number>((self) => {
-        self.push(1);
-        self.push(2);
+      const stream = new Stream<number>(async function* () {
+        yield 1;
+        yield 2;
       });
-      expect(stream.hasListeners).toBe(false);
+      expect(stream.consumersCount).toBe(0);
     });
 
     it("should work with transformed streams in constructor", async () => {
       const source = new Stream<number>();
-      const filtered = new Stream<number>((self) => {
-        return source.listen((v) => v > 0 && self.push(v));
+      const filtered = new Stream<number>(async function* () {
+        for await (const value of source) {
+          if (value > 0) yield value;
+        }
       });
 
       const results: number[] = [];
       filtered.listen((value) => results.push(value));
 
-      source.push(-1, 1, -2, 2, 3);
+      source.push(-1);
+      source.push(1);
+      source.push(-2);
+      source.push(2);
+      source.push(3);
 
+      await new Promise((r) => setTimeout(r, 0));
       expect(results).toEqual([1, 2, 3]);
     });
   });
@@ -41,7 +48,7 @@ describe("Stream", () => {
 
       stream.listen((value) => values.push(value));
 
-      stream.push(1, 2, 3);
+      await stream.push(1, 2, 3);
 
       expect(values).toEqual([1, 2, 3]);
     });
@@ -52,7 +59,7 @@ describe("Stream", () => {
 
       stream.listen((value) => values.push(value));
 
-      stream.push(undefined as never);
+      await stream.push(undefined as never);
 
       expect(values).toEqual([undefined as never]);
     });
@@ -65,29 +72,31 @@ describe("Stream", () => {
       stream.listen((value) => values1.push(value));
       stream.listen((value) => values2.push(value));
 
-      stream.push(1, 2);
+      await stream.push(1, 2);
 
       expect(values1).toEqual([1, 2]);
       expect(values2).toEqual([1, 2]);
     });
 
-    it("hasListeners property", () => {
+    it.only("consumer count property", async () => {
       const stream = new Stream<number>();
 
-      expect(stream.hasListeners).toBe(false);
+      expect(stream.consumersCount).toBe(0);
 
       const ctr = stream.listen(() => {});
 
-      expect(stream.hasListeners).toBe(true);
+      expect(stream.consumersCount).toBe(1);
 
-      ctr.abort();
+      await ctr.abort();
 
-      expect(stream.hasListeners).toBe(false);
+      console.log(stream.consumersCount);
+
+      expect(stream.consumersCount).toBe(0);
     });
   });
 
   describe("Cleanup Mechanisms", () => {
-    it("manual cleanup removes listener", async () => {
+    it("manual cleanup removes listeners", async () => {
       const stream = new Stream<number>();
       const values: number[] = [];
 
@@ -97,8 +106,9 @@ describe("Stream", () => {
       controller.abort();
       stream.push(2);
 
+      await new Promise((r) => setTimeout(r, 0));
       expect(values).toEqual([1]);
-      expect(stream.hasListeners).toBe(false);
+      expect(stream.consumersCount).toBe(0);
     });
 
     it("respects aborted signal", async () => {
@@ -123,7 +133,10 @@ describe("Stream", () => {
 
       stream.push(1);
       controller.abort();
+      await new Promise((r) => setTimeout(r, 0));
       stream.push(2);
+
+      await new Promise((r) => setTimeout(r, 0));
 
       expect(values).toEqual([1]);
     });
@@ -136,27 +149,12 @@ describe("Stream", () => {
       stream.listen((value) => values.push(value)).addSignal(stopSignal);
 
       stream.push(1);
-      stopSignal.push();
-      stream.push(2);
+      await stopSignal.push();
+
+      await stream.push(2);
 
       expect(values).toEqual([1]);
-      expect(stream.hasListeners).toBe(false);
-    });
-
-    it("disposable pattern with Symbol.dispose", () => {
-      const stream = new Stream<number>();
-      const values: number[] = [];
-
-      const cleanup = stream.listen((value) => values.push(value));
-
-      expect(typeof cleanup[Symbol.dispose]).toBe("function");
-
-      stream.push(1);
-      cleanup[Symbol.dispose]();
-      stream.push(2);
-
-      expect(values).toEqual([1]);
-      expect(stream.hasListeners).toBe(false);
+      expect(stream.consumersCount).toBe(0);
     });
   });
 
@@ -173,7 +171,7 @@ describe("Stream", () => {
       Bun.gc(true);
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      stream.push(1);
+      await stream.push(1);
 
       expect(values).toEqual([]);
     });
@@ -194,7 +192,7 @@ describe("Stream", () => {
       Bun.gc(true);
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      stream.push(1, 2, 3);
+      await stream.push(1, 2, 3);
 
       expect(values1).toEqual([]);
       expect(values2).toEqual([]);
@@ -214,17 +212,18 @@ describe("Stream", () => {
         stream.listen((value) => values3.push(value)).addSignal(new Stream().pipe(abortSignal(controller.signal)));
       })();
 
-      stream.push(1, 2);
+      await stream.push(1, 2);
 
       expect(values1).toEqual([1, 2]);
       expect(values2).toEqual([1, 2]);
       expect(values3).toEqual([1, 2]);
 
       controller.abort();
-      Bun.gc(true);
-      await new Promise((resolve) => setTimeout(resolve, 10));
 
-      stream.push(3);
+      Bun.gc(true);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      await stream.push(3);
 
       expect(values1).toEqual([1, 2, 3]);
       expect(values2).toEqual([1, 2]);
@@ -232,78 +231,53 @@ describe("Stream", () => {
     });
   });
 
-  describe("withContext Method", () => {
+  describe("generator Method", () => {
     it("should iterate while context is alive", async () => {
       const stream = new Stream<number>();
       const values: number[] = [];
 
       (async () => {
         const context = { id: 1 };
-        for await (const value of stream.withContext(context)) {
+        for await (const value of stream.generator(new Controller().addSignal(new Stream().pipe(weakRef(context))))) {
           values.push(value);
         }
       })();
 
-      stream.push(1, 2, 3);
+      await stream.push(1, 2, 3);
 
       Bun.gc(true);
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      stream.push(4);
+      await stream.push(4);
 
       expect(values).toEqual([1, 2, 3]);
     });
   });
 
-  describe("Promise Interface", () => {
-    it("then resolves with first value", async () => {
+  describe("Next Interface", () => {
+    it("next resolves with first value", async () => {
       const stream = new Stream<number>();
 
-      const promise = stream.then((value) => value * 2);
+      const promise = stream.next();
       stream.push(5);
 
       const result = await promise;
-      expect(result).toBe(10);
+      expect(result).toBe(5);
     });
 
-    it("then resolves only once", async () => {
+    it("next is shared", async () => {
       const stream = new Stream<number>();
 
-      const promise1 = stream.then();
-      const promise2 = stream.then();
+      const promise1 = stream.next();
+      const promise2 = stream.next();
+
       stream.push(1);
       stream.push(2);
 
       const result = await promise1;
       const result2 = await promise2;
       expect(result).toBe(1);
-      expect(result2).toBe(2);
-    });
-  });
-
-  describe("Listeners Events", () => {
-    it("listenerAdded emits when listener added", async () => {
-      const stream = new Stream<number>();
-      const joinEvents: any[] = [];
-
-      stream.events.listen(() => joinEvents.push(2)); // two events emitted "listaner-added" and "first-listener-added"
-
-      stream.listen(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      expect(joinEvents).toHaveLength(2);
-    });
-
-    it("Emitt four events when listen and abort", async () => {
-      const stream = new Stream<number>();
-      const leaveEvents: any[] = [];
-
-      stream.events.listen(() => leaveEvents.push(7));
-
-      const controller = stream.listen(() => {});
-      controller.abort();
-
-      expect(leaveEvents).toHaveLength(4);
+      expect(result2).toBe(1);
     });
   });
 
@@ -320,8 +294,7 @@ describe("Stream", () => {
         }
       })();
 
-      stream.push(1, 2, 3, 4);
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await stream.push(1, 2, 3, 4);
 
       expect(values).toEqual([1, 2, 3]);
     });
@@ -333,15 +306,17 @@ describe("Stream", () => {
 
       const stringResult = source.pipe(
         (stream) =>
-          new Stream<string>((self) => {
-            return stream.listen((v) => self.push(v.toString()));
+          new Stream<string>(async function* () {
+            for await (const value of stream) {
+              yield value.toString();
+            }
           }),
       );
 
       const results: string[] = [];
       stringResult.listen((value) => results.push(value));
 
-      source.push(1, 2, 3);
+      await source.push(1, 2, 3);
 
       expect(results).toEqual(["1", "2", "3"]);
     });

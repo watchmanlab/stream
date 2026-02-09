@@ -1,4 +1,4 @@
-import { Stream } from "../../stream.ts";
+import { Stream } from "../../stream-0.ts";
 
 export const filter: filter.Function = <VALUE, FILTERED extends VALUE = VALUE>(
   predicate: filter.Predicate<VALUE>,

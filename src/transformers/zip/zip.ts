@@ -1,4 +1,4 @@
-import { Stream } from "../../stream.ts";
+import { Stream } from "../../stream-0.ts";
 
 type ZipOutput<VALUE, STREAMS extends [Stream<any>, ...Stream<any>[]]> = [
   VALUE,

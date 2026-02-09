@@ -1,4 +1,4 @@
-import { Stream } from "../../stream.ts";
+import { Stream } from "../../stream-0.ts";
 
 export function buffer<T>(size: number): Stream.Transformer<Stream<T>, Stream<T[]>> {
   return function (source) {

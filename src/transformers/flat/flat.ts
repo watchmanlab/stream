@@ -1,4 +1,4 @@
-import { Stream } from "../../stream.ts";
+import { Stream } from "../../stream-0.ts";
 
 export function flat<VALUE, DEPTH extends number = 0>(
   depth: DEPTH = 0 as DEPTH,

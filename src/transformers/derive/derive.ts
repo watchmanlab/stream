@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 export function derive<VALUE>(): Stream.Transformer<Stream<VALUE>> {
   return function (source) {

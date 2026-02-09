@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 export function queue<VALUE>(options?: queue.Options<VALUE>): Stream.Transformer<Stream<VALUE>, Stream<VALUE>> {
   const { size = 1000, dropStrategy = "oldest" } = options ?? {};

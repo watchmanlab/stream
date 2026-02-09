@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 /**
  * Emit error if no value received within time period

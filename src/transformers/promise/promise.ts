@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 /**
  * Emits the result of a promise (fulfilled or rejected).

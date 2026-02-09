@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 export function sequential<VALUE, MAPPED>(
   mapper: sequential.Mapper<VALUE, MAPPED>,

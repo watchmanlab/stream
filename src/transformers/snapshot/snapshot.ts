@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 export function snapshot<NAME extends string>(
   name: NAME,

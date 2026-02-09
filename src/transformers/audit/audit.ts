@@ -10,20 +10,23 @@ import { Stream } from "../../stream";
  */
 
 export function audit<T>(ms: number): Stream.Transformer<Stream<T>> {
-  return (source) =>
-    new Stream<T>((self) => {
+  return function (source) {
+    return new Stream<T>(async function* () {
       let timer: any = null;
       let canEmit = true;
 
-      return source
-        .listen((value) => {
+      try {
+        for await (const value of source) {
           if (canEmit) {
-            self.push(value);
             canEmit = false;
             clearTimeout(timer);
             timer = setTimeout(() => (canEmit = true), ms!);
+            yield value;
           }
-        })
-        .addCleanup(() => clearTimeout(timer));
+        }
+      } finally {
+        clearTimeout(timer);
+      }
     });
+  };
 }

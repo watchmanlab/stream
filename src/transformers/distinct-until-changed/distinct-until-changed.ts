@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 import { filter } from "../filter";
 import { sequential } from "../sequential/sequential";
 import { statefull } from "../statefull";

@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 /**
  * Map to inner stream, cancel previous when new value arrives

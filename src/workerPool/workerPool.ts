@@ -3,7 +3,7 @@
  * Reuses workers across multiple streams
  */
 
-import { Stream } from "../stream.ts";
+import { Stream } from "../stream-0.ts";
 
 type Task<T, U> = {
   id: string;

@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 /**
  * Adds flow control to a stream with `.gate.open()` and `.gate.close()` methods.

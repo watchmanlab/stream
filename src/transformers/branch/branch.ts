@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 export function branch<VALUE>(target: Stream<VALUE>): Stream.Transformer<Stream<VALUE>> {
   return function (source) {

@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 /**
  * Forwards all values to a target stream while passing them through.

@@ -1,4 +1,5 @@
-import { Stream } from "../../stream";
+import { Stream, Controller } from "../../stream";
+import { merge } from "../merge";
 
 /**
  * Emits ABORTED when object is garbage collected.
@@ -19,31 +20,41 @@ import { Stream } from "../../stream";
  *   });
  * ```
  */
-export function weakRef<VALUE>(
-  object: object,
-): Stream.Transformer<Stream<VALUE>, Stream<VALUE | Stream.Controller.Aborted>> {
+export function weakRef<VALUE>(object: object): Stream.Transformer<Stream<VALUE>, Stream<Controller.Aborted>> {
   const ref = new WeakRef(object);
   const unregisterToken = {};
   return function (source) {
-    return new Stream<VALUE | Stream.Controller.Aborted>((self) => {
-      if (!ref.deref()) {
-        self.push(Stream.Controller.ABORTED);
-        return;
+    return new Stream(async function* () {
+      for await (const _ of source) {
+        yield Controller.ABORTED;
       }
+    }).pipe(
+      merge(
+        new Stream(async function* () {
+          let registry: FinalizationRegistry<unknown> | undefined;
+          try {
+            if (!ref.deref()) {
+              yield Controller.ABORTED;
+              return;
+            }
 
-      const registry = new FinalizationRegistry(() => {
-        self.push(Stream.Controller.ABORTED);
-      });
+            yield new Promise<Controller.Aborted>((resolve) => {
+              registry = new FinalizationRegistry(() => {
+                resolve(Controller.ABORTED);
+              });
 
-      const target = ref.deref();
-      if (!target) {
-        self.push(Stream.Controller.ABORTED);
-        return;
-      }
-
-      registry.register(target, undefined, unregisterToken);
-
-      return source.listen((v) => self.push(v)).addCleanup(() => registry.unregister(unregisterToken));
-    });
+              const obj = ref.deref();
+              if (obj) {
+                registry.register(obj, undefined, unregisterToken);
+              } else {
+                resolve(Controller.ABORTED);
+              }
+            });
+          } finally {
+            registry?.unregister(unregisterToken);
+          }
+        }),
+      ),
+    );
   };
 }

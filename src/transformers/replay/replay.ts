@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 import { cache, type CacheOptions } from "../cache/cache";
 
 /**

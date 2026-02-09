@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 import { WorkerPool } from "../../workerPool/workerPool";
 import { statefull } from "../statefull/statefull";
 

@@ -1,5 +1,5 @@
 import { statefull } from "../statefull";
-import { Stream } from "../../stream";
+import { Stream } from "../../stream-0";
 
 /**
  * Emit array of last N values (sliding window)
