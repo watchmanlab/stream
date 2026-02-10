@@ -3,15 +3,13 @@ export class Stream<VALUE> implements AsyncIterable<VALUE> {
 
   constructor(protected source?: Stream.Source<VALUE>) {}
 
-  get consumersCount() {
-    return this.consumers.size;
-  }
-
   async push(value: VALUE, ...values: VALUE[]) {
     for (const [queue, resolver] of this.consumers) {
       queue.push(value, ...values);
       resolver();
     }
+
+    //TODO: return a stream that track the broadcast or finished jobs
     await new Promise((r) => setTimeout(r));
   }
   protected getGenerator(): AsyncGenerator<VALUE, void, any> | undefined {
@@ -114,7 +112,7 @@ export class Stream<VALUE> implements AsyncIterable<VALUE> {
   static create<VALUE, CAP extends Record<string, any>>(
     source: Stream.Source<VALUE>,
     getCapabilities: () => CAP,
-  ): Stream.CapableStream<VALUE, CAP> {
+  ): Stream.Capable<VALUE, CAP> {
     const output = new Stream<VALUE>(source) as Stream<VALUE> & CAP;
 
     const capabilities = getCapabilities();
@@ -135,38 +133,9 @@ export namespace Stream {
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
   export type Source<VALUE> = GeneratorFunction<VALUE> | AsyncIterable<VALUE> | Iterable<VALUE>;
   export type Transformer<INPUT extends Stream<any>, OUTPUT extends Stream<any> = INPUT> = (stream: INPUT) => OUTPUT;
-  export type CapableStream<VALUE, CAP extends Record<string, any>> = Stream<VALUE> & CAP;
+  export type Capable<VALUE, CAP extends Record<string, any>> = Stream<VALUE> & CAP;
 }
 
-export function controller(): Stream.Transformer<
-  Stream<any>,
-  Stream.CapableStream<controller.Aborted, controller.ControllerCapability>
-> {
-  return function (source) {
-    let aborted = false;
-    return Stream.create<controller.Aborted, controller.ControllerCapability>(
-      async function* () {
-        await source.next();
-        yield controller.ABORTED;
-      },
-      () => {
-        return {
-          controller: {
-            get aborted() {
-              return aborted;
-            },
-          },
-        };
-      },
-    );
-  };
-}
-export namespace controller {
-  export const ABORTED = Symbol("aborted");
-  export type Aborted = typeof ABORTED;
-  export type Controller = { readonly aborted: boolean };
-  export type ControllerCapability = { readonly controller: Controller };
-}
 export class Controller extends Stream<void> {
   protected _aborted = false;
   protected _signals: Set<Stream<any>> | undefined;
