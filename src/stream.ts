@@ -143,14 +143,20 @@ export function controller(): Stream.Transformer<
   Stream.CapableStream<controller.Aborted, controller.ControllerCapability>
 > {
   return function (source) {
+    let aborted = false;
     return Stream.create<controller.Aborted, controller.ControllerCapability>(
       async function* () {
-        for await (const _ of source) {
-          yield controller.ABORTED;
-        }
+        await source.next();
+        yield controller.ABORTED;
       },
       () => {
-        return { controller: { aborted: true } };
+        return {
+          controller: {
+            get aborted() {
+              return aborted;
+            },
+          },
+        };
       },
     );
   };
@@ -158,8 +164,8 @@ export function controller(): Stream.Transformer<
 export namespace controller {
   export const ABORTED = Symbol("aborted");
   export type Aborted = typeof ABORTED;
-  export type Controller = { aborted: boolean };
-  export type ControllerCapability = { controller: Controller };
+  export type Controller = { readonly aborted: boolean };
+  export type ControllerCapability = { readonly controller: Controller };
 }
 export class Controller extends Stream<void> {
   protected _aborted = false;
