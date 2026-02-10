@@ -17,6 +17,6 @@ export function consume<VALUE>(
         callback(value, signal);
       }
     })();
-    return source;
+    return new Stream(source);
   };
 }

@@ -87,40 +87,50 @@ export class Stream<VALUE> implements AsyncIterable<VALUE> {
     })();
     return controller;
   }
-  pipe<OUTPUT extends Stream<any>>(
+  pipe<OUTPUT extends Stream<any>, NAME extends string>(
     transformer: Stream.Transformer<this, OUTPUT>,
-  ): Stream<Stream.ValueOf<OUTPUT>> & Prettify<Omit<this & OUTPUT, keyof Stream<any>>> {
-    const output = transformer(this);
+    name?: NAME,
+  ): OUTPUT & Prettify<{ [K in NAME]: this }> {
+    const transformed = transformer(this) as any;
+    const newName = name ?? transformer.name;
 
-    for (const key in output) {
-      if (baseProps.has(key)) continue;
-      if (output.hasOwnProperty(key) && this.hasOwnProperty(key)) {
-        throw new Error(
-          `Capability override detected: "${key}" already exists. ` +
-            `Use snapshot() to preserve multiple instances of the same capability transformer.`,
-        );
-      }
-    }
-    for (const key in this) {
-      if (!(key in output)) {
-        Object.defineProperty(output, key, Object.getOwnPropertyDescriptor(this, key)!);
-      }
+    const wrapper = new Stream(transformed) as any;
+
+    // Add current stage to wrapper
+    Object.defineProperty(wrapper, newName, {
+      value: transformed,
+      enumerable: true,
+      configurable: false,
+    });
+
+    // Add previous wrapper's property to transformed (for traversal)
+    const prevName = (this as any)[TRANSFORMER_NAME_KEY];
+    if (prevName) {
+      Object.defineProperty(transformed, prevName, {
+        value: (this as any)[prevName],
+        enumerable: true,
+        configurable: false,
+      });
     }
 
-    return output as never;
+    // Store name for next pipe
+    wrapper[TRANSFORMER_NAME_KEY] = newName;
+
+    return wrapper;
   }
   static create<VALUE, CAP extends Record<string, any>>(
     source: Stream.Source<VALUE>,
-    getCapabilities: () => CAP,
+    getCapabilities: (() => CAP) | CAP,
   ): Stream.Capable<VALUE, CAP> {
     const output = new Stream<VALUE>(source) as Stream<VALUE> & CAP;
 
-    const capabilities = getCapabilities();
+    const capabilities = typeof getCapabilities === "function" ? getCapabilities() : getCapabilities;
+
     for (const key of Object.keys(capabilities)) {
       Object.defineProperty(output, key, {
         value: capabilities[key],
         enumerable: true,
-        configurable: false,
+        configurable: true,
       });
     }
 
@@ -204,3 +214,7 @@ export namespace Controller {
 type Prettify<T> = T extends object ? { [K in keyof T]: T[K] } : T;
 
 const baseProps = new Set(Object.keys(new Stream()));
+
+const TRANSFORMER_NAME_KEY = Symbol.for("TRANSFORMER_NAME_KEY");
+
+//Stream<Stream.ValueOf<OUTPUT>> & Prettify<Omit<this & OUTPUT, keyof Stream<any>>>

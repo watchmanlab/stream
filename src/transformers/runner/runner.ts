@@ -1,4 +1,5 @@
 import { Stream } from "../../stream";
+import { filter } from "../filter";
 
 export function runner(options?: runner.Options): Stream.Transformer<Stream<any>, runner.CapableStream> {
   let {
@@ -9,7 +10,7 @@ export function runner(options?: runner.Options): Stream.Transformer<Stream<any>
     stopSignalActivated = true,
   } = options ?? {};
 
-  return function (source) {
+  return function runner(source) {
     let generator: AsyncGenerator | undefined;
     let events: Stream<runner.Event> | undefined;
 
@@ -59,6 +60,7 @@ export function runner(options?: runner.Options): Stream.Transformer<Stream<any>
       generator = source[Symbol.asyncIterator]();
       (async () => {
         for await (const _ of generator) {
+          if (!generator) break;
         }
       })();
 

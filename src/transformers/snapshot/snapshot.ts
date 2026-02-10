@@ -1,9 +1,9 @@
-import { Stream } from "../../stream-0";
+import { Stream } from "../../stream";
 
 export function snapshot<NAME extends string>(
   name: NAME,
 ): <INPUT extends Stream<any>>(source: INPUT) => INPUT & { [K in NAME]: INPUT } {
-  return (source) => {
+  return function snapshot(source) {
     const output = new Stream(source) as any;
 
     Object.defineProperty(output, name, {
@@ -15,3 +15,5 @@ export function snapshot<NAME extends string>(
     return output;
   };
 }
+
+console.log(snapshot("ff").name);
