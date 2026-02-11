@@ -1,9 +1,22 @@
-export class Stream<VALUE> implements AsyncIterable<VALUE> {
+export class Stream<
+  VALUE,
+  NAME extends string = "root",
+  CAPABILITIES extends Record<string, any> = {},
+  PARENT extends Stream<any, any, any, any> | undefined = undefined,
+> implements AsyncIterable<VALUE> {
   protected consumers = new Map<VALUE[], () => void>();
 
   constructor();
   constructor(source: Stream.Source<VALUE>);
-  constructor(protected source?: Stream.Source<VALUE>) {}
+  constructor(source: Stream.Source<VALUE>, name: NAME);
+  constructor(source: Stream.Source<VALUE>, name: NAME, capabilities: CAPABILITIES);
+  constructor(source: Stream.Source<VALUE>, name: NAME, capabilities: CAPABILITIES, parent: PARENT);
+  constructor(
+    protected source?: Stream.Source<VALUE>,
+    public readonly name?: NAME,
+    public readonly capabilities?: CAPABILITIES,
+    public readonly parent?: PARENT,
+  ) {}
 
   async push(value: VALUE, ...values: VALUE[]) {
     for (const [queue, resolver] of this.consumers) {
@@ -89,31 +102,8 @@ export class Stream<VALUE> implements AsyncIterable<VALUE> {
     })();
     return controller;
   }
-  pipe<OUTPUT extends Stream<any>>(transformer: Stream.Transformer<this, OUTPUT>): OUTPUT {
+  pipe<OUTPUT extends Stream<any, any, any, any>>(transformer: Stream.Transformer<this, OUTPUT>): OUTPUT {
     return transformer(this);
-  }
-
-  static createTransformer<
-    SOURCE_NAME extends string,
-    SOURCE extends Stream<any> & { name?: SOURCE_NAME },
-    OUTPUT_VALUE,
-    OUTPUT_NAME extends string,
-    CAP extends Record<string, any>,
-  >(
-    name: OUTPUT_NAME,
-    fn: (source: SOURCE) => AsyncGenerator<OUTPUT_VALUE>,
-    getCapabilities?: (() => CAP) | CAP,
-  ): Stream.Transformer<SOURCE & { name?: SOURCE_NAME }, Stream<OUTPUT_VALUE> & { name?: OUTPUT_NAME } & CAP> {
-    const capabilities = typeof getCapabilities === "function" ? getCapabilities() : getCapabilities;
-
-    return (source) => {
-      const out = new Stream(fn(source)) as any;
-      Object.defineProperties(out, Object.getOwnPropertyDescriptors(capabilities));
-      out.name = name;
-
-      out[source.name ?? "root"] = source;
-      return out;
-    };
   }
 
   static create<VALUE, CAP extends Record<string, any>>(
@@ -132,13 +122,16 @@ export class Stream<VALUE> implements AsyncIterable<VALUE> {
 
 export namespace Stream {
   export type ValueOf<STREAM> = STREAM extends Stream<infer VALUE> ? VALUE : never;
+  export type NameOf<STREAM> = STREAM extends Stream<any, infer NAME> ? NAME : never;
+  export type CapabilitiesOf<STREAM> = STREAM extends Stream<any, any, infer CAPABILITIES> ? CAPABILITIES : never;
+  export type ParentOf<STREAM> = STREAM extends Stream<any, any, any, infer PARENT> ? PARENT : never;
 
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
   export type Source<VALUE> = GeneratorFunction<VALUE> | AsyncIterable<VALUE> | Iterable<VALUE>;
-  export type Transformer<INPUT extends Stream<any>, OUTPUT extends Stream<any> = INPUT> = (stream: INPUT) => OUTPUT;
-}
-export abstract class NamedStream<VALUE, NAME extends string> extends Stream<VALUE> {
-  abstract readonly name: NAME;
+  export type Transformer<
+    INPUT extends Stream<any, any, any, any>,
+    OUTPUT extends Stream<any, any, any, INPUT> = INPUT,
+  > = (stream: INPUT) => OUTPUT;
 }
 export class Controller extends Stream<void> {
   protected _aborted = false;

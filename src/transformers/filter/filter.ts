@@ -1,44 +1,49 @@
 import { Stream } from "../../stream";
-import { snapshot } from "../snapshot";
 
-export function filter<SOURCE extends Stream<any>, FILTERED extends Stream.ValueOf<SOURCE> = Stream.ValueOf<SOURCE>>(
-  predicate: filter.GardPredicate<SOURCE, FILTERED>,
-): Stream.Transformer<SOURCE, Filter<SOURCE, FILTERED>>;
-export function filter<SOURCE extends Stream<any>>(
-  predicate: filter.Predicate<SOURCE>,
-): Stream.Transformer<SOURCE, Filter<SOURCE, Stream.ValueOf<SOURCE>>>;
+// export function filter<VALUE, FILTERED extends VALUE = VALUE>(
+//   predicate: filter.GardPredicate<VALUE, FILTERED>,
+// ): Stream.Transformer<Stream<VALUE>, filter.Filter<FILTERED>>;
 
-export function filter<SOURCE extends Stream<any>>(
-  predicate: filter.Predicate<Stream.ValueOf<SOURCE>>,
-): Stream.Transformer<SOURCE, Filter<SOURCE, Stream.ValueOf<SOURCE>>> {
+// export function filter<VALUE>(
+//   predicate: filter.Predicate<VALUE>,
+// ): Stream.Transformer<Stream<VALUE>, filter.Filter<VALUE>>;
+
+// export function filter<VALUE, FILTERED extends VALUE = VALUE>(
+//   predicate: filter.Predicate<VALUE>,
+// ): Stream.Transformer<Stream<VALUE>, filter.Filter<FILTERED>> {
+//   return (source) => {
+//     return new Stream<FILTERED>(async function* () {
+//       for await (const value of source) {
+//         if (await predicate(value)) yield value as FILTERED;
+//       }
+//     });
+//   };
+// }
+export function filter<INPUT extends Stream<any, any, any, any>, FILTERED extends Stream.ValueOf<INPUT>>(
+  predicate: filter.Predicate<Stream.ValueOf<INPUT>>,
+): Stream.Transformer<INPUT, Stream<FILTERED, "filter", {}, INPUT>> {
   return (source) =>
-    new Filter(source, async function* () {
-      for await (const value of source) {
-        if (await predicate(value)) yield value;
-      }
-    });
-}
-class Filter<SOURCE extends Stream<any>, VALUE> extends Stream<VALUE> {
-  constructor(
-    public readonly source: SOURCE,
-    fn: Stream.GeneratorFunction<VALUE>,
-  ) {
-    super(fn);
-  }
-  get name(): "filter" {
-    return "filter";
-  }
+    new Stream(
+      async function* () {
+        for await (const value of source) {
+          if (await predicate(value)) yield value as FILTERED;
+        }
+      },
+      "filter",
+      {},
+      source,
+    );
 }
 
 export namespace filter {
-  export type GardPredicate<
-    SOURCE extends Stream<any>,
-    FILTERED extends Stream.ValueOf<SOURCE> = Stream.ValueOf<SOURCE>,
-  > = (value: Stream.ValueOf<SOURCE>) => value is FILTERED;
-  export type Predicate<SOURCE extends Stream<any>> = (value: Stream.ValueOf<SOURCE>) => boolean | Promise<boolean>;
+  export type Filter<VALUE> = Stream<VALUE>;
+  export type GardPredicate<VALUE, FILTERED extends VALUE = VALUE> = (value: VALUE) => value is FILTERED;
+  export type Predicate<VALUE> = (value: VALUE) => boolean | Promise<boolean>;
 }
 
 const stream = new Stream<number>().pipe(filter((x) => x > 0)).pipe(filter((x) => x > 0));
 // .pipe(snapshot("f2"));
+
+stream.parent?.parent?.parent;
 
 stream.listen((v) => console.log(v));
