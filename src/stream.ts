@@ -1,6 +1,8 @@
 export class Stream<VALUE> implements AsyncIterable<VALUE> {
   protected consumers = new Map<VALUE[], () => void>();
 
+  constructor();
+  constructor(source: Stream.Source<VALUE>);
   constructor(protected source?: Stream.Source<VALUE>) {}
 
   async push(value: VALUE, ...values: VALUE[]) {
@@ -87,10 +89,10 @@ export class Stream<VALUE> implements AsyncIterable<VALUE> {
     })();
     return controller;
   }
-  pipe<OUTPUT extends Stream<any>, NAME extends string>(
-    transformer: Stream.Transformer<this, OUTPUT>,
+  pipe<NAME extends string, OUTPUT extends Stream<any>, CAP extends Record<string, any>>(
+    transformer: Stream.Transformer<NAME, this, OUTPUT, CAP>,
     name?: NAME,
-  ): OUTPUT & Prettify<{ [K in NAME]: this }> {
+  ): OUTPUT & { [K in NAME]: this } {
     const transformed = transformer(this) as any;
     const newName = name ?? transformer.name;
 
@@ -105,34 +107,47 @@ export class Stream<VALUE> implements AsyncIterable<VALUE> {
 
     // Add previous wrapper's property to transformed (for traversal)
     const prevName = (this as any)[TRANSFORMER_NAME_KEY];
-    if (prevName) {
-      Object.defineProperty(transformed, prevName, {
-        value: (this as any)[prevName],
-        enumerable: true,
-        configurable: false,
-      });
-    }
+
+    Object.defineProperty(transformed, prevName, {
+      value: (this as any)[prevName],
+      enumerable: true,
+      configurable: false,
+    });
 
     // Store name for next pipe
     wrapper[TRANSFORMER_NAME_KEY] = newName;
 
     return wrapper;
   }
+  static createTransformer<
+    NAME extends string,
+    INPUT extends Stream<any>,
+    OUTPUT extends Stream<any>,
+    CAP extends Record<string, any>,
+  >(
+    name: NAME,
+    fn: (input: INPUT) => OUTPUT,
+    getCapabilities?: (() => CAP) | CAP,
+  ): Stream.Transformer<NAME, INPUT, OUTPUT, CAP> {
+    return (source) => {
+      const capabilities = typeof getCapabilities === "function" ? getCapabilities() : getCapabilities;
+
+      const output = fn(source) as OUTPUT & CAP & { name: NAME };
+      output.name = name;
+      Object.defineProperties(output, Object.getOwnPropertyDescriptors(capabilities));
+
+      return output;
+    };
+  }
   static create<VALUE, CAP extends Record<string, any>>(
     source: Stream.Source<VALUE>,
-    getCapabilities: (() => CAP) | CAP,
-  ): Stream.Capable<VALUE, CAP> {
+    getCapabilities?: (() => CAP) | CAP,
+  ): Stream<VALUE> & CAP {
     const output = new Stream<VALUE>(source) as Stream<VALUE> & CAP;
 
     const capabilities = typeof getCapabilities === "function" ? getCapabilities() : getCapabilities;
 
-    for (const key of Object.keys(capabilities)) {
-      Object.defineProperty(output, key, {
-        value: capabilities[key],
-        enumerable: true,
-        configurable: true,
-      });
-    }
+    Object.defineProperties(output, Object.getOwnPropertyDescriptors(capabilities));
 
     return output;
   }
@@ -142,8 +157,12 @@ export namespace Stream {
   export type ValueOf<STREAM> = STREAM extends Stream<infer VALUE> ? VALUE : never;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
   export type Source<VALUE> = GeneratorFunction<VALUE> | AsyncIterable<VALUE> | Iterable<VALUE>;
-  export type Transformer<INPUT extends Stream<any>, OUTPUT extends Stream<any> = INPUT> = (stream: INPUT) => OUTPUT;
-  export type Capable<VALUE, CAP extends Record<string, any>> = Stream<VALUE> & CAP;
+  export type Transformer<
+    NAME extends string,
+    INPUT extends Stream<any>,
+    OUTPUT extends Stream<any> = INPUT,
+    CAP extends Record<string, any> = {},
+  > = (stream: INPUT) => OUTPUT & { name: NAME } & CAP;
 }
 
 export class Controller extends Stream<void> {
