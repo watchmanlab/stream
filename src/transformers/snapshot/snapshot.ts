@@ -1,19 +1,13 @@
 import { Stream } from "../../stream";
 
-export function snapshot<NAME extends string>(
+export function snapshot<NAME extends string, INPUT extends Stream<any>>(
   name: NAME,
-): <INPUT extends Stream<any>>(source: INPUT) => INPUT & { [K in NAME]: INPUT } {
-  return function snapshot(source) {
+): Stream.Transformer<INPUT, INPUT & { [K in NAME]: INPUT }> {
+  return function (source) {
     const output = new Stream(source) as any;
 
-    Object.defineProperty(output, name, {
-      value: source,
-      enumerable: true,
-      configurable: false,
-    });
+    output[name] = source;
 
     return output;
   };
 }
-
-console.log(snapshot("ff").name);

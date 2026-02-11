@@ -89,56 +89,33 @@ export class Stream<VALUE> implements AsyncIterable<VALUE> {
     })();
     return controller;
   }
-  pipe<NAME extends string, OUTPUT extends Stream<any>, CAP extends Record<string, any>>(
-    transformer: Stream.Transformer<NAME, this, OUTPUT, CAP>,
-    name?: NAME,
-  ): OUTPUT & { [K in NAME]: this } {
-    const transformed = transformer(this) as any;
-    const newName = name ?? transformer.name;
-
-    const wrapper = new Stream(transformed) as any;
-
-    // Add current stage to wrapper
-    Object.defineProperty(wrapper, newName, {
-      value: transformed,
-      enumerable: true,
-      configurable: false,
-    });
-
-    // Add previous wrapper's property to transformed (for traversal)
-    const prevName = (this as any)[TRANSFORMER_NAME_KEY];
-
-    Object.defineProperty(transformed, prevName, {
-      value: (this as any)[prevName],
-      enumerable: true,
-      configurable: false,
-    });
-
-    // Store name for next pipe
-    wrapper[TRANSFORMER_NAME_KEY] = newName;
-
-    return wrapper;
+  pipe<OUTPUT extends Stream<any>>(transformer: Stream.Transformer<this, OUTPUT>): OUTPUT {
+    return transformer(this);
   }
+
   static createTransformer<
-    NAME extends string,
-    INPUT extends Stream<any>,
-    OUTPUT extends Stream<any>,
+    SOURCE_NAME extends string,
+    SOURCE extends Stream<any> & { name?: SOURCE_NAME },
+    OUTPUT_VALUE,
+    OUTPUT_NAME extends string,
     CAP extends Record<string, any>,
   >(
-    name: NAME,
-    fn: (input: INPUT) => OUTPUT,
+    name: OUTPUT_NAME,
+    fn: (source: SOURCE) => AsyncGenerator<OUTPUT_VALUE>,
     getCapabilities?: (() => CAP) | CAP,
-  ): Stream.Transformer<NAME, INPUT, OUTPUT, CAP> {
+  ): Stream.Transformer<SOURCE & { name?: SOURCE_NAME }, Stream<OUTPUT_VALUE> & { name?: OUTPUT_NAME } & CAP> {
+    const capabilities = typeof getCapabilities === "function" ? getCapabilities() : getCapabilities;
+
     return (source) => {
-      const capabilities = typeof getCapabilities === "function" ? getCapabilities() : getCapabilities;
+      const out = new Stream(fn(source)) as any;
+      Object.defineProperties(out, Object.getOwnPropertyDescriptors(capabilities));
+      out.name = name;
 
-      const output = fn(source) as OUTPUT & CAP & { name: NAME };
-      output.name = name;
-      Object.defineProperties(output, Object.getOwnPropertyDescriptors(capabilities));
-
-      return output;
+      out[source.name ?? "root"] = source;
+      return out;
     };
   }
+
   static create<VALUE, CAP extends Record<string, any>>(
     source: Stream.Source<VALUE>,
     getCapabilities?: (() => CAP) | CAP,
@@ -155,16 +132,14 @@ export class Stream<VALUE> implements AsyncIterable<VALUE> {
 
 export namespace Stream {
   export type ValueOf<STREAM> = STREAM extends Stream<infer VALUE> ? VALUE : never;
+
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
   export type Source<VALUE> = GeneratorFunction<VALUE> | AsyncIterable<VALUE> | Iterable<VALUE>;
-  export type Transformer<
-    NAME extends string,
-    INPUT extends Stream<any>,
-    OUTPUT extends Stream<any> = INPUT,
-    CAP extends Record<string, any> = {},
-  > = (stream: INPUT) => OUTPUT & { name: NAME } & CAP;
+  export type Transformer<INPUT extends Stream<any>, OUTPUT extends Stream<any> = INPUT> = (stream: INPUT) => OUTPUT;
 }
-
+export abstract class NamedStream<VALUE, NAME extends string> extends Stream<VALUE> {
+  abstract readonly name: NAME;
+}
 export class Controller extends Stream<void> {
   protected _aborted = false;
   protected _signals: Set<Stream<any>> | undefined;
