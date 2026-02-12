@@ -1,21 +1,13 @@
-export class Stream<
-  VALUE,
-  NAME extends string = "root",
-  CAPABILITIES extends Record<string, any> = {},
-  PARENT extends Stream<any, any, any, any> | undefined = undefined,
-> implements AsyncIterable<VALUE> {
+export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterable<VALUE> {
   protected consumers = new Map<VALUE[], () => void>();
 
   constructor();
   constructor(source: Stream.Source<VALUE>);
   constructor(source: Stream.Source<VALUE>, name: NAME);
-  constructor(source: Stream.Source<VALUE>, name: NAME, capabilities: CAPABILITIES);
-  constructor(source: Stream.Source<VALUE>, name: NAME, capabilities: CAPABILITIES, parent: PARENT);
+
   constructor(
     protected source?: Stream.Source<VALUE>,
-    public readonly name?: NAME,
-    public readonly capabilities?: CAPABILITIES,
-    public readonly parent?: PARENT,
+    public readonly name = "root" as NAME,
   ) {}
 
   async push(value: VALUE, ...values: VALUE[]) {
@@ -102,8 +94,10 @@ export class Stream<
     })();
     return controller;
   }
-  pipe<OUTPUT extends Stream<any, any, any, any>>(transformer: Stream.Transformer<this, OUTPUT>): OUTPUT {
-    return transformer(this);
+  pipe<OUTPUT extends Stream<any, any>>(transformer: Stream.Transformer<this, OUTPUT>): OUTPUT & { [K in NAME]: this } {
+    const output = transformer(this) as any;
+    output[this.name] = this;
+    return output;
   }
 
   static create<VALUE, CAP extends Record<string, any>>(
@@ -121,18 +115,14 @@ export class Stream<
 }
 
 export namespace Stream {
-  export type ValueOf<STREAM> = STREAM extends Stream<infer VALUE> ? VALUE : never;
-  export type NameOf<STREAM> = STREAM extends Stream<any, infer NAME> ? NAME : never;
-  export type CapabilitiesOf<STREAM> = STREAM extends Stream<any, any, infer CAPABILITIES> ? CAPABILITIES : never;
-  export type ParentOf<STREAM> = STREAM extends Stream<any, any, any, infer PARENT> ? PARENT : never;
+  export type ValueOf<T> = T extends Stream<infer VALUE> ? VALUE : never;
+  export type NameOf<T> = T extends Stream<any, infer NAME> ? NAME : never;
 
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
   export type Source<VALUE> = GeneratorFunction<VALUE> | AsyncIterable<VALUE> | Iterable<VALUE>;
-  export type Transformer<
-    INPUT extends Stream<any, any, any, any>,
-    OUTPUT extends Stream<any, any, any, INPUT> = INPUT,
-  > = (stream: INPUT) => OUTPUT;
+  export type Transformer<INPUT extends Stream<any, any>, OUTPUT extends Stream<any, any>> = (stream: INPUT) => OUTPUT;
 }
+
 export class Controller extends Stream<void> {
   protected _aborted = false;
   protected _signals: Set<Stream<any>> | undefined;

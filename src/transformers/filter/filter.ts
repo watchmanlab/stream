@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { OutputStream, Stream } from "../../stream";
 
 // export function filter<VALUE, FILTERED extends VALUE = VALUE>(
 //   predicate: filter.GardPredicate<VALUE, FILTERED>,
@@ -19,20 +19,15 @@ import { Stream } from "../../stream";
 //     });
 //   };
 // }
-export function filter<INPUT extends Stream<any, any, any, any>, FILTERED extends Stream.ValueOf<INPUT>>(
+export function filter<INPUT extends Stream<any>, FILTERED extends Stream.ValueOf<INPUT>>(
   predicate: filter.Predicate<Stream.ValueOf<INPUT>>,
-): Stream.Transformer<INPUT, Stream<FILTERED, "filter", {}, INPUT>> {
+): Stream.Transformer<INPUT, Stream<FILTERED, "filter">> {
   return (source) =>
-    new Stream(
-      async function* () {
-        for await (const value of source) {
-          if (await predicate(value)) yield value as FILTERED;
-        }
-      },
-      "filter",
-      {},
-      source,
-    );
+    new Stream<FILTERED, "filter">(async function* () {
+      for await (const value of source) {
+        if (await predicate(value)) yield value as FILTERED;
+      }
+    });
 }
 
 export namespace filter {
@@ -44,6 +39,6 @@ export namespace filter {
 const stream = new Stream<number>().pipe(filter((x) => x > 0)).pipe(filter((x) => x > 0));
 // .pipe(snapshot("f2"));
 
-stream.parent?.parent?.parent;
-
 stream.listen((v) => console.log(v));
+
+stream.filter.root.
