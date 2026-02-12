@@ -1,4 +1,5 @@
-import { OutputStream, Stream } from "../../stream";
+import { Stream } from "../../stream";
+import { map } from "../map";
 
 // export function filter<VALUE, FILTERED extends VALUE = VALUE>(
 //   predicate: filter.GardPredicate<VALUE, FILTERED>,
@@ -19,26 +20,21 @@ import { OutputStream, Stream } from "../../stream";
 //     });
 //   };
 // }
-export function filter<INPUT extends Stream<any>, FILTERED extends Stream.ValueOf<INPUT>>(
-  predicate: filter.Predicate<Stream.ValueOf<INPUT>>,
-): Stream.Transformer<INPUT, Stream<FILTERED, "filter">> {
-  return (source) =>
-    new Stream<FILTERED, "filter">(async function* () {
+export function filter<VALUE, FILTERED extends VALUE>(predicate: filter.Predicate<VALUE>) {
+  return (source: Stream<VALUE, any>) =>
+    new Stream<FILTERED, "filtered">(async function* () {
       for await (const value of source) {
         if (await predicate(value)) yield value as FILTERED;
       }
-    });
+    }, "filtered");
 }
 
 export namespace filter {
-  export type Filter<VALUE> = Stream<VALUE>;
+  export type Filter = { open(): void };
   export type GardPredicate<VALUE, FILTERED extends VALUE = VALUE> = (value: VALUE) => value is FILTERED;
   export type Predicate<VALUE> = (value: VALUE) => boolean | Promise<boolean>;
 }
 
-const stream = new Stream<number>().pipe(filter((x) => x > 0)).pipe(filter((x) => x > 0));
-// .pipe(snapshot("f2"));
+const stream = new Stream<number, "user">([], "user").pipe(filter((x) => x > 0)).pipe(map((x) => x.toFixed()));
 
 stream.listen((v) => console.log(v));
-
-stream.filter.root.

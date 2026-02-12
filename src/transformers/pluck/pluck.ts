@@ -1,5 +1,5 @@
 import { Stream } from "../../stream-0";
-import { map } from "../sequential";
+import { map } from "../map";
 
 /**
  * Extract object property

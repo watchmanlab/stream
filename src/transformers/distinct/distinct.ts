@@ -1,6 +1,6 @@
 import { Stream } from "../../stream-0";
 import { filter } from "../filter";
-import { sequential, map } from "../sequential";
+import { sequential, map } from "../map";
 import { statefull } from "../statefull";
 
 /**

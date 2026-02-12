@@ -1,6 +1,6 @@
 import { Stream } from "../../stream-0";
 import { WorkerPool } from "../../workerPool/workerPool";
-import { sequential } from "../sequential/sequential";
+import { sequential } from "../map/map";
 
 export function sequentialWorker<VALUE, MAPPED, ARGS extends any[]>(
   mapper: sequentialWorker.Mapper<VALUE, MAPPED, ARGS>,
