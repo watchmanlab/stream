@@ -1,23 +1,14 @@
-export class Stream<
-  VALUE,
-  NAME extends string = "root",
-  CAP extends Record<string, any> = {},
-> implements AsyncIterable<VALUE> {
+export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterable<VALUE> {
   protected consumers = new Map<VALUE[], () => void>();
 
   constructor();
   constructor(source: Stream.Source<VALUE>);
   constructor(source: Stream.Source<VALUE>, name: NAME);
-  constructor(source: Stream.Source<VALUE>, name: NAME, capabilities: (() => CAP) | CAP);
 
   constructor(
     protected source?: Stream.Source<VALUE>,
     public readonly name = "root" as NAME,
-    capabilities?: (() => CAP) | CAP,
-  ) {
-    const cap = typeof capabilities === "function" ? capabilities() : capabilities;
-    if (cap) Object.defineProperties(this, Object.getOwnPropertyDescriptors(cap));
-  }
+  ) {}
 
   async push(value: VALUE, ...values: VALUE[]) {
     for (const [queue, resolver] of this.consumers) {
@@ -36,7 +27,7 @@ export class Stream<
       if (Symbol.asyncIterator in self.source || Symbol.iterator in self.source) {
         yield* self.source;
       } else if (typeof self.source === "function") {
-        yield* self.source();
+        yield* self.source.call(self);
       }
     })();
   }
@@ -103,9 +94,7 @@ export class Stream<
     })();
     return controller;
   }
-  pipe<OUTPUT extends Stream<any, any, any>>(
-    transformer: Stream.Transformer<this, OUTPUT>,
-  ): OUTPUT & { [K in NAME]: this } & Stream.CapabilitiesOf<OUTPUT> {
+  pipe<OUTPUT extends Stream<any, any>>(transformer: Stream.Transformer<this, OUTPUT>): OUTPUT & { [K in NAME]: this } {
     const output = transformer(this) as any;
     output[this.name] = this;
     return output;
@@ -113,15 +102,11 @@ export class Stream<
 }
 
 export namespace Stream {
-  export type ValueOf<T extends Stream<any, any, any>> = T extends Stream<infer VALUE, any, any> ? VALUE : never;
-  export type NameOf<T extends Stream<any, any, any>> = T extends Stream<any, infer NAME, any> ? NAME : never;
-  export type CapabilitiesOf<T extends Stream<any, any, any>> = T extends Stream<any, any, infer CAP> ? CAP : never;
-  export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
+  export type ValueOf<T extends Stream<any, any>> = T extends Stream<infer VALUE, any> ? VALUE : never;
+  export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
+  export type GeneratorFunction<VALUE> = (this: Stream<VALUE, any>) => AsyncGenerator<VALUE> | Generator<VALUE>;
   export type Source<VALUE> = GeneratorFunction<VALUE> | AsyncIterable<VALUE> | Iterable<VALUE>;
-
-  export type Transformer<INPUT extends Stream<any, any, any>, OUTPUT extends Stream<any, any, any>> = (
-    stream: INPUT,
-  ) => OUTPUT;
+  export type Transformer<INPUT extends Stream<any, any>, OUTPUT extends Stream<any, any>> = (stream: INPUT) => OUTPUT;
 }
 
 export class Controller extends Stream<void> {
@@ -188,7 +173,3 @@ export namespace Controller {
   export type Cleanup = (this: Controller) => void | Promise<void>;
   export type Aborted = typeof Controller.ABORTED;
 }
-
-type Prettify<T> = T extends object ? { [K in keyof T]: T[K] } : T;
-
-//Stream<Stream.ValueOf<OUTPUT>> & Prettify<Omit<this & OUTPUT, keyof Stream<any>>>
