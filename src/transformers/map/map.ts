@@ -6,12 +6,14 @@ export class Map<VALUE, MAPPED, NAME extends string = "mapped"> extends Stream<M
     name = "mapped" as NAME,
     private mapper: map.Mapper<VALUE, MAPPED>,
   ) {
-    super(async function* () {
+    super(name, async function* () {
       for await (const value of source) {
         yield await mapper(value);
       }
-    }, name);
+    });
   }
+
+  kechma(f: string) {}
 }
 
 export function map<VALUE, MAPPED, NAME extends string>(

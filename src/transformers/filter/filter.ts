@@ -10,11 +10,11 @@ export class Filter<VALUE, FILTERED extends VALUE = VALUE, NAME extends string =
     name = "filtered" as NAME,
     private predicate: (value: VALUE) => boolean | Promise<boolean>,
   ) {
-    super(async function* () {
+    super(name, async function* () {
       for await (const value of Stream.generator(source)) {
         if (await predicate(value)) yield value as FILTERED;
       }
-    }, name);
+    });
   }
 }
 
@@ -37,14 +37,24 @@ export namespace filter {
   export type Predicate<VALUE> = (value: VALUE) => boolean | Promise<boolean>;
 }
 
-const stream = new Stream<number, "user">([], "user")
+const stream = new Stream<{ type: "added"; name: string } | { type: "deleted"; id: number }, "user">()
   .pipe(
-    filter((x) => x > 0),
     "validated",
+    filter(async (x) => {
+      await new Promise((r) => setTimeout(r, Math.random() * 500));
+      return x.type === "deleted";
+    }),
   )
   .pipe(
-    map((x) => x.toFixed()),
     "toFixed",
+    map(async (x) => {
+      await new Promise((r) => setTimeout(r, Math.random() * 500));
+      return x;
+    }),
   );
 
 stream.listen((v) => console.log(v));
+
+stream.validated.user.push({ type: "added", name: "sofiane" });
+stream.validated.user.push({ type: "deleted", id: 4 });
+stream.kechmaa.first.push({ type: "deleted", id: 4 });
