@@ -19,22 +19,11 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
     //TODO: return a stream that track the broadcast or finished jobs
     await new Promise((r) => setTimeout(r));
   }
-  protected getGenerator(): AsyncGenerator<VALUE, void, any> | undefined {
-    const self = this;
 
-    return (async function* () {
-      if (!self.source) return;
-      if (Symbol.asyncIterator in self.source || Symbol.iterator in self.source) {
-        yield* self.source;
-      } else if (typeof self.source === "function") {
-        yield* self.source.call(self);
-      }
-    })();
-  }
   protected requestingNext = false;
 
   async *[Symbol.asyncIterator]() {
-    const generator = this.getGenerator();
+    const generator = this.source ? Stream.generator(this.source) : undefined;
 
     const queue: VALUE[] = [];
 
@@ -94,19 +83,35 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
     })();
     return controller;
   }
-  pipe<OUTPUT extends Stream<any, any>>(transformer: Stream.Transformer<this, OUTPUT>): OUTPUT & { [K in NAME]: this } {
-    const output = transformer(this) as any;
+  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
+    transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
+    name?: CUSTOM_NAME,
+  ): OUTPUT & { [K in NAME]: this } {
+    const output = transformer(this, name) as any;
     output[this.name] = this;
     return output;
+  }
+  static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, any> {
+    return (async function* () {
+      if (!source) return;
+      if (Symbol.asyncIterator in source || Symbol.iterator in source) {
+        yield* source;
+      } else if (typeof source === "function") {
+        yield* source();
+      }
+    })();
   }
 }
 
 export namespace Stream {
   export type ValueOf<T extends Stream<any, any>> = T extends Stream<infer VALUE, any> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
-  export type GeneratorFunction<VALUE> = (this: Stream<VALUE, any>) => AsyncGenerator<VALUE> | Generator<VALUE>;
+  export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
   export type Source<VALUE> = GeneratorFunction<VALUE> | AsyncIterable<VALUE> | Iterable<VALUE>;
-  export type Transformer<INPUT extends Stream<any, any>, OUTPUT extends Stream<any, any>> = (stream: INPUT) => OUTPUT;
+  export type Transformer<NAME extends string, INPUT extends Stream<any, any>, OUTPUT extends Stream<any, NAME>> = (
+    stream: INPUT,
+    name?: NAME,
+  ) => OUTPUT;
 }
 
 export class Controller extends Stream<void> {
