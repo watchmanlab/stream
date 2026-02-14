@@ -1,6 +1,7 @@
 export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterable<VALUE> {
   protected _consumers = new Map<VALUE[], () => void>();
   protected _source?: Stream.Source<VALUE>;
+  protected _sourceGenerator?: AsyncGenerator<VALUE, void>;
   protected _name = "root" as NAME;
   constructor();
   constructor(source: Stream.Source<VALUE>);
@@ -16,6 +17,7 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
       this._name = (sourceOrName2 ?? "root") as NAME;
       this._source = sourceOrName1;
     }
+    this._sourceGenerator = this._source ? Stream.generator(this._source) : undefined;
   }
 
   get name() {
@@ -32,11 +34,9 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
     await new Promise((r) => setTimeout(r));
   }
 
-  protected requestingNext = false;
+  protected _requestingNext = false;
 
   async *[Symbol.asyncIterator]() {
-    const generator = this._source ? Stream.generator(this._source) : undefined;
-
     const queue: VALUE[] = [];
 
     try {
@@ -44,10 +44,10 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
         if (queue.length) {
           yield queue.shift()!;
         } else {
-          if (!this.requestingNext) {
-            this.requestingNext = true;
-            generator?.next().then((result) => {
-              this.requestingNext = false;
+          if (!this._requestingNext) {
+            this._requestingNext = true;
+            this._sourceGenerator?.next().then((result) => {
+              this._requestingNext = false;
               if (result.done) return;
               this.push(result.value);
             });
@@ -60,15 +60,21 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
     } finally {
       this._consumers.delete(queue);
       queue.length = 0;
-      generator?.return?.();
+      if (this._consumers.size === 0) {
+        this._sourceGenerator?.return?.();
+      }
       return;
     }
   }
-  async *generator(controller?: Controller) {
+  async *generator(signal?: Stream<any, any>) {
     const iter = this[Symbol.asyncIterator]();
-    controller?.next().then(() => iter.return());
+    let aborted = false;
+    signal?.next().then(() => {
+      aborted = true;
+      iter.return();
+    });
     for await (const value of iter) {
-      if (controller?.aborted) break;
+      if (aborted) break;
       yield value;
     }
   }
@@ -79,51 +85,61 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
     return undefined as never;
   }
 
-  listen(callback?: (value: VALUE, controller: Controller) => void): Controller {
-    const generator = this[Symbol.asyncIterator]();
+  listen(): Stream<void, "signal">;
+  listen(callback: (value: VALUE, signal: Stream<void, "signal">) => void): Stream<void, "signal">;
+  listen(
+    callback: (value: VALUE, signal: Stream<void, "signal">) => void,
+    signal: Stream<any, any>,
+  ): Stream<void, "signal">;
+  listen(signal: Stream<any, any>): Stream<void, "signal">;
+  listen(
+    signal: Stream<any, any>,
+    callback: (value: VALUE, signal: Stream<void, "signal">) => void,
+  ): Stream<void, "signal">;
+  listen(
+    callbackOrSignal1?: ((value: VALUE, signal: Stream<void, "signal">) => void) | Stream<any, any>,
+    callbackOrSignal2?: ((value: VALUE, signal: Stream<void, "signal">) => void) | Stream<any, any>,
+  ): Stream<void, "signal"> {
+    const [callback, remotSignal] =
+      typeof callbackOrSignal1 === "function"
+        ? [callbackOrSignal1 as Function | undefined, callbackOrSignal2 as Stream<any, any> | undefined]
+        : [callbackOrSignal2 as Function | undefined, callbackOrSignal1 as Stream<any, any> | undefined];
 
-    const controller = new Controller(async () => {
-      await generator.return();
+    const generator = this[Symbol.asyncIterator]();
+    let aborted = false;
+
+    const signal = new Stream<void, "signal">();
+
+    signal.next().then(() => {
+      aborted = true;
+      generator.return();
+    });
+
+    remotSignal?.next().then(() => {
+      aborted = true;
+      signal.push();
     });
 
     (async () => {
       for await (const value of generator) {
-        if (controller.aborted) break;
+        if (aborted) break;
 
-        callback?.(value, controller);
+        callback?.(value, signal);
       }
     })();
-    return controller;
+    return signal;
   }
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
-  ): NAME extends keyof OUTPUT
-    ? {
-        error: `Naming conflict: "${NAME}" already exists in ${OUTPUT["name"]}`;
-        suggestion: `Use .pipe("$${NAME}", transformer) or rename the stream`;
-        conflictingProperty: OUTPUT[NAME];
-      }
-    : OUTPUT & { [K in NAME | (string & {})]: this };
+  ): Stream.PipeResult<OUTPUT, NAME, this>;
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
     name: CUSTOM_NAME,
-  ): NAME extends keyof OUTPUT
-    ? {
-        error: `Naming conflict: "${NAME}" already exists in ${OUTPUT["name"]}`;
-        suggestion: `Use .pipe("$${NAME}", transformer) or rename the stream`;
-        conflictingProperty: OUTPUT[NAME];
-      }
-    : OUTPUT & { [K in NAME | (string & {})]: this };
+  ): Stream.PipeResult<OUTPUT, NAME, this>;
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     name: CUSTOM_NAME,
     transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
-  ): NAME extends keyof OUTPUT
-    ? {
-        error: `Naming conflict: "${NAME}" already exists in ${OUTPUT["name"]}`;
-        suggestion: `Use .pipe("$${NAME}", transformer) or rename the stream`;
-        conflictingProperty: OUTPUT[NAME];
-      }
-    : OUTPUT & { [K in NAME | (string & {})]: this };
+  ): Stream.PipeResult<OUTPUT, NAME, this>;
   pipe(transformerOrName1: Function | string, transformerOrName2?: Function | string) {
     const output =
       typeof transformerOrName1 === "string" && typeof transformerOrName2 === "function"
@@ -151,20 +167,20 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
       },
     });
   }
-  static generator<VALUE>(_source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, any> {
+  static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, any> {
     return (async function* () {
-      if (!_source) return;
-      if (Symbol.asyncIterator in _source || Symbol.iterator in _source) {
-        yield* _source;
-      } else if (typeof _source === "function") {
-        yield* _source();
+      if (!source) return;
+      if (Symbol.asyncIterator in source || Symbol.iterator in source) {
+        yield* source;
+      } else if (typeof source === "function") {
+        yield* source();
       }
     })();
   }
 }
 
 export namespace Stream {
-  export type ValueOf<T extends Stream<any, any>> = T extends Stream<infer VALUE, any> ? VALUE : never;
+  export type ValueOf<T extends Source<any>> = T extends Stream<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
   export type Source<VALUE> =
@@ -175,69 +191,16 @@ export namespace Stream {
     stream: INPUT,
     name?: NAME,
   ) => OUTPUT;
-}
-
-export class Controller extends Stream<void> {
-  protected _aborted = false;
-  protected _signals: Set<Stream<any>> | undefined;
-  protected _cleanups: Set<Controller.Cleanup> | undefined;
-
-  constructor(cleanup?: Controller.Cleanup) {
-    super();
-    if (cleanup) this.addCleanup(cleanup);
-  }
-  get aborted() {
-    return this._aborted;
-  }
-  get signals() {
-    return this._signals && [...this._signals];
-  }
-  async abort() {
-    if (this._aborted) return;
-    this._aborted = true;
-    this._signals = undefined;
-
-    for (const cleanup of this._cleanups ?? []) {
-      cleanup.call(this);
-    }
-    this._cleanups = undefined;
-    this.push();
-    await new Promise((r) => setTimeout(r));
-  }
-  addCleanup(cleanup: Controller.Cleanup) {
-    this._cleanups ? this._cleanups.add(cleanup) : (this._cleanups = new Set([cleanup]));
-    return this;
-  }
-  removeCleanup(cleanup: Controller.Cleanup) {
-    this._cleanups?.delete(cleanup);
-    if (!this._cleanups?.size) this._cleanups = undefined;
-    return this;
-  }
-  addSignal(signal: Stream<any>) {
-    this._signals ? this._signals.add(signal) : (this._signals = new Set([signal]));
-
-    signal.next().then(() => {
-      if (this._signals?.has(signal)) this.abort();
-    });
-
-    return this;
-  }
-  removeSignal(signal: Stream<any>) {
-    this._signals?.delete(signal);
-    if (!this._signals?.size) this._signals = undefined;
-
-    return this;
-  }
-
-  [Symbol.dispose](): void {
-    this.abort();
-  }
-  static abort(controllers: Controller[]) {
-    controllers.forEach((controller) => controller.abort());
-  }
-  static ABORTED = Symbol("aborted");
-}
-export namespace Controller {
-  export type Cleanup = (this: Controller) => void | Promise<void>;
-  export type Aborted = typeof Controller.ABORTED;
+  export type Traversable<NAME extends string, STREAM extends Stream<any, any>> = Record<NAME | (string & {}), STREAM>;
+  export type PipeResult<
+    OUTPUT extends Stream<any, any>,
+    NAME extends string,
+    INPUT extends Stream<any, any>,
+  > = NAME extends keyof OUTPUT
+    ? {
+        error: `Naming conflict: "${NAME}" already exists in ${OUTPUT["name"]}`;
+        suggestion: `Use .pipe("$${NAME}", transformer) or rename the stream`;
+        conflictingProperty: OUTPUT[NAME];
+      }
+    : OUTPUT & Traversable<NAME, INPUT>;
 }

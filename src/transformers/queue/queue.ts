@@ -1,44 +1,113 @@
-import { Stream } from "../../stream-0";
+import { Stream } from "../../stream";
 
-export function queue<VALUE>(options?: queue.Options<VALUE>): Stream.Transformer<Stream<VALUE>, Stream<VALUE>> {
-  const { size = 1000, dropStrategy = "oldest" } = options ?? {};
-  return (source) => {
-    const buffer: VALUE[] = [];
-    const evicted = new Stream<VALUE>();
-    let consuming = false;
+export class Queue<VALUE, NAME extends string = Queue.Name> extends Stream<VALUE, NAME> {
+  protected _buffer = new Array<VALUE>();
+  protected _events?: Stream<Queue.Event<VALUE>, "Event">;
+  constructor(source: Stream<VALUE, any>, options?: Queue.Options<VALUE, NAME>) {
+    const {
+      name = Queue.NAME as NAME,
+      mode = "lazy",
+      dropStrategy = "oldest",
+      initialValues = [],
+      maxSize = 10000,
+    } = options ?? {};
+    const buffer = [...initialValues];
 
-    source.listen((value) => {
-      buffer.push(value);
-      if (buffer.length > size) {
-        const valueDropped = dropStrategy === "oldest" ? buffer.shift() : buffer.pop();
-        if (valueDropped) evicted.push(valueDropped);
+    let generator: AsyncGenerator<VALUE> | undefined;
+    let sourceComplete = false;
+    let resolve: (() => void) | undefined;
+
+    if (mode === "eager") startBuffering();
+
+    super(name, async function* () {
+      if (mode === "lazy") startBuffering();
+      try {
+        while (true) {
+          if (buffer.length) {
+            const value = buffer.pop()!;
+            yield value;
+            self._events?.push({ type: "consumed", value, size: self.size });
+          } else if (sourceComplete) {
+            return;
+          } else {
+            await new Promise<void>((r) => (resolve = r));
+          }
+        }
+      } finally {
+        if (mode === "lazy") generator?.return(void 0);
       }
     });
 
-    const output = new Stream<VALUE>((self) => {
-      consuming = true;
-      while (buffer.length) {
-        self.push(buffer.shift()!);
+    this._buffer = buffer;
+
+    const self = this;
+    let dropped = 0;
+    async function startBuffering() {
+      generator = source.generator();
+
+      for await (const value of generator) {
+        if (buffer.length >= maxSize) {
+          if (dropStrategy === "newest") {
+            self._events?.push({ type: "evicted", value, dropStrategy, dropped: ++dropped });
+            continue;
+          }
+          self._events?.push({ type: "evicted", value: buffer.pop()!, dropStrategy, dropped: ++dropped });
+        }
+
+        buffer.unshift(value);
+        self._events?.push({ type: "buffered", value, size: self.size });
+        resolve?.();
       }
+      sourceComplete = true;
+    }
+  }
 
-      return new Stream.Controller(() => (consuming = false));
-    });
+  get events() {
+    if (!this._events) this._events = new Stream();
+    return this._events;
+  }
 
-    return output;
-  };
+  get size() {
+    return this._buffer.length;
+  }
+
+  get values() {
+    return [...this._buffer];
+  }
+
+  clear() {
+    this._buffer.length = 0;
+  }
 }
 
-export namespace queue {
-  export type Options<VALUE> = {
+export function queue<VALUE, NAME extends string = Queue.Name>(
+  options?: Omit<Queue.Options<VALUE, NAME>, "name">,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Queue<VALUE, NAME>> {
+  return (source, name) => new Queue(source, { ...options, name });
+}
+
+export namespace Queue {
+  export const NAME = "queued";
+  export type Name = typeof NAME;
+  export type Options<VALUE, NAME extends string> = {
+    name?: NAME;
     initialValues?: VALUE[];
-    size?: number;
-    dropStrategy?: "oldest" | "newest";
+    maxSize?: number;
+    dropStrategy?: Options.DropStrategy;
+    mode?: Options.Mode;
   };
-
-  export type Queue<VALUE> = {
-    readonly values: VALUE[];
-    readonly size: number;
-    readonly evicted: Stream<VALUE>;
-    clear(): void;
-  };
+  export namespace Options {
+    export type DropStrategy = "oldest" | "newest";
+    export type Mode = "eager" | "lazy";
+  }
+  export type Event<VALUE> =
+    | { type: "evicted"; value: VALUE; dropStrategy: Options.DropStrategy; dropped: number }
+    | { type: "buffered"; value: VALUE; size: number }
+    | { type: "consumed"; value: VALUE; size: number };
 }
+
+const stream = new Stream<number, "user">().pipe(queue({ mode: "eager" }), "q1");
+
+stream.user.push(1, 2, 3);
+
+stream.listen((v) => console.log(v));

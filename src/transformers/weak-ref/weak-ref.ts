@@ -1,25 +1,6 @@
-import { Stream, Controller } from "../../stream";
+import { Stream } from "../../stream";
 import { merge } from "../merge";
 
-/**
- * Emits ABORTED when object is garbage collected.
- * Useful for automatic cleanup based on object lifetime.
- *
- * @example
- * ```typescript
- * const element = document.createElement('div');
- *
- * stream
- *   .pipe(weakRef(element))
- *   .listen(value => {
- *     if (value === Stream.Controller.ABORTED) {
- *       console.log('Element GC\'d');
- *     } else {
- *       element.textContent = String(value);
- *     }
- *   });
- * ```
- */
 export function weakRef<VALUE>(object: object): Stream.Transformer<Stream<VALUE>, Stream<Controller.Aborted>> {
   const ref = new WeakRef(object);
   const unregisterToken = {};

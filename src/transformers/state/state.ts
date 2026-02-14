@@ -1,71 +1,70 @@
-import { Stream } from "../../stream-0";
+import { Stream } from "../../stream";
+export class State<VALUE, NAME extends string = State.Name> extends Stream<VALUE, NAME> {
+  protected _value: VALUE;
+  protected _events?: Stream<State.Event<VALUE>, "Event">;
 
-/**
- * Adds `.state.value` getter/setter to a stream for reactive state management.
- * Supports automatic dependency tracking when used with `effect()`.
- *
- * @template VALUE - The type of values in the stream
- * @param initialValue - Initial state value
- * @returns Transformer that adds state behavior
- *
- * @example
- * ```typescript
- * const counter = new Stream<number>().pipe(state(0));
- * counter.listen(n => console.log(n));
- * counter.state.value = 5; // Triggers listener
- * console.log(counter.state.value); // 5
- * ```
- *
- * @example
- * // Reactive effects with automatic tracking
- * ```typescript
- * const counter = new Stream<number>().pipe(state(0));
- *
- * effect(() => {
- *   console.log('Counter:', counter.state.value);
- * });
- *
- * counter.state.value = 5; // Logs: "Counter: 5"
- * ```
- */
-export function state<VALUE>(
-  initialValue: VALUE,
-): Stream.Transformer<Stream<VALUE>, Stream<VALUE> & { state: state.State<VALUE> }> {
-  return (source) => {
-    let current = initialValue;
+  constructor(source: Stream<VALUE, any>, initialValue: VALUE, options?: State.Options<NAME>) {
+    const { name = State.NAME as NAME, emitCurrent = false } = options ?? {};
 
-    const output = new Stream<VALUE>(async function* () {
-      try {
-        for await (const value of source) {
-          current = value;
-          yield value;
-        }
-      } finally {
-        return;
+    let currentValue = initialValue;
+
+    super(name, async function* () {
+      // Optionally emit current value to new consumers
+      if (emitCurrent) yield currentValue;
+
+      // Then receive updates
+      for await (const value of source) {
+        if (currentValue === value) continue;
+
+        const oldValue = currentValue;
+        currentValue = value;
+        self._value = value;
+        self._events?.push({ type: "changed", from: oldValue, to: value });
+        yield value;
       }
     });
 
-    Object.defineProperty(output, "state", {
-      value: {
-        get value() {
-          return current;
-        },
-        set value(newValue: VALUE) {
-          if (current === newValue) return;
-          current = newValue;
-          output.push(newValue);
-        },
-      },
-      enumerable: true,
-      configurable: false,
-    });
+    const self = this;
+    this._value = currentValue;
 
-    return output as Stream<VALUE> & { state: state.State<VALUE> };
-  };
+    // HOT: Start consuming source immediately
+    source.listen((value) => {
+      if (this._value === value) return;
+      const oldValue = this._value;
+      this._value = value;
+      this._events?.push({ type: "changed", from: oldValue, to: value });
+      this.push(value);
+    });
+  }
+
+  get value() {
+    return this._value;
+  }
+
+  set value(newValue: VALUE) {
+    if (this._value === newValue) return;
+    const oldValue = this._value;
+    this._value = newValue;
+    this._events?.push({ type: "changed", from: oldValue, to: newValue });
+    this.push(newValue);
+  }
+
+  get events() {
+    if (!this._events) this._events = new Stream();
+    return this._events;
+  }
 }
 
-export namespace state {
-  export type State<VALUE> = {
-    value: VALUE;
+export namespace State {
+  export const NAME = "stated";
+  export type Name = typeof NAME;
+  export type Options<NAME extends string> = {
+    name?: NAME;
+    emitCurrent?: boolean; // Default: false
+  };
+  export type Event<VALUE> = {
+    type: "changed";
+    from: VALUE;
+    to: VALUE;
   };
 }
