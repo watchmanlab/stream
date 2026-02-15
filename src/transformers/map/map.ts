@@ -6,7 +6,7 @@ class Map<VALUE, MAPPED, NAME extends string = map.Name> extends Stream<MAPPED, 
     private mapper: map.Mapper<VALUE, MAPPED>,
     options?: map.Options<NAME>,
   ) {
-    const { name = map.NAME as NAME } = options ?? {};
+    const { name = NAME as NAME } = options ?? {};
 
     super(name, async function* () {
       for await (const value of source) {
@@ -22,23 +22,12 @@ export function map<VALUE, MAPPED, NAME extends string = map.Name>(
   return (_, source, name) => new Map(source, mapper, { name });
 }
 
+const NAME = "mapped";
+
 export namespace map {
-  export const NAME = "mapped";
   export type Name = typeof NAME;
   export type Options<NAME extends string> = {
     name?: NAME;
   };
   export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED | Promise<MAPPED>;
 }
-
-const stream = new Stream<number, "sof">("sof")
-  .pipe(
-    "toFixed",
-    map((v) => v.toFixed()),
-  )
-  .pipe(
-    map((v) => Number(v)),
-    "toNumber",
-  );
-
-let f = map((v) => v)();

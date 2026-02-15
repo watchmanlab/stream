@@ -1,8 +1,8 @@
-export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterable<VALUE> {
+export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE> {
   protected _consumers = new Map<VALUE[], () => void>();
   protected _source?: Stream.Source<VALUE>;
   protected _sourceGenerator?: AsyncGenerator<VALUE, void>;
-  protected _name = "root" as NAME;
+  protected _name = NAME as NAME;
   constructor();
   constructor(source: Stream.Source<VALUE>);
   constructor(source: Stream.Source<VALUE>, name: NAME);
@@ -11,10 +11,10 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
 
   constructor(sourceOrName1?: Stream.Source<VALUE> | NAME, sourceOrName2?: Stream.Source<VALUE>) {
     if (typeof sourceOrName1 === "string" || sourceOrName1 instanceof String) {
-      this._name = (sourceOrName1 ?? "root") as NAME;
+      this._name ??= sourceOrName1 as NAME;
       this._source = sourceOrName2;
     } else {
-      this._name = (sourceOrName2 ?? "root") as NAME;
+      this._name ??= sourceOrName2 as NAME;
       this._source = sourceOrName1;
     }
     this._sourceGenerator = this._source ? Stream.generator(this._source) : undefined;
@@ -164,7 +164,7 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
     return new Proxy(output, {
       get(target, p, receiver) {
         if (p in target) return Reflect.get(target, p, receiver);
-        return target["root"] || self;
+        return target[NAME] || self;
       },
     });
   }
@@ -179,8 +179,10 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
     })();
   }
 }
+const NAME = "source";
 
 export namespace Stream {
+  export type Name = typeof NAME;
   export const ABORT = Symbol("ABORT");
   export type Abort = typeof ABORT;
   export type ValueOf<T extends Source<any>> = T extends Stream<infer VALUE> ? VALUE : never;

@@ -1,12 +1,12 @@
 import { Stream } from "../../stream";
 
-export class Merge<
+class Merge<
   VALUE,
   ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]],
-  NAME extends string = Merge.Name,
+  NAME extends string = merge.Name,
 > extends Stream<VALUE | Stream.ValueOf<ITERABLES[number]>, NAME> {
-  constructor(source: Stream<VALUE, any>, others: ITERABLES, options?: Merge.Options<NAME>) {
-    const { name = Merge.NAME as NAME } = options ?? {};
+  constructor(source: Stream<VALUE, any>, others: ITERABLES, options?: merge.Options<NAME>) {
+    const { name = NAME as NAME } = options ?? {};
 
     super(name, async function* () {
       const iters = [source, ...others].map((i) => i[Symbol.asyncIterator]());
@@ -37,13 +37,13 @@ export class Merge<
 export function merge<
   VALUE,
   ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]],
-  NAME extends string = Merge.Name,
+  NAME extends string = merge.Name,
 >(...others: ITERABLES): Stream.Transformer<NAME, Stream<VALUE>, Merge<VALUE, ITERABLES, NAME>> {
   return (_, source, name) => new Merge(source, others, { name });
 }
+const NAME = "merged";
 
-export namespace Merge {
-  export const NAME = "merged";
+export namespace merge {
   export type Name = typeof NAME;
 
   export type Options<NAME extends string> = {

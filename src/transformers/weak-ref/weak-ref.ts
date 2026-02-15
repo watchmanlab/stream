@@ -3,7 +3,7 @@ import { merge } from "../merge";
 
 export class WeakRef<NAME extends string = WeakRef.Name> extends Stream<Stream.Abort, NAME> {
   constructor(object: object, options?: WeakRef.Options<NAME>) {
-    const { name = WeakRef.NAME as NAME } = options ?? {};
+    const { name = NAME as NAME } = options ?? {};
     const ref = new globalThis.WeakRef(object);
     const unregisterToken = {};
 
@@ -34,18 +34,12 @@ export class WeakRef<NAME extends string = WeakRef.Name> extends Stream<Stream.A
   }
 }
 
-export function weakRef<SOURCE extends Stream<any, any>, NAME extends string = WeakRef.Name>(object: object) {
-  return (source: SOURCE, name: Stream.NameOf<SOURCE>) => source.pipe(merge(new WeakRef<NAME>(object, { name })));
-}
+const NAME = "weak-ref";
 
 export namespace WeakRef {
-  export const NAME = "weak-ref";
   export type Name = typeof NAME;
 
   export type Options<NAME extends string> = {
     name?: NAME;
   };
 }
-const s = new Stream<number>();
-
-const res = s.pipe(merge(new WeakRef({})));

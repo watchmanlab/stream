@@ -1,11 +1,11 @@
 import { Stream } from "../../stream";
 
-export class Queue<VALUE, NAME extends string = Queue.Name> extends Stream<VALUE, NAME> {
+export class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME> {
   protected _buffer = new Array<VALUE>();
-  protected _events?: Stream<Queue.Event<VALUE>, "Event">;
-  constructor(source: Stream<VALUE, any>, options?: Queue.Options<VALUE, NAME>) {
+  protected _events?: Stream<queue.Event<VALUE>, "Event">;
+  constructor(source: Stream<VALUE, any>, options?: queue.Options<VALUE, NAME>) {
     const {
-      name = Queue.NAME as NAME,
+      name = NAME as NAME,
       mode = "lazy",
       dropStrategy = "oldest",
       initialValues = [],
@@ -80,14 +80,15 @@ export class Queue<VALUE, NAME extends string = Queue.Name> extends Stream<VALUE
   }
 }
 
-export function queue<VALUE, NAME extends string = Queue.Name>(
-  options?: Omit<Queue.Options<VALUE, NAME>, "name">,
+export function queue<VALUE, NAME extends string = queue.Name>(
+  options?: Omit<queue.Options<VALUE, NAME>, "name">,
 ): Stream.Transformer<NAME, Stream<VALUE, any>, Queue<VALUE, NAME>> {
-  return (source, name) => new Queue(source, { ...options, name });
+  return (_, source, name) => new Queue(source, { ...options, name });
 }
 
-export namespace Queue {
-  export const NAME = "queued";
+export const NAME = "queued";
+
+export namespace queue {
   export type Name = typeof NAME;
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
