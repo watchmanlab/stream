@@ -180,6 +180,8 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
 }
 
 export namespace Stream {
+  export const ABORT = Symbol("ABORT");
+  export type Abort = typeof ABORT;
   export type ValueOf<T extends Source<any>> = T extends Stream<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
