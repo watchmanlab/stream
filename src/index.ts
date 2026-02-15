@@ -1,2 +1,2 @@
-export * from "./stream-0.ts";
+export { Stream } from "./stream.ts";
 export * from "./transformers/index.ts";

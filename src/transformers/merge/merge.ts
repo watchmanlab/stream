@@ -39,7 +39,7 @@ export function merge<
   ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]],
   NAME extends string = Merge.Name,
 >(...others: ITERABLES): Stream.Transformer<NAME, Stream<VALUE>, Merge<VALUE, ITERABLES, NAME>> {
-  return (source, name) => new Merge(source, others, { name });
+  return (_, source, name) => new Merge(source, others, { name });
 }
 
 export namespace Merge {

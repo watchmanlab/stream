@@ -1,12 +1,12 @@
 import { Stream } from "../../stream";
 
-export class Map<VALUE, MAPPED, NAME extends string = Map.Name> extends Stream<MAPPED, NAME> {
+class Map<VALUE, MAPPED, NAME extends string = map.Name> extends Stream<MAPPED, NAME> {
   constructor(
     source: Stream<VALUE, any>,
-    private mapper: Map.Mapper<VALUE, MAPPED>,
-    options?: Map.Options<NAME>,
+    private mapper: map.Mapper<VALUE, MAPPED>,
+    options?: map.Options<NAME>,
   ) {
-    const { name = Map.NAME as NAME } = options ?? {};
+    const { name = map.NAME as NAME } = options ?? {};
 
     super(name, async function* () {
       for await (const value of source) {
@@ -16,13 +16,13 @@ export class Map<VALUE, MAPPED, NAME extends string = Map.Name> extends Stream<M
   }
 }
 
-export function map<VALUE, MAPPED, NAME extends string = Map.Name>(
-  mapper: Map.Mapper<VALUE, MAPPED>,
+export function map<VALUE, MAPPED, NAME extends string = map.Name>(
+  mapper: map.Mapper<VALUE, MAPPED>,
 ): Stream.Transformer<NAME, Stream<VALUE, any>, Map<VALUE, MAPPED, NAME>> {
-  return (source, name) => new Map(source, mapper, { name });
+  return (_, source, name) => new Map(source, mapper, { name });
 }
 
-export namespace Map {
+export namespace map {
   export const NAME = "mapped";
   export type Name = typeof NAME;
   export type Options<NAME extends string> = {
@@ -40,3 +40,5 @@ const stream = new Stream<number, "sof">("sof")
     map((v) => Number(v)),
     "toNumber",
   );
+
+let f = map((v) => v)();

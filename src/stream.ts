@@ -143,12 +143,12 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
   pipe(transformerOrName1: Function | string, transformerOrName2?: Function | string) {
     const output =
       typeof transformerOrName1 === "string" && typeof transformerOrName2 === "function"
-        ? (transformerOrName2!(this, transformerOrName1) as any)
+        ? (transformerOrName2!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this, transformerOrName1) as any)
         : typeof transformerOrName1 === "function"
-          ? (transformerOrName1!(this, transformerOrName2) as any)
+          ? (transformerOrName1!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this, transformerOrName2) as any)
           : void 0;
 
-    if (this._name in output)
+    if (this._name in output) {
       throw new Error(
         `Naming conflict: Cannot name ${this.constructor.name} transformer with "${this._name}" ` +
           `because ${output.constructor.name} already has a property with that name.\n` +
@@ -157,6 +157,7 @@ export class Stream<VALUE, NAME extends string = "root"> implements AsyncIterabl
           `  2. Rename on stream creation: new Stream<T, "$${this._name}">()\n` +
           `conflictingProperty:${output[this._name]};`,
       );
+    }
     output[this._name] = this;
 
     const self = this;
@@ -190,6 +191,7 @@ export namespace Stream {
     | AsyncIterable<VALUE>
     | Exclude<Iterable<VALUE>, string | String>;
   export type Transformer<NAME extends string, INPUT extends Stream<any, any>, OUTPUT extends Stream<any, NAME>> = (
+    useTransformerInsidePipePlease: UseTransformerInsidePipePlease,
     stream: INPUT,
     name?: NAME,
   ) => OUTPUT;
@@ -205,4 +207,7 @@ export namespace Stream {
         conflictingProperty: OUTPUT[NAME];
       }
     : OUTPUT & Traversable<NAME, INPUT>;
+  export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 }
+
+const USE_TRANSFORMER_INSIDE_PIPE_PLEASE = Symbol("*USE_TRANSFORMER_INSIDE_PIPE_PLEASE#");
