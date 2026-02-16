@@ -1,38 +1,25 @@
 import { Stream } from "../../stream";
-export class State<VALUE, NAME extends string = State.Name> extends Stream<VALUE, NAME> {
+
+const NAME = "stated";
+type Name = typeof NAME;
+class State<VALUE, NAME extends string = Name> extends Stream<VALUE, NAME> {
   protected _value: VALUE;
-  protected _events?: Stream<State.Event<VALUE>, "Event">;
 
-  constructor(source: Stream<VALUE, any>, initialValue: VALUE, options?: State.Options<NAME>) {
-    const { name = State.NAME as NAME, emitCurrent = false } = options ?? {};
-
-    let currentValue = initialValue;
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, initialValue: VALUE, options?: state.Options) {
+    const { emitCurrent = false } = options ?? {};
 
     super(name, async function* () {
-      // Optionally emit current value to new consumers
-      if (emitCurrent) yield currentValue;
-
-      // Then receive updates
-      for await (const value of source) {
-        if (currentValue === value) continue;
-
-        const oldValue = currentValue;
-        currentValue = value;
-        self._value = value;
-        self._events?.push({ type: "changed", from: oldValue, to: value });
-        yield value;
-      }
+      if (emitCurrent) yield self._value;
     });
 
     const self = this;
-    this._value = currentValue;
+
+    this._value = initialValue;
 
     // HOT: Start consuming source immediately
     source.listen((value) => {
       if (this._value === value) return;
-      const oldValue = this._value;
       this._value = value;
-      this._events?.push({ type: "changed", from: oldValue, to: value });
       this.push(value);
     });
   }
@@ -43,28 +30,20 @@ export class State<VALUE, NAME extends string = State.Name> extends Stream<VALUE
 
   set value(newValue: VALUE) {
     if (this._value === newValue) return;
-    const oldValue = this._value;
     this._value = newValue;
-    this._events?.push({ type: "changed", from: oldValue, to: newValue });
     this.push(newValue);
-  }
-
-  get events() {
-    if (!this._events) this._events = new Stream();
-    return this._events;
   }
 }
 
-export namespace State {
-  export const NAME = "stated";
-  export type Name = typeof NAME;
-  export type Options<NAME extends string> = {
-    name?: NAME;
+export function state<VALUE, NAME extends string = Name>(
+  initialValue: VALUE,
+  options?: state.Options,
+): Stream.Transformer<NAME, Stream<VALUE, any>, State<VALUE, NAME>> {
+  return (_, source, name) => new State(source, name, initialValue, options);
+}
+
+export namespace state {
+  export type Options = {
     emitCurrent?: boolean; // Default: false
-  };
-  export type Event<VALUE> = {
-    type: "changed";
-    from: VALUE;
-    to: VALUE;
   };
 }

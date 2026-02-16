@@ -17,7 +17,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._name ??= sourceOrName2 as NAME;
       this._source = sourceOrName1;
     }
-    this._sourceGenerator = this._source ? Stream.generator(this._source) : undefined;
   }
 
   get name() {
@@ -36,7 +35,21 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
   protected _requestingNext = false;
 
+  protected _requestNext() {
+    if (!this._requestingNext && this._sourceGenerator) {
+      this._requestingNext = true;
+      this._sourceGenerator.next().then((result) => {
+        this._requestingNext = false;
+        if (result.done) return;
+        this.push(result.value);
+      });
+    }
+  }
   async *[Symbol.asyncIterator]() {
+    if (this._consumers.size === 0 && this._source) {
+      this._sourceGenerator = Stream.generator(this._source);
+    }
+
     const queue: VALUE[] = [];
 
     try {
@@ -44,14 +57,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         if (queue.length) {
           yield queue.shift()!;
         } else {
-          if (!this._requestingNext) {
-            this._requestingNext = true;
-            this._sourceGenerator?.next().then((result) => {
-              this._requestingNext = false;
-              if (result.done) return;
-              this.push(result.value);
-            });
-          }
+          this._requestNext();
           await new Promise<void>((resolve) => {
             this._consumers.set(queue, resolve);
           });
@@ -62,6 +68,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       queue.length = 0;
       if (this._consumers.size === 0) {
         this._sourceGenerator?.return?.();
+        this._sourceGenerator = undefined;
       }
       return;
     }
@@ -183,8 +190,7 @@ const NAME = "source";
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export const ABORT = Symbol("ABORT");
-  export type Abort = typeof ABORT;
+
   export type ValueOf<T extends Source<any>> = T extends Stream<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
