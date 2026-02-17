@@ -1,4 +1,4 @@
-import { Stream, Controller } from "../../stream";
+import { Stream, Controller } from "../../streams/stream/stream";
 import { merge } from "../merge";
 
 export function abortSignal<VALUE>(signal: AbortSignal): Stream.Transformer<Stream<VALUE>, Stream<Controller.Aborted>> {

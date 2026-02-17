@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../streams/stream/stream";
 import { signal } from "../signal";
 
 export function consume<VALUE>(

@@ -1,6 +1,6 @@
 import { it, expect, describe } from "bun:test";
 import { Controller, Stream } from "./stream";
-import { abortSignal } from "./transformers/abort-signal";
+import { abortSignal } from "../../transformers/abort-signal";
 import { weakRef } from "../weak-ref";
 
 describe("Stream", () => {

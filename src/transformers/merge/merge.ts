@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../streams/stream/stream";
 
 const NAME = "merged";
 type Name = typeof NAME;

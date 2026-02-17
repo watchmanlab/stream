@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../streams/stream/stream";
 
 export function effect<INPUT extends Stream<any>>(
   callback: (value: Stream.ValueOf<INPUT>) => void,

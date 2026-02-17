@@ -24,7 +24,7 @@
     "src/transformers/flat.test.ts",
     "src/transformers/map.test.ts",
     "src/transformers/merge.test.ts",
-    "src/stream.test.ts"
+    "src/streams/stream/stream.test.ts"
   ],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

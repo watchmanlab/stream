@@ -58,13 +58,13 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
           yield queue.shift()!;
         } else {
           this._requestNext();
-          await new Promise<void>((resolve) => {
-            this._consumers.set(queue, resolve);
-          });
+          await new Promise<void>((resolve) => this._consumers.set(queue, resolve));
         }
       }
     } finally {
+      this._consumers.get(queue)!();
       this._consumers.delete(queue);
+
       queue.length = 0;
       if (this._consumers.size === 0) {
         this._sourceGenerator?.return?.();

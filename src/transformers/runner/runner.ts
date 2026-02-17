@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../streams/stream/stream";
 import { filter } from "../filter";
 
 export function runner(options?: runner.Options): Stream.Transformer<Stream<any>, runner.CapableStream> {
