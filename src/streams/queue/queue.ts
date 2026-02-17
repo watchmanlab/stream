@@ -10,7 +10,7 @@ export class Queue<VALUE> extends Stream<VALUE, Name> {
   constructor(options?: Queue.Options) {
     super(NAME);
 
-    Object.assign(this._options, options);
+    this.options = options ?? {};
   }
 
   override async push(value: VALUE, ...values: VALUE[]): Promise<void> {
@@ -63,8 +63,8 @@ export class Queue<VALUE> extends Stream<VALUE, Name> {
   get options() {
     return { ...this._options };
   }
-  set options(value: Queue.Options) {
-    Object.assign(this._options, value);
+  set options(options: Queue.Options) {
+    this._options = { ...this._options, ...options };
   }
   get dropped() {
     return this._dropped;

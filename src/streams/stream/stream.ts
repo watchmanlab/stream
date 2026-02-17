@@ -22,6 +22,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   get name() {
     return this._name;
   }
+  get consumerCount() {
+    return this._consumers.size;
+  }
 
   async push(value: VALUE, ...values: VALUE[]) {
     for (const [queue, resolver] of this._consumers) {
@@ -70,6 +73,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         this._sourceGenerator?.return?.();
         this._sourceGenerator = undefined;
       }
+
       return;
     }
   }
@@ -190,7 +194,6 @@ const NAME = "source";
 
 export namespace Stream {
   export type Name = typeof NAME;
-
   export type ValueOf<T extends Source<any>> = T extends Stream<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
