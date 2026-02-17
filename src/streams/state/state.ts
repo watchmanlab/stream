@@ -15,9 +15,26 @@ export class State<VALUE> extends Stream<VALUE, Name> {
 
   override push(value: VALUE, ...values: VALUE[]): Promise<void> {
     this._value = values.length ? values[values.length - 1] : value;
+
+    if (this._options.emitCurrent && this._consumers.size === 0) {
+      // Defer only on first push when emitCurrent is enabled
+      return new Promise<void>((resolve) => {
+        setTimeout(async () => {
+          await super.push(value, ...values);
+          resolve();
+        }, 0);
+      });
+    }
+
     return super.push(value, ...values);
   }
 
+  override async *[Symbol.asyncIterator]() {
+    if (this._options.emitCurrent) {
+      yield this.value as never;
+    }
+    yield* super[Symbol.asyncIterator]();
+  }
   get value() {
     return this._value;
   }
@@ -39,11 +56,3 @@ export namespace State {
     emitCurrent?: boolean; // Default: false
   };
 }
-
-const state = new State(99, { emitCurrent: true });
-
-state.listen((v) => console.log("s1", v));
-state.listen((v) => console.log("s2", v));
-// state.listen((v) => console.log("s3", v));
-
-state.push(1, 2, 3);

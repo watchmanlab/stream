@@ -1,42 +1,47 @@
-import { Stream } from "..";
+import { Stream } from "../stream";
 
-const NAME = "weak-ref";
-
+const NAME = "gc-signal";
 type Name = typeof NAME;
 
-export class WeakRef extends Stream<WeakRef.Signal, Name> {
+export class GCSignal extends Stream<GCSignal.Signal, Name> {
+  protected _garbageCollected = false;
   constructor(token: object) {
-    const ref = new globalThis.WeakRef(token);
+    const ref = new WeakRef(token);
     const unregisterToken = {};
 
     super(NAME, async function* () {
       let registry: FinalizationRegistry<unknown> | undefined;
       try {
         if (!ref.deref()) {
-          yield WeakRef.SIGNAL;
+          yield GCSignal.SIGNAL;
           return;
         }
 
-        yield new Promise<WeakRef.Signal>((resolve) => {
+        yield new Promise<GCSignal.Signal>((resolve) => {
           registry = new FinalizationRegistry(() => {
-            resolve(WeakRef.SIGNAL);
+            resolve(GCSignal.SIGNAL);
           });
 
           const obj = ref.deref();
           if (obj) {
             registry.register(obj, undefined, unregisterToken);
           } else {
-            resolve(WeakRef.SIGNAL);
+            resolve(GCSignal.SIGNAL);
           }
         });
       } finally {
+        self._garbageCollected = true;
         registry?.unregister(unregisterToken);
       }
     });
+    const self = this;
+  }
+  get garbageCollected() {
+    return this._garbageCollected;
   }
 }
 
-export namespace WeakRef {
-  export const SIGNAL = Symbol("*weak-ref-signal#");
+export namespace GCSignal {
+  export const SIGNAL = Symbol("*gc-signal#");
   export type Signal = typeof SIGNAL;
 }
