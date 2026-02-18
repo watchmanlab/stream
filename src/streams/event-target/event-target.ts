@@ -1,40 +1,45 @@
-import { Stream } from "../../stream-0";
+import { Stream } from "../stream";
 
-/**
- * Emits events from EventTarget.
- *
- * @example
- * ```typescript
- * const button = document.querySelector('button');
- *
- * new Stream()
- *   .pipe(eventTarget(button, 'click'))
- *   .listen(event => console.log('Clicked!', event));
- * ```
- */
-export function eventTarget<VALUE, K extends keyof HTMLElementEventMap>(
-  target: EventTarget,
-  eventType: K,
-): Stream.Transformer<Stream<VALUE>, Stream<VALUE | HTMLElementEventMap[K]>>;
+const NAME = "event-target";
 
-export function eventTarget<VALUE, E extends Event = Event>(
-  target: EventTarget,
-  eventType: string,
-): Stream.Transformer<Stream<VALUE>, Stream<VALUE | E>>;
+type Name = typeof NAME;
 
-export function eventTarget<VALUE, E extends Event = Event>(
-  target: EventTarget,
-  eventType: string,
-): Stream.Transformer<Stream<VALUE>, Stream<VALUE | E>> {
-  return function (source) {
-    return new Stream<VALUE | E>((self) => {
-      target.addEventListener(eventType, listener);
+export class EventTarget<EVENT_TYPE extends keyof HTMLElementEventMap | (string & {})> extends Stream<
+  EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event,
+  Name
+> {
+  constructor(target: globalThis.EventTarget, eventType: EVENT_TYPE) {
+    let abortController: AbortController;
 
-      return source.listen((v) => self.push(v)).addCleanup(() => target.removeEventListener(eventType, listener));
-
-      function listener(e: Event) {
-        self.push(e as E);
+    super(NAME, async function* () {
+      try {
+        while (true) {
+          yield await new Promise<any>((resolve) => {
+            abortController = new AbortController();
+            target.addEventListener(eventType, (e) => resolve(e), { once: true, signal: abortController.signal });
+          });
+        }
+      } finally {
+        abortController?.abort();
       }
     });
-  };
+
+    // Cleanup hook for when consumers leave
+    this._onEndConsuming = () => {
+      abortController?.abort();
+    };
+  }
 }
+
+const button = new globalThis.EventTarget();
+
+const e = new EventTarget(button, "click");
+
+e.listen((v) => console.log(v.type)); //.push();
+
+button.dispatchEvent(new Event("click"));
+button.dispatchEvent(new Event("click"));
+button.dispatchEvent(new Event("click"));
+setTimeout(() => {
+  button.dispatchEvent(new Event("click"));
+});

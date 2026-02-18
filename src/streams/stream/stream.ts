@@ -48,11 +48,16 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       });
     }
   }
+  protected _onStarConsuming?: () => void;
+  protected _onEndConsuming?: () => void;
+  protected _onRequestingNext?: () => void;
   async *[Symbol.asyncIterator]() {
     if (this._consumers.size === 0 && this._source) {
       this._sourceGenerator = Stream.generator(this._source);
     }
-
+    if (this._consumers.size === 0) {
+      this._onStarConsuming?.();
+    }
     const queue: VALUE[] = [];
 
     try {
@@ -61,6 +66,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
           yield queue.shift()!;
         } else {
           this._requestNext();
+          this._onRequestingNext?.();
           await new Promise<void>((resolve) => this._consumers.set(queue, resolve));
         }
       }
@@ -72,6 +78,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       if (this._consumers.size === 0) {
         this._sourceGenerator?.return?.();
         this._sourceGenerator = undefined;
+        this._onEndConsuming?.();
       }
 
       return;
