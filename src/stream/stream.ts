@@ -67,10 +67,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     }
 
     const queue: VALUE[] = [];
-    this._onConsumerJoined?.((value, ...values) => queue.push(value, ...values));
+    this._onConsumerJoined?.((value, ...values) => queueMicrotask(() => queue.push(value, ...values)));
     let ready: () => void;
 
-    this._consumers.set(queue, { resolve() {}, ready: Promise.resolve() });
     try {
       while (true) {
         if (queue.length) {
