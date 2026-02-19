@@ -1,5 +1,5 @@
 export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE> {
-  protected _consumers = new Set<{ send: (values: VALUE[]) => void; ready: Promise<void> }>();
+  protected _consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
   protected _source?: Stream.Source<VALUE>;
   protected _sourceGenerator?: AsyncGenerator<VALUE, void>;
   protected _name = NAME as NAME;
@@ -25,19 +25,20 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
   push(value: VALUE, ...values: VALUE[]) {
     const readyPromises = new Array<Promise<void>>();
-    for (const consumer of this._consumers) {
-      consumer.send([value, ...values]);
-      readyPromises.push(consumer.ready);
+    for (const [queue, { resolve, ready }] of this._consumers) {
+      queue.push(value, ...values);
+      resolve();
+      readyPromises.push(ready);
     }
 
     return {
       get awaitBroadcast() {
         return new Promise((r) => setTimeout(r, 0));
       },
-      get awaitAll() {
+      get awaitAllConsumers() {
         return Promise.all(readyPromises);
       },
-      get awaitAny() {
+      get awaitAnyConsumer() {
         return Promise.any(readyPromises);
       },
       then: (resolve?: () => void, reject?: () => void) => new Promise((r) => setTimeout(r, 0)).then(resolve, reject),
@@ -57,46 +58,55 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     }
   }
 
+  protected _onConsumerJoined?: (send: (value: VALUE, ...values: VALUE[]) => void) => void;
+  protected _onConsumerLeaved?: (queue: VALUE[]) => void;
+  protected _onConsumerRequestNext?: (send: (value: VALUE) => void) => void;
   async *[Symbol.asyncIterator]() {
     if (this._consumers.size === 0 && this._source) {
       this._sourceGenerator = Stream.generator(this._source);
     }
 
+    const queue: VALUE[] = [];
+    this._onConsumerJoined?.((value, ...values) => queue.push(value, ...values));
     let ready: () => void;
-    let consumer;
+
+    this._consumers.set(queue, { resolve() {}, ready: Promise.resolve() });
     try {
       while (true) {
-        this._requestNext();
-        yield* await new Promise<VALUE[]>((r) => {
-          consumer = { send: r, ready: new Promise<void>((r) => (ready = r)) };
-          this._consumers.add(consumer);
-        });
+        if (queue.length) {
+          yield queue.shift()!;
+        } else {
+          this._requestNext();
+          await new Promise<void>((resolve) => {
+            this._onConsumerRequestNext?.((value) => {
+              queue.push(value);
+              resolve();
+            });
+            this._consumers.set(queue, {
+              resolve,
+              ready: new Promise<void>((r) => (ready = r)),
+            });
+          });
+        }
+
         ready!?.();
-        this._consumers.delete(consumer!);
       }
     } finally {
-      this._consumers.delete(consumer!);
+      this._consumers.get(queue)?.resolve();
+      this._consumers.delete(queue);
+
+      this._onConsumerLeaved?.([...queue]);
+
+      queue.length = 0;
       if (this._consumers.size === 0) {
         this._sourceGenerator?.return?.();
         this._sourceGenerator = undefined;
       }
+
       return;
     }
   }
-  async *generator(...signals: Stream<any, any>[]) {
-    const iter = this[Symbol.asyncIterator]();
-    let aborted = false;
-    signals.map((signal) =>
-      signal.next().then(() => {
-        aborted = true;
-        iter.return();
-      }),
-    );
-    for await (const value of iter) {
-      if (aborted) break;
-      yield value;
-    }
-  }
+
   next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
     return this[Symbol.asyncIterator]().next();
   }
@@ -162,6 +172,7 @@ export namespace Stream {
     | GeneratorFunction<VALUE>
     | AsyncIterable<VALUE>
     | Exclude<Iterable<VALUE>, string | String>;
+
   export type Transformer<NAME extends string, INPUT extends Stream<any, any>, OUTPUT extends Stream<any, NAME>> = (
     useTransformerInsidePipePlease: UseTransformerInsidePipePlease,
     stream: INPUT,

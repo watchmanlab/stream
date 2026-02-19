@@ -1,4 +1,4 @@
-import { Stream } from "../../stream/stream";
+import { Stream } from "../../stream/stream-0";
 
 export class Filter<VALUE, FILTERED extends VALUE = VALUE, NAME extends string = Filter.Name> extends Stream<
   FILTERED,

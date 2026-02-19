@@ -1,4 +1,4 @@
-import { Stream } from "../../stream/stream";
+import { Stream } from "../../stream/stream-0";
 
 // src/transformers/events.ts
 export function events<VALUE>(): Stream.Transformer<Stream<VALUE>, Stream<VALUE> & { events: Stream<events.Event> }> {

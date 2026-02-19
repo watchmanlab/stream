@@ -1,9 +1,9 @@
 import { Stream } from "../../stream";
 
 const NAME = "consumer";
-type Name = typeof NAME;
-class Consumer<VALUE, NAME extends string = Name> extends Stream<VALUE, NAME> {
-  protected _running = true;
+
+class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE, NAME> {
+  protected _running = false;
   protected _source: Stream<VALUE, any>;
   protected _sourceGenerator?: AsyncGenerator<VALUE, void>;
   protected _options: consumer.Options<VALUE, NAME> = { autoStart: true };
@@ -53,14 +53,32 @@ class Consumer<VALUE, NAME extends string = Name> extends Stream<VALUE, NAME> {
     this._sourceGenerator = undefined;
   }
 }
-
-export function consumer<VALUE, NAME extends string = Name>(
-  options?: consumer.Options<VALUE, NAME>,
+export function consumer<VALUE, NAME extends string = consumer.Name>(): Stream.Transformer<
+  NAME,
+  Stream<VALUE, any>,
+  Consumer<VALUE, NAME>
+>;
+export function consumer<VALUE, NAME extends string = consumer.Name>(
+  callback: consumer.Callback<VALUE>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Consumer<VALUE, NAME>>;
+export function consumer<VALUE, NAME extends string = consumer.Name>(
+  options: consumer.Options<VALUE, NAME>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Consumer<VALUE, NAME>>;
+export function consumer<VALUE, NAME extends string = consumer.Name>(
+  callback: consumer.Callback<VALUE>,
+  options: Omit<consumer.Options<VALUE, NAME>, "callback">,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Consumer<VALUE, NAME>>;
+export function consumer<VALUE, NAME extends string = consumer.Name>(
+  callbackOrOptions?: consumer.Callback<VALUE> | consumer.Options<VALUE, NAME>,
+  options?: Omit<consumer.Options<VALUE, NAME>, "callback">,
 ): Stream.Transformer<NAME, Stream<VALUE, any>, Consumer<VALUE, NAME>> {
-  return (_, source, name) => new Consumer(source, name, options);
+  const _options =
+    typeof callbackOrOptions === "function" ? { ...options, callback: callbackOrOptions } : { ...callbackOrOptions };
+  return (_, source, name) => new Consumer(source, name, _options);
 }
 
 export namespace consumer {
+  export type Name = typeof NAME;
   export type Callback<VALUE> = (value: VALUE, stop: () => void) => void;
   export type Options<VALUE, NAME extends string> = {
     callback?: Callback<VALUE>;

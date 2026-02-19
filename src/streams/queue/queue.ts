@@ -1,4 +1,4 @@
-import { Stream } from "../../stream/stream";
+import { Stream } from "../../stream/stream-0";
 const NAME = "queued";
 type Name = typeof NAME;
 export class Queue<VALUE> extends Stream<VALUE, Name> {
