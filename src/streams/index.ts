@@ -4,4 +4,4 @@ export * from "./gc-signal";
 export * from "./promise";
 export * from "./queue";
 export * from "./state";
-export * from "./stream";
+export * from "../stream";

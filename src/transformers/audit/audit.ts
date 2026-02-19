@@ -1,4 +1,4 @@
-import { Stream } from "../../streams/stream/stream";
+import { Stream } from "../../stream/stream";
 
 /**
  * Emit first value, then ignore until quiet period
