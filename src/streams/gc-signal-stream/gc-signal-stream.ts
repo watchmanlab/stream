@@ -1,32 +1,31 @@
-import { Stream } from "../../stream";
+import { Stream } from "../stream";
 
-const NAME = "gc-signal";
-type Name = typeof NAME;
+const NAME = "gc-signal-stream";
 
-export class GCSignal extends Stream<GCSignal.Signal, Name> {
+export class GCSignalStream<NAME extends string = GCSignalStream.Name> extends Stream<GCSignalStream.Signal, NAME> {
   protected _garbageCollected = false;
-  constructor(token: object) {
+  constructor(token: object, name = NAME as NAME) {
     const ref = new WeakRef(token);
     const unregisterToken = {};
 
-    super(NAME, async function* () {
+    super(name, async function* () {
       let registry: FinalizationRegistry<unknown> | undefined;
       try {
         if (!ref.deref()) {
-          yield GCSignal.SIGNAL;
+          yield GCSignalStream.SIGNAL;
           return;
         }
 
-        yield new Promise<GCSignal.Signal>((resolve) => {
+        yield new Promise<GCSignalStream.Signal>((resolve) => {
           registry = new FinalizationRegistry(() => {
-            resolve(GCSignal.SIGNAL);
+            resolve(GCSignalStream.SIGNAL);
           });
 
           const obj = ref.deref();
           if (obj) {
             registry.register(obj, undefined, unregisterToken);
           } else {
-            resolve(GCSignal.SIGNAL);
+            resolve(GCSignalStream.SIGNAL);
           }
         });
       } finally {
@@ -41,7 +40,8 @@ export class GCSignal extends Stream<GCSignal.Signal, Name> {
   }
 }
 
-export namespace GCSignal {
-  export const SIGNAL = Symbol("*gc-signal#");
+export namespace GCSignalStream {
+  export type Name = typeof NAME;
+  export const SIGNAL = Symbol(`*${NAME}#`);
   export type Signal = typeof SIGNAL;
 }

@@ -1,8 +1,8 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../streams/stream";
 
 const NAME = "consumer";
 
-export class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE, NAME> {
+class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE, NAME> {
   protected _running = false;
   protected __source: Stream<VALUE, any>;
   protected __sourceGenerator?: AsyncGenerator<VALUE, void>;

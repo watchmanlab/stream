@@ -1,5 +1,5 @@
-import { Stream } from "../../stream";
-import { consumer } from "../consumer";
+import { Stream } from "../../streams/stream";
+
 const NAME = "queued";
 
 class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME> {
@@ -11,30 +11,6 @@ class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME>
 
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: queue.Options) {
     super(name, async function* () {
-      for await (const value of source) {
-        if (self._buffer.length >= self._options.maxSize) {
-          self._dropped++;
-          if (self._options.dropStrategy === "newest") {
-            self._events?.push({ type: "evicted", value, self });
-            continue;
-          } else {
-            self._events?.push({ type: "evicted", value: self._buffer.pop()!, self });
-          }
-        }
-
-        self._buffer.unshift(value);
-        self._events?.push({ type: "buffered", value, self });
-        self._resolvers.forEach((resolver) => resolver());
-      }
-    });
-
-    const self = this;
-    this.options = options ?? {};
-  }
-
-  getConsumer() {
-    const self = this;
-    return new Stream(this._name, async function* () {
       let resolve;
 
       try {
@@ -55,6 +31,27 @@ class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME>
         resolve!();
       }
     });
+
+    const self = this;
+    this.options = options ?? {};
+
+    (async () => {
+      for await (const value of source) {
+        if (self._buffer.length >= self._options.maxSize) {
+          self._dropped++;
+          if (self._options.dropStrategy === "newest") {
+            self._events?.push({ type: "evicted", value, self });
+            continue;
+          } else {
+            self._events?.push({ type: "evicted", value: self._buffer.pop()!, self });
+          }
+        }
+
+        self._buffer.unshift(value);
+        self._events?.push({ type: "buffered", value, self });
+        self._resolvers.forEach((resolver) => resolver());
+      }
+    })();
   }
 
   get events() {
@@ -99,9 +96,3 @@ export namespace queue {
     | { type: "buffered"; value: VALUE; self: Queue<VALUE, NAME> }
     | { type: "consumed"; value: VALUE; self: Queue<VALUE, NAME> };
 }
-
-const stream = new Stream<number>().pipe(queue()).pipe(consumer());
-
-await stream.queued.root.push(1, 2, 3);
-
-console.log(stream.queued.values);
