@@ -1,61 +1,62 @@
 import { Stream } from "../../stream";
+import { consumer } from "../consumer";
 const NAME = "queued";
 
-class Queue<VALUE, NAME extends string = Queue.Name> extends Stream<VALUE, NAME> {
+class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME> {
   protected _buffer = new Array<VALUE>();
-  protected _events?: Stream<Queue.Event<VALUE>, "Event">;
-  protected _options: Required<Queue.Options> = { dropStrategy: "oldest", maxSize: 10000 };
+  protected _events?: Stream<queue.Event<VALUE, NAME>, `${NAME}-events`>;
+  protected _options: Required<queue.Options> = { dropStrategy: "oldest", maxSize: 10000 };
   protected _dropped = 0;
+  protected _resolvers = new Set<() => void>();
 
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: Queue.Options) {
-    super(name, source);
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: queue.Options) {
+    super(name, async function* () {
+      for await (const value of source) {
+        if (self._buffer.length >= self._options.maxSize) {
+          self._dropped++;
+          if (self._options.dropStrategy === "newest") {
+            self._events?.push({ type: "evicted", value, self });
+            continue;
+          } else {
+            self._events?.push({ type: "evicted", value: self._buffer.pop()!, self });
+          }
+        }
 
+        self._buffer.unshift(value);
+        self._events?.push({ type: "buffered", value, self });
+        self._resolvers.forEach((resolver) => resolver());
+      }
+    });
+
+    const self = this;
     this.options = options ?? {};
   }
 
-  override async push(value: VALUE, ...values: VALUE[]): Promise<void> {
-    values.unshift(value);
-    for (let i = 0; i < values.length; i++) {
-      const value = values[i];
-      if (this._buffer.length >= this._options.maxSize) {
-        this._dropped++;
-        if (this._options.dropStrategy === "newest") {
-          this._events?.push({ type: "evicted", value, self: this });
-          continue;
-        } else {
-          this._events?.push({ type: "evicted", value: this._buffer.pop()!, self: this });
+  getConsumer() {
+    const self = this;
+    return new Stream(this._name, async function* () {
+      let resolve;
+
+      try {
+        while (true) {
+          if (self._buffer.length) {
+            const value = self._buffer.pop()!;
+            yield value;
+            self._events?.push({ type: "consumed", value, self });
+          } else {
+            await new Promise<void>((res) => {
+              resolve = res;
+              self._resolvers.add(resolve);
+            });
+          }
         }
+      } finally {
+        self._resolvers.delete(resolve!);
+        resolve!();
       }
-
-      this._buffer.unshift(value);
-      this._events?.push({ type: "buffered", value, self: this });
-      this._resolvers.forEach((resolver) => resolver());
-      this._resolvers.clear();
-    }
-
-    await new Promise((r) => setTimeout(r));
+    });
   }
-  override async *[Symbol.asyncIterator]() {
-    let resolve;
 
-    try {
-      while (true) {
-        if (this._buffer.length) {
-          const value = this._buffer.pop()!;
-          yield value;
-          this._events?.push({ type: "consumed", value, self: this });
-        } else {
-          await new Promise<void>((res) => {
-            resolve = res;
-            this._resolvers.add(resolve);
-          });
-        }
-      }
-    } finally {
-      this._resolvers.delete(resolve!);
-      resolve!();
-    }
-  }
   get events() {
     if (!this._events) this._events = new Stream();
     return this._events;
@@ -63,7 +64,7 @@ class Queue<VALUE, NAME extends string = Queue.Name> extends Stream<VALUE, NAME>
   get options() {
     return { ...this._options };
   }
-  set options(options: Queue.Options) {
+  set options(options: queue.Options) {
     this._options = { ...this._options, ...options };
   }
   get dropped() {
@@ -80,15 +81,27 @@ class Queue<VALUE, NAME extends string = Queue.Name> extends Stream<VALUE, NAME>
   }
 }
 
-export namespace Queue {
+export function queue<VALUE, NAME extends string = queue.Name>(
+  options?: queue.Options,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Queue<VALUE, NAME>> {
+  return (_, source, name) => new Queue(source, name, options);
+}
+
+export namespace queue {
   export type Name = typeof NAME;
   export type Options = {
     maxSize?: number;
     dropStrategy?: "oldest" | "newest";
   };
 
-  export type Event<VALUE> =
-    | { type: "evicted"; value: VALUE; self: Queue<VALUE> }
-    | { type: "buffered"; value: VALUE; self: Queue<VALUE> }
-    | { type: "consumed"; value: VALUE; self: Queue<VALUE> };
+  export type Event<VALUE, NAME extends string> =
+    | { type: "evicted"; value: VALUE; self: Queue<VALUE, NAME> }
+    | { type: "buffered"; value: VALUE; self: Queue<VALUE, NAME> }
+    | { type: "consumed"; value: VALUE; self: Queue<VALUE, NAME> };
 }
+
+const stream = new Stream<number>().pipe(queue()).pipe(consumer());
+
+await stream.queued.root.push(1, 2, 3);
+
+console.log(stream.queued.values);

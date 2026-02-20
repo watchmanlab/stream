@@ -23,7 +23,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     return this._name;
   }
 
-  push(value: VALUE, ...values: VALUE[]) {
+  push(value: VALUE, ...values: VALUE[]): Stream.PushResult {
     const readyPromises = new Array<Promise<void>>();
 
     for (const [queue, { resolve, ready }] of this._consumers) {
@@ -34,7 +34,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
     return {
       get awaitBroadcast() {
-        return new Promise((r) => setTimeout(r, 0));
+        return new Promise<void>((r) => setTimeout(r, 0));
       },
       get awaitAllConsumers() {
         return Promise.all(readyPromises);
@@ -42,7 +42,8 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       get awaitAnyConsumer() {
         return Promise.any(readyPromises);
       },
-      then: (resolve?: () => void, reject?: () => void) => new Promise((r) => setTimeout(r, 0)).then(resolve, reject),
+      then: (resolve?: () => void, reject?: () => void) =>
+        new Promise<void>((r) => setTimeout(r, 0)).then(resolve, reject),
     };
   }
 
@@ -153,7 +154,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     })();
   }
 }
-const NAME = "source";
+const NAME = "root";
 
 export namespace Stream {
   export type Name = typeof NAME;
@@ -164,7 +165,12 @@ export namespace Stream {
     | GeneratorFunction<VALUE>
     | AsyncIterable<VALUE>
     | Exclude<Iterable<VALUE>, string | String>;
-
+  export type PushResult = {
+    readonly awaitBroadcast: Promise<void>;
+    readonly awaitAllConsumers: Promise<void[]>;
+    readonly awaitAnyConsumer: Promise<void>;
+    then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
+  };
   export type Transformer<NAME extends string, INPUT extends Stream<any, any>, OUTPUT extends Stream<any, NAME>> = (
     useTransformerInsidePipePlease: UseTransformerInsidePipePlease,
     stream: INPUT,
