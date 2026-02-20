@@ -4,13 +4,14 @@ const NAME = "consumer";
 
 class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE, NAME> {
   protected _running = false;
-  protected _source: Stream<VALUE, any>;
-  protected _sourceGenerator?: AsyncGenerator<VALUE, void>;
+  protected __source: Stream<VALUE, any>;
+  protected __sourceGenrator?: AsyncGenerator<VALUE, void>;
   protected _options: consumer.Options<VALUE, NAME> = { autoStart: true };
   protected _events?: Stream<consumer.Event<VALUE, NAME>, `${NAME}-events`>;
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: consumer.Options<VALUE, NAME>) {
     super(name, source);
-    this._source = source;
+
+    this.__source = source;
     this.options = options ?? {};
 
     if (this._options.autoStart) {
@@ -37,11 +38,12 @@ class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE,
 
     if (this._options.stopSignalActivated) this._options.stopSignal?.next().then(() => this.stop());
 
-    this._sourceGenerator = this._source[Symbol.asyncIterator]();
+    this.__sourceGenrator = this.__source[Symbol.asyncIterator]();
 
-    for await (const value of this._sourceGenerator) {
+    for await (const value of this.__sourceGenrator!) {
       if (!this._running) break;
       this?._options.callback?.(value, this.stop.bind(this));
+      // this.push(value);
     }
   }
   async stop() {
@@ -49,8 +51,8 @@ class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE,
     if (this._options.startSignalActivated) this._options.startSignal?.next().then(() => this.start());
     this._running = false;
     this._events?.push({ type: "stop", this: this });
-    await this._sourceGenerator?.return();
-    this._sourceGenerator = undefined;
+    await this.__sourceGenrator?.return();
+    this.__sourceGenrator = undefined;
   }
 }
 export function consumer<VALUE, NAME extends string = consumer.Name>(): Stream.Transformer<

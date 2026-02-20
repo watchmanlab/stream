@@ -1,14 +1,14 @@
-import { Stream } from "../../stream/stream-0";
+import { Stream } from "../../stream";
 const NAME = "queued";
-type Name = typeof NAME;
-export class Queue<VALUE> extends Stream<VALUE, Name> {
+
+class Queue<VALUE, NAME extends string = Queue.Name> extends Stream<VALUE, NAME> {
   protected _buffer = new Array<VALUE>();
   protected _events?: Stream<Queue.Event<VALUE>, "Event">;
   protected _options: Required<Queue.Options> = { dropStrategy: "oldest", maxSize: 10000 };
   protected _dropped = 0;
-  protected _resolvers = new Set<() => void>();
-  constructor(options?: Queue.Options) {
-    super(NAME);
+
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: Queue.Options) {
+    super(name, source);
 
     this.options = options ?? {};
   }
@@ -81,6 +81,7 @@ export class Queue<VALUE> extends Stream<VALUE, Name> {
 }
 
 export namespace Queue {
+  export type Name = typeof NAME;
   export type Options = {
     maxSize?: number;
     dropStrategy?: "oldest" | "newest";

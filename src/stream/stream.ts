@@ -11,10 +11,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
   constructor(sourceOrName1?: Stream.Source<VALUE> | NAME, sourceOrName2?: Stream.Source<VALUE>) {
     if (typeof sourceOrName1 === "string" || sourceOrName1 instanceof String) {
-      this._name ??= sourceOrName1 as NAME;
+      this._name = (sourceOrName1 as NAME) ?? NAME;
       this._source = sourceOrName2;
     } else {
-      this._name ??= sourceOrName2 as NAME;
+      this._name = (sourceOrName2 as NAME) ?? NAME;
       this._source = sourceOrName1;
     }
   }
@@ -25,6 +25,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
   push(value: VALUE, ...values: VALUE[]) {
     const readyPromises = new Array<Promise<void>>();
+
     for (const [queue, { resolve, ready }] of this._consumers) {
       queue.push(value, ...values);
       resolve();
@@ -58,16 +59,13 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     }
   }
 
-  protected _onConsumerJoined?: (send: (value: VALUE, ...values: VALUE[]) => void) => void;
-  protected _onConsumerLeaved?: (queue: VALUE[]) => void;
-  protected _onConsumerRequestNext?: (send: (value: VALUE) => void) => void;
   async *[Symbol.asyncIterator]() {
     if (this._consumers.size === 0 && this._source) {
       this._sourceGenerator = Stream.generator(this._source);
     }
 
     const queue: VALUE[] = [];
-    this._onConsumerJoined?.((value, ...values) => queueMicrotask(() => queue.push(value, ...values)));
+
     let ready: () => void;
 
     try {
@@ -77,10 +75,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         } else {
           this._requestNext();
           await new Promise<void>((resolve) => {
-            this._onConsumerRequestNext?.((value) => {
-              queue.push(value);
-              resolve();
-            });
             this._consumers.set(queue, {
               resolve,
               ready: new Promise<void>((r) => (ready = r)),
@@ -93,8 +87,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     } finally {
       this._consumers.get(queue)?.resolve();
       this._consumers.delete(queue);
-
-      this._onConsumerLeaved?.([...queue]);
 
       queue.length = 0;
       if (this._consumers.size === 0) {
@@ -145,6 +137,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     return new Proxy(output, {
       get(target, p, receiver) {
         if (p in target) return Reflect.get(target, p, receiver);
+
         return target[NAME] || self;
       },
     });
@@ -177,7 +170,10 @@ export namespace Stream {
     stream: INPUT,
     name?: NAME,
   ) => OUTPUT;
-  export type Traversable<NAME extends string, STREAM extends Stream<any, any>> = Record<NAME | (string & {}), STREAM>;
+  export type Traversable<NAME extends string, INPUT extends Stream<any, any>> = Record<
+    NAME | (`$${string}` & {}),
+    INPUT
+  >;
   export type PipeResult<
     OUTPUT extends Stream<any, any>,
     NAME extends string,

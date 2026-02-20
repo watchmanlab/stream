@@ -1,12 +1,11 @@
 import { Stream } from "../../stream";
-import { consumer } from "../consumer";
 
 const NAME = "stated";
 
 class State<VALUE, NAME extends string = state.Name> extends Stream<VALUE, NAME> {
   protected _value: VALUE;
-  protected _options: state.Options = { emitCurrent: false };
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, initialValue: VALUE, options?: state.Options) {
+
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, initialValue: VALUE) {
     super(name, async function* () {
       try {
         for await (const value of source) {
@@ -21,10 +20,6 @@ class State<VALUE, NAME extends string = state.Name> extends Stream<VALUE, NAME>
 
     const self = this;
     this._value = initialValue;
-    this.options = options ?? {};
-    if (this._options.emitCurrent) {
-      this._onConsumerJoined = (send) => send(this._value);
-    }
   }
 
   get value() {
@@ -35,28 +30,14 @@ class State<VALUE, NAME extends string = state.Name> extends Stream<VALUE, NAME>
     this._value = value;
     this.push(value);
   }
-  get options() {
-    return this._options;
-  }
-  set options(options) {
-    this._options = { ...this._options, ...options };
-  }
 }
 
 export function state<VALUE, NAME extends string = state.Name>(
   initialValue: VALUE,
-  options?: state.Options,
 ): Stream.Transformer<NAME, Stream<VALUE, any>, State<VALUE, NAME>> {
-  return (_, source, name) => new State(source, name, initialValue, options);
+  return (_, source, name) => new State(source, name, initialValue);
 }
 
 export namespace state {
   export type Name = typeof NAME;
-  export type Options = {
-    emitCurrent?: boolean;
-  };
 }
-
-const stream = new Stream<number>().pipe(state(9, { emitCurrent: true })).pipe(consumer((value) => console.log(value)));
-
-stream.sss.sss.push(33);
