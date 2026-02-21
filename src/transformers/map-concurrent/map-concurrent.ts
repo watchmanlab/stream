@@ -1,5 +1,4 @@
 import { Stream } from "../../streams";
-import { consumer } from "../consumer";
 
 const NAME = "mapConcurrent";
 
@@ -47,9 +46,11 @@ export class MapConcurrent<VALUE, MAPPED, NAME extends string = mapConcurrent.Na
       try {
         while (true) {
           if (self._buffer.length && !aborted) {
-            yield await self._buffer.shift()!;
+            const result = self._buffer.shift()!;
 
-            if (self._options.preserveOrder) self._pending--;
+            if (result instanceof Promise) self._pending--;
+
+            yield await result;
 
             concurrencyLimitResolver!?.();
           } else {
@@ -105,17 +106,3 @@ export namespace mapConcurrent {
     self: MapConcurrent<VALUE, MAPPED, NAME>;
   };
 }
-
-const s = new Stream<number>()
-  .pipe(
-    mapConcurrent(
-      async (v) => {
-        await new Promise((r) => setTimeout(r, Math.random() * 500));
-        return v.toFixed(3);
-      },
-      { preserveOrder: true, concurrencyLimit: 1 },
-    ),
-  )
-  .pipe(consumer((v) => console.log(v)));
-
-s.mapConcurrent.root.push(1, 2, 3, 4, 5, 6, 7, 8, 9);
