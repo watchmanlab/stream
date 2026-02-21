@@ -1,5 +1,6 @@
 import { Stream } from "../../streams/";
-export const NAME = "filter";
+
+const NAME = "filter";
 
 export class Filter<VALUE, FILTERED extends VALUE = VALUE, NAME extends string = Filter.Name> extends Stream<
   FILTERED,
@@ -7,7 +8,7 @@ export class Filter<VALUE, FILTERED extends VALUE = VALUE, NAME extends string =
 > {
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, predicate: Filter.Predicate<VALUE>) {
     super(name, async function* () {
-      for await (const value of Stream.generator(source)) {
+      for await (const value of source) {
         if (await predicate(value)) yield value as FILTERED;
       }
     });

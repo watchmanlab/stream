@@ -1,24 +1,44 @@
-import { Stream } from "../../stream-0";
+import { Stream } from "../../streams";
+import { consumer } from "../consumer";
 
-/**
- * Delay emissions until quiet period
- *
- * @example
- * ```typescript
- * stream.pipe(debounce(300))
- * ```
- */
-export function debounce<VALUE>(ms: number): Stream.Transformer<Stream<VALUE>> {
-  return function (source) {
-    return new Stream((self) => {
+const NAME = "debounce";
+
+export class Debounce<VALUE, NAME extends string = debounce.Name> extends Stream<VALUE, NAME> {
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, ms: number) {
+    super(name, async function* () {
       let timer: any = null;
+      let aborted = false;
 
-      return source
-        .listen((value) => {
+      let resolve: (value: VALUE) => void;
+
+      (async () => {
+        for await (const value of source) {
           clearTimeout(timer);
-          timer = setTimeout(() => self.push(value), ms);
-        })
-        .addCleanup(() => clearTimeout(timer));
+          if (aborted) {
+            resolve!?.(value);
+            break;
+          }
+          timer = setTimeout(() => resolve!?.(value), ms);
+        }
+      })();
+
+      try {
+        while (true) {
+          yield await new Promise<VALUE>((r) => (resolve = r));
+        }
+      } finally {
+        aborted = true;
+      }
     });
-  };
+  }
+}
+
+export function debounce<VALUE, NAME extends string = debounce.Name>(
+  ms: number,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Debounce<VALUE, NAME>> {
+  return (_, source, name) => new Debounce(source, name, ms);
+}
+
+export namespace debounce {
+  export type Name = typeof NAME;
 }

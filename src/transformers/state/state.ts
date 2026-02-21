@@ -1,4 +1,4 @@
-import { Stream } from "../../streams/stream";
+import { Stream } from "../../streams";
 
 const NAME = "stated";
 
@@ -9,7 +9,6 @@ class State<VALUE, NAME extends string = state.Name> extends Stream<VALUE, NAME>
     super(name, async function* () {
       try {
         for await (const value of source) {
-          if (self._value === value) continue;
           self._value = value;
           yield value;
         }

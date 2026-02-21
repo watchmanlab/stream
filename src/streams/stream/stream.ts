@@ -57,12 +57,17 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       });
     }
   }
+
+  protected _onConsumerJoin?: () => void;
+  protected _onConsumerLeft?: () => void;
   async *[Symbol.asyncIterator]() {
     if (this._consumers.size === 0 && this._source) {
       this._sourceGenerator = Stream.generator(this._source);
     }
 
     const queue: VALUE[] = [];
+    this._consumers.set(queue, { resolve() {}, ready: Promise.resolve() });
+    this._onConsumerJoin?.();
 
     let ready: () => void;
 
@@ -87,11 +92,12 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._consumers.delete(queue);
 
       queue.length = 0;
+
       if (this._consumers.size === 0) {
         this._sourceGenerator?.return?.();
         this._sourceGenerator = undefined;
       }
-
+      this._onConsumerLeft?.();
       return;
     }
   }
@@ -187,6 +193,7 @@ export namespace Stream {
         conflictingProperty: OUTPUT[NAME];
       }
     : OUTPUT & Traversable<NAME, INPUT>;
+
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 }
 

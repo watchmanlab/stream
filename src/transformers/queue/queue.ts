@@ -1,4 +1,4 @@
-import { Stream } from "../../streams/stream";
+import { Stream } from "../../streams";
 
 const NAME = "queued";
 
@@ -54,10 +54,10 @@ class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME>
     })();
   }
 
-  get events() {
-    if (!this._events) this._events = new Stream();
-    return this._events;
-  }
+  // get events() {
+  //   if (!this._events) this._events = new Stream();
+  //   return this._events;
+  // }
   get options() {
     return { ...this._options };
   }

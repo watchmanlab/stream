@@ -1,28 +1,29 @@
-import { Stream } from "../../stream-0";
-import { filter } from "../filter";
-import { sequential } from "../map/map";
-import { statefull } from "../statefull";
+import { Stream } from "../../streams";
 
-/**
- * Remove consecutive duplicate values (O(1) memory)
- *
- * @example
- * ```typescript
- * stream.pipe(distinctUntilChanged())
- * // [1, 1, 2, 2, 1] → [1, 2, 1]
- * ```
- */
+const NAME = "distinctUntilChanged";
 
-export function distinctUntilChanged<VALUE>(): Stream.Transformer<Stream<VALUE>> {
-  return function (source) {
-    return new Stream((self) => {
+export class DistinctUntilChanged<VALUE, NAME extends string = distinctUntilChanged.Name> extends Stream<VALUE, NAME> {
+  constructor(source: Stream<VALUE>, name = NAME as NAME) {
+    super(name, async function* () {
       let prev = Symbol() as VALUE;
 
-      return source.listen((value) => {
-        if (prev === value) return;
+      for await (const value of source) {
+        if (prev === value) continue;
         prev = value;
-        self.push(value);
-      });
+        yield value;
+      }
     });
-  };
+  }
+}
+
+export function distinctUntilChanged<VALUE, NAME extends string = distinctUntilChanged.Name>(): Stream.Transformer<
+  NAME,
+  Stream<VALUE, any>,
+  DistinctUntilChanged<VALUE, NAME>
+> {
+  return (_, source, name) => new DistinctUntilChanged(source, name);
+}
+
+export namespace distinctUntilChanged {
+  export type Name = typeof NAME;
 }
