@@ -46,9 +46,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         new Promise<void>((r) => setTimeout(r, 0)).then(resolve, reject),
     };
   }
-
   protected _requestingNext = false;
-
   protected _requestNext() {
     if (!this._requestingNext && this._sourceGenerator) {
       this._requestingNext = true;
@@ -59,7 +57,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       });
     }
   }
-
   async *[Symbol.asyncIterator]() {
     if (this._consumers.size === 0 && this._source) {
       this._sourceGenerator = Stream.generator(this._source);
@@ -98,11 +95,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       return;
     }
   }
-
   next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
     return this[Symbol.asyncIterator]().next();
   }
-
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
   ): Stream.PipeResult<OUTPUT, NAME, this>;
@@ -143,6 +138,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       },
     });
   }
+
   static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, any> {
     return (async function* () {
       if (!source) return;
@@ -158,7 +154,7 @@ const NAME = "root";
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type ValueOf<T extends Source<any>> = T extends Stream<infer VALUE> ? VALUE : never;
+  export type ValueOf<T extends Source<any>> = T extends Stream<infer VALUE, any> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE> | Generator<VALUE>;
   export type Source<VALUE> =

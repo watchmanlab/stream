@@ -1,32 +1,68 @@
-import { Stream } from "../../stream-0";
+import { Stream } from "../../streams/index.ts";
 
-/**
- * Sync latest from multiple streams
- *
- * @example
- * ```typescript
- * stream1.pipe(combineLatest(stream2))
- * ```
- */
-export function combineLatest<VALUE, STREAMS extends [Stream<any>, ...Stream<any>[]]>(
-  ...streams: STREAMS
-): Stream.Transformer<Stream<VALUE>, Stream<[VALUE, ...{ [K in keyof STREAMS]: Stream.ValueOf<STREAMS[K]> }]>> {
-  return function (source) {
-    return new Stream((self) => {
-      const latest = new Array(streams.length + 1) as [VALUE, ...{ [K in keyof STREAMS]: Stream.ValueOf<STREAMS[K]> }];
-      const hasValue: boolean[] = new Array(streams.length + 1).fill(false);
+const NAME = "combine-latest";
 
-      const controllers = [source, ...streams].map((stream, i) =>
-        stream.listen((value) => {
-          latest[i] = value;
-          hasValue[i] = true;
-          if (hasValue.every(Boolean)) {
-            self.push([...latest]);
+export class CombineLatest<
+  VALUE,
+  SOURCES extends [Stream<any, any>, ...Stream<any, any>[]],
+  NAME extends string = combineLatest.Name,
+> extends Stream<[VALUE, ...{ [K in keyof SOURCES]: Stream.ValueOf<SOURCES[K]> }], NAME> {
+  protected _latest: [
+    VALUE | combineLatest.Empty,
+    ...{ [K in keyof SOURCES]: Stream.ValueOf<SOURCES[K]> | combineLatest.Empty },
+  ];
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, ...sources: SOURCES) {
+    super(name, async function* () {
+      try {
+        while (true) {
+          if (self._latest.every((v) => v !== combineLatest.EMPTY)) {
+            yield [...self._latest] as [VALUE, ...{ [K in keyof SOURCES]: Stream.ValueOf<SOURCES[K]> }];
           }
-        }),
-      );
+          await Promise.any(
+            [source, ...sources].map(
+              (stream, i) =>
+                new Promise<void>((resolve, reject) => {
+                  stream.next().then((result) => {
+                    if (result.done) {
+                      reject();
+                      return;
+                    }
 
-      return new Stream.Controller(() => controllers.forEach((controller) => controller.abort()));
+                    self._latest[i] = result.value;
+
+                    resolve();
+                  });
+                }),
+            ),
+          );
+        }
+      } finally {
+        self._latest.length = 0;
+      }
     });
-  };
+    const self = this;
+    this._latest = (
+      new Array(sources.length + 1) as [
+        VALUE | combineLatest.Empty,
+        ...{ [K in keyof SOURCES]: Stream.ValueOf<SOURCES[K]> | combineLatest.Empty },
+      ]
+    ).fill(combineLatest.EMPTY);
+  }
+
+  get latest() {
+    return [...this._latest];
+  }
+}
+export function combineLatest<
+  VALUE,
+  SOURCES extends [Stream<any, any>, ...Stream<any, any>[]],
+  NAME extends string = combineLatest.Name,
+>(...sources: SOURCES): Stream.Transformer<NAME, Stream<VALUE, any>, CombineLatest<VALUE, SOURCES, NAME>> {
+  return (_, source, name) => new CombineLatest(source, name, ...sources);
+}
+
+export namespace combineLatest {
+  export type Name = typeof NAME;
+  export const EMPTY = Symbol("*EMPTY#");
+  export type Empty = typeof EMPTY;
 }

@@ -1,4 +1,4 @@
-import { Stream } from "../../streams/stream/stream-0";
+import { Stream } from "../../streams";
 
 const NAME = "mapped";
 type Name = typeof NAME;

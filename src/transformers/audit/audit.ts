@@ -1,17 +1,10 @@
-import { Stream } from "../../streams/stream/stream-0";
+import { Stream } from "../../streams/index.ts";
 
-/**
- * Emit first value, then ignore until quiet period
- *
- * @example
- * ```typescript
- * stream.pipe(audit(300)) // Emit first, ignore for 300ms
- * ```
- */
+const NAME = "audit";
 
-export function audit<T>(ms: number): Stream.Transformer<Stream<T>> {
-  return function (source) {
-    return new Stream<T>(async function* () {
+export class Audit<VALUE, NAME extends string = audit.Name> extends Stream<VALUE, NAME> {
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, ms: number) {
+    super(name, async function* () {
       let timer: any = null;
       let canEmit = true;
 
@@ -20,7 +13,7 @@ export function audit<T>(ms: number): Stream.Transformer<Stream<T>> {
           if (canEmit) {
             canEmit = false;
             clearTimeout(timer);
-            timer = setTimeout(() => (canEmit = true), ms!);
+            timer = setTimeout(() => (canEmit = true), ms);
             yield value;
           }
         }
@@ -28,5 +21,17 @@ export function audit<T>(ms: number): Stream.Transformer<Stream<T>> {
         clearTimeout(timer);
       }
     });
-  };
+  }
 }
+
+export function audit<VALUE, NAME extends string = audit.Name>(
+  ms: number,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Audit<VALUE, NAME>> {
+  return (_, source, name) => new Audit(source, name, ms);
+}
+
+export namespace audit {
+  export type Name = typeof NAME;
+}
+
+const r = new Stream<number>().pipe(audit(40));

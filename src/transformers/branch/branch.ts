@@ -1,19 +1,24 @@
-import { Stream } from "../../stream-0";
+import { Stream } from "../../streams/index.ts";
 
-export function branch<VALUE>(target: Stream<VALUE>): Stream.Transformer<Stream<VALUE>> {
-  return function (source) {
-    const oldSource = target.getSource();
+const NAME = "branch";
 
-    target.setSource((self) => {
-      const oldController = oldSource?.(self);
-
-      const sourceController = source.listen((value) => {
-        self.push(value);
-      });
-
-      return sourceController.addCleanup(() => oldController?.abort());
+export class Branch<VALUE, NAME extends string = branch.Name> extends Stream<VALUE, NAME> {
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, target: Stream<VALUE, any>) {
+    super(name, async function* () {
+      for await (const value of source) {
+        target.push(value);
+        yield value;
+      }
     });
+  }
+}
 
-    return new Stream<VALUE>((self) => source.listen((value) => self.push(value)));
-  };
+export function branch<VALUE, NAME extends string = branch.Name>(
+  target: Stream<VALUE>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Branch<VALUE, NAME>> {
+  return (_, source, name) => new Branch(source, name, target);
+}
+
+export namespace branch {
+  export type Name = typeof NAME;
 }
