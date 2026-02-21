@@ -1,17 +1,17 @@
 import { Stream } from "../../streams";
 
-const NAME = "mapConcurrent";
+const NAME = "concurrent";
 
-export class MapConcurrent<VALUE, MAPPED, NAME extends string = mapConcurrent.Name> extends Stream<MAPPED, NAME> {
-  protected _options: Required<mapConcurrent.Options>;
+export class Concurrent<VALUE, MAPPED, NAME extends string = concurrent.Name> extends Stream<MAPPED, NAME> {
+  protected _options: Required<concurrent.Options>;
   protected _buffer: (MAPPED | Promise<MAPPED>)[] = [];
   protected _pending: number = 0;
-  protected _events?: Stream<mapConcurrent.Event<VALUE, MAPPED, NAME>, `${NAME}-events`>;
+  protected _events?: Stream<concurrent.Event<VALUE, MAPPED, NAME>, `${NAME}-events`>;
   constructor(
     source: Stream<VALUE, any>,
     name = NAME as NAME,
-    mapper: mapConcurrent.Mapper<VALUE, MAPPED>,
-    options?: mapConcurrent.Options,
+    mapper: concurrent.Mapper<VALUE, MAPPED>,
+    options?: concurrent.Options,
   ) {
     super(name, async function* () {
       let resolver: () => void;
@@ -72,7 +72,7 @@ export class MapConcurrent<VALUE, MAPPED, NAME extends string = mapConcurrent.Na
   get options() {
     return this._options;
   }
-  set options(options: mapConcurrent.Options) {
+  set options(options: concurrent.Options) {
     this._options = { ...this._options, ...options };
   }
   get events() {
@@ -87,22 +87,22 @@ export class MapConcurrent<VALUE, MAPPED, NAME extends string = mapConcurrent.Na
   }
 }
 
-export function mapConcurrent<VALUE, MAPPED, NAME extends string = mapConcurrent.Name>(
-  mapper: mapConcurrent.Mapper<VALUE, MAPPED>,
-  options?: mapConcurrent.Options,
-): Stream.Transformer<NAME, Stream<VALUE, any>, MapConcurrent<VALUE, MAPPED, NAME>> {
-  return (_, source, name) => new MapConcurrent(source, name, mapper, options);
+export function concurrent<VALUE, MAPPED, NAME extends string = concurrent.Name>(
+  mapper: concurrent.Mapper<VALUE, MAPPED>,
+  options?: concurrent.Options,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Concurrent<VALUE, MAPPED, NAME>> {
+  return (_, source, name) => new Concurrent(source, name, mapper, options);
 }
 
-export namespace mapConcurrent {
+export namespace concurrent {
   export type Name = typeof NAME;
   export type Mapper<VALUE, MAPPED> = (value: VALUE) => Promise<MAPPED>;
   export type Options = {
     concurrencyLimit?: number;
     preserveOrder?: boolean;
   };
-  export type Event<VALUE, MAPPED, NAME extends string = mapConcurrent.Name> = {
+  export type Event<VALUE, MAPPED, NAME extends string = concurrent.Name> = {
     type: "concurrency-limit-reached";
-    self: MapConcurrent<VALUE, MAPPED, NAME>;
+    self: Concurrent<VALUE, MAPPED, NAME>;
   };
 }

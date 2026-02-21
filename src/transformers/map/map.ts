@@ -1,14 +1,10 @@
 import { Stream } from "../../streams";
 
-const NAME = "mapped";
+const NAME = "map";
 type Name = typeof NAME;
 
 class Map<VALUE, MAPPED, NAME extends string = Name> extends Stream<MAPPED, NAME> {
-  constructor(
-    source: Stream<VALUE, any>,
-    name = NAME as NAME,
-    private mapper: map.Mapper<VALUE, MAPPED>,
-  ) {
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, mapper: map.Mapper<VALUE, MAPPED>) {
     super(name, async function* () {
       for await (const value of source) {
         yield await mapper(value);
