@@ -1,4 +1,5 @@
 import { Stream } from "../../streams/stream";
+import { effect } from "../effect";
 
 const NAME = "consumer";
 
@@ -42,7 +43,7 @@ class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE,
 
     for await (const value of this.__sourceGenerator!) {
       if (!this._running) break;
-      this?._options.callback?.(value, this.stop.bind(this));
+      await this?._options.callback?.(value, this.stop.bind(this));
     }
   }
   async stop() {
@@ -80,7 +81,7 @@ export function consumer<VALUE, NAME extends string = consumer.Name>(
 
 export namespace consumer {
   export type Name = typeof NAME;
-  export type Callback<VALUE> = (value: VALUE, stop: () => void) => void;
+  export type Callback<VALUE> = (value: VALUE, stop: () => void) => void | Promise<void>;
   export type Options<VALUE, NAME extends string> = {
     callback?: Callback<VALUE>;
     autoStart?: boolean;
