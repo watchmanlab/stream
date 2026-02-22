@@ -1,12 +1,12 @@
 import { Stream } from "../../streams/index.ts";
 
-const NAME = "buffer";
+const NAME = "batch";
 
 type FixedArray<VALUE, SIZE extends number, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR
   : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
 
-export class Buffer<VALUE, SIZE extends number, NAME extends string = buffer.Name> extends Stream<
+export class Batch<VALUE, SIZE extends number, NAME extends string = batch.Name> extends Stream<
   FixedArray<VALUE, SIZE>,
   NAME
 > {
@@ -27,12 +27,12 @@ export class Buffer<VALUE, SIZE extends number, NAME extends string = buffer.Nam
     });
   }
 }
-export function buffer<VALUE, SIZE extends number, NAME extends string = buffer.Name>(
+export function batch<VALUE, SIZE extends number, NAME extends string = batch.Name>(
   size: SIZE,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Buffer<VALUE, SIZE, NAME>> {
-  return (_, source, name) => new Buffer(source, name, size);
+): Stream.Transformer<NAME, Stream<VALUE, any>, Batch<VALUE, SIZE, NAME>> {
+  return (_, source, name) => new Batch(source, name, size);
 }
 
-export namespace buffer {
+export namespace batch {
   export type Name = typeof NAME;
 }

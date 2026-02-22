@@ -1,62 +1,62 @@
-import { Stream } from "../../stream-0";
+import { Stream } from "../../streams/index.ts";
+import { consumer } from "../consumer/consumer.ts";
 
-/**
- * Adds flow control to a stream with `.gate.open()` and `.gate.close()` methods.
- * Gate starts open by default. Closed gate blocks all values.
- *
- * @template VALUE - The type of values in the stream
- * @returns Transformer that adds gate behavior
- *
- * @example
- * ```typescript
- * const source = new Stream<number>();
- * const gated = source.pipe(gate());
- *
- * gated.listen(n => console.log(n));
- * source.push(1); // Logs: 1
- * gated.gate.close();
- * source.push(2); // Blocked
- * gated.gate.open();
- * source.push(3); // Logs: 3
- * ```
- *
- * @example
- * ```typescript
- * const events = new Stream<string>().pipe(gate());
- * console.log(events.gate.isOpen); // true
- * events.gate.close();
- * console.log(events.gate.isOpen); // false
- * ```
- */
-export function gate<VALUE>(): Stream.Transformer<Stream<VALUE>, Stream<VALUE> & { gate: gate.Gate }> {
-  return (source) => {
-    let isOpen = true;
+const NAME = "gate";
 
-    return Stream.create<VALUE, { gate: gate.Gate }>(
-      function (self) {
-        return source.listen((value) => {
-          if (isOpen) self.push(value);
-        });
-      },
-      () => {
-        return {
-          gate: {
-            open: () => (isOpen = true),
-            close: () => (isOpen = false),
-            get isOpen() {
-              return isOpen;
-            },
-          },
-        };
-      },
-    );
-  };
+export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, NAME> {
+  protected _isOpen = true;
+  protected _resolver?: () => void;
+  protected __sourceGenerator?: AsyncGenerator<VALUE, void, any> | undefined;
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, isOpen = true) {
+    super(name, async function* () {
+      try {
+        while (true) {
+          if (!self._isOpen) await new Promise<void>((r) => (self._resolver = r));
+          if (!self.__sourceGenerator) self.__sourceGenerator = source[Symbol.asyncIterator]();
+          for await (const value of self.__sourceGenerator) {
+            if (!self._isOpen) {
+              self.__sourceGenerator = undefined;
+              break;
+            }
+            yield value;
+          }
+          if (self.__sourceGenerator) break;
+        }
+      } finally {
+        self._resolver?.();
+        self.__sourceGenerator?.return();
+      }
+    });
+    const self = this;
+    this._isOpen = isOpen;
+  }
+
+  open() {
+    this._isOpen = true;
+    this._resolver?.();
+  }
+  close() {
+    this._isOpen = false;
+    this.__sourceGenerator?.return();
+  }
+}
+
+export function gate<VALUE, NAME extends string = gate.Name>(
+  isOpen = true,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Gate<VALUE, NAME>> {
+  return (_, source, name) => new Gate(source, name, isOpen);
 }
 
 export namespace gate {
+  export type Name = typeof NAME;
   export type Gate = {
     open(): void;
     close(): void;
     readonly isOpen: boolean;
   };
 }
+
+new Stream([1, 2, 3])
+  .pipe(gate(true))
+  .pipe(consumer((v) => console.log(v)))
+  .gate.open();

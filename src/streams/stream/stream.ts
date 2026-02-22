@@ -1,15 +1,19 @@
 export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE> {
-  protected _consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
-  protected _source?: Stream.Source<VALUE>;
-  protected _sourceGenerator?: AsyncGenerator<VALUE, void>;
+  protected _consumers = new Map<(VALUE | Stream.Terminate)[], { resolve: () => void; ready: Promise<void> }>();
+  protected _source?: Stream.Source<VALUE | Stream.Terminate>;
+  protected _sourceGenerator?: AsyncGenerator<VALUE | Stream.Terminate, void>;
   protected _name = NAME as NAME;
-  constructor();
-  constructor(source: Stream.Source<VALUE>);
-  constructor(source: Stream.Source<VALUE>, name: NAME);
-  constructor(name: NAME);
-  constructor(name: NAME, source: Stream.Source<VALUE>);
 
-  constructor(sourceOrName1?: Stream.Source<VALUE> | NAME, sourceOrName2?: Stream.Source<VALUE>) {
+  constructor();
+  constructor(source: Stream.Source<VALUE | Stream.Terminate>);
+  constructor(source: Stream.Source<VALUE | Stream.Terminate>, name: NAME);
+  constructor(name: NAME);
+  constructor(name: NAME, source: Stream.Source<VALUE | Stream.Terminate>);
+
+  constructor(
+    sourceOrName1?: Stream.Source<VALUE | Stream.Terminate> | NAME,
+    sourceOrName2?: Stream.Source<VALUE | Stream.Terminate>,
+  ) {
     if (typeof sourceOrName1 === "string" || sourceOrName1 instanceof String) {
       this._name = (sourceOrName1 as NAME) ?? NAME;
       this._source = sourceOrName2;
@@ -23,7 +27,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     return this._name;
   }
 
-  push(value: VALUE, ...values: VALUE[]): Stream.PushResult {
+  push(value: VALUE | Stream.Terminate, ...values: (VALUE | Stream.Terminate)[]): Stream.PushResult {
     const readyPromises = new Array<Promise<void>>();
 
     for (const [queue, { resolve, ready }] of this._consumers) {
@@ -74,7 +78,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     try {
       while (true) {
         if (queue.length) {
-          yield queue.shift()!;
+          const value = queue.shift()!;
+          if (value === Stream.TERMINATE) break;
+
+          yield value as VALUE;
         } else {
           this._requestNext();
           await new Promise<void>((resolve) => {
@@ -193,6 +200,9 @@ export namespace Stream {
         conflictingProperty: OUTPUT[NAME];
       }
     : OUTPUT & Traversable<NAME, INPUT>;
+
+  export const TERMINATE = Symbol("**TERMINATE##");
+  export type Terminate = typeof TERMINATE;
 
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 }
