@@ -1,4 +1,5 @@
 import { Stream } from "../../streams";
+import { consumer } from "../consumer";
 
 const NAME = "effect";
 
@@ -19,10 +20,12 @@ export class Effect<VALUE, NAME extends string = effect.Name, ERROR = unknown> e
             result = await generator.next(downstreamError);
           }
         } catch (error) {
-          result = await generator.next(new Stream.Error(error as ERROR, result.value as VALUE, name));
+          result = await generator.next(new Stream.Error(error, result.value as VALUE, self));
         }
       }
     });
+
+    const self = this;
   }
 }
 export function effect<VALUE, NAME extends string = effect.Name, ERROR = unknown>(
@@ -30,10 +33,24 @@ export function effect<VALUE, NAME extends string = effect.Name, ERROR = unknown
 ): Stream.Transformer<NAME, Stream<VALUE, any, any>, Effect<VALUE, NAME, ERROR>> {
   return (_, source, name) => new Effect(source, name, callback);
 }
-
 export namespace effect {
   export type Name = typeof NAME;
   export type Callback<VALUE, ERROR> = (
     value: VALUE,
-  ) => Stream.MaybeError<VALUE, ERROR> | Promise<Stream.MaybeError<VALUE, ERROR>>;
+  ) =>
+    | Stream.MaybeError<VALUE, ERROR, Effect<VALUE, any, ERROR>>
+    | Promise<Stream.MaybeError<VALUE, ERROR, Effect<VALUE, any, ERROR>>>;
 }
+
+new Stream([1, 2, 3])
+  .pipe(
+    effect((v) => {
+      // return new Stream.Error("hello", v, "effect");
+    }),
+  )
+  .pipe(
+    consumer((v) => {
+      // return new Stream.Error("hello", v, "effect");
+    }),
+  )
+  .pipe(consumer((v) => console.log(v)));

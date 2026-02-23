@@ -3,23 +3,24 @@ import { consumer } from "../consumer/consumer.ts";
 
 const NAME = "gate";
 
-export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, NAME> {
+export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, NAME, never> {
   protected _isOpen = true;
   protected _resolver?: () => void;
   protected __sourceGenerator?: AsyncGenerator<VALUE, void, any> | undefined;
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, isOpen = true) {
+  constructor(source: Stream<VALUE, any, any>, name = NAME as NAME, isOpen = true) {
     super(name, async function* () {
       try {
         while (true) {
           if (!self._isOpen) await new Promise<void>((r) => (self._resolver = r));
           if (!self.__sourceGenerator) self.__sourceGenerator = source[Symbol.asyncIterator]();
-          for await (const value of self.__sourceGenerator) {
-            if (!self._isOpen) {
-              self.__sourceGenerator = undefined;
-              break;
-            }
-            yield value;
+
+          let result = await self.__sourceGenerator.next();
+
+          while (!result.done && self._isOpen) {
+            const maybeError = yield result.value;
+            result = await self.__sourceGenerator.next(maybeError);
           }
+
           if (self.__sourceGenerator) break;
         }
       } finally {
@@ -43,7 +44,7 @@ export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, 
 
 export function gate<VALUE, NAME extends string = gate.Name>(
   isOpen = true,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Gate<VALUE, NAME>> {
+): Stream.Transformer<NAME, Stream<VALUE, any, any>, Gate<VALUE, NAME>> {
   return (_, source, name) => new Gate(source, name, isOpen);
 }
 

@@ -1,15 +1,14 @@
 import { Stream } from "../../streams/stream";
-import { effect } from "../effect";
 
 const NAME = "consumer";
 
-class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE, NAME> {
+class Consumer<VALUE, NAME extends string = consumer.Name, ERROR = unknown> extends Stream<VALUE, NAME, ERROR> {
   protected _running = false;
-  protected __source: Stream<VALUE, any>;
+  protected __source: Stream<VALUE, any, any>;
   protected __sourceGenerator?: AsyncGenerator<VALUE, void>;
-  protected _options: consumer.Options<VALUE, NAME> = { autoStart: true };
-  protected _events?: Stream<consumer.Event<VALUE, NAME>, `${NAME}-events`>;
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: consumer.Options<VALUE, NAME>) {
+  protected _options: consumer.Options<VALUE, NAME, ERROR> = { autoStart: true };
+  protected _events?: Stream<consumer.Event<this>, `${NAME}-events`, never>;
+  constructor(source: Stream<VALUE, any, any>, name = NAME as NAME, options?: consumer.Options<VALUE, NAME, ERROR>) {
     super(name, source);
 
     this.__source = source;
@@ -24,9 +23,9 @@ class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE,
   get options() {
     return { ...this._options };
   }
-  set options(options: consumer.Options<VALUE, NAME>) {
+  set options(options: consumer.Options<VALUE, NAME, ERROR>) {
     this._options = { autoStart: true, ...options };
-    this._events?.push({ type: "options-changed", this: this });
+    this._events?.push({ type: "options-changed", self: this });
   }
   get events() {
     if (!this._events) this._events = new Stream(`${this._name}-events` as never);
@@ -35,45 +34,52 @@ class Consumer<VALUE, NAME extends string = consumer.Name> extends Stream<VALUE,
   async start() {
     if (this._running) return;
     this._running = true;
-    this._events?.push({ type: "start", this: this });
+    this._events?.push({ type: "start", self: this });
 
     if (this._options.stopSignalActivated) this._options.stopSignal?.next().then(() => this.stop());
 
     this.__sourceGenerator = this.__source[Symbol.asyncIterator]();
 
-    for await (const value of this.__sourceGenerator!) {
-      if (!this._running) break;
-      await this?._options.callback?.(value, this.stop.bind(this));
+    let result = await this.__sourceGenerator.next();
+
+    while (!result.done && this._running) {
+      try {
+        const maybeError = await this?._options.callback?.(result.value, this.stop.bind(this));
+
+        result = await this.__sourceGenerator.next(maybeError);
+      } catch (error) {
+        result = await this.__sourceGenerator.next(new Stream.Error(error, result.value as VALUE, this));
+      }
     }
   }
   async stop() {
     if (!this._running) return;
     if (this._options.startSignalActivated) this._options.startSignal?.next().then(() => this.start());
     this._running = false;
-    this._events?.push({ type: "stop", this: this });
+    this._events?.push({ type: "stop", self: this });
     await this.__sourceGenerator?.return();
     this.__sourceGenerator = undefined;
   }
 }
-export function consumer<VALUE, NAME extends string = consumer.Name>(): Stream.Transformer<
+export function consumer<VALUE, NAME extends string = consumer.Name, ERROR = unknown>(): Stream.Transformer<
   NAME,
-  Stream<VALUE, any>,
-  Consumer<VALUE, NAME>
+  Stream<VALUE, any, any>,
+  Consumer<VALUE, NAME, ERROR>
 >;
-export function consumer<VALUE, NAME extends string = consumer.Name>(
-  callback: consumer.Callback<VALUE>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Consumer<VALUE, NAME>>;
-export function consumer<VALUE, NAME extends string = consumer.Name>(
-  options: consumer.Options<VALUE, NAME>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Consumer<VALUE, NAME>>;
-export function consumer<VALUE, NAME extends string = consumer.Name>(
-  callback: consumer.Callback<VALUE>,
-  options: Omit<consumer.Options<VALUE, NAME>, "callback">,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Consumer<VALUE, NAME>>;
-export function consumer<VALUE, NAME extends string = consumer.Name>(
-  callbackOrOptions?: consumer.Callback<VALUE> | consumer.Options<VALUE, NAME>,
-  options?: Omit<consumer.Options<VALUE, NAME>, "callback">,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Consumer<VALUE, NAME>> {
+export function consumer<VALUE, NAME extends string = consumer.Name, ERROR = unknown>(
+  callback: consumer.Callback<VALUE, ERROR>,
+): Stream.Transformer<NAME, Stream<VALUE, any, any>, Consumer<VALUE, NAME, ERROR>>;
+export function consumer<VALUE, NAME extends string = consumer.Name, ERROR = unknown>(
+  options: consumer.Options<VALUE, NAME, ERROR>,
+): Stream.Transformer<NAME, Stream<VALUE, any, any>, Consumer<VALUE, NAME, ERROR>>;
+export function consumer<VALUE, NAME extends string = consumer.Name, ERROR = unknown>(
+  callback: consumer.Callback<VALUE, ERROR>,
+  options: Omit<consumer.Options<VALUE, NAME, ERROR>, "callback">,
+): Stream.Transformer<NAME, Stream<VALUE, any, any>, Consumer<VALUE, NAME, ERROR>>;
+export function consumer<VALUE, NAME extends string = consumer.Name, ERROR = unknown>(
+  callbackOrOptions?: consumer.Callback<VALUE, ERROR> | consumer.Options<VALUE, NAME, ERROR>,
+  options?: Omit<consumer.Options<VALUE, NAME, ERROR>, "callback">,
+): Stream.Transformer<NAME, Stream<VALUE, any, any>, Consumer<VALUE, NAME, ERROR>> {
   const _options =
     typeof callbackOrOptions === "function" ? { ...options, callback: callbackOrOptions } : { ...callbackOrOptions };
   return (_, source, name) => new Consumer(source, name, _options);
@@ -81,18 +87,23 @@ export function consumer<VALUE, NAME extends string = consumer.Name>(
 
 export namespace consumer {
   export type Name = typeof NAME;
-  export type Callback<VALUE> = (value: VALUE, stop: () => void) => void | Promise<void>;
-  export type Options<VALUE, NAME extends string> = {
-    callback?: Callback<VALUE>;
+  export type Callback<VALUE, ERROR> = (
+    value: VALUE,
+    stop: () => void,
+  ) =>
+    | Stream.MaybeError<VALUE, ERROR, Consumer<VALUE, any, ERROR>>
+    | Promise<Stream.MaybeError<VALUE, ERROR, Consumer<VALUE, any, ERROR>>>;
+  export type Options<VALUE, NAME extends string, ERROR> = {
+    callback?: Callback<VALUE, ERROR>;
     autoStart?: boolean;
-    stopSignal?: Stream<any, `${NAME}-stop-signal`>;
-    startSignal?: Stream<any, `${NAME}-start-signal`>;
+    stopSignal?: Stream<any, `${NAME}-stop-signal`, any>;
+    startSignal?: Stream<any, `${NAME}-start-signal`, any>;
     stopSignalActivated?: boolean;
     startSignalActivated?: boolean;
   };
 
-  export type Event<VALUE, NAME extends string> =
-    | { type: "start"; this: Stream<VALUE, NAME> }
-    | { type: "stop"; this: Stream<VALUE, NAME> }
-    | { type: "options-changed"; this: Stream<VALUE, NAME> };
+  export type Event<CONSUMER extends Consumer<any, any, any>> =
+    | { type: "start"; self: CONSUMER }
+    | { type: "stop"; self: CONSUMER }
+    | { type: "options-changed"; self: CONSUMER };
 }
