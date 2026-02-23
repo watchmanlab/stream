@@ -60,4 +60,4 @@ export namespace gate {
 new Stream([1, 2, 3])
   .pipe(gate(true))
   .pipe(consumer((v) => console.log(v)))
-  .gate.open();
+  .gate.close();

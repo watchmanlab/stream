@@ -211,34 +211,16 @@ export namespace Stream {
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 
   export class Error<VALUE, ERROR, SOURCE extends Stream<VALUE, any, ERROR> | undefined> {
-    public readonly name = "StreamError";
-    public readonly cause: ERROR;
-    public readonly stack?: string;
-    public readonly message: string;
-
     constructor(
-      public readonly error: ERROR,
+      public readonly cause: ERROR,
       public readonly value: VALUE,
-      public readonly source: SOURCE,
-    ) {
-      this.cause = error;
-      this.message = error instanceof globalThis.Error ? error.message : String(error);
-
-      if (error instanceof globalThis.Error && error.stack) {
-        this.stack = error.stack;
-      } else if (globalThis.Error.captureStackTrace) {
-        globalThis.Error.captureStackTrace(this, Error);
-      }
-    }
+      public readonly source?: SOURCE,
+    ) {}
 
     static isError<VALUE, ERROR, SOURCE extends Stream<VALUE, any, ERROR> | undefined>(
       obj: unknown,
     ): obj is Error<VALUE, ERROR, SOURCE> {
       return obj instanceof Error;
-    }
-
-    toString() {
-      return `${this.name}: ${this.message}`;
     }
   }
   export type MaybeError<VALUE, ERROR, SOURCE extends Stream<VALUE, any, ERROR> | undefined> =
