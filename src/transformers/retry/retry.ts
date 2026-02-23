@@ -12,10 +12,11 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
       while (!result.done) {
         let restAttempts = self._options.maxAttempts;
 
-        let maybeError: Stream.MaybeError<VALUE, retry.ErrorMessage, Stream<VALUE, any, retry.ErrorMessage>>;
+        let maybeError: Stream.MaybeError<retry.ErrorMessage>;
 
         while (restAttempts > 0) {
           maybeError = yield result.value;
+
           if (!maybeError) break;
 
           restAttempts--;
@@ -32,7 +33,9 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
         if (restAttempts > 0) {
           result = await generator.next();
         } else {
-          result = await generator.next(maybeError);
+          result = await generator.next(
+            new Stream.Error({ source: self._name, reason: "max attempts reached", cause: maybeError } as const),
+          );
         }
       }
     });

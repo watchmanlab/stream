@@ -20,12 +20,10 @@ export class Effect<VALUE, NAME extends string = effect.Name, ERROR = unknown> e
             result = await generator.next(downstreamError);
           }
         } catch (error) {
-          result = await generator.next(new Stream.Error(error, result.value as VALUE, self));
+          result = await generator.next(new Stream.Error(error));
         }
       }
     });
-
-    const self = this;
   }
 }
 export function effect<VALUE, NAME extends string = effect.Name, ERROR = unknown>(
@@ -35,11 +33,7 @@ export function effect<VALUE, NAME extends string = effect.Name, ERROR = unknown
 }
 export namespace effect {
   export type Name = typeof NAME;
-  export type Callback<VALUE, ERROR> = (
-    value: VALUE,
-  ) =>
-    | Stream.MaybeError<VALUE, ERROR, Effect<VALUE, any, ERROR>>
-    | Promise<Stream.MaybeError<VALUE, ERROR, Effect<VALUE, any, ERROR>>>;
+  export type Callback<VALUE, ERROR> = (value: VALUE) => Stream.MaybeError<ERROR> | Promise<Stream.MaybeError<ERROR>>;
 }
 
 new Stream([1, 2, 3])

@@ -1,19 +1,16 @@
 export class Stream<VALUE, NAME extends string = Stream.Name, ERROR = unknown> implements AsyncIterable<VALUE> {
   protected _consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
-  protected _source?: Stream.Source<VALUE, ERROR, this>;
-  protected _sourceGenerator?: AsyncGenerator<VALUE, void, Stream.MaybeError<VALUE, ERROR, this>>;
+  protected _source?: Stream.Source<VALUE, ERROR>;
+  protected _sourceGenerator?: AsyncGenerator<VALUE, void, Stream.MaybeError<ERROR>>;
   protected _name = NAME as NAME;
 
   constructor();
-  constructor(source: Stream.Source<VALUE, ERROR, Stream<VALUE, any, ERROR>>);
-  constructor(source: Stream.Source<VALUE, ERROR, Stream<VALUE, any, ERROR>>, name: NAME);
+  constructor(source: Stream.Source<VALUE, ERROR>);
+  constructor(source: Stream.Source<VALUE, ERROR>, name: NAME);
   constructor(name: NAME);
-  constructor(name: NAME, source: Stream.Source<VALUE, ERROR, Stream<VALUE, any, ERROR>>);
+  constructor(name: NAME, source: Stream.Source<VALUE, ERROR>);
 
-  constructor(
-    sourceOrName1?: Stream.Source<VALUE, ERROR, Stream<VALUE, any, ERROR>> | NAME,
-    sourceOrName2?: Stream.Source<VALUE, ERROR, Stream<VALUE, any, ERROR>>,
-  ) {
+  constructor(sourceOrName1?: Stream.Source<VALUE, ERROR> | NAME, sourceOrName2?: Stream.Source<VALUE, ERROR>) {
     if (typeof sourceOrName1 === "string" || sourceOrName1 instanceof String) {
       this._name = (sourceOrName1 as NAME) ?? NAME;
       this._source = sourceOrName2;
@@ -51,7 +48,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name, ERROR = unknown> i
     };
   }
   protected _requestingNext = false;
-  protected _requestNext(maybeError: Stream.MaybeError<VALUE, ERROR, this>) {
+  protected _requestNext(maybeError: Stream.MaybeError<ERROR>) {
     if (!this._requestingNext && this._sourceGenerator) {
       this._requestingNext = true;
       this._sourceGenerator.next(maybeError).then((result) => {
@@ -75,7 +72,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name, ERROR = unknown> i
 
     let ready: () => void;
 
-    let maybeError: Stream.MaybeError<VALUE, ERROR, this>;
+    let maybeError: Stream.MaybeError<ERROR>;
     try {
       while (true) {
         if (queue.length) {
@@ -152,9 +149,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name, ERROR = unknown> i
     });
   }
 
-  static generator<VALUE, ERROR, SOURCE extends Stream<VALUE, any, ERROR> | undefined>(
-    source: Stream.Source<VALUE, ERROR, SOURCE>,
-  ): AsyncGenerator<VALUE, void, Stream.MaybeError<VALUE, ERROR, SOURCE>> {
+  static generator<VALUE, ERROR>(
+    source: Stream.Source<VALUE, ERROR>,
+  ): AsyncGenerator<VALUE, void, Stream.MaybeError<ERROR>> {
     return (async function* () {
       if (!source) return;
       if (Symbol.asyncIterator in source || Symbol.iterator in source) {
@@ -169,16 +166,16 @@ const NAME = "root";
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type ValueOf<T extends Source<any, any, any>> = T extends Source<infer VALUE, any, any> ? VALUE : never;
-  export type ErrorOf<T extends Source<any, any, any>> = T extends Source<any, infer ERROR, any> ? ERROR : never;
+  export type ValueOf<T extends Source<any, any>> = T extends Source<infer VALUE, any> ? VALUE : never;
+  export type ErrorOf<T extends Source<any, any>> = T extends Source<any, infer ERROR> ? ERROR : never;
   export type NameOf<T extends Stream<any, any, any>> = T extends Stream<any, infer NAME, any> ? NAME : never;
-  export type GeneratorFunction<VALUE, ERROR, SOURCE extends Stream<VALUE, any, ERROR> | undefined> = () =>
-    | AsyncGenerator<VALUE, void, MaybeError<VALUE, ERROR, SOURCE>>
-    | Generator<VALUE, void, MaybeError<VALUE, ERROR, SOURCE>>;
-  export type Source<VALUE, ERROR, SOURCE extends Stream<VALUE, any, ERROR> | undefined> =
-    | GeneratorFunction<VALUE, ERROR, SOURCE>
-    | AsyncIterable<VALUE, any, MaybeError<VALUE, ERROR, SOURCE>>
-    | Exclude<Iterable<VALUE, any, MaybeError<VALUE, ERROR, SOURCE>>, string | String>;
+  export type GeneratorFunction<VALUE, ERROR> = () =>
+    | AsyncGenerator<VALUE, void, MaybeError<ERROR>>
+    | Generator<VALUE, void, MaybeError<ERROR>>;
+  export type Source<VALUE, ERROR> =
+    | GeneratorFunction<VALUE, ERROR>
+    | AsyncIterable<VALUE, any, MaybeError<ERROR>>
+    | Exclude<Iterable<VALUE, any, MaybeError<ERROR>>, string | String>;
   export type PushResult = {
     readonly awaitBroadcast: Promise<void>;
     readonly awaitAllConsumers: Promise<void[]>;
@@ -210,24 +207,14 @@ export namespace Stream {
   export type Terminate = typeof TERMINATE;
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 
-  export class Error<VALUE, ERROR, SOURCE extends Stream<VALUE, any, ERROR> | undefined> {
-    constructor(
-      public readonly cause: ERROR,
-      public readonly value: VALUE,
-      public readonly source?: SOURCE,
-    ) {}
+  export class Error<ERROR> {
+    constructor(public readonly detail: ERROR) {}
 
-    static isError<VALUE, ERROR, SOURCE extends Stream<VALUE, any, ERROR> | undefined>(
-      obj: unknown,
-    ): obj is Error<VALUE, ERROR, SOURCE> {
+    static isError<ERROR>(obj: unknown): obj is Error<ERROR> {
       return obj instanceof Error;
     }
   }
-  export type MaybeError<VALUE, ERROR, SOURCE extends Stream<VALUE, any, ERROR> | undefined> =
-    | Error<VALUE, ERROR, SOURCE>
-    | undefined
-    | void
-    | null;
+  export type MaybeError<ERROR> = Error<ERROR> | undefined | void | null;
 }
 
 const USE_TRANSFORMER_INSIDE_PIPE_PLEASE = Symbol("*USE_TRANSFORMER_INSIDE_PIPE_PLEASE#");
