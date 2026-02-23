@@ -3,11 +3,11 @@ import { consumer } from "../consumer/consumer.ts";
 
 const NAME = "gate";
 
-export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, NAME, never> {
+export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, NAME> {
   protected _isOpen = true;
   protected _resolver?: () => void;
   protected __sourceGenerator?: AsyncGenerator<VALUE, void, any> | undefined;
-  constructor(source: Stream<VALUE, any, any>, name = NAME as NAME, isOpen = true) {
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, isOpen = true) {
     super(name, async function* () {
       try {
         while (true) {
@@ -44,7 +44,7 @@ export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, 
 
 export function gate<VALUE, NAME extends string = gate.Name>(
   isOpen = true,
-): Stream.Transformer<NAME, Stream<VALUE, any, any>, Gate<VALUE, NAME>> {
+): Stream.Transformer<NAME, Stream<VALUE, any>, Gate<VALUE, NAME>> {
   return (_, source, name) => new Gate(source, name, isOpen);
 }
 

@@ -2,9 +2,9 @@ import { Stream } from "../../streams";
 
 const NAME = "retry";
 
-export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE, NAME, retry.ErrorMessage> {
+export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE, NAME> {
   protected _options: Required<retry.Options> = { maxAttempts: 3, delay: 0, backoff: "constant" };
-  constructor(source: Stream<VALUE, any, any>, name = NAME as NAME, options?: retry.Options) {
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: retry.Options) {
     super(name, async function* () {
       const generator = source[Symbol.asyncIterator]();
       let result = await generator.next();
@@ -12,7 +12,7 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
       while (!result.done) {
         let restAttempts = self._options.maxAttempts;
 
-        let maybeError: Stream.MaybeError<retry.ErrorMessage>;
+        let maybeError: Stream.MaybeError;
 
         while (restAttempts > 0) {
           maybeError = yield result.value;
@@ -33,9 +33,7 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
         if (restAttempts > 0) {
           result = await generator.next();
         } else {
-          result = await generator.next(
-            new Stream.Error({ source: self._name, reason: "max attempts reached", cause: maybeError } as const),
-          );
+          result = await generator.next(new Stream.Error("max attempts reached", self, result.value));
         }
       }
     });
@@ -54,7 +52,7 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
 
 export function retry<VALUE, NAME extends string = retry.Name>(
   options?: retry.Options,
-): Stream.Transformer<NAME, Stream<VALUE, any, any>, Retry<VALUE, NAME>> {
+): Stream.Transformer<NAME, Stream<VALUE, any>, Retry<VALUE, NAME>> {
   return (_, source, name) => new Retry(source, name, options);
 }
 
