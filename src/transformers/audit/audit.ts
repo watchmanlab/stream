@@ -5,20 +5,25 @@ const NAME = "audit";
 export class Audit<VALUE, NAME extends string = audit.Name> extends Stream<VALUE, NAME> {
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, ms: number) {
     super(name, async function* () {
+      const generator = source[Symbol.asyncIterator]();
+      let result = await generator.next();
       let timer: any = null;
       let canEmit = true;
 
       try {
-        for await (const value of source) {
+        while (!result.done) {
+          let error: Stream.MaybeSourceError;
           if (canEmit) {
             canEmit = false;
             clearTimeout(timer);
             timer = setTimeout(() => (canEmit = true), ms);
-            yield value;
+            error = yield result.value;
           }
+          result = await generator.next(error);
         }
       } finally {
         clearTimeout(timer);
+        await generator.return();
       }
     });
   }

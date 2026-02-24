@@ -9,32 +9,36 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
       const generator = source[Symbol.asyncIterator]();
       let result = await generator.next();
 
-      while (!result.done) {
-        let restAttempts = self._options.maxAttempts;
+      try {
+        while (!result.done) {
+          let restAttempts = self._options.maxAttempts;
 
-        let maybeError: Stream.MaybeError;
+          let maybeError: Stream.MaybeSourceError;
 
-        while (restAttempts > 0) {
-          maybeError = yield result.value;
+          while (restAttempts > 0) {
+            maybeError = yield result.value;
 
-          if (!maybeError) break;
+            if (!maybeError) break;
 
-          restAttempts--;
+            restAttempts--;
 
-          if (restAttempts > 0 && self._options.delay) {
-            const delay =
-              self._options.backoff === "exponential"
-                ? self._options.delay * Math.pow(2, self._options.maxAttempts - restAttempts - 1)
-                : self._options.delay;
-            await new Promise((r) => setTimeout(r, delay));
+            if (restAttempts > 0 && self._options.delay) {
+              const delay =
+                self._options.backoff === "exponential"
+                  ? self._options.delay * Math.pow(2, self._options.maxAttempts - restAttempts - 1)
+                  : self._options.delay;
+              await new Promise((r) => setTimeout(r, delay));
+            }
+          }
+
+          if (restAttempts > 0) {
+            result = await generator.next();
+          } else {
+            result = await generator.next(new Stream.SourceError("max attempts reached", self, result.value));
           }
         }
-
-        if (restAttempts > 0) {
-          result = await generator.next();
-        } else {
-          result = await generator.next(new Stream.Error("max attempts reached", self, result.value));
-        }
+      } finally {
+        await generator.return();
       }
     });
 

@@ -8,27 +8,32 @@ export class Effect<VALUE, NAME extends string = effect.Name, ERROR = unknown> e
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: effect.Callback<VALUE, ERROR>) {
     super(name, async function* () {
       const generator = source[Symbol.asyncIterator]();
+
       let result = await generator.next();
 
-      while (!result.done) {
-        try {
-          const error = await callback(result.value);
+      try {
+        while (!result.done) {
+          (async () => {
+            try {
+              const error = await callback(result.value);
 
-          if (error) {
-            self._events?.push({ type: "expected-error", payload: error.payload, self });
-            result = await generator.next(new Stream.Error(error.payload, self, result.value));
-          } else {
-            const error = yield result.value;
-            result = await generator.next(error);
-          }
-        } catch (error: any) {
-          if (error instanceof effect.Error) {
-            self._events?.push({ type: "expected-error", payload: error.payload, self });
-          } else {
-            self._events?.push({ type: "unexpected-error", catched: error, self });
-          }
-          result = await generator.next(new Stream.Error(error, self, result.value));
+              if (error) {
+                self._events?.push({ type: "expected-error", error: error.payload, self });
+              }
+            } catch (error: any) {
+              if (error instanceof Stream.BoxError) {
+                self._events?.push({ type: "expected-error", error: error.payload, self });
+              } else {
+                self._events?.push({ type: "unexpected-error", error: error, self });
+              }
+            }
+          })();
+
+          const error = yield result.value;
+          result = await generator.next(error);
         }
+      } finally {
+        await generator.return();
       }
     });
 
@@ -47,26 +52,11 @@ export function effect<VALUE, NAME extends string = effect.Name, ERROR = unknown
 }
 export namespace effect {
   export type Name = typeof NAME;
-  export class Error<ERROR> extends globalThis.Error {
-    constructor(public readonly payload: ERROR) {
-      super(typeof payload === "string" ? payload : undefined);
-    }
-  }
-  export type Callback<VALUE, ERROR> = (value: VALUE) => Error<ERROR> | void | Promise<Error<ERROR> | void>;
-  export type Event<SOURCE extends Stream<any, any>, ERROR> =
-    | { type: "expected-error"; payload: ERROR; self: SOURCE }
-    | { type: "unexpected-error"; catched: unknown; self: SOURCE };
-}
 
-new Stream([1, 2, 3])
-  .pipe(
-    effect((v) => {
-      // return new Stream.Error("hello", v, "effect");
-    }),
-  )
-  .pipe(
-    consumer((v) => {
-      // return new Stream.Error("hello", v, "effect");
-    }),
-  )
-  .pipe(consumer((v) => console.log(v)));
+  export type Callback<VALUE, ERROR> = (
+    value: VALUE,
+  ) => Stream.MaybeBoxError<ERROR> | Promise<Stream.MaybeBoxError<ERROR>>;
+  export type Event<EFFECT extends Stream<any, any>, ERROR> =
+    | { type: "expected-error"; error: ERROR; self: EFFECT }
+    | { type: "unexpected-error"; error: unknown; self: EFFECT };
+}
