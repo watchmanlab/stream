@@ -12,22 +12,26 @@ export class Each<VALUE, NAME extends string = each.Name, ERROR = unknown> exten
       try {
         while (!result.done) {
           try {
-            const error = await callback(result.value);
+            const callbackResult = await callback(result.value);
 
-            if (error) {
-              self._events?.push({ type: "expected-error", error: error.payload, self });
-              result = await generator.next(new Stream.SourceError(error.payload, self, result.value));
+            if (!callbackResult.ok) {
+              self._events?.push({ type: "expected-error", error: callbackResult.error, self });
+              result = await generator.next(
+                Stream.Yielded.err({ error: callbackResult.error, source: self, value: result.value }),
+              );
             } else {
               const error = yield result.value;
               result = await generator.next(error);
             }
           } catch (error: any) {
-            if (error instanceof Stream.BoxError) {
-              self._events?.push({ type: "expected-error", error: error.payload, self });
+            if (Stream.Result.isErr(error)) {
+              self._events?.push({ type: "expected-error", error: error.error as ERROR, self });
             } else {
               self._events?.push({ type: "unexpected-error", error: error, self });
             }
-            result = await generator.next(new Stream.SourceError(error, self, result.value));
+            result = await generator.next(
+              Stream.Result.err(Stream.error({ payload: error, source: self, value: result.value })),
+            );
           }
         }
       } finally {
@@ -53,7 +57,7 @@ export namespace each {
 
   export type Callback<VALUE, ERROR> = (
     value: VALUE,
-  ) => Stream.MaybeBoxError<ERROR> | Promise<Stream.MaybeBoxError<ERROR>>;
+  ) => Stream.Result<VALUE, ERROR> | Promise<Stream.Result<VALUE, ERROR>>;
   export type Event<EACH extends Stream<any, any>, ERROR> =
     | { type: "expected-error"; error: ERROR; self: EACH }
     | { type: "unexpected-error"; error: unknown; self: EACH };

@@ -4,6 +4,7 @@ const NAME = "retry";
 
 export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE, NAME> {
   protected _options: Required<retry.Options> = { maxAttempts: 3, delay: 0, backoff: "constant" };
+  protected _events?: Stream<retry.Event<this>, `${NAME}-events`>;
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: retry.Options) {
     super(name, async function* () {
       const generator = source[Symbol.asyncIterator]();
@@ -13,14 +14,16 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
         while (!result.done) {
           let restAttempts = self._options.maxAttempts;
 
-          let maybeError: Stream.MaybeSourceError;
+          let yielded: Stream.Yielded;
 
           while (restAttempts > 0) {
-            maybeError = yield result.value;
+            yielded = yield result.value;
 
-            if (!maybeError) break;
+            if (yielded.ok) break;
 
             restAttempts--;
+
+            self._events?.push({ type: "retry", attempts: self._options.maxAttempts - restAttempts, self });
 
             if (restAttempts > 0 && self._options.delay) {
               const delay =
@@ -32,10 +35,12 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
           }
 
           if (restAttempts > 0) {
-            result = await generator.next();
-          } else {
-            result = await generator.next(new Stream.SourceError("max attempts reached", self, result.value));
+            result = await generator.next(yielded!);
+            continue;
           }
+          self._events?.push({ type: "max-attempts-reached", attempts: self._options.maxAttempts, self });
+
+          result = await generator.next(yielded!);
         }
       } finally {
         await generator.return();
@@ -52,6 +57,10 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
   set options(options: retry.Options) {
     this._options = { ...this._options, ...options };
   }
+  get events() {
+    if (!this._events) this._events = new Stream(`${this._name}-events` as never);
+    return this._events;
+  }
 }
 
 export function retry<VALUE, NAME extends string = retry.Name>(
@@ -63,10 +72,13 @@ export function retry<VALUE, NAME extends string = retry.Name>(
 export namespace retry {
   export type Name = typeof NAME;
 
-  export type ErrorMessage = "max-attempts-reached";
   export type Options = {
     maxAttempts?: number;
     delay?: number;
     backoff?: "constant" | "exponential";
   };
+
+  export type Event<RETRY extends Retry<any, any>> =
+    | { type: "retry"; attempts: number; self: RETRY }
+    | { type: "max-attempts-reached"; attempts: number; self: RETRY };
 }

@@ -1,7 +1,7 @@
 export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE> {
   protected _consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
   protected _source?: Stream.Source<VALUE>;
-  protected _sourceGenerator?: AsyncGenerator<VALUE, void, Result<unknown, Stream.SourceError>>;
+  protected _sourceGenerator?: AsyncGenerator<VALUE, void, Stream.Yielded>;
   protected _name = NAME as NAME;
 
   constructor();
@@ -48,7 +48,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     };
   }
   protected _requestingNext = false;
-  protected _requestNext(result: Result<unknown, Stream.SourceError>) {
+  protected _requestNext(result: Stream.Yielded) {
     if (!this._requestingNext && this._sourceGenerator) {
       this._requestingNext = true;
       this._sourceGenerator.next(result).then((result) => {
@@ -72,7 +72,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
     let ready: () => void;
 
-    let result: Result<unknown, Stream.SourceError> = Result.ok(undefined);
+    let result: Stream.Yielded;
     try {
       while (true) {
         if (queue.length) {
@@ -80,7 +80,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
           if (value === Stream.TERMINATE) break;
           result = yield value;
         } else {
-          this._requestNext(result);
+          this._requestNext(result!);
 
           await new Promise<void>((resolve) => {
             this._consumers.set(queue, {
@@ -103,7 +103,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         this._sourceGenerator = undefined;
       }
       this._onConsumerLeft?.();
-      if (Result.isErr(result)) throw result;
+      if (!result!?.ok) throw result!;
 
       return;
     }
@@ -152,9 +152,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     });
   }
 
-  static generator<VALUE>(
-    source: Stream.Source<VALUE>,
-  ): AsyncGenerator<VALUE, void, Result<unknown, Stream.SourceError>> {
+  static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, Stream.Yielded> {
     return (async function* () {
       if (!source) return;
       if (Symbol.asyncIterator in source || Symbol.iterator in source) {
@@ -171,13 +169,11 @@ export namespace Stream {
   export type Name = typeof NAME;
   export type ValueOf<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
-  export type GeneratorFunction<VALUE> = () =>
-    | AsyncGenerator<VALUE, void, Result<unknown, SourceError>>
-    | Generator<VALUE, void, Result<unknown, SourceError>>;
+  export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, Yielded> | Generator<VALUE, void, Yielded>;
   export type Source<VALUE> =
     | GeneratorFunction<VALUE>
-    | AsyncIterable<VALUE, void, Result<unknown, SourceError>>
-    | Exclude<Iterable<VALUE, void, Result<unknown, SourceError>>, string | String>;
+    | AsyncIterable<VALUE, void, Yielded>
+    | Exclude<Iterable<VALUE, void, Yielded>, string | String>;
   export type PushResult = {
     readonly awaitBroadcast: Promise<void>;
     readonly awaitAllConsumers: Promise<void[]>;
@@ -209,45 +205,64 @@ export namespace Stream {
   export type Terminate = typeof TERMINATE;
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 
-  export class SourceError extends globalThis.Error {
-    constructor(
-      public readonly payload: unknown,
-      public readonly source: Stream<any, any>,
-      public readonly value: unknown,
-      message?: string,
-    ) {
-      super(message);
+  export type Yielded = Yielded.Ok | Yielded.Err;
+
+  export namespace Yielded {
+    export class Ok {
+      readonly ok = true;
+      constructor(
+        public readonly source: Stream<any, any>,
+        public readonly value: unknown,
+        public readonly data: unknown,
+      ) {}
     }
-    static isSourceError(obj: unknown): obj is SourceError {
-      return obj instanceof SourceError;
+
+    export class Err {
+      readonly ok = false;
+      constructor(
+        public readonly source: Stream<any, any>,
+        public readonly value: unknown,
+        public readonly error: unknown,
+      ) {}
+    }
+
+    export function ok({ source, value, data }: { source: Stream<any, any>; value: unknown; data: unknown }): Ok {
+      return new Ok(source, value, data);
+    }
+    export function err({ source, value, error }: { source: Stream<any, any>; value: unknown; error: unknown }): Err {
+      return new Err(source, value, error);
+    }
+    export function isOk(object: unknown): object is Ok {
+      return object instanceof Ok;
+    }
+    export function isErr(object: unknown): object is Err {
+      return object instanceof Err;
+    }
+  }
+  export type Result<DATA, ERROR> = Result.Ok<DATA> | Result.Err<ERROR>;
+
+  export namespace Result {
+    export class Ok<DATA> {
+      readonly ok = true;
+      constructor(public readonly data: DATA) {}
+    }
+    export class Err<ERROR> {
+      readonly ok = false;
+      constructor(public readonly error: ERROR) {}
+    }
+    export function ok<DATA>(data: DATA): Ok<DATA> {
+      return new Ok(data);
+    }
+    export function err<ERROR>(error: ERROR): Err<ERROR> {
+      return new Err(error);
+    }
+    export function isOk<DATA>(object: unknown): object is Ok<DATA> {
+      return object instanceof Ok;
+    }
+    export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
+      return object instanceof Err;
     }
   }
 }
 
 const USE_TRANSFORMER_INSIDE_PIPE_PLEASE = Symbol("*USE_TRANSFORMER_INSIDE_PIPE_PLEASE#");
-
-export type Result<T, E> = Result.Ok<T> | Result.Err<E>;
-
-export namespace Result {
-  export class Ok<T> {
-    constructor(public readonly value: T) {}
-  }
-  export class Err<E> {
-    constructor(public readonly error: E) {}
-  }
-  export function ok<T>(value: T) {
-    return new Ok<T>(value);
-  }
-  export function err<E>(error: E) {
-    return new Err<E>(error);
-  }
-  export function isOk<T>(object: unknown): object is Ok<T> {
-    return object instanceof Ok;
-  }
-  export function isErr<E>(object: unknown): object is Err<E> {
-    return object instanceof Err;
-  }
-  export function match<T, E, R>(result: Result<T, E>, handlers: { ok: (value: T) => R; err: (error: E) => R }): R {
-    return isOk(result) ? handlers.ok(result.value) : handlers.err(result.error);
-  }
-}
