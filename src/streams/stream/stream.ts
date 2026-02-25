@@ -75,12 +75,14 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     let maybeError: Stream.MaybeSourceError;
     try {
       while (true) {
+        // maybeError = undefined;
         if (queue.length) {
           const value = queue.shift()!;
           if (value === Stream.TERMINATE) break;
           maybeError = yield value;
         } else {
           this._requestNext(maybeError);
+
           await new Promise<void>((resolve) => {
             this._consumers.set(queue, {
               resolve,
@@ -98,10 +100,12 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       queue.length = 0;
 
       if (this._consumers.size === 0) {
-        this._sourceGenerator?.return?.();
+        await this._sourceGenerator?.return?.();
         this._sourceGenerator = undefined;
       }
       this._onConsumerLeft?.();
+      if (maybeError) throw maybeError;
+
       return;
     }
   }
