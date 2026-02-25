@@ -1,5 +1,5 @@
 import { Stream } from "../../streams";
-import { consumer } from "../consumer";
+import { consumer } from "../pump";
 
 const NAME = "debounce";
 

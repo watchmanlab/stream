@@ -1,5 +1,5 @@
 import { Stream } from "../../streams";
-import { consumer } from "../consumer";
+import { pump } from "../pump";
 
 const NAME = "effect";
 

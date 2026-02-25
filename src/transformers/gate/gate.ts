@@ -1,5 +1,5 @@
 import { Stream } from "../../streams/index.ts";
-import { consumer } from "../consumer/consumer.ts";
+import { consumer } from "../pump/pump.ts";
 
 const NAME = "gate";
 

@@ -1,5 +1,5 @@
 import { Stream } from "../../streams";
-import { consumer } from "../consumer";
+import { pump } from "../pump";
 import { each } from "../each";
 
 const NAME = "catchError";
@@ -42,6 +42,7 @@ export class CatchError<
             }
 
             if (value instanceof Stream.BoxError) {
+              console.log(value?.payload);
               result = await generator.next(new Stream.SourceError(value.payload, self, result.value));
               continue;
             }
@@ -54,6 +55,7 @@ export class CatchError<
               result = await generator.next();
               continue;
             }
+            console.log(recoveryError?.payload);
 
             self._events?.push({
               type: "recovered-error",
@@ -110,13 +112,14 @@ new Stream([1, 2, 3])
     catchError((error) => {
       //   console.log(error.value);
 
-      return 4;
+      return new Stream.BoxError("mmmm");
     }),
   )
   .pipe(
     each((v) => {
       if (v == 3) return new Stream.BoxError("error on  3");
+      if (v == 4) return new Stream.BoxError("error on  4");
       console.log(v);
     }),
   )
-  .pipe(consumer());
+  .pipe(pump());
