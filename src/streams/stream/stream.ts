@@ -1,7 +1,7 @@
 export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE> {
   protected _consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
   protected _source?: Stream.Source<VALUE>;
-  protected _sourceGenerator?: AsyncGenerator<VALUE, void, Stream.MaybeSourceError>;
+  protected _sourceGenerator?: AsyncGenerator<VALUE, void, Result<unknown, Stream.SourceError>>;
   protected _name = NAME as NAME;
 
   constructor();
@@ -48,10 +48,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     };
   }
   protected _requestingNext = false;
-  protected _requestNext(maybeError: Stream.MaybeSourceError) {
+  protected _requestNext(result: Result<unknown, Stream.SourceError>) {
     if (!this._requestingNext && this._sourceGenerator) {
       this._requestingNext = true;
-      this._sourceGenerator.next(maybeError).then((result) => {
+      this._sourceGenerator.next(result).then((result) => {
         this._requestingNext = false;
         if (result.done) return;
         this.push(result.value);
@@ -72,16 +72,15 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
     let ready: () => void;
 
-    let maybeError: Stream.MaybeSourceError;
+    let result: Result<unknown, Stream.SourceError> = Result.ok(undefined);
     try {
       while (true) {
-        // maybeError = undefined;
         if (queue.length) {
           const value = queue.shift()!;
           if (value === Stream.TERMINATE) break;
-          maybeError = yield value;
+          result = yield value;
         } else {
-          this._requestNext(maybeError);
+          this._requestNext(result);
 
           await new Promise<void>((resolve) => {
             this._consumers.set(queue, {
@@ -104,7 +103,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         this._sourceGenerator = undefined;
       }
       this._onConsumerLeft?.();
-      if (maybeError) throw maybeError;
+      if (Result.isErr(result)) throw result;
 
       return;
     }
@@ -153,7 +152,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     });
   }
 
-  static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, Stream.MaybeSourceError> {
+  static generator<VALUE>(
+    source: Stream.Source<VALUE>,
+  ): AsyncGenerator<VALUE, void, Result<unknown, Stream.SourceError>> {
     return (async function* () {
       if (!source) return;
       if (Symbol.asyncIterator in source || Symbol.iterator in source) {
@@ -171,12 +172,12 @@ export namespace Stream {
   export type ValueOf<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
   export type GeneratorFunction<VALUE> = () =>
-    | AsyncGenerator<VALUE, void, MaybeSourceError>
-    | Generator<VALUE, void, MaybeSourceError>;
+    | AsyncGenerator<VALUE, void, Result<unknown, SourceError>>
+    | Generator<VALUE, void, Result<unknown, SourceError>>;
   export type Source<VALUE> =
     | GeneratorFunction<VALUE>
-    | AsyncIterable<VALUE, void, MaybeSourceError>
-    | Exclude<Iterable<VALUE, void, MaybeSourceError>, string | String>;
+    | AsyncIterable<VALUE, void, Result<unknown, SourceError>>
+    | Exclude<Iterable<VALUE, void, Result<unknown, SourceError>>, string | String>;
   export type PushResult = {
     readonly awaitBroadcast: Promise<void>;
     readonly awaitAllConsumers: Promise<void[]>;
@@ -221,16 +222,32 @@ export namespace Stream {
       return obj instanceof SourceError;
     }
   }
-  export class BoxError<ERROR> extends globalThis.Error {
-    constructor(public readonly payload: ERROR) {
-      super(typeof payload === "string" ? payload : undefined);
-    }
-    static isErrorBox<ERROR>(obj: unknown): obj is BoxError<ERROR> {
-      return obj instanceof BoxError;
-    }
-  }
-  export type MaybeSourceError = SourceError | undefined | void | null;
-  export type MaybeBoxError<ERROR> = BoxError<ERROR> | undefined | void | null;
 }
 
 const USE_TRANSFORMER_INSIDE_PIPE_PLEASE = Symbol("*USE_TRANSFORMER_INSIDE_PIPE_PLEASE#");
+
+export type Result<T, E> = Result.Ok<T> | Result.Err<E>;
+
+export namespace Result {
+  export class Ok<T> {
+    constructor(public readonly value: T) {}
+  }
+  export class Err<E> {
+    constructor(public readonly error: E) {}
+  }
+  export function ok<T>(value: T) {
+    return new Ok<T>(value);
+  }
+  export function err<E>(error: E) {
+    return new Err<E>(error);
+  }
+  export function isOk<T>(object: unknown): object is Ok<T> {
+    return object instanceof Ok;
+  }
+  export function isErr<E>(object: unknown): object is Err<E> {
+    return object instanceof Err;
+  }
+  export function match<T, E, R>(result: Result<T, E>, handlers: { ok: (value: T) => R; err: (error: E) => R }): R {
+    return isOk(result) ? handlers.ok(result.value) : handlers.err(result.error);
+  }
+}
