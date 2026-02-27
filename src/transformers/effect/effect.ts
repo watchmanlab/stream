@@ -3,33 +3,33 @@ import { Stream } from "../../streams";
 const NAME = "effect";
 
 export class Effect<VALUE, NAME extends string = effect.Name, ERROR = unknown> extends Stream<VALUE, NAME> {
-  protected _events?: Stream<effect.Event<this, ERROR>, `${NAME}-events`>;
+  protected _events?: Stream<effect.Event<ERROR, this>, `${NAME}-events`>;
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: effect.Callback<VALUE, ERROR>) {
     super(name, async function* () {
       const generator = source[Symbol.asyncIterator]();
 
-      let result = await generator.next();
+      let next = await generator.next();
 
       try {
-        while (!result.done) {
+        while (!next.done) {
           (async () => {
             try {
-              const error = await callback(result.value);
+              const result = await callback(next.value);
 
-              if (error) {
-                self._events?.push({ type: "expected-error", error: error.payload, self });
+              if (Stream.Result.isErr(result)) {
+                self._events?.push({ type: "expected-error", error: result.error, self });
               }
             } catch (error: any) {
-              if (error instanceof Stream.BoxError) {
-                self._events?.push({ type: "expected-error", error: error.payload, self });
+              if (error instanceof Stream.Result.Err) {
+                self._events?.push({ type: "expected-error", error: error.error, self });
               } else {
-                self._events?.push({ type: "unexpected-error", error: error, self });
+                self._events?.push({ type: "unexpected-error", error, self });
               }
             }
           })();
 
-          const error = yield result.value;
-          result = await generator.next(error);
+          const error = yield next.value;
+          next = await generator.next(error);
         }
       } finally {
         await generator.return();
@@ -54,8 +54,8 @@ export namespace effect {
 
   export type Callback<VALUE, ERROR> = (
     value: VALUE,
-  ) => Stream.MaybeBoxError<ERROR> | Promise<Stream.MaybeBoxError<ERROR>>;
-  export type Event<EFFECT extends Stream<any, any>, ERROR> =
+  ) => Stream.Result<void, ERROR> | Promise<Stream.Result<void, ERROR>>;
+  export type Event<ERROR, EFFECT extends Effect<any, any, ERROR>> =
     | { type: "expected-error"; error: ERROR; self: EFFECT }
     | { type: "unexpected-error"; error: unknown; self: EFFECT };
 }

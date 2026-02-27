@@ -3,35 +3,33 @@ import { Stream } from "../../streams";
 const NAME = "each";
 
 export class Each<VALUE, NAME extends string = each.Name, ERROR = unknown> extends Stream<VALUE, NAME> {
-  protected _events?: Stream<each.Event<this, ERROR>, `${NAME}-events`>;
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: each.Callback<VALUE, ERROR>) {
+  protected _events?: Stream<each.Event<VALUE, NAME, ERROR>, `${NAME}-events`>;
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: each.Callback<VALUE, NAME, ERROR>) {
     super(name, async function* () {
       const generator = source[Symbol.asyncIterator]();
-      let result = await generator.next();
+      let next = await generator.next();
 
       try {
-        while (!result.done) {
+        while (!next.done) {
           try {
-            const callbackResult = await callback(result.value);
+            const result = await callback(next.value, self);
 
-            if (!callbackResult.ok) {
-              self._events?.push({ type: "expected-error", error: callbackResult.error, self });
-              result = await generator.next(
-                Stream.Yielded.err({ error: callbackResult.error, source: self, value: result.value }),
+            if (Stream.Result.isErr(result)) {
+              self._events?.push({ type: "expected-error", error: result.value, self });
+              next = await generator.next(
+                Stream.Result.sourceErr({ error: result.value, source: self, value: next.value }),
               );
             } else {
-              const error = yield result.value;
-              result = await generator.next(error);
+              const yielded = yield next.value;
+              next = await generator.next(yielded);
             }
           } catch (error: any) {
             if (Stream.Result.isErr(error)) {
-              self._events?.push({ type: "expected-error", error: error.error as ERROR, self });
+              self._events?.push({ type: "expected-error", error: error.value as ERROR, self });
             } else {
               self._events?.push({ type: "unexpected-error", error: error, self });
             }
-            result = await generator.next(
-              Stream.Result.err(Stream.error({ payload: error, source: self, value: result.value })),
-            );
+            next = await generator.next(Stream.Result.sourceErr({ error, source: self, value: next.value }));
           }
         }
       } finally {
@@ -48,17 +46,18 @@ export class Each<VALUE, NAME extends string = each.Name, ERROR = unknown> exten
   }
 }
 export function each<VALUE, NAME extends string = each.Name, ERROR = unknown>(
-  callback: each.Callback<VALUE, ERROR>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Each<VALUE, NAME>> {
+  callback: each.Callback<VALUE, NAME, ERROR>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Each<VALUE, NAME, ERROR>> {
   return (_, source, name) => new Each(source, name, callback);
 }
 export namespace each {
   export type Name = typeof NAME;
 
-  export type Callback<VALUE, ERROR> = (
+  export type Callback<VALUE, NAME extends string, ERROR> = (
     value: VALUE,
-  ) => Stream.Result<VALUE, ERROR> | Promise<Stream.Result<VALUE, ERROR>>;
-  export type Event<EACH extends Stream<any, any>, ERROR> =
-    | { type: "expected-error"; error: ERROR; self: EACH }
-    | { type: "unexpected-error"; error: unknown; self: EACH };
+    self: Each<VALUE, NAME, ERROR>,
+  ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
+  export type Event<VALUE, NAME extends string, ERROR> =
+    | { type: "expected-error"; error: ERROR; self: Each<VALUE, NAME, ERROR> }
+    | { type: "unexpected-error"; error: unknown; self: Each<VALUE, NAME, ERROR> };
 }

@@ -4,75 +4,49 @@ import { each } from "../each";
 
 const NAME = "catchError";
 
-export class CatchError<
-  VALUE,
-  FALLBACK extends VALUE,
-  NAME extends string = catchError.Name,
-  ERROR = unknown,
-> extends Stream<VALUE, NAME> {
-  protected _events?: Stream<catchError.Event<VALUE, ERROR, this>, `${NAME}-events`>;
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback?: catchError.Callback<VALUE, FALLBACK, ERROR>) {
+export class CatchError<VALUE, NAME extends string = catchError.Name, ERROR = unknown> extends Stream<VALUE, NAME> {
+  protected _events?: Stream<catchError.Event<VALUE, NAME, ERROR>, `${NAME}-events`>;
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback?: catchError.Callback<VALUE, NAME, ERROR>) {
     super(name, async function* () {
       const generator = source[Symbol.asyncIterator]();
-      let result = await generator.next();
+      let next = await generator.next();
 
       try {
-        while (!result.done) {
-          const error = yield result.value;
-          console.log(error?.payload);
+        while (!next.done) {
+          const feedback = yield next.value;
 
-          if (!error) {
-            result = await generator.next();
+          if (!Stream.Result.isSourceErr(feedback)) {
+            next = await generator.next();
             continue;
           }
 
-          self._events?.push({ type: "caught", error, self });
+          self._events?.push({ type: "caught", error: feedback, self });
 
           if (!callback) {
-            result = await generator.next();
+            next = await generator.next();
             continue;
           }
 
           try {
-            const value = await callback(error);
+            const result = await callback(feedback, self);
 
-            if (!value) {
-              result = await generator.next();
+            if (!result) {
+              next = await generator.next();
               continue;
             }
 
-            if (value instanceof Stream.BoxError) {
-              console.log(value?.payload);
-              result = await generator.next(new Stream.SourceError(value.payload, self, result.value));
-              continue;
-            }
-
-            self._events?.push({ type: "recovered", sourceValue: result.value, recoveredValue: value, self });
-
-            const recoveryError = yield value;
-
-            if (!recoveryError) {
-              result = await generator.next();
-              continue;
-            }
-            console.log(recoveryError?.payload);
-
-            self._events?.push({
-              type: "recovered-error",
-              sourceValue: result.value,
-              recoveredValue: value,
-              self,
-            });
-
-            result = await generator.next(recoveryError);
+            // Transform error
+            self._events?.push({ type: "expected-error", error: result.value, self });
+            next = await generator.next(
+              Stream.Result.sourceErr({ error: result.value, source: self, value: next.value }),
+            );
           } catch (error) {
-            if (error instanceof Stream.BoxError) {
-              self._events?.push({ type: "expected-error", error: error.payload, self });
-              result = await generator.next(new Stream.SourceError(error.payload, self, result.value));
+            if (Stream.Result.isErr(error)) {
+              self._events?.push({ type: "expected-error", error: error.value as ERROR, self });
             } else {
               self._events?.push({ type: "unexpected-error", error: error, self });
-              result = await generator.next(new Stream.SourceError(error, self, result.value));
             }
+            next = await generator.next(Stream.Result.sourceErr({ error, source: self, value: next.value }));
           }
         }
       } finally {
@@ -87,38 +61,37 @@ export class CatchError<
   }
 }
 
-export function catchError<VALUE, FALLBACK extends VALUE, NAME extends string = catchError.Name, ERROR = unknown>(
-  callback?: catchError.Callback<VALUE, FALLBACK, ERROR>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, CatchError<VALUE, FALLBACK, NAME, ERROR>> {
+export function catchError<VALUE, NAME extends string = catchError.Name, ERROR = unknown>(
+  callback?: catchError.Callback<VALUE, NAME, ERROR>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, CatchError<VALUE, NAME, ERROR>> {
   return (_, source, name) => new CatchError(source, name, callback);
 }
 
 export namespace catchError {
   export type Name = typeof NAME;
-  export type Callback<VALUE, FALLBACK extends VALUE, ERROR> = (
-    sourceError: Stream.SourceError,
-  ) => FALLBACK | void | Stream.BoxError<ERROR> | Promise<FALLBACK | void | Stream.BoxError<ERROR>>;
 
-  export type Event<VALUE, ERROR, CATCH extends Stream<any, any>> =
-    | { type: "expected-error"; error: ERROR; self: CATCH }
-    | { type: "unexpected-error"; error: unknown; self: CATCH }
-    | { type: "caught"; error: Stream.SourceError; self: CATCH }
-    | { type: "recovered"; sourceValue: VALUE; recoveredValue: VALUE; self: CATCH }
-    | { type: "recovered-error"; sourceValue: VALUE; recoveredValue: VALUE; self: CATCH };
+  export type Callback<VALUE, NAME extends string, ERROR> = (
+    error: Stream.Result.SourceErr,
+    self: CatchError<VALUE, NAME, ERROR>,
+  ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
+
+  export type Event<VALUE, NAME extends string, ERROR> =
+    | { type: "expected-error"; error: ERROR; self: CatchError<VALUE, NAME, ERROR> }
+    | { type: "unexpected-error"; error: unknown; self: CatchError<VALUE, NAME, ERROR> }
+    | { type: "caught"; error: Stream.Result.SourceErr; self: CatchError<VALUE, NAME, ERROR> };
 }
 
 new Stream([1, 2, 3])
   .pipe(
     catchError((error) => {
-      //   console.log(error.value);
-
-      return new Stream.BoxError("mmmm");
+      // console.log(error.value);
+      return Stream.Result.err("");
     }),
   )
   .pipe(
     each((v) => {
-      if (v == 3) return new Stream.BoxError("error on  3");
-      if (v == 4) return new Stream.BoxError("error on  4");
+      if (v == 3) return Stream.Result.err("error on  3");
+
       console.log(v);
     }),
   )

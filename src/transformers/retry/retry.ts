@@ -8,18 +8,18 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: retry.Options) {
     super(name, async function* () {
       const generator = source[Symbol.asyncIterator]();
-      let result = await generator.next();
+      let next = await generator.next();
 
       try {
-        while (!result.done) {
+        while (!next.done) {
           let restAttempts = self._options.maxAttempts;
 
-          let yielded: Stream.Yielded;
+          let feedback: unknown;
 
           while (restAttempts > 0) {
-            yielded = yield result.value;
+            feedback = yield next.value;
 
-            if (yielded.ok) break;
+            if (!Stream.Result.isSourceErr(feedback)) break;
 
             restAttempts--;
 
@@ -35,12 +35,12 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
           }
 
           if (restAttempts > 0) {
-            result = await generator.next(yielded!);
+            next = await generator.next(feedback);
             continue;
           }
           self._events?.push({ type: "max-attempts-reached", attempts: self._options.maxAttempts, self });
 
-          result = await generator.next(yielded!);
+          next = await generator.next(feedback);
         }
       } finally {
         await generator.return();
