@@ -29,8 +29,8 @@ export class Effect<VALUE, NAME extends string = effect.Name, ERROR = unknown> e
             }
           })();
 
-          const error = yield next.value;
-          next = await generator.next(error);
+          const feedback = yield next.value;
+          next = await generator.next(feedback);
         }
       } finally {
         await generator.return();

@@ -1,6 +1,4 @@
 import { Stream } from "../../streams";
-import { pump } from "../pump";
-import { each } from "../each";
 
 const NAME = "catchError";
 
@@ -90,21 +88,3 @@ export namespace catchError {
     | { type: "expected"; error: ERROR; self: CatchError<VALUE, NAME, ERROR> }
     | { type: "unexpected"; error: unknown; self: CatchError<VALUE, NAME, ERROR> };
 }
-
-new Stream([1, 2, 3])
-  .pipe(
-    catchError((error) => {
-      // console.log(error.value);
-      return Stream.Result.err("kechmahaja" as const);
-    }),
-  )
-  .pipe(
-    each((v) => {
-      if (v == 3) return Stream.Result.err("error on  3");
-
-      console.log(v);
-    }),
-  )
-  .pipe(pump())
-  .each.catchError.errors.pipe(each((v) => console.log(v.error)))
-  .pipe(pump());

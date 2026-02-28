@@ -6,13 +6,18 @@ export class Each<VALUE, NAME extends string = each.Name, ERROR = unknown> exten
   protected _errors?: Stream<each.ErrorEvent<VALUE, NAME, ERROR>, `${NAME}-errors`>;
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: each.Callback<VALUE, NAME, ERROR>) {
     super(name, async function* () {
+      let compensations: Array<(err: Stream.Result.SourceErr) => void | Promise<void>> | undefined;
+
       const generator = source[Symbol.asyncIterator]();
       let next = await generator.next();
 
       try {
         while (!next.done) {
           try {
-            const result = await callback(next.value, self);
+            const result = await callback(next.value, self, (fn: (err: Stream.Result.SourceErr) => void) => {
+              if (!compensations) compensations = [];
+              compensations.unshift(fn);
+            });
 
             if (Stream.Result.isErr(result)) {
               self._errors?.push({ type: "expected", error: result.value, self });
@@ -21,6 +26,12 @@ export class Each<VALUE, NAME extends string = each.Name, ERROR = unknown> exten
               );
             } else {
               const feedback = yield next.value;
+              if (Stream.Result.isSourceErr(feedback) && compensations) {
+                for (let i = 0; i < compensations.length; i++) {
+                  await compensations[i](feedback);
+                }
+                compensations = undefined;
+              }
               next = await generator.next(feedback);
             }
           } catch (error: any) {
@@ -52,10 +63,11 @@ export function each<VALUE, NAME extends string = each.Name, ERROR = unknown>(
 }
 export namespace each {
   export type Name = typeof NAME;
-
+  export type Compensate = (fn: (error: Stream.Result.SourceErr) => void | Promise<void>) => void;
   export type Callback<VALUE, NAME extends string, ERROR> = (
     value: VALUE,
     self: Each<VALUE, NAME, ERROR>,
+    compensate: Compensate,
   ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
   export type ErrorEvent<VALUE, NAME extends string, ERROR> =
     | { type: "expected"; error: ERROR; self: Each<VALUE, NAME, ERROR> }
