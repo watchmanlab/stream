@@ -2,12 +2,12 @@ import { Stream } from "../../streams";
 import { pump } from "../pump";
 import { each } from "../each";
 
-const NAME = "catchDown";
+const NAME = "catchError";
 
-export class CatchDown<VALUE, NAME extends string = catchDown.Name, ERROR = unknown> extends Stream<VALUE, NAME> {
-  protected _events?: Stream<catchDown.Event<VALUE, NAME, ERROR>, `${NAME}-events`>;
-  protected _errors?: Stream<catchDown.ErrorEvent<VALUE, NAME, ERROR>, `${NAME}-errors`>;
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback?: catchDown.Callback<VALUE, NAME, ERROR>) {
+export class CatchError<VALUE, NAME extends string = catchError.Name, ERROR = unknown> extends Stream<VALUE, NAME> {
+  protected _events?: Stream<catchError.Event<VALUE, NAME, ERROR>, `${NAME}-events`>;
+  protected _errors?: Stream<catchError.ErrorEvent<VALUE, NAME, ERROR>, `${NAME}-errors`>;
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback?: catchError.Callback<VALUE, NAME, ERROR>) {
     super(name, async function* () {
       const generator = source[Symbol.asyncIterator]();
 
@@ -17,7 +17,7 @@ export class CatchDown<VALUE, NAME extends string = catchDown.Name, ERROR = unkn
           const feedback = yield next.value;
 
           if (!Stream.Result.isSourceErr(feedback)) {
-            next = await generator.next();
+            next = await generator.next(feedback);
             continue;
           }
 
@@ -36,16 +36,16 @@ export class CatchDown<VALUE, NAME extends string = catchDown.Name, ERROR = unkn
               continue;
             }
 
-            // Transform error
-            self._errors?.push({ type: "expected-error", error: result.value, self });
+            self._errors?.push({ type: "expected", error: result.value, self });
+
             next = await generator.next(
               Stream.Result.sourceErr({ error: result.value, source: self, value: next.value }),
             );
           } catch (error) {
             if (Stream.Result.isErr(error)) {
-              self._errors?.push({ type: "expected-error", error: error.value as ERROR, self });
+              self._errors?.push({ type: "expected", error: error.value as ERROR, self });
             } else {
-              self._errors?.push({ type: "unexpected-error", error: error, self });
+              self._errors?.push({ type: "unexpected", error: error, self });
             }
             next = await generator.next(Stream.Result.sourceErr({ error, source: self, value: next.value }));
           }
@@ -66,34 +66,34 @@ export class CatchDown<VALUE, NAME extends string = catchDown.Name, ERROR = unkn
   }
 }
 
-export function catchDown<VALUE, NAME extends string = catchDown.Name, ERROR = unknown>(
-  callback?: catchDown.Callback<VALUE, NAME, ERROR>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, CatchDown<VALUE, NAME, ERROR>> {
-  return (_, source, name) => new CatchDown(source, name, callback);
+export function catchError<VALUE, NAME extends string = catchError.Name, ERROR = unknown>(
+  callback?: catchError.Callback<VALUE, NAME, ERROR>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, CatchError<VALUE, NAME, ERROR>> {
+  return (_, source, name) => new CatchError(source, name, callback);
 }
 
-export namespace catchDown {
+export namespace catchError {
   export type Name = typeof NAME;
 
   export type Callback<VALUE, NAME extends string, ERROR> = (
     error: Stream.Result.SourceErr,
-    self: CatchDown<VALUE, NAME, ERROR>,
+    self: CatchError<VALUE, NAME, ERROR>,
   ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
 
   export type Event<VALUE, NAME extends string, ERROR> = {
     type: "caught";
     error: Stream.Result.SourceErr;
-    self: CatchDown<VALUE, NAME, ERROR>;
+    self: CatchError<VALUE, NAME, ERROR>;
   };
 
   export type ErrorEvent<VALUE, NAME extends string, ERROR> =
-    | { type: "expected-error"; error: ERROR; self: CatchDown<VALUE, NAME, ERROR> }
-    | { type: "unexpected-error"; error: unknown; self: CatchDown<VALUE, NAME, ERROR> };
+    | { type: "expected"; error: ERROR; self: CatchError<VALUE, NAME, ERROR> }
+    | { type: "unexpected"; error: unknown; self: CatchError<VALUE, NAME, ERROR> };
 }
 
 new Stream([1, 2, 3])
   .pipe(
-    catchDown((error) => {
+    catchError((error) => {
       // console.log(error.value);
       return Stream.Result.err("kechmahaja" as const);
     }),
@@ -106,5 +106,5 @@ new Stream([1, 2, 3])
     }),
   )
   .pipe(pump())
-  .each.catchDown.errors.pipe(each((v) => console.log(v)))
+  .each.catchError.errors.pipe(each((v) => console.log(v.error)))
   .pipe(pump());

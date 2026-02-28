@@ -15,19 +15,19 @@ export class Each<VALUE, NAME extends string = each.Name, ERROR = unknown> exten
             const result = await callback(next.value, self);
 
             if (Stream.Result.isErr(result)) {
-              self._errors?.push({ type: "expected-error", error: result.value, self });
+              self._errors?.push({ type: "expected", error: result.value, self });
               next = await generator.next(
                 Stream.Result.sourceErr({ error: result.value, source: self, value: next.value }),
               );
             } else {
-              const yielded = yield next.value;
-              next = await generator.next(yielded);
+              const feedback = yield next.value;
+              next = await generator.next(feedback);
             }
           } catch (error: any) {
             if (Stream.Result.isErr(error)) {
-              self._errors?.push({ type: "expected-error", error: error.value as ERROR, self });
+              self._errors?.push({ type: "expected", error: error.value as ERROR, self });
             } else {
-              self._errors?.push({ type: "unexpected-error", error: error, self });
+              self._errors?.push({ type: "unexpected", error: error, self });
             }
             next = await generator.next(Stream.Result.sourceErr({ error, source: self, value: next.value }));
           }
@@ -58,6 +58,6 @@ export namespace each {
     self: Each<VALUE, NAME, ERROR>,
   ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
   export type ErrorEvent<VALUE, NAME extends string, ERROR> =
-    | { type: "expected-error"; error: ERROR; self: Each<VALUE, NAME, ERROR> }
-    | { type: "unexpected-error"; error: unknown; self: Each<VALUE, NAME, ERROR> };
+    | { type: "expected"; error: ERROR; self: Each<VALUE, NAME, ERROR> }
+    | { type: "unexpected"; error: unknown; self: Each<VALUE, NAME, ERROR> };
 }
