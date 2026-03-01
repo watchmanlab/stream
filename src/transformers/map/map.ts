@@ -1,14 +1,15 @@
 import { Stream } from "../../streams/index.ts";
-import { catchError } from "../catch-error";
-import { effect } from "../effect";
-import { pump } from "../pump/pump.ts";
 
 const NAME = "map";
 
 export class Map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string = map.Name> extends Stream<MAPPED, NAME> {
-  protected _errors?: Stream<map.ErrorEvent<VALUE, MAPPED, ERROR, NAME>, `${NAME}-errors`>;
+  protected _errors?: Stream<map.ErrorEvent<ERROR, this>, `${NAME}Errors`>;
 
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, mapper: map.Mapper<VALUE, MAPPED, ERROR, NAME>) {
+  constructor(
+    source: Stream<VALUE, any>,
+    name = NAME as NAME,
+    mapper: map.Mapper<VALUE, MAPPED, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>,
+  ) {
     super(name, async function* () {
       const generator = source[Symbol.asyncIterator]();
       let next = await generator.next();
@@ -34,7 +35,7 @@ export class Map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string = m
                   await compensations[i](feedback);
                 }
               }
-              // compensations = undefined;
+
               next = await generator.next(feedback);
             }
           } catch (error: any) {
@@ -57,13 +58,13 @@ export class Map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string = m
     const self = this;
   }
   get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}-errors` as never);
+    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
     return this._errors;
   }
 }
 
 export function map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string = map.Name>(
-  mapper: map.Mapper<VALUE, MAPPED, ERROR, NAME>,
+  mapper: map.Mapper<VALUE, MAPPED, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>,
 ): Stream.Transformer<NAME, Stream<VALUE, any>, Map<VALUE, MAPPED, ERROR, NAME>> {
   return (_, source, name) => new Map(source, name, mapper);
 }
@@ -71,35 +72,12 @@ export function map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string 
 export namespace map {
   export type Name = typeof NAME;
   export type Compensate = (fn: (error: Stream.Result.SourceErr) => void | Promise<void>) => void;
-  export type Mapper<VALUE, MAPPED, ERROR, NAME extends string> = (
+  export type Mapper<VALUE, MAPPED, ERROR, SELF extends Map<VALUE, MAPPED, ERROR, any>> = (
     value: VALUE,
-    self: Map<VALUE, MAPPED, ERROR, NAME>,
+    self: SELF,
     compensate: Compensate,
   ) => MAPPED | Stream.Result.Err<ERROR> | Promise<MAPPED | Stream.Result.Err<ERROR>>;
-  export type ErrorEvent<VALUE, MAPPED, ERROR, NAME extends string> =
-    | { type: "expected"; error: ERROR; self: Map<VALUE, MAPPED, ERROR, NAME> }
-    | { type: "unexpected"; error: unknown; self: Map<VALUE, MAPPED, ERROR, NAME> };
+  export type ErrorEvent<ERROR, SELF extends Map<any, any, ERROR, any>> =
+    | { type: "expected"; error: ERROR; self: SELF }
+    | { type: "unexpected"; error: unknown; self: SELF };
 }
-
-new Stream([1, 2, 4])
-  .pipe(
-    catchError((err) => {
-      console.log(err.error);
-    }),
-  )
-
-  .pipe(
-    map((v, self, compensate) => {
-      compensate((e) => console.log(e.error));
-
-      return v;
-    }),
-  )
-  .pipe(
-    map((v) => {
-      // if (v === 1) throw Stream.Result.err("kechmahaja");
-      return v.toFixed();
-    }),
-  )
-  .pipe(effect((v) => console.log(v)))
-  .pipe(pump());

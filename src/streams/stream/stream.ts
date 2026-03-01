@@ -108,6 +108,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       return;
     }
   }
+
   next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
     return this[Symbol.asyncIterator]().next();
   }
@@ -166,6 +167,12 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 const NAME = "root";
 
 export namespace Stream {
+  // export function create<VALUE, NAME extends string = Name, PARENT extends Stream<any, any> = never>(
+  //   name: NAME,
+  // ): Stream<VALUE, NAME> & Traversable<NameOf<PARENT>, PARENT>;
+  // export function create<VALUE, NAME extends string = Name, PARENT extends Stream<any, any> = never>(
+  //   name?: NAME,
+  // ): Stream<VALUE, NAME> & Traversable<NameOf<PARENT>, PARENT> {}
   export type Name = typeof NAME;
   export type ValueOf<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
