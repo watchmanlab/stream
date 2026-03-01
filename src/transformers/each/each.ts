@@ -31,27 +31,3 @@ export namespace each {
     compensate: map.Compensate,
   ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
 }
-
-new Stream([1, 2, 4])
-  .pipe(
-    catchError((err) => {
-      // console.log(err.error);
-    }),
-  )
-
-  .pipe(
-    map((v, self, compensate) => {
-      return v;
-    }),
-  )
-  .pipe(
-    "map1",
-    map((v) => {
-      if (v === 1) return Stream.Result.err("kechmahaja");
-      return v.toFixed();
-    }),
-  )
-  .pipe(each((v, self, compensate) => console.log(v)))
-  .pipe(pump())
-  .each.map1.errors.pipe(each((v, self) => console.log(v.error)))
-  .pipe(pump()).each.map1Errors.name;

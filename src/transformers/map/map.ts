@@ -77,7 +77,7 @@ export namespace map {
     self: SELF,
     compensate: Compensate,
   ) => MAPPED | Stream.Result.Err<ERROR> | Promise<MAPPED | Stream.Result.Err<ERROR>>;
-  export type ErrorEvent<ERROR, SELF extends Map<any, any, ERROR, any>> =
+  export type ErrorEvent<ERROR, SELF extends Stream<any, any>> =
     | { type: "expected"; error: ERROR; self: SELF }
     | { type: "unexpected"; error: unknown; self: SELF };
 }

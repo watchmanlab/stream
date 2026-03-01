@@ -1,3 +1,4 @@
+const NAME = "root";
 export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE> {
   protected _consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
   protected _source?: Stream.Source<VALUE>;
@@ -114,15 +115,15 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   }
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
-  ): Stream.PipeResult<OUTPUT, NAME, this>;
+  ): Stream.PipeResult<NAME, this, OUTPUT>;
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
     name: CUSTOM_NAME,
-  ): Stream.PipeResult<OUTPUT, NAME, this>;
+  ): Stream.PipeResult<NAME, this, OUTPUT>;
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     name: CUSTOM_NAME,
     transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
-  ): Stream.PipeResult<OUTPUT, NAME, this>;
+  ): Stream.PipeResult<NAME, this, OUTPUT>;
   pipe(transformerOrName1: Function | string, transformerOrName2?: Function | string) {
     const output =
       typeof transformerOrName1 === "string" && typeof transformerOrName2 === "function"
@@ -164,15 +165,8 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     })();
   }
 }
-const NAME = "root";
 
 export namespace Stream {
-  // export function create<VALUE, NAME extends string = Name, PARENT extends Stream<any, any> = never>(
-  //   name: NAME,
-  // ): Stream<VALUE, NAME> & Traversable<NameOf<PARENT>, PARENT>;
-  // export function create<VALUE, NAME extends string = Name, PARENT extends Stream<any, any> = never>(
-  //   name?: NAME,
-  // ): Stream<VALUE, NAME> & Traversable<NameOf<PARENT>, PARENT> {}
   export type Name = typeof NAME;
   export type ValueOf<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
@@ -197,9 +191,9 @@ export namespace Stream {
     INPUT
   >;
   export type PipeResult<
-    OUTPUT extends Stream<any, any>,
     NAME extends string,
-    INPUT extends Stream<any, any>,
+    INPUT extends Stream<any, NAME>,
+    OUTPUT extends Stream<any, any>,
   > = NAME extends keyof OUTPUT
     ? {
         error: `Naming conflict: "${NAME}" already exists in ${OUTPUT["name"]}`;
@@ -211,7 +205,6 @@ export namespace Stream {
   export const TERMINATE = Symbol("**TERMINATE##");
   export type Terminate = typeof TERMINATE;
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
-
   export type Result<DATA, ERROR> = Result.Ok<DATA> | Result.Err<ERROR> | Result.SourceErr;
 
   export namespace Result {
