@@ -10,7 +10,7 @@ export class StateMap<
   ERROR = unknown,
   NAME extends string = stateMap.Name,
 > extends Stream<MAPPED, NAME> {
-  private _map: Map<VALUE, [MAPPED, STATE], ERROR>;
+  private _map: Map<VALUE, MAPPED, ERROR>;
   protected _errors?: Stream<map.ErrorEvent<ERROR, this>, `${NAME}Errors`>;
 
   constructor(
@@ -24,7 +24,7 @@ export class StateMap<
       let next = await generator.next();
       try {
         while (!next.done) {
-          const feedback = yield next.value[0];
+          const feedback = yield next.value;
           next = await generator.next(feedback);
         }
       } finally {
@@ -34,11 +34,11 @@ export class StateMap<
     const self = this;
 
     let state = initialState;
-    this._map = new Map<VALUE, [MAPPED, STATE], ERROR>(source, undefined, async (value, _, compensate) => {
+    this._map = new Map<VALUE, MAPPED, ERROR>(source, undefined, async (value, _, compensate) => {
       const [result, newState] = await mapper(state, value, this, compensate);
       if (Stream.Result.isErr(result)) return result;
       state = { ...state, ...newState };
-      return [result, state];
+      return result;
     });
   }
 
