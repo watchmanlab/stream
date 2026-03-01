@@ -1,4 +1,4 @@
-import { statefull } from "../statefull";
+import { statefull } from "../stateMap";
 import { Stream } from "../../stream-0";
 
 /**

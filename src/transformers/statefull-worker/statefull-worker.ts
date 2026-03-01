@@ -1,6 +1,6 @@
 import { Stream } from "../../stream-0";
 import { WorkerPool } from "../../workerPool/workerPool";
-import { statefull } from "../statefull/statefull";
+import { statefull } from "../stateMap/stateMap";
 
 export function statefullWorker<VALUE, STATE extends Record<string, unknown>, MAPPED, ARGS extends any[]>(
   initialState: STATE,

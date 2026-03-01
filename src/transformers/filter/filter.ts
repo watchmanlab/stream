@@ -1,7 +1,5 @@
 import { Stream } from "../../streams/";
-import { each } from "../each";
 import { map, Map } from "../map";
-import { pump } from "../pump";
 
 const NAME = "filter";
 
@@ -11,15 +9,15 @@ export class Filter<
   ERROR = unknown,
   NAME extends string = Filter.Name,
 > extends Stream<FILTERED, NAME> {
-  private _out: Map<VALUE, [FILTERED, boolean], ERROR, "map">;
-  protected _errors?: Stream<map.ErrorEvent<ERROR, Filter<VALUE, FILTERED, ERROR, NAME>>, `${NAME}Errors`>;
+  private _map: Map<VALUE, [FILTERED, boolean], ERROR>;
+  protected _errors?: Stream<map.ErrorEvent<ERROR, this>, `${NAME}Errors`>;
   constructor(
     source: Stream<VALUE, any>,
     name = NAME as NAME,
     predicate: Filter.Predicate<VALUE, ERROR, Filter<VALUE, FILTERED, ERROR, NAME>>,
   ) {
     super(name, async function* () {
-      const generator = self._out[Symbol.asyncIterator]();
+      const generator = self._map[Symbol.asyncIterator]();
       let next = await generator.next();
       try {
         while (!next.done) {
@@ -36,7 +34,7 @@ export class Filter<
       }
     });
     const self = this;
-    this._out = new Map<VALUE, [FILTERED, boolean], ERROR>(source, undefined, async (value, _, compensate) => {
+    this._map = new Map<VALUE, [FILTERED, boolean], ERROR>(source, undefined, async (value, _, compensate) => {
       const result = await predicate(value, this, compensate);
       if (Stream.Result.isErr(result)) return result;
       if (result) {
@@ -49,7 +47,7 @@ export class Filter<
 
   get errors() {
     if (!this._errors)
-      this._errors = this._out.errors.pipe(
+      this._errors = this._map.errors.pipe(
         `${this._name}Errors`,
         map((error) => ({ ...error, self: this })),
       );
@@ -59,7 +57,7 @@ export class Filter<
 }
 
 export function filter<VALUE, FILTERED extends VALUE = VALUE, ERROR = unknown, NAME extends string = Filter.Name>(
-  predicate: Filter.GardPredicate<VALUE, FILTERED, ERROR, Filter<VALUE, FILTERED, ERROR, NAME>>,
+  predicate: Filter.GardPredicate<VALUE, FILTERED, Filter<VALUE, FILTERED, ERROR, NAME>>,
 ): Stream.Transformer<NAME, Stream<VALUE, any>, Filter<VALUE, FILTERED, ERROR, NAME>>;
 
 export function filter<VALUE, ERROR, NAME extends string = Filter.Name>(
@@ -74,26 +72,14 @@ export function filter<VALUE, ERROR, NAME extends string = Filter.Name>(
 
 export namespace Filter {
   export type Name = typeof NAME;
-  export type GardPredicate<VALUE, FILTERED extends VALUE, ERROR, SELF extends Filter<VALUE, VALUE, ERROR, any>> = (
+  export type GardPredicate<VALUE, FILTERED extends VALUE, SELF extends Stream<VALUE, any>> = (
     value: VALUE,
     self: SELF,
     compensate: map.Compensate,
   ) => value is FILTERED;
-  export type Predicate<VALUE, ERROR, SELF extends Filter<VALUE, VALUE, ERROR, any>> = (
+  export type Predicate<VALUE, ERROR, SELF extends Stream<VALUE, any>> = (
     value: VALUE,
     self: SELF,
     compensate: map.Compensate,
   ) => boolean | Stream.Result.Err<ERROR> | Promise<boolean | Stream.Result.Err<ERROR>>;
 }
-
-new Stream([1, 2, 3, 4, 5, 6])
-  .pipe(
-    filter((v) => {
-      if (v === 4) return Stream.Result.err("kechma" as const);
-      return v % 2 === 0;
-    }),
-  )
-  .pipe(each((v) => console.log(v)))
-  .pipe(pump())
-  .each.filter.errors.pipe(each((v) => console.log(v.error)))
-  .pipe(pump());

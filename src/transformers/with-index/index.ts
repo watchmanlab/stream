@@ -1,4 +1,4 @@
-import { statefull } from "../statefull/statefull";
+import { statefull } from "../stateMap/stateMap";
 
 /**
  * Add index to values

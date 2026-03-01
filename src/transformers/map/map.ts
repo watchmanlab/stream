@@ -72,7 +72,7 @@ export function map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string 
 export namespace map {
   export type Name = typeof NAME;
   export type Compensate = (fn: (error: Stream.Result.SourceErr) => void | Promise<void>) => void;
-  export type Mapper<VALUE, MAPPED, ERROR, SELF extends Map<VALUE, MAPPED, ERROR, any>> = (
+  export type Mapper<VALUE, MAPPED, ERROR, SELF extends Stream<MAPPED, any>> = (
     value: VALUE,
     self: SELF,
     compensate: Compensate,

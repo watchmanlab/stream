@@ -1,7 +1,7 @@
 import { Stream } from "../../stream-0";
 import { filter } from "../filter/filter";
 import { sequential } from "../map/map";
-import { statefull } from "../statefull";
+import { statefull } from "../stateMap";
 import { takeWhile } from "../take-while";
 
 /**
