@@ -21,8 +21,8 @@ export class Filter<
       let next = await generator.next();
       try {
         while (!next.done) {
-          const [value, ok] = next.value;
-          if (!ok) {
+          const [value, keep] = next.value;
+          if (keep) {
             next = await generator.next();
             continue;
           }

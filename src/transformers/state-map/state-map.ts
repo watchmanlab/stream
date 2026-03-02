@@ -1,7 +1,9 @@
 import { Stream } from "../../streams/index.ts";
+import { effect } from "../effect/effect.ts";
 import { Map, map } from "../map/map.ts";
+import { pump } from "../pump/pump.ts";
 
-const NAME = "statefull";
+const NAME = "stateMap";
 
 export class StateMap<
   VALUE,
@@ -35,10 +37,11 @@ export class StateMap<
 
     let state = initialState;
     this._map = new Map<VALUE, MAPPED, ERROR>(source, undefined, async (value, _, compensate) => {
-      const [result, newState] = await mapper(state, value, this, compensate);
+      const result = await mapper(state, value, this, compensate);
       if (Stream.Result.isErr(result)) return result;
+      const [mapped, newState] = result;
       state = { ...state, ...newState };
-      return result;
+      return mapped;
     });
   }
 
@@ -52,6 +55,19 @@ export class StateMap<
   }
 }
 
+export function stateMap<
+  VALUE,
+  MAPPED = VALUE,
+  STATE extends Record<string, unknown> = {},
+  ERROR = unknown,
+  NAME extends string = stateMap.Name,
+>(
+  initialState: STATE,
+  mapper: stateMap.Mapper<VALUE, MAPPED, STATE, ERROR, StateMap<VALUE, MAPPED, STATE, ERROR, NAME>>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, StateMap<VALUE, MAPPED, STATE, ERROR, NAME>> {
+  return (_, source, name) => new StateMap(source, name, initialState, mapper);
+}
+
 export namespace stateMap {
   export type Name = typeof NAME;
   export type Mapper<VALUE, MAPPED, STATE extends Record<string, unknown>, ERROR, SELF extends Stream<MAPPED, any>> = (
@@ -59,5 +75,14 @@ export namespace stateMap {
     value: VALUE,
     self: SELF,
     compensate: map.Compensate,
-  ) => [MAPPED | Stream.Result.Err<ERROR>, STATE] | Promise<[MAPPED | Stream.Result.Err<ERROR>, STATE]>;
+  ) => [MAPPED, STATE] | Stream.Result.Err<ERROR> | Promise<[MAPPED, STATE] | Stream.Result.Err<ERROR>>;
 }
+
+new Stream([1, 2, 3])
+  .pipe(
+    stateMap({ count: 0 }, (state, v) => {
+      return [state.count, { count: state.count + 4 }];
+    }),
+  )
+  .pipe(effect((v) => console.log(v)))
+  .pipe(pump());
