@@ -77,12 +77,3 @@ export namespace stateMap {
     compensate: map.Compensate,
   ) => [MAPPED, STATE] | Stream.Result.Err<ERROR> | Promise<[MAPPED, STATE] | Stream.Result.Err<ERROR>>;
 }
-
-new Stream([1, 2, 3])
-  .pipe(
-    stateMap({ count: 0 }, (state, v) => {
-      return [state.count, { count: state.count + 4 }];
-    }),
-  )
-  .pipe(effect((v) => console.log(v)))
-  .pipe(pump());
