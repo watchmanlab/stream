@@ -44,8 +44,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       get awaitAnyConsumer() {
         return Promise.any(readyPromises);
       },
-      then: (resolve?: () => void, reject?: () => void) =>
-        new Promise<void>((r) => setTimeout(r, 0)).then(resolve, reject),
+      then: (resolve?: () => void, reject?: () => void) => Promise.resolve().then(resolve, reject),
     };
   }
   protected _requestingNext = false;
@@ -54,7 +53,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._requestingNext = true;
       this._sourceGenerator.next(feedback).then((result) => {
         this._requestingNext = false;
-        if (result.done) return;
+        if (result.done) {
+          this.push(Stream.TERMINATE as VALUE);
+          return;
+        }
         this.push(result.value);
       });
     }
