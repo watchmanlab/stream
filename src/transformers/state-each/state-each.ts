@@ -113,25 +113,3 @@ const now = performance.now();
 //     }
 //   }).pipe(pump());
 // }
-
-const MAX = 1_000_000;
-function* gen() {
-  let i = 1;
-  while (i <= MAX) {
-    yield i++;
-  }
-}
-function* gen2() {
-  yield* (function* () {
-    yield* gen();
-  })();
-}
-
-for (const v of gen()) {
-  if (v === MAX + 10) console.log();
-}
-console.log("gen", performance.now() - now);
-for (const v of gen2()) {
-  if (v === MAX + 10) console.log();
-}
-console.log("gen2", performance.now() - now);
