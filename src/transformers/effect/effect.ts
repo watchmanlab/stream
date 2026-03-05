@@ -1,4 +1,6 @@
 import { Stream } from "../../streams";
+import { each } from "../each";
+import { pump } from "../pump";
 
 const NAME = "effect";
 
@@ -60,4 +62,24 @@ export namespace effect {
   export type Error<VALUE, NAME extends string, ERROR> =
     | { type: "expected"; error: ERROR; self: Effect<VALUE, NAME, ERROR> }
     | { type: "unexpected"; error: unknown; self: Effect<VALUE, NAME, ERROR> };
+}
+
+const MAX = 1_00_000;
+let count = 0;
+const stream = new Stream<number>()
+  .pipe(
+    each((v) => {
+      count++;
+      if (v === MAX) {
+        console.timeEnd("test");
+        console.log(count);
+      }
+    }),
+  )
+  .pipe(pump());
+
+console.time("test");
+
+for (let i = 0; i <= MAX; i++) {
+  await stream.each.root.push(i);
 }
