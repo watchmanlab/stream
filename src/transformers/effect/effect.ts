@@ -5,7 +5,7 @@ import { pump } from "../pump";
 const NAME = "effect";
 
 export class Effect<VALUE, NAME extends string = effect.Name, ERROR = unknown> extends Stream<VALUE, NAME> {
-  protected _errors?: Stream<effect.Error<VALUE, NAME, ERROR>, `${NAME}-errors`>;
+  protected _errors?: Stream<effect.Error<VALUE, NAME, ERROR>, `${NAME}Errors`>;
 
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: effect.Callback<VALUE, NAME, ERROR>) {
     super(name, async function* () {
@@ -43,7 +43,7 @@ export class Effect<VALUE, NAME extends string = effect.Name, ERROR = unknown> e
   }
 
   get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}-errors` as never);
+    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
     return this._errors;
   }
 }
@@ -62,24 +62,4 @@ export namespace effect {
   export type Error<VALUE, NAME extends string, ERROR> =
     | { type: "expected"; error: ERROR; self: Effect<VALUE, NAME, ERROR> }
     | { type: "unexpected"; error: unknown; self: Effect<VALUE, NAME, ERROR> };
-}
-
-const MAX = 1_00_000;
-let count = 0;
-const stream = new Stream<number>()
-  .pipe(
-    each((v) => {
-      count++;
-      if (v === MAX) {
-        console.timeEnd("test");
-        console.log(count);
-      }
-    }),
-  )
-  .pipe(pump());
-
-console.time("test");
-
-for (let i = 0; i <= MAX; i++) {
-  await stream.each.root.push(i);
 }

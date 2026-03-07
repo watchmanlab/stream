@@ -7,17 +7,15 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
   constructor();
   constructor(source: Stream.Source<VALUE>);
-  constructor(source: Stream.Source<VALUE>, name: NAME);
   constructor(name: NAME);
   constructor(name: NAME, source: Stream.Source<VALUE>);
 
-  constructor(sourceOrName1?: Stream.Source<VALUE> | NAME, sourceOrName2?: Stream.Source<VALUE>) {
-    if (typeof sourceOrName1 === "string" || sourceOrName1 instanceof String) {
-      this._name = (sourceOrName1 as NAME) ?? NAME;
-      this._source = sourceOrName2;
+  constructor(sourceOrName?: Stream.Source<VALUE> | NAME, source?: Stream.Source<VALUE>) {
+    if (typeof sourceOrName === "string" || sourceOrName instanceof String) {
+      this._name = (sourceOrName as NAME) ?? NAME;
+      this._source = source;
     } else {
-      this._name = (sourceOrName2 as NAME) ?? NAME;
-      this._source = sourceOrName1;
+      this._source = sourceOrName;
     }
   }
 
@@ -82,7 +80,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
           const value = queue.shift()!;
           if (value === Stream.TERMINATE) break;
           feedback = yield value;
+          if (Stream.Result.isSourceErr(feedback) && !this._source) break;
         } else {
+          ready!?.();
           this._requestNext(feedback);
 
           await new Promise<void>((resolve) => {
@@ -92,8 +92,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
             });
           });
         }
-
-        ready!?.();
       }
     } finally {
       this._consumers.get(queue)?.resolve();

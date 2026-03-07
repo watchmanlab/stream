@@ -31,7 +31,8 @@ export class Map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string = m
             } else {
               const feedback = yield result;
               if (Stream.Result.isSourceErr(feedback) && compensations) {
-                for (let i = 0; i < compensations.length; i++) {
+                const len = compensations.length;
+                for (let i = 0; i < len; i++) {
                   await compensations[i](feedback);
                 }
               }

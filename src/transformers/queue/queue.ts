@@ -1,10 +1,19 @@
 import { Stream } from "../../streams";
+import { catchError } from "../catch-error";
+import { each } from "../each";
+import { pump } from "../pump";
 
-const NAME = "queued";
-
-class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME> {
+const NAME = "queue";
+/**
+ * Queue transformer that buffers values and decouples producer/consumer timing.
+ *
+ * **Important**: Queue severs the feedback channel. Upstream sources will not
+ * receive feedback from downstream consumers. Use queue when you need buffering
+ * and timing decoupling, not when you need bidirectional communication.
+ */
+export class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME> {
   protected _buffer = new Array<VALUE>();
-  protected _events?: Stream<queue.Event<VALUE, NAME>, `${NAME}-events`>;
+  protected _events?: Stream<queue.Event<VALUE, NAME>, `${NAME}Events`>;
   protected _options: Required<queue.Options> = { dropStrategy: "oldest", maxSize: 10000 };
   protected _dropped = 0;
   protected _resolvers = new Set<() => void>();
@@ -13,11 +22,15 @@ class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME>
     super(name, async function* () {
       let resolve;
 
+      let feedback: unknown;
       try {
         while (true) {
           if (self._buffer.length) {
             const value = self._buffer.pop()!;
-            yield value;
+            feedback = yield value;
+
+            if (Stream.Result.isSourceErr(feedback)) throw feedback;
+
             self._events?.push({ type: "consumed", value, self });
           } else {
             await new Promise<void>((res) => {
@@ -54,10 +67,10 @@ class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME>
     })();
   }
 
-  // get events() {
-  //   if (!this._events) this._events = new Stream();
-  //   return this._events;
-  // }
+  get events() {
+    if (!this._events) this._events = new Stream(`${this._name}Events` as never);
+    return this._events;
+  }
   get options() {
     return { ...this._options };
   }
@@ -96,3 +109,22 @@ export namespace queue {
     | { type: "buffered"; value: VALUE; self: Queue<VALUE, NAME> }
     | { type: "consumed"; value: VALUE; self: Queue<VALUE, NAME> };
 }
+
+const stream = new Stream([1, 2, 3]);
+
+stream
+  .pipe(
+    each((v) => {
+      console.log(v);
+      throw Error(`hey`);
+    }),
+  )
+  .pipe(pump());
+// stream
+//   .pipe(
+//     each((v) => {
+//       console.log(v);
+//       // throw Stream.Result.err(`hey`);
+//     }),
+//   )
+//   .pipe(pump());
