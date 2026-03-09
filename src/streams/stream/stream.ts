@@ -46,10 +46,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     };
   }
   protected _requestingNext = false;
-  protected _requestNext(feedback: unknown) {
+  protected _requestNext() {
     if (!this._requestingNext && this._sourceGenerator) {
       this._requestingNext = true;
-      this._sourceGenerator.next(feedback).then((result) => {
+      this._sourceGenerator.next().then((result) => {
         this._requestingNext = false;
         if (result.done) {
           this.push(Stream.TERMINATE as VALUE);
@@ -73,17 +73,15 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
     let ready: () => void;
 
-    let feedback: unknown;
     try {
       while (true) {
         if (queue.length) {
           const value = queue.shift()!;
           if (value === Stream.TERMINATE) break;
-          feedback = yield value;
-          if (Stream.Result.isSourceErr(feedback) && !this._source) break;
+          yield value;
         } else {
           ready!?.();
-          this._requestNext(feedback);
+          this._requestNext();
 
           await new Promise<void>((resolve) => {
             this._consumers.set(queue, {
@@ -104,7 +102,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         this._sourceGenerator = undefined;
       }
       this._onConsumerLeft?.();
-      if (Stream.Result.isSourceErr(feedback)) throw feedback;
 
       return;
     }
@@ -170,6 +167,10 @@ export namespace Stream {
   export type Name = typeof NAME;
   export type ValueOf<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
+  export type RawValueOf<T> =
+    T extends Source<any> ? Exclude<ValueOf<T>, Result.SourceErr<any, any>> : Exclude<T, Result.SourceErr<any, any>>;
+  export type SourceErrorOf<T> =
+    T extends Source<any> ? Extract<ValueOf<T>, Result.SourceErr<any, any>> : Extract<T, Result.SourceErr<any, any>>;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
   export type Source<VALUE> =
     | GeneratorFunction<VALUE>
@@ -205,14 +206,17 @@ export namespace Stream {
   export const TERMINATE = Symbol("**TERMINATE##");
   export type Terminate = typeof TERMINATE;
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
-  export type Result<DATA, ERROR> = Result.Ok<DATA> | Result.Err<ERROR> | Result.SourceErr;
+  export type Result<SOURCE extends Stream<any, any>, ERROR> =
+    | Result.Ok<ValueOf<SOURCE>>
+    | Result.Err<ERROR>
+    | Result.SourceErr<SOURCE, ERROR>;
 
   export namespace Result {
-    export class SourceErr {
+    export class SourceErr<SOURCE extends Stream<any, any>, ERROR> {
       constructor(
-        public readonly error: unknown,
-        public readonly source: Stream<any, any>,
-        public readonly value: unknown,
+        public readonly source: SOURCE,
+        public readonly value: RawValueOf<SOURCE>,
+        public readonly error: ERROR,
       ) {}
     }
     export class Ok<VALUE> {
@@ -227,8 +231,16 @@ export namespace Stream {
     export function err<VALUE>(value: VALUE): Err<VALUE> {
       return new Err(value);
     }
-    export function sourceErr({ error, source, value }: { error: unknown; source: Stream<any, any>; value: unknown }) {
-      return new SourceErr(error, source, value);
+    export function sourceErr<SOURCE extends Stream<any, any>, ERROR>({
+      source,
+      value,
+      error,
+    }: {
+      source: SOURCE;
+      value: RawValueOf<SOURCE>;
+      error: ERROR;
+    }) {
+      return new SourceErr(source, value, error);
     }
     export function isOk<VALUE>(object: unknown): object is Ok<VALUE> {
       return object instanceof Ok;
@@ -236,7 +248,9 @@ export namespace Stream {
     export function isErr<VALUE>(object: unknown): object is Err<VALUE> {
       return object instanceof Err;
     }
-    export function isSourceErr(object: unknown): object is SourceErr {
+    export function isSourceErr<SOURCE extends Stream<any, any>, ERROR>(
+      object: unknown,
+    ): object is SourceErr<SOURCE, ERROR> {
       return object instanceof SourceErr;
     }
   }

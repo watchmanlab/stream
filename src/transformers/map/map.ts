@@ -1,66 +1,48 @@
 import { Stream } from "../../streams/index.ts";
+import { each } from "../each/each.ts";
 
 const NAME = "map";
 
-export class Map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string = map.Name> extends Stream<MAPPED, NAME> {
-  protected _errors?: Stream<map.ErrorEvent<ERROR, this>, `${NAME}Errors`>;
-
+export class Map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string = map.Name> extends Stream<
+  map.Mapped<VALUE, MAPPED, ERROR, NAME>,
+  NAME
+> {
   constructor(
     source: Stream<VALUE, any>,
     name = NAME as NAME,
     mapper: map.Mapper<VALUE, MAPPED, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>,
   ) {
     super(name, async function* () {
-      const generator = source[Symbol.asyncIterator]();
-      let next = await generator.next();
-
-      try {
-        while (!next.done) {
-          let compensations: Array<(err: Stream.Result.SourceErr) => void | Promise<void>> | undefined;
-          try {
-            const result = await mapper(next.value, self, (fn: (err: Stream.Result.SourceErr) => void) => {
-              if (!compensations) compensations = [];
-              compensations.unshift(fn);
-            });
-
-            if (Stream.Result.isErr(result)) {
-              self._errors?.push({ type: "expected", error: result.value, self });
-              next = await generator.next(
-                Stream.Result.sourceErr({ error: result.value, source: self, value: next.value }),
-              );
-            } else {
-              const feedback = yield result;
-              if (Stream.Result.isSourceErr(feedback) && compensations) {
-                const len = compensations.length;
-                for (let i = 0; i < len; i++) {
-                  await compensations[i](feedback);
-                }
-              }
-
-              next = await generator.next(feedback);
-            }
-          } catch (error: any) {
-            if (Stream.Result.isErr(error)) {
-              self._errors?.push({ type: "expected", error: error.value as ERROR, self });
-              next = await generator.next(
-                Stream.Result.sourceErr({ error: error.value, source: self, value: next.value }),
-              );
-            } else {
-              self._errors?.push({ type: "unexpected", error: error, self });
-              next = await generator.next(Stream.Result.sourceErr({ error, source: self, value: next.value }));
-            }
+      for await (const value of source) {
+        try {
+          if (Stream.Result.isSourceErr(value)) {
+            yield value as never;
+            continue;
           }
+          const maybePromise = mapper(value, self);
+          const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+
+          if (Stream.Result.isErr(result)) {
+            yield Stream.Result.sourceErr({
+              source: self,
+              error: result.value,
+              value: value as Stream.RawValueOf<typeof self>,
+            }) as never;
+            continue;
+          }
+
+          yield result;
+        } catch (error: any) {
+          yield Stream.Result.sourceErr({
+            source: self,
+            error,
+            value: value as Stream.RawValueOf<typeof self>,
+          }) as never;
         }
-      } finally {
-        await generator.return();
       }
     });
 
     const self = this;
-  }
-  get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
-    return this._errors;
   }
 }
 
@@ -72,13 +54,33 @@ export function map<VALUE, MAPPED = VALUE, ERROR = unknown, NAME extends string 
 
 export namespace map {
   export type Name = typeof NAME;
-  export type Compensate = (fn: (error: Stream.Result.SourceErr) => void | Promise<void>) => void;
-  export type Mapper<VALUE, MAPPED, ERROR, SELF extends Stream<MAPPED, any>> = (
+  export type Mapped<VALUE, MAPPED, ERROR = undefined, NAME extends string = Name> = undefined extends ERROR
+    ? MAPPED | Stream.SourceErrorOf<VALUE>
+    : MAPPED | Stream.SourceErrorOf<VALUE> | Stream.Result.SourceErr<Map<VALUE, MAPPED, ERROR, NAME>, ERROR>;
+
+  export type Mapper<VALUE, MAPPED, ERROR, SELF extends Stream<any, any>> = (
     value: VALUE,
     self: SELF,
-    compensate: Compensate,
   ) => MAPPED | Stream.Result.Err<ERROR> | Promise<MAPPED | Stream.Result.Err<ERROR>>;
-  export type ErrorEvent<ERROR, SELF extends Stream<any, any>> =
-    | { type: "expected"; error: ERROR; self: SELF }
-    | { type: "unexpected"; error: unknown; self: SELF };
 }
+
+const stream = new Stream([1, 2, 3])
+  .pipe(
+    "map1",
+    map((v) => v.toFixed()),
+  )
+  .pipe(
+    "map2",
+    map((v) => (v === "kechma" ? true : Stream.Result.err("kechmahaja" as const))),
+  )
+  .pipe(
+    each((v) => {
+      if (v === true) return Stream.Result.err("mmmm" as const);
+      console.log(v);
+    }),
+  )
+  .pipe(
+    each((v) => {
+      v;
+    }),
+  );

@@ -22,14 +22,12 @@ export class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE
     super(name, async function* () {
       let resolve;
 
-      let feedback: unknown;
       try {
         while (true) {
           if (self._buffer.length) {
             const value = self._buffer.pop()!;
-            feedback = yield value;
 
-            if (Stream.Result.isSourceErr(feedback)) throw feedback;
+            yield value;
 
             self._events?.push({ type: "consumed", value, self });
           } else {
