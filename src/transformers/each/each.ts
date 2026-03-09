@@ -1,48 +1,37 @@
 import { Stream } from "../../streams";
+import { map, Map } from "../map";
 
 const NAME = "each";
 
-export class Each<VALUE, ERROR, NAME extends string = each.Name> extends Stream<
-  undefined extends ERROR ? VALUE : VALUE | Stream.Result.SourceErr<Each<VALUE, ERROR, NAME>, ERROR>,
-  NAME
-> {
+export class Each<VALUE, ERROR, NAME extends string = each.Name> extends Stream<VALUE, NAME> {
+  protected _map: Map<VALUE, VALUE, ERROR, NAME>;
   constructor(
     source: Stream<VALUE, any>,
     name = NAME as NAME,
     callback: each.Callback<VALUE, ERROR, Each<VALUE, ERROR, NAME>>,
   ) {
     super(name, async function* () {
-      for await (const value of source) {
-        try {
-          if (Stream.Result.isSourceErr(value)) {
-            yield value;
-            continue;
-          }
-
-          const maybePromise = callback(value, self);
-
-          const error = maybePromise instanceof Promise ? await maybePromise : maybePromise;
-
-          if (Stream.Result.isErr(error)) {
-            yield Stream.Result.sourceErr({
-              source: self,
-              error: error.value,
-              value: value as Stream.RawValueOf<typeof self>,
-            }) as never;
-            continue;
-          }
-
-          yield value;
-        } catch (error) {
-          yield Stream.Result.sourceErr({
-            source: self,
-            error,
-            value: value as Stream.RawValueOf<typeof self>,
-          }) as never;
-        }
-      }
+      yield* self._map;
     });
+
     const self = this;
+
+    this._map = new Map(source, NAME as NAME, async (value, _) => {
+      const maybePromise = callback(value, self);
+
+      const error = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+
+      if (Stream.Result.isErr(error)) return error;
+
+      return value;
+    });
+  }
+
+  get errors(): Stream<Stream.ErrorEvent<VALUE, ERROR, this>, `${NAME}Errors`> {
+    return this._map.errors.pipe(
+      `${this._name}Errors`,
+      map((e) => ({ ...e, source: this })),
+    );
   }
 }
 export function each<VALUE, ERROR, NAME extends string = each.Name>(
