@@ -23,7 +23,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     return this._name;
   }
 
-  push(value: VALUE, ...values: VALUE[]): Stream.PushResult {
+  push(value: Stream.RawValueOf<VALUE>, ...values: Stream.RawValueOf<VALUE>[]): Stream.PushResult {
     const readyPromises = new Array<Promise<void>>();
 
     for (const [queue, { resolve, ready }] of this._consumers) {
@@ -52,10 +52,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._sourceGenerator.next().then((result) => {
         this._requestingNext = false;
         if (result.done) {
-          this.push(Stream.TERMINATE as VALUE);
+          this.push(Stream.TERMINATE as Stream.RawValueOf<VALUE>);
           return;
         }
-        this.push(result.value);
+        this.push(result.value as Stream.RawValueOf<VALUE>);
       });
     }
   }
@@ -78,6 +78,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         if (queue.length) {
           const value = queue.shift()!;
           if (value === Stream.TERMINATE) break;
+
           yield value;
         } else {
           ready!?.();
@@ -167,6 +168,12 @@ export namespace Stream {
   export type Name = typeof NAME;
   export type ValueOf<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
+  export type RawValueOf<T> = Exclude<T, SourceErr<any, any, any>>;
+  export type SourceErrOf<T> = Extract<T, SourceErr<any, any, any>>;
+  export type MaybeErr<ERROR> = [ERROR] extends [never] ? never : Err<ERROR>;
+  export type MaybeSourceErr<ERROR, SOURCE_ERR extends SourceErr<any, any, any>> = [ERROR] extends [never]
+    ? never
+    : SOURCE_ERR;
 
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
   export type Source<VALUE> =
@@ -206,53 +213,49 @@ export namespace Stream {
   export type ErrorEvent<VALUE, ERROR, SOURCE extends Stream<any, any>> =
     | { type: "expected"; source: SOURCE; value: VALUE; detail: ERROR }
     | { type: "unexpected"; source: SOURCE; value: VALUE; detail: unknown };
-  export type Result<VALUE, ERROR, SOURCE extends Stream<any, any>> =
-    | Result.Ok<VALUE>
-    | Result.Err<ERROR>
-    | Result.SourceErr<VALUE, ERROR, SOURCE>;
-
-  export namespace Result {
-    export class SourceErr<VALUE, ERROR, SOURCE extends Stream<any, any>> {
-      constructor(
-        public readonly source: SOURCE,
-        public readonly value: VALUE,
-        public readonly detail: ERROR,
-      ) {}
+  export class SourceErr<VALUE, ERROR, SOURCE extends Stream<any, any>> {
+    constructor(
+      public readonly source: SOURCE,
+      public readonly value: VALUE,
+      public readonly detail: ERROR,
+    ) {}
+    get name(): SOURCE["name"] {
+      return this.source.name;
     }
-    export class Ok<VALUE> {
-      constructor(public readonly value: VALUE) {}
-    }
-    export class Err<VALUE> {
-      constructor(public readonly value: VALUE) {}
-    }
-    export function ok<VALUE>(value: VALUE): Ok<VALUE> {
-      return new Ok(value);
-    }
-    export function err<VALUE>(value: VALUE): Err<VALUE> {
-      return new Err(value);
-    }
-    export function sourceErr<VALUE, ERROR, SOURCE extends Stream<any, any>>({
-      source,
-      value,
-      detail,
-    }: {
-      source: SOURCE;
-      value: VALUE;
-      detail: ERROR;
-    }) {
-      return new SourceErr(source, value, detail);
-    }
-    export function isOk<VALUE>(object: unknown): object is Ok<VALUE> {
-      return object instanceof Ok;
-    }
-    export function isErr<VALUE>(object: unknown): object is Err<VALUE> {
-      return object instanceof Err;
-    }
-    export function isSourceErr<VALUE, ERROR, SOURCE extends Stream<any, any>>(
-      object: unknown,
-    ): object is SourceErr<VALUE, ERROR, SOURCE> {
-      return object instanceof SourceErr;
-    }
+  }
+  export class Ok<VALUE> {
+    constructor(public readonly value: VALUE) {}
+  }
+  export class Err<ERROR> {
+    constructor(public readonly value: ERROR) {}
+  }
+  export function ok<VALUE>(value: VALUE): Ok<VALUE> {
+    return new Ok(value);
+  }
+  export function err<ERROR>(value: ERROR): Err<ERROR> {
+    return new Err(value);
+  }
+  export function sourceErr<VALUE, ERROR, SOURCE extends Stream<any, any>>({
+    source,
+    value,
+    detail,
+  }: {
+    source: SOURCE;
+    value: VALUE;
+    detail: ERROR;
+  }) {
+    return new SourceErr(source, value, detail);
+  }
+  export function isOk<VALUE>(object: unknown): object is Ok<VALUE> {
+    return object instanceof Ok;
+  }
+  export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
+    return object instanceof Err;
+  }
+  export function isSourceErr<VALUE, ERROR, SOURCE extends Stream<any, any>>(
+    object: unknown,
+  ): object is SourceErr<VALUE, ERROR, SOURCE> {
+    return object instanceof SourceErr;
   }
 }
 

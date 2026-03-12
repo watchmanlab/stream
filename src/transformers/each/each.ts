@@ -1,9 +1,12 @@
 import { Stream } from "../../streams";
-import { map, Map } from "../map";
+import { Map } from "../map";
 
 const NAME = "each";
 
-export class Each<VALUE, ERROR, NAME extends string = each.Name> extends Stream<VALUE, NAME> {
+export class Each<VALUE, ERROR = never, NAME extends string = each.Name> extends Stream<
+  VALUE | Stream.MaybeSourceErr<ERROR, Stream.SourceErr<Stream.RawValueOf<VALUE>, ERROR, Each<VALUE, ERROR, NAME>>>,
+  NAME
+> {
   protected _map: Map<VALUE, VALUE, ERROR, NAME>;
   constructor(
     source: Stream<VALUE, any>,
@@ -11,7 +14,13 @@ export class Each<VALUE, ERROR, NAME extends string = each.Name> extends Stream<
     callback: each.Callback<VALUE, ERROR, Each<VALUE, ERROR, NAME>>,
   ) {
     super(name, async function* () {
-      yield* self._map;
+      for await (const value of self._map) {
+        if (Stream.isSourceErr(value)) {
+          yield Stream.sourceErr({ ...value, source: self }) as never;
+          continue;
+        }
+        yield value;
+      }
     });
 
     const self = this;
@@ -21,20 +30,17 @@ export class Each<VALUE, ERROR, NAME extends string = each.Name> extends Stream<
 
       const error = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-      if (Stream.Result.isErr(error)) return error;
+      if (Stream.isErr(error)) return error;
 
       return value;
     });
   }
 
-  get errors(): Stream<Stream.ErrorEvent<VALUE, ERROR, this>, `${NAME}Errors`> {
-    return this._map.errors.pipe(
-      `${this._name}Errors`,
-      map((e) => ({ ...e, source: this })),
-    );
+  get errors() {
+    return this._map.errors;
   }
 }
-export function each<VALUE, ERROR, NAME extends string = each.Name>(
+export function each<VALUE, ERROR = never, NAME extends string = each.Name>(
   callback: each.Callback<VALUE, ERROR, Each<VALUE, ERROR, NAME>>,
 ): Stream.Transformer<NAME, Stream<VALUE, any>, Each<VALUE, ERROR, NAME>> {
   return (_, source, name) => new Each(source, name, callback);
@@ -43,7 +49,7 @@ export namespace each {
   export type Name = typeof NAME;
 
   export type Callback<VALUE, ERROR, SELF extends Stream<any, any>> = (
-    value: VALUE,
+    value: Stream.RawValueOf<VALUE>,
     self: SELF,
-  ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
+  ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 }
