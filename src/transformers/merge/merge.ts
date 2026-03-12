@@ -1,6 +1,4 @@
 import { Stream } from "../../streams";
-import { each } from "../each";
-import { pump } from "../pump";
 
 const NAME = "merge";
 
@@ -29,11 +27,11 @@ export class Merge<
             continue;
           }
 
-          const feedback = yield result.value;
-          entry.next = entry.it.next(feedback);
+          yield result.value;
+          entry.next = entry.it.next();
         }
       } finally {
-        for (const it of iters) await it.return?.();
+        Promise.all(iters.map((iter) => iter.return?.()));
       }
     });
   }

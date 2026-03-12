@@ -23,7 +23,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     return this._name;
   }
 
-  push(value: Stream.RawValueOf<VALUE>, ...values: Stream.RawValueOf<VALUE>[]): Stream.PushResult {
+  push(value: Stream.SafeValueOf<VALUE>, ...values: Stream.SafeValueOf<VALUE>[]): Stream.PushResult {
     const readyPromises = new Array<Promise<void>>();
 
     for (const [queue, { resolve, ready }] of this._consumers) {
@@ -52,10 +52,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._sourceGenerator.next().then((result) => {
         this._requestingNext = false;
         if (result.done) {
-          this.push(Stream.TERMINATE as Stream.RawValueOf<VALUE>);
+          this.push(Stream.TERMINATE as Stream.SafeValueOf<VALUE>);
           return;
         }
-        this.push(result.value as Stream.RawValueOf<VALUE>);
+        this.push(result.value as Stream.SafeValueOf<VALUE>);
       });
     }
   }
@@ -168,7 +168,7 @@ export namespace Stream {
   export type Name = typeof NAME;
   export type ValueOf<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
   export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
-  export type RawValueOf<T> = Exclude<T, SourceErr<any, any, any>>;
+  export type SafeValueOf<T> = Exclude<T, SourceErr<any, any, any>>;
   export type SourceErrOf<T> = Extract<T, SourceErr<any, any, any>>;
   export type MaybeErr<ERROR> = [ERROR] extends [never] ? never : Err<ERROR>;
   export type MaybeSourceErr<ERROR, SOURCE_ERR extends SourceErr<any, any, any>> = [ERROR] extends [never]

@@ -1,41 +1,41 @@
 import { Stream } from "../../streams";
-import { each } from "../each";
-import { pump } from "../pump";
 
 const NAME = "effect";
 
-export class Effect<VALUE, NAME extends string = effect.Name, ERROR = unknown> extends Stream<VALUE, NAME> {
-  protected _errors?: Stream<effect.Error<VALUE, NAME, ERROR>, `${NAME}Errors`>;
+export class Effect<VALUE, ERROR = never, NAME extends string = effect.Name> extends Stream<VALUE, NAME> {
+  protected _errors?: Stream<Stream.ErrorEvent<Stream.SafeValueOf<VALUE>, ERROR, this>, `${NAME}Errors`>;
 
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: effect.Callback<VALUE, NAME, ERROR>) {
+  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: effect.Callback<VALUE, ERROR, NAME>) {
     super(name, async function* () {
-      const generator = source[Symbol.asyncIterator]();
-
-      let next = await generator.next();
-
-      try {
-        while (!next.done) {
-          (async () => {
-            try {
-              const result = await callback(next.value, self);
-
-              if (Stream.Result.isErr(result)) {
-                self._errors?.push({ type: "expected", error: result.value, self });
-              }
-            } catch (error: any) {
-              if (error instanceof Stream.Result.Err) {
-                self._errors?.push({ type: "expected", error: error.value, self });
-              } else {
-                self._errors?.push({ type: "unexpected", error, self });
-              }
-            }
-          })();
-
-          const feedback = yield next.value;
-          next = await generator.next(feedback);
+      for await (const value of source) {
+        if (Stream.isSourceErr(value)) {
+          yield value;
+          continue;
         }
-      } finally {
-        await generator.return();
+
+        const rawValue = value as Stream.SafeValueOf<VALUE>;
+
+        try {
+          const maybePromise = callback(rawValue, self);
+
+          if (maybePromise instanceof Promise) {
+            maybePromise
+              .then((error) => {
+                if (error) self._errors?.push({ type: "expected", source: self, value: rawValue, detail: error.value });
+              })
+              .catch((error) => {
+                self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
+              });
+          }
+
+          if (Stream.isErr(maybePromise)) {
+            self._errors?.push({ type: "expected", source: self, value: rawValue, detail: maybePromise.value });
+          }
+        } catch (error) {
+          self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
+        } finally {
+          yield value;
+        }
       }
     });
 
@@ -47,19 +47,16 @@ export class Effect<VALUE, NAME extends string = effect.Name, ERROR = unknown> e
     return this._errors;
   }
 }
-export function effect<VALUE, NAME extends string = effect.Name, ERROR = unknown>(
-  callback: effect.Callback<VALUE, NAME, ERROR>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Effect<VALUE, NAME>> {
+export function effect<VALUE, ERROR = never, NAME extends string = effect.Name>(
+  callback: effect.Callback<VALUE, ERROR, NAME>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Effect<VALUE, ERROR, NAME>> {
   return (_, source, name) => new Effect(source, name, callback);
 }
 export namespace effect {
   export type Name = typeof NAME;
 
-  export type Callback<VALUE, NAME extends string, ERROR> = (
-    value: VALUE,
-    self: Effect<VALUE, NAME, ERROR>,
-  ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
-  export type Error<VALUE, NAME extends string, ERROR> =
-    | { type: "expected"; error: ERROR; self: Effect<VALUE, NAME, ERROR> }
-    | { type: "unexpected"; error: unknown; self: Effect<VALUE, NAME, ERROR> };
+  export type Callback<VALUE, ERROR, NAME extends string> = (
+    value: Stream.SafeValueOf<VALUE>,
+    self: Effect<VALUE, ERROR, NAME>,
+  ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 }

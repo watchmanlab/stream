@@ -3,13 +3,18 @@ import { each } from "../each/each.ts";
 
 const NAME = "map";
 
-export class Map<VALUE, MAPPED = VALUE, ERROR = never, NAME extends string = map.Name> extends Stream<
+export class Map<
+  VALUE,
+  MAPPED = Stream.SafeValueOf<VALUE>,
+  ERROR = never,
+  NAME extends string = map.Name,
+> extends Stream<
   | MAPPED
   | Stream.SourceErrOf<VALUE>
-  | Stream.MaybeSourceErr<ERROR, Stream.SourceErr<Stream.RawValueOf<VALUE>, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>>,
+  | Stream.MaybeSourceErr<ERROR, Stream.SourceErr<Stream.SafeValueOf<VALUE>, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>>,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<Stream.RawValueOf<VALUE>, ERROR, this>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<Stream.SafeValueOf<VALUE>, ERROR, this>, `${NAME}Errors`>;
   constructor(
     source: Stream<VALUE, any>,
     name = NAME as NAME,
@@ -22,7 +27,7 @@ export class Map<VALUE, MAPPED = VALUE, ERROR = never, NAME extends string = map
           continue;
         }
 
-        const rawValue = value as Stream.RawValueOf<VALUE>;
+        const rawValue = value as Stream.SafeValueOf<VALUE>;
         try {
           const maybePromise = mapper(rawValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
@@ -71,7 +76,7 @@ export namespace map {
   export type Name = typeof NAME;
 
   export type Mapper<VALUE, MAPPED, ERROR, SELF extends Stream<any, any>> = (
-    value: Stream.RawValueOf<VALUE>,
+    value: Stream.SafeValueOf<VALUE>,
     self: SELF,
   ) => MAPPED | Stream.Err<ERROR> | Promise<MAPPED | Stream.Err<ERROR>>;
 }
@@ -101,14 +106,13 @@ const stream = new Stream([1, 2, 3])
 
 for await (const value of stream) {
   if (value instanceof Stream.SourceErr) {
-    // switch (value.name) {
-    //   case "each1":
-    //     value.source.push(true);
-    //     break;
-    //   case "map1":
-    //     break;
-    //   case "map2":
-    //     break;
-    // }
+    switch (value.name) {
+      case "each1":
+        value.source.push(true);
+        break;
+      case "map2":
+        value.detail;
+        break;
+    }
   }
 }
