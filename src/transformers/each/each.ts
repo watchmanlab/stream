@@ -4,10 +4,10 @@ import { Map } from "../map";
 const NAME = "each";
 
 export class Each<VALUE, ERROR = never, NAME extends string = each.Name> extends Stream<
-  VALUE | Stream.MaybeSourceErr<ERROR, Stream.SourceErr<Stream.SafeValueOf<VALUE>, ERROR, Each<VALUE, ERROR, NAME>>>,
+  VALUE | Stream.MaybeSourceErr<ERROR, Stream.SourceErr<Stream.ExtractValue<VALUE>, ERROR, Each<VALUE, ERROR, NAME>>>,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<Stream.SafeValueOf<VALUE>, ERROR, this>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<Stream.ExtractValue<VALUE>, ERROR, this>, `${NAME}Errors`>;
   constructor(
     source: Stream<VALUE, any>,
     name = NAME as NAME,
@@ -20,7 +20,7 @@ export class Each<VALUE, ERROR = never, NAME extends string = each.Name> extends
           continue;
         }
 
-        const rawValue = value as Stream.SafeValueOf<VALUE>;
+        const rawValue = value as Stream.ExtractValue<VALUE>;
         try {
           const maybePromise = callback(rawValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
@@ -67,7 +67,7 @@ export namespace each {
   export type Name = typeof NAME;
 
   export type Callback<VALUE, ERROR, SELF extends Stream<any, any>> = (
-    value: Stream.SafeValueOf<VALUE>,
+    value: Stream.ExtractValue<VALUE>,
     self: SELF,
   ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 }

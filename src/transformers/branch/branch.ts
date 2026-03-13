@@ -6,11 +6,12 @@ export class Branch<VALUE, NAME extends string = branch.Name> extends Stream<VAL
   constructor(
     source: Stream<VALUE, any>,
     name = NAME as NAME,
-    ...targets: [Stream<VALUE, any>, ...Stream<VALUE, any>[]]
+    ...targets: [Stream<Stream.ExtractValue<VALUE>, any>, ...Stream<Stream.ExtractValue<VALUE>, any>[]]
   ) {
     super(name, async function* () {
       for await (const value of source) {
-        targets.forEach((target) => target.push(value));
+        if (!Stream.isSourceErr(value)) targets.forEach((target) => target.push(value as Stream.ExtractValue<VALUE>));
+
         yield value;
       }
     });
@@ -18,7 +19,7 @@ export class Branch<VALUE, NAME extends string = branch.Name> extends Stream<VAL
 }
 
 export function branch<VALUE, NAME extends string = branch.Name>(
-  ...targets: [Stream<VALUE, any>, ...Stream<VALUE, any>[]]
+  ...targets: [Stream<Stream.ExtractValue<VALUE>, any>, ...Stream<Stream.ExtractValue<VALUE>, any>[]]
 ): Stream.Transformer<NAME, Stream<VALUE, any>, Branch<VALUE, NAME>> {
   return (_, source, name) => new Branch(source, name, ...targets);
 }

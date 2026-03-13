@@ -4,13 +4,7 @@ import { each } from "../each";
 import { pump } from "../pump";
 
 const NAME = "queue";
-/**
- * Queue transformer that buffers values and decouples producer/consumer timing.
- *
- * **Important**: Queue severs the feedback channel. Upstream sources will not
- * receive feedback from downstream consumers. Use queue when you need buffering
- * and timing decoupling, not when you need bidirectional communication.
- */
+
 export class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME> {
   protected _buffer = new Array<VALUE>();
   protected _events?: Stream<queue.Event<VALUE, NAME>, `${NAME}Events`>;
@@ -107,22 +101,3 @@ export namespace queue {
     | { type: "buffered"; value: VALUE; self: Queue<VALUE, NAME> }
     | { type: "consumed"; value: VALUE; self: Queue<VALUE, NAME> };
 }
-
-const stream = new Stream([1, 2, 3]);
-
-stream
-  .pipe(
-    each((v) => {
-      console.log(v);
-      throw Error(`hey`);
-    }),
-  )
-  .pipe(pump());
-// stream
-//   .pipe(
-//     each((v) => {
-//       console.log(v);
-//       // throw Stream.Result.err(`hey`);
-//     }),
-//   )
-//   .pipe(pump());

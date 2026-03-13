@@ -5,25 +5,19 @@ const NAME = "audit";
 export class Audit<VALUE, NAME extends string = audit.Name> extends Stream<VALUE, NAME> {
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, ms: number) {
     super(name, async function* () {
-      const generator = source[Symbol.asyncIterator]();
-      let result = await generator.next();
       let timer: any = null;
       let canEmit = true;
 
       try {
-        while (!result.done) {
-          let error: Stream.MaybeSourceError;
-          if (canEmit) {
-            canEmit = false;
-            clearTimeout(timer);
-            timer = setTimeout(() => (canEmit = true), ms);
-            error = yield result.value;
-          }
-          result = await generator.next(error);
+        for await (const value of source) {
+          if (!canEmit) continue;
+          canEmit = false;
+          clearTimeout(timer);
+          timer = setTimeout(() => (canEmit = true), ms);
+          yield value;
         }
       } finally {
         clearTimeout(timer);
-        await generator.return();
       }
     });
   }
@@ -38,5 +32,3 @@ export function audit<VALUE, NAME extends string = audit.Name>(
 export namespace audit {
   export type Name = typeof NAME;
 }
-
-const r = new Stream<number>().pipe(audit(40));

@@ -3,7 +3,7 @@ import { Stream } from "../../streams";
 const NAME = "effect";
 
 export class Effect<VALUE, ERROR = never, NAME extends string = effect.Name> extends Stream<VALUE, NAME> {
-  protected _errors?: Stream<Stream.ErrorEvent<Stream.SafeValueOf<VALUE>, ERROR, this>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<Stream.ExtractValue<VALUE>, ERROR, this>, `${NAME}Errors`>;
 
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: effect.Callback<VALUE, ERROR, NAME>) {
     super(name, async function* () {
@@ -13,7 +13,7 @@ export class Effect<VALUE, ERROR = never, NAME extends string = effect.Name> ext
           continue;
         }
 
-        const rawValue = value as Stream.SafeValueOf<VALUE>;
+        const rawValue = value as Stream.ExtractValue<VALUE>;
 
         try {
           const maybePromise = callback(rawValue, self);
@@ -56,7 +56,7 @@ export namespace effect {
   export type Name = typeof NAME;
 
   export type Callback<VALUE, ERROR, NAME extends string> = (
-    value: Stream.SafeValueOf<VALUE>,
+    value: Stream.ExtractValue<VALUE>,
     self: Effect<VALUE, ERROR, NAME>,
   ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 }

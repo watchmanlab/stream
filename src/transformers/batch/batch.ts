@@ -7,15 +7,21 @@ type FixedArray<VALUE, SIZE extends number, ARR extends Array<VALUE> = []> = ARR
   : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
 
 export class Batch<VALUE, SIZE extends number, NAME extends string = batch.Name> extends Stream<
-  FixedArray<VALUE, SIZE>,
+  FixedArray<Stream.ExtractValue<VALUE>, SIZE> | Stream.ExtractError<VALUE>,
   NAME
 > {
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, size: SIZE) {
-    const buf = new Array<VALUE>();
+    const buf = new Array<Stream.ExtractValue<VALUE>>();
     super(name, async function* () {
       try {
         for await (const value of source) {
-          buf.push(value);
+          if (Stream.isSourceErr(value)) {
+            yield value as Stream.ExtractError<VALUE>;
+            continue;
+          }
+          const safeValue = value as Stream.ExtractValue<VALUE>;
+
+          buf.push(safeValue);
           if (buf.length >= size) {
             yield [...buf] as FixedArray<VALUE, SIZE>;
             buf.length = 0;

@@ -7,19 +7,19 @@ const NAME = "filter";
 
 export class Filter<
   VALUE,
-  FILTERED extends Stream.SafeValueOf<VALUE> = Stream.SafeValueOf<VALUE>,
+  FILTERED extends Stream.ExtractValue<VALUE> = Stream.ExtractValue<VALUE>,
   ERROR = never,
   NAME extends string = Filter.Name,
 > extends Stream<
   | FILTERED
-  | Stream.SourceErrOf<VALUE>
+  | Stream.ExtractError<VALUE>
   | Stream.MaybeSourceErr<
       ERROR,
-      Stream.SourceErr<Stream.SafeValueOf<VALUE>, ERROR, Filter<VALUE, FILTERED, ERROR, NAME>>
+      Stream.SourceErr<Stream.ExtractValue<VALUE>, ERROR, Filter<VALUE, FILTERED, ERROR, NAME>>
     >,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<Stream.SafeValueOf<VALUE>, ERROR, this>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<Stream.ExtractValue<VALUE>, ERROR, this>, `${NAME}Errors`>;
   constructor(
     source: Stream<VALUE, any>,
     name = NAME as NAME,
@@ -72,7 +72,7 @@ export class Filter<
 
 export function filter<
   VALUE,
-  FILTERED extends Stream.SafeValueOf<VALUE> = Stream.SafeValueOf<VALUE>,
+  FILTERED extends Stream.ExtractValue<VALUE> = Stream.ExtractValue<VALUE>,
   ERROR = never,
   NAME extends string = Filter.Name,
 >(
@@ -80,23 +80,23 @@ export function filter<
 ): Stream.Transformer<NAME, Stream<VALUE, any>, Filter<VALUE, FILTERED, ERROR, NAME>>;
 
 export function filter<VALUE, ERROR = never, NAME extends string = Filter.Name>(
-  predicate: Filter.Predicate<VALUE, ERROR, Filter<VALUE, Stream.SafeValueOf<VALUE>, ERROR, NAME>>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Filter<VALUE, Stream.SafeValueOf<VALUE>, ERROR, NAME>>;
+  predicate: Filter.Predicate<VALUE, ERROR, Filter<VALUE, Stream.ExtractValue<VALUE>, ERROR, NAME>>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Filter<VALUE, Stream.ExtractValue<VALUE>, ERROR, NAME>>;
 
 export function filter<VALUE, ERROR = never, NAME extends string = Filter.Name>(
-  predicate: Filter.Predicate<VALUE, ERROR, Filter<VALUE, Stream.SafeValueOf<VALUE>, ERROR, NAME>>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Filter<VALUE, Stream.SafeValueOf<VALUE>, ERROR, NAME>> {
+  predicate: Filter.Predicate<VALUE, ERROR, Filter<VALUE, Stream.ExtractValue<VALUE>, ERROR, NAME>>,
+): Stream.Transformer<NAME, Stream<VALUE, any>, Filter<VALUE, Stream.ExtractValue<VALUE>, ERROR, NAME>> {
   return (_, source, name) => new Filter(source, name, predicate);
 }
 
 export namespace Filter {
   export type Name = typeof NAME;
-  export type GardPredicate<VALUE, FILTERED extends Stream.SafeValueOf<VALUE>, SELF extends Stream<any, any>> = (
-    value: Stream.SafeValueOf<VALUE>,
+  export type GardPredicate<VALUE, FILTERED extends Stream.ExtractValue<VALUE>, SELF extends Stream<any, any>> = (
+    value: Stream.ExtractValue<VALUE>,
     self: SELF,
   ) => value is FILTERED;
   export type Predicate<VALUE, ERROR, SELF extends Stream<any, any>> = (
-    value: Stream.SafeValueOf<VALUE>,
+    value: Stream.ExtractValue<VALUE>,
     self: SELF,
   ) => boolean | Stream.Err<ERROR> | Promise<boolean | Stream.Err<ERROR>>;
 }

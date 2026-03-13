@@ -5,16 +5,16 @@ const NAME = "map";
 
 export class Map<
   VALUE,
-  MAPPED = Stream.SafeValueOf<VALUE>,
+  MAPPED = Stream.ExtractValue<VALUE>,
   ERROR = never,
   NAME extends string = map.Name,
 > extends Stream<
   | MAPPED
-  | Stream.SourceErrOf<VALUE>
-  | Stream.MaybeSourceErr<ERROR, Stream.SourceErr<Stream.SafeValueOf<VALUE>, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>>,
+  | Stream.ExtractError<VALUE>
+  | Stream.MaybeSourceErr<ERROR, Stream.SourceErr<Stream.ExtractValue<VALUE>, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>>,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<Stream.SafeValueOf<VALUE>, ERROR, this>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<Stream.ExtractValue<VALUE>, ERROR, this>, `${NAME}Errors`>;
   constructor(
     source: Stream<VALUE, any>,
     name = NAME as NAME,
@@ -27,7 +27,7 @@ export class Map<
           continue;
         }
 
-        const rawValue = value as Stream.SafeValueOf<VALUE>;
+        const rawValue = value as Stream.ExtractValue<VALUE>;
         try {
           const maybePromise = mapper(rawValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
@@ -76,7 +76,7 @@ export namespace map {
   export type Name = typeof NAME;
 
   export type Mapper<VALUE, MAPPED, ERROR, SELF extends Stream<any, any>> = (
-    value: Stream.SafeValueOf<VALUE>,
+    value: Stream.ExtractValue<VALUE>,
     self: SELF,
   ) => MAPPED | Stream.Err<ERROR> | Promise<MAPPED | Stream.Err<ERROR>>;
 }
