@@ -52,10 +52,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._sourceGenerator.next().then((result) => {
         this._requestingNext = false;
         if (result.done) {
-          this.push(Stream.TERMINATE as Stream.ExtractCleanValueFromValue<VALUE>);
+          this.push(Stream.TERMINATE as VALUE);
           return;
         }
-        this.push(result.value as Stream.ExtractCleanValueFromValue<VALUE>);
+        this.push(result.value);
       });
     }
   }
@@ -166,15 +166,24 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type ExtractValueFromSource<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
-  export type ExtractNameFromStream<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
-  export type ExtractCleanValueFromValue<T> = Exclude<T, Sentinel>;
-  export type ExtractCleanValueFromSource<T extends Source<any>> = ExtractCleanValueFromValue<
-    ExtractValueFromSource<T>
+  export type ExtractValue<T extends Source<any> | SourceErr<any, any, any>> =
+    T extends Source<infer VALUE> ? VALUE : T extends SourceErr<any, infer VALUE, any> ? VALUE : T;
+  export type ExtractName<T extends Stream<any, any> | SourceErr<any, any, any>> =
+    T extends Stream<any, infer NAME> ? NAME : T extends SourceErr<any, any, any> ? ExtractName<T["source"]> : never;
+  export type ExtractSentinel<T> = Extract<T extends Source<any> ? ExtractValue<T> : T, Sentinel>;
+  export type ExtractCleanValue<T> = Exclude<
+    T extends Source<any> | SourceErr<any, any, any> ? ExtractValue<T> : T,
+    Sentinel
   >;
-  export type ExtractSentinelFromValue<T> = Extract<T, Sentinel>;
-  export type ExtractSentinelFromSource<T extends Source<any>> = ExtractSentinelFromValue<ExtractValueFromSource<T>>;
+  export type ExtractError<T> =
+    T extends Err<infer ERROR> ? ERROR : T extends SourceErr<any, any, infer ERROR> ? ERROR : never;
+  export type ExtractSourceErr<T> = Extract<T, SourceErr<any, any, any>>;
+  export type ExtractSource<SOURCE_ERR extends SourceErr<any, any, any>> =
+    SOURCE_ERR extends SourceErr<infer SOURCE, any, any> ? SOURCE : never;
 
+  export type MaybeSourceErr<SOURCE extends Stream<any, any>, VALUE, ERROR> = [ERROR] extends [never]
+    ? never
+    : SourceErr<SOURCE, VALUE, ERROR>;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
   export type Source<VALUE> =
     | GeneratorFunction<VALUE>
@@ -211,6 +220,51 @@ export namespace Stream {
   export abstract class Sentinel {}
   export function isSentinel(object: unknown): object is Sentinel {
     return object instanceof Sentinel;
+  }
+
+  export type ErrorEvent<SOURCE extends Stream<any, any>, VALUE, ERROR> =
+    | {
+        type: "expected";
+        source: SOURCE;
+        value: VALUE;
+        detail: ERROR;
+      }
+    | { type: "unexpected"; source: SOURCE; value: VALUE; detail: unknown };
+
+  export class SourceErr<SOURCE extends Stream<any, any>, VALUE, ERROR> extends Stream.Sentinel {
+    constructor(
+      public readonly source: SOURCE,
+      public readonly value: VALUE,
+      public readonly detail: ERROR,
+    ) {
+      super();
+    }
+  }
+
+  export class Err<ERROR> {
+    constructor(public readonly value: ERROR) {}
+  }
+  export function err<ERROR>(value: ERROR): Err<ERROR> {
+    return new Err(value);
+  }
+  export function sourceErr<SOURCE extends Stream<any, any>, VALUE, ERROR>({
+    source,
+    value,
+    detail,
+  }: {
+    source: SOURCE;
+    value: VALUE;
+    detail: ERROR;
+  }) {
+    return new SourceErr(source, value, detail);
+  }
+  export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
+    return object instanceof Err;
+  }
+  export function isSourceErr<SOURCE extends Stream<any, any>, VALUE, ERROR>(
+    object: unknown,
+  ): object is SourceErr<SOURCE, VALUE, ERROR> {
+    return object instanceof SourceErr;
   }
   export const TERMINATE = Symbol("**TERMINATE##");
   export type Terminate = typeof TERMINATE;
