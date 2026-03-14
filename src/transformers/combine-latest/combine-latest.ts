@@ -6,17 +6,17 @@ export class CombineLatest<
   VALUE,
   SOURCES extends [Stream<any, any>, ...Stream<any, any>[]],
   NAME extends string = combineLatest.Name,
-> extends Stream<[VALUE, ...{ [K in keyof SOURCES]: Stream.ValueOf<SOURCES[K]> }], NAME> {
+> extends Stream<[VALUE, ...{ [K in keyof SOURCES]: Stream.ExtractValueFromSource<SOURCES[K]> }], NAME> {
   protected _latest: [
     VALUE | combineLatest.Empty,
-    ...{ [K in keyof SOURCES]: Stream.ValueOf<SOURCES[K]> | combineLatest.Empty },
+    ...{ [K in keyof SOURCES]: Stream.ExtractValueFromSource<SOURCES[K]> | combineLatest.Empty },
   ];
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, ...sources: SOURCES) {
     super(name, async function* () {
       try {
         while (true) {
           if (self._latest.every((v) => v !== combineLatest.EMPTY)) {
-            yield [...self._latest] as [VALUE, ...{ [K in keyof SOURCES]: Stream.ValueOf<SOURCES[K]> }];
+            yield [...self._latest] as [VALUE, ...{ [K in keyof SOURCES]: Stream.ExtractValueFromSource<SOURCES[K]> }];
           }
           await Promise.any(
             [source, ...sources].map(
@@ -44,7 +44,7 @@ export class CombineLatest<
     this._latest = (
       new Array(sources.length + 1) as [
         VALUE | combineLatest.Empty,
-        ...{ [K in keyof SOURCES]: Stream.ValueOf<SOURCES[K]> | combineLatest.Empty },
+        ...{ [K in keyof SOURCES]: Stream.ExtractValueFromSource<SOURCES[K]> | combineLatest.Empty },
       ]
     ).fill(combineLatest.EMPTY);
   }

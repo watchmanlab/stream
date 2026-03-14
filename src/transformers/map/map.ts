@@ -1,41 +1,40 @@
-import { Stream } from "../../streams/index.ts";
-import { each } from "../each/each.ts";
+import { Stream, ErrorStream } from "../../streams/index.ts";
 
 const NAME = "map";
 
 export class Map<
-  VALUE,
-  MAPPED = Stream.ExtractValue<VALUE>,
+  SOURCE extends Stream<any, any>,
+  MAPPED = Stream.ExtractCleanValueFromSource<SOURCE>,
   ERROR = never,
   NAME extends string = map.Name,
-> extends Stream<
+> extends ErrorStream<
   | MAPPED
-  | Stream.ExtractError<VALUE>
-  | Stream.MaybeSourceErr<ERROR, Stream.SourceErr<Stream.ExtractValue<VALUE>, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>>,
+  | Stream.ExtractSentinelFromSource<SOURCE>
+  | ErrorStream.MaybeSourceErr<ERROR, ErrorStream.SourceErr<Map<SOURCE, MAPPED, ERROR, NAME>>>,
+  ERROR,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<Stream.ExtractValue<VALUE>, ERROR, this>, `${NAME}Errors`>;
   constructor(
-    source: Stream<VALUE, any>,
+    source: SOURCE,
     name = NAME as NAME,
-    mapper: map.Mapper<VALUE, MAPPED, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>,
+    mapper: map.Mapper<SOURCE, MAPPED, ERROR, Map<SOURCE, MAPPED, ERROR, NAME>>,
   ) {
     super(name, async function* () {
       for await (const value of source) {
-        if (Stream.isSourceErr(value)) {
+        if (Stream.isSentinel(value)) {
           yield value as never;
           continue;
         }
 
-        const rawValue = value as Stream.ExtractValue<VALUE>;
+        const rawValue = value as Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>>;
         try {
           const maybePromise = mapper(rawValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr(result)) {
+          if (ErrorStream.isErr(result)) {
             self._errors?.push({ type: "expected", source: self, value: rawValue, detail: result.value });
 
-            yield Stream.sourceErr({
+            yield ErrorStream.sourceErr({
               source: self,
               value: value,
               detail: result.value,
@@ -59,60 +58,24 @@ export class Map<
 
     const self = this;
   }
-
-  get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
-    return this._errors;
-  }
 }
 
-export function map<VALUE, MAPPED = VALUE, ERROR = never, NAME extends string = map.Name>(
-  mapper: map.Mapper<VALUE, MAPPED, ERROR, Map<VALUE, MAPPED, ERROR, NAME>>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Map<VALUE, MAPPED, ERROR, NAME>> {
+export function map<
+  SOURCE extends Stream<any, any>,
+  MAPPED = Stream.ExtractValueFromSource<SOURCE>,
+  ERROR = never,
+  NAME extends string = map.Name,
+>(
+  mapper: map.Mapper<SOURCE, MAPPED, ERROR, Map<SOURCE, MAPPED, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, Map<SOURCE, MAPPED, ERROR, NAME>> {
   return (_, source, name) => new Map(source, name, mapper);
 }
 
 export namespace map {
   export type Name = typeof NAME;
 
-  export type Mapper<VALUE, MAPPED, ERROR, SELF extends Stream<any, any>> = (
-    value: Stream.ExtractValue<VALUE>,
+  export type Mapper<SOURCE extends Stream<any, any>, MAPPED, ERROR, SELF extends Stream<any, any>> = (
+    value: Stream.ExtractCleanValueFromSource<SOURCE>,
     self: SELF,
-  ) => MAPPED | Stream.Err<ERROR> | Promise<MAPPED | Stream.Err<ERROR>>;
-}
-
-const stream = new Stream([1, 2, 3])
-  .pipe(
-    "map1",
-    map((v) => v.toFixed()),
-  )
-  .pipe(
-    "map2",
-    map((v) => (v === "kechma" ? true : Stream.err("kechmahaja" as const))),
-  )
-  .pipe(
-    "each1",
-    each((v) => {
-      if (v === true) return Stream.err("mmmm" as const);
-      console.log(v);
-    }),
-  )
-  .pipe(
-    "each2",
-    each((v) => {
-      v;
-    }),
-  );
-
-for await (const value of stream) {
-  if (value instanceof Stream.SourceErr) {
-    switch (value.name) {
-      case "each1":
-        value.source.push(true);
-        break;
-      case "map2":
-        value.detail;
-        break;
-    }
-  }
+  ) => MAPPED | ErrorStream.Err<ERROR> | Promise<MAPPED | ErrorStream.Err<ERROR>>;
 }

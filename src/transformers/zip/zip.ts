@@ -2,7 +2,7 @@ import { Stream } from "../../stream-0.ts";
 
 type ZipOutput<VALUE, STREAMS extends [Stream<any>, ...Stream<any>[]]> = [
   VALUE,
-  ...{ [K in keyof STREAMS]: Stream.ValueOf<STREAMS[K]> },
+  ...{ [K in keyof STREAMS]: Stream.ExtractValueFromSource<STREAMS[K]> },
 ];
 
 export function zip<VALUE, STREAMS extends [Stream<any>, ...Stream<any>[]]>(

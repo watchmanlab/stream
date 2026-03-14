@@ -1,29 +1,38 @@
 import { Stream } from "../../streams/";
-import { each } from "../each";
-import { map } from "../map";
-import { pump } from "../pump";
 
 const NAME = "filter";
 
 export class Filter<
-  VALUE,
-  FILTERED extends Stream.ExtractValue<VALUE> = Stream.ExtractValue<VALUE>,
+  SOURCE extends Stream<any, any>,
+  FILTERED extends Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>> =
+    Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>>,
   ERROR = never,
   NAME extends string = Filter.Name,
 > extends Stream<
   | FILTERED
-  | Stream.ExtractError<VALUE>
+  | Stream.ExtractErrorFromValue<Stream.ExtractValueFromSource<SOURCE>>
   | Stream.MaybeSourceErr<
       ERROR,
-      Stream.SourceErr<Stream.ExtractValue<VALUE>, ERROR, Filter<VALUE, FILTERED, ERROR, NAME>>
+      Stream.SourceErr<
+        Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>>,
+        ERROR,
+        Filter<Stream.ExtractValueFromSource<SOURCE>, FILTERED, ERROR, NAME>
+      >
     >,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<Stream.ExtractValue<VALUE>, ERROR, this>, `${NAME}Errors`>;
+  protected _errors?: Stream<
+    Stream.ErrorEvent<Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>>, ERROR, this>,
+    `${NAME}Errors`
+  >;
   constructor(
-    source: Stream<VALUE, any>,
+    source: SOURCE,
     name = NAME as NAME,
-    predicate: Filter.Predicate<VALUE, ERROR, Filter<VALUE, FILTERED, ERROR, NAME>>,
+    predicate: Filter.Predicate<
+      Stream.ExtractValueFromSource<SOURCE>,
+      ERROR,
+      Filter<Stream.ExtractValueFromSource<SOURCE>, FILTERED, ERROR, NAME>
+    >,
   ) {
     super(name, async function* () {
       for await (const value of source) {
@@ -71,49 +80,46 @@ export class Filter<
 }
 
 export function filter<
-  VALUE,
-  FILTERED extends Stream.ExtractValue<VALUE> = Stream.ExtractValue<VALUE>,
+  SOURCE extends Stream<any, any>,
+  FILTERED extends Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>> =
+    Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>>,
   ERROR = never,
   NAME extends string = Filter.Name,
 >(
-  predicate: Filter.GardPredicate<VALUE, FILTERED, Filter<VALUE, FILTERED, ERROR, NAME>>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Filter<VALUE, FILTERED, ERROR, NAME>>;
+  predicate: Filter.GardPredicate<
+    Stream.ExtractValueFromSource<SOURCE>,
+    FILTERED,
+    Filter<SOURCE, FILTERED, ERROR, NAME>
+  >,
+): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, FILTERED, ERROR, NAME>>;
 
-export function filter<VALUE, ERROR = never, NAME extends string = Filter.Name>(
-  predicate: Filter.Predicate<VALUE, ERROR, Filter<VALUE, Stream.ExtractValue<VALUE>, ERROR, NAME>>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Filter<VALUE, Stream.ExtractValue<VALUE>, ERROR, NAME>>;
+export function filter<SOURCE extends Stream<any, any>, ERROR = never, NAME extends string = Filter.Name>(
+  predicate: Filter.Predicate<
+    Stream.ExtractValueFromSource<SOURCE>,
+    ERROR,
+    Filter<SOURCE, Stream.ExtractCleanValueFromSource<SOURCE>, ERROR, NAME>
+  >,
+): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, Stream.ExtractCleanValueFromSource<SOURCE>, ERROR, NAME>>;
 
-export function filter<VALUE, ERROR = never, NAME extends string = Filter.Name>(
-  predicate: Filter.Predicate<VALUE, ERROR, Filter<VALUE, Stream.ExtractValue<VALUE>, ERROR, NAME>>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Filter<VALUE, Stream.ExtractValue<VALUE>, ERROR, NAME>> {
+export function filter<SOURCE extends Stream<any, any>, ERROR = never, NAME extends string = Filter.Name>(
+  predicate: Filter.Predicate<
+    Stream.ExtractValueFromSource<SOURCE>,
+    ERROR,
+    Filter<SOURCE, Stream.ExtractCleanValueFromSource<SOURCE>, ERROR, NAME>
+  >,
+): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, Stream.ExtractCleanValueFromSource<SOURCE>, ERROR, NAME>> {
   return (_, source, name) => new Filter(source, name, predicate);
 }
 
 export namespace Filter {
   export type Name = typeof NAME;
-  export type GardPredicate<VALUE, FILTERED extends Stream.ExtractValue<VALUE>, SELF extends Stream<any, any>> = (
-    value: Stream.ExtractValue<VALUE>,
-    self: SELF,
-  ) => value is FILTERED;
+  export type GardPredicate<
+    VALUE,
+    FILTERED extends Stream.ExtractCleanValueFromValue<VALUE>,
+    SELF extends Stream<any, any>,
+  > = (value: Stream.ExtractCleanValueFromValue<VALUE>, self: SELF) => value is FILTERED;
   export type Predicate<VALUE, ERROR, SELF extends Stream<any, any>> = (
-    value: Stream.ExtractValue<VALUE>,
+    value: Stream.ExtractCleanValueFromValue<VALUE>,
     self: SELF,
   ) => boolean | Stream.Err<ERROR> | Promise<boolean | Stream.Err<ERROR>>;
 }
-
-const stream = new Stream<{ type: "1"; name: "ch" } | { type: "2"; age: 49 }>([
-  { type: "1", name: "ch" },
-  { type: "2", age: 49 },
-])
-  .pipe(filter((v) => v.type === "1"))
-  .pipe(map((v) => v.name))
-  .pipe(
-    each((v) => {
-      console.log(v);
-      if (!v) return Stream.err("kechmahaja");
-    }),
-  )
-  .pipe(pump());
-
-stream.each.map.filter.root.push({ type: "2", age: 49 });
-stream.each.map.filter.root.push({ type: "1", name: "ch" });

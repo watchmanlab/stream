@@ -52,10 +52,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._sourceGenerator.next().then((result) => {
         this._requestingNext = false;
         if (result.done) {
-          this.push(Stream.TERMINATE as Stream.ExtractValue<VALUE>);
+          this.push(Stream.TERMINATE as Stream.ExtractCleanValueFromValue<VALUE>);
           return;
         }
-        this.push(result.value as Stream.ExtractValue<VALUE>);
+        this.push(result.value as Stream.ExtractCleanValueFromValue<VALUE>);
       });
     }
   }
@@ -166,14 +166,14 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type ValueOf<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
-  export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
-  export type ExtractValue<T> = Exclude<T, SourceErr<any, any, any>>;
-  export type ExtractError<T> = Extract<T, SourceErr<any, any, any>>;
-  export type MaybeErr<ERROR> = [ERROR] extends [never] ? never : Err<ERROR>;
-  export type MaybeSourceErr<ERROR, SOURCE_ERR extends SourceErr<any, any, any>> = [ERROR] extends [never]
-    ? never
-    : SOURCE_ERR;
+  export type ExtractValueFromSource<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
+  export type ExtractNameFromStream<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
+  export type ExtractCleanValueFromValue<T> = Exclude<T, Sentinel>;
+  export type ExtractCleanValueFromSource<T extends Source<any>> = ExtractCleanValueFromValue<
+    ExtractValueFromSource<T>
+  >;
+  export type ExtractSentinelFromValue<T> = Extract<T, Sentinel>;
+  export type ExtractSentinelFromSource<T extends Source<any>> = ExtractSentinelFromValue<ExtractValueFromSource<T>>;
 
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
   export type Source<VALUE> =
@@ -208,56 +208,13 @@ export namespace Stream {
       }
     : OUTPUT & Traversable<NAME, INPUT>;
 
+  export abstract class Sentinel {}
+  export function isSentinel(object: unknown): object is Sentinel {
+    return object instanceof Sentinel;
+  }
   export const TERMINATE = Symbol("**TERMINATE##");
   export type Terminate = typeof TERMINATE;
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
-  export type ErrorEvent<VALUE, ERROR, SOURCE extends Stream<any, any>> =
-    | { type: "expected"; source: SOURCE; value: VALUE; detail: ERROR }
-    | { type: "unexpected"; source: SOURCE; value: VALUE; detail: unknown };
-  export class SourceErr<VALUE, ERROR, SOURCE extends Stream<any, any>> {
-    constructor(
-      public readonly source: SOURCE,
-      public readonly value: VALUE,
-      public readonly detail: ERROR,
-    ) {}
-    get name(): SOURCE["name"] {
-      return this.source.name;
-    }
-  }
-  export class Ok<VALUE> {
-    constructor(public readonly value: VALUE) {}
-  }
-  export class Err<ERROR> {
-    constructor(public readonly value: ERROR) {}
-  }
-  export function ok<VALUE>(value: VALUE): Ok<VALUE> {
-    return new Ok(value);
-  }
-  export function err<ERROR>(value: ERROR): Err<ERROR> {
-    return new Err(value);
-  }
-  export function sourceErr<VALUE, ERROR, SOURCE extends Stream<any, any>>({
-    source,
-    value,
-    detail,
-  }: {
-    source: SOURCE;
-    value: VALUE;
-    detail: ERROR;
-  }) {
-    return new SourceErr(source, value, detail);
-  }
-  export function isOk<VALUE>(object: unknown): object is Ok<VALUE> {
-    return object instanceof Ok;
-  }
-  export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
-    return object instanceof Err;
-  }
-  export function isSourceErr<VALUE, ERROR, SOURCE extends Stream<any, any>>(
-    object: unknown,
-  ): object is SourceErr<VALUE, ERROR, SOURCE> {
-    return object instanceof SourceErr;
-  }
 }
 
 const USE_TRANSFORMER_INSIDE_PIPE_PLEASE = Symbol("*USE_TRANSFORMER_INSIDE_PIPE_PLEASE#");

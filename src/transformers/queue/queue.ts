@@ -1,18 +1,18 @@
 import { Stream } from "../../streams";
-import { catchError } from "../catch-error";
-import { each } from "../each";
-import { pump } from "../pump";
 
 const NAME = "queue";
 
-export class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME> {
-  protected _buffer = new Array<VALUE>();
-  protected _events?: Stream<queue.Event<VALUE, NAME>, `${NAME}Events`>;
+export class Queue<SOURCE extends Stream<any, any>, NAME extends string = queue.Name> extends Stream<
+  Stream.ExtractValueFromSource<SOURCE>,
+  NAME
+> {
+  protected _buffer = new Array<Stream.ExtractValueFromSource<SOURCE>>();
+  protected _events?: Stream<queue.Event<this>, `${NAME}Events`>;
   protected _options: Required<queue.Options> = { dropStrategy: "oldest", maxSize: 10000 };
   protected _dropped = 0;
   protected _resolvers = new Set<() => void>();
 
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: queue.Options) {
+  constructor(source: SOURCE, name = NAME as NAME, options?: queue.Options) {
     super(name, async function* () {
       let resolve;
 
@@ -83,9 +83,9 @@ export class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE
   }
 }
 
-export function queue<VALUE, NAME extends string = queue.Name>(
+export function queue<SOURCE extends Stream<any, any>, NAME extends string = queue.Name>(
   options?: queue.Options,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Queue<VALUE, NAME>> {
+): Stream.Transformer<NAME, SOURCE, Queue<SOURCE, NAME>> {
   return (_, source, name) => new Queue(source, name, options);
 }
 
@@ -96,8 +96,20 @@ export namespace queue {
     dropStrategy?: "oldest" | "newest";
   };
 
-  export type Event<VALUE, NAME extends string> =
-    | { type: "evicted"; value: VALUE; self: Queue<VALUE, NAME> }
-    | { type: "buffered"; value: VALUE; self: Queue<VALUE, NAME> }
-    | { type: "consumed"; value: VALUE; self: Queue<VALUE, NAME> };
+  export type Event<SOURCE extends Stream<any, any>> =
+    | {
+        type: "evicted";
+        value: Stream.ExtractValueFromSource<SOURCE>;
+        self: SOURCE;
+      }
+    | {
+        type: "buffered";
+        value: Stream.ExtractValueFromSource<SOURCE>;
+        self: SOURCE;
+      }
+    | {
+        type: "consumed";
+        value: Stream.ExtractValueFromSource<SOURCE>;
+        self: SOURCE;
+      };
 }

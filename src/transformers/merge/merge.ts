@@ -6,7 +6,7 @@ export class Merge<
   VALUE,
   ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]],
   NAME extends string = merge.Name,
-> extends Stream<VALUE | Stream.ValueOf<ITERABLES[number]>, NAME> {
+> extends Stream<VALUE | Stream.ExtractValueFromSource<ITERABLES[number]>, NAME> {
   constructor(source: Stream<VALUE, any>, name = NAME as NAME, others: ITERABLES) {
     super(name, async function* () {
       const iters = [source, ...others].map((i) => i[Symbol.asyncIterator]());
@@ -31,7 +31,7 @@ export class Merge<
           entry.next = entry.it.next();
         }
       } finally {
-        Promise.all(iters.map((iter) => iter.return?.()));
+        await Promise.all(iters.map((iter) => iter.return?.()));
       }
     });
   }
