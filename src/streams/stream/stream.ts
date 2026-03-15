@@ -166,15 +166,12 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type ExtractValue<T extends Source<any> | SourceErr<any, any, any>> =
+  export type ExtractValue<T> =
     T extends Source<infer VALUE> ? VALUE : T extends SourceErr<any, infer VALUE, any> ? VALUE : T;
   export type ExtractName<T extends Stream<any, any> | SourceErr<any, any, any>> =
     T extends Stream<any, infer NAME> ? NAME : T extends SourceErr<any, any, any> ? ExtractName<T["source"]> : never;
-  export type ExtractSentinel<T> = Extract<T extends Source<any> ? ExtractValue<T> : T, Sentinel>;
-  export type ExtractCleanValue<T> = Exclude<
-    T extends Source<any> | SourceErr<any, any, any> ? ExtractValue<T> : T,
-    Sentinel
-  >;
+  export type ExtractSentinel<T> = Extract<ExtractValue<T>, Sentinel>;
+  export type ExtractCleanValue<T> = Exclude<ExtractValue<T>, Sentinel>;
   export type ExtractError<T> =
     T extends Err<infer ERROR> ? ERROR : T extends SourceErr<any, any, infer ERROR> ? ERROR : never;
   export type ExtractSourceErr<T> = Extract<T, SourceErr<any, any, any>>;
@@ -217,7 +214,9 @@ export namespace Stream {
       }
     : OUTPUT & Traversable<NAME, INPUT>;
 
-  export abstract class Sentinel {}
+  export abstract class Sentinel {
+    private readonly __sentinel = Symbol("__sentinel");
+  }
   export function isSentinel(object: unknown): object is Sentinel {
     return object instanceof Sentinel;
   }
@@ -241,8 +240,10 @@ export namespace Stream {
     }
   }
 
-  export class Err<ERROR> {
-    constructor(public readonly value: ERROR) {}
+  export class Err<ERROR> extends Stream.Sentinel {
+    constructor(public readonly value: ERROR) {
+      super();
+    }
   }
   export function err<ERROR>(value: ERROR): Err<ERROR> {
     return new Err(value);

@@ -7,7 +7,7 @@ export class Map<
   MAPPED = Stream.ExtractCleanValue<SOURCE>,
   NAME extends string = map.Name,
 > extends Stream<
-  | MAPPED
+  | Stream.ExtractCleanValue<MAPPED>
   | Stream.ExtractSentinel<SOURCE>
   | Stream.MaybeSourceErr<Map<SOURCE, MAPPED, NAME>, Stream.ExtractCleanValue<SOURCE>, Stream.ExtractError<MAPPED>>,
   NAME
@@ -21,7 +21,7 @@ export class Map<
     super(name, async function* () {
       for await (const value of source) {
         if (Stream.isSentinel(value)) {
-          yield value as never;
+          yield value as Stream.ExtractSentinel<SOURCE>;
           continue;
         }
 
@@ -48,7 +48,7 @@ export class Map<
             continue;
           }
 
-          yield result;
+          yield result as never;
         } catch (error) {
           self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
 
@@ -71,7 +71,7 @@ export class Map<
 
 export function map<
   SOURCE extends Stream<any, any>,
-  MAPPED = Stream.ExtractValue<SOURCE>,
+  MAPPED = Stream.ExtractCleanValue<SOURCE>,
   NAME extends string = map.Name,
 >(
   mapper: map.Mapper<SOURCE, MAPPED, Map<SOURCE, MAPPED, NAME>>,
@@ -87,3 +87,15 @@ export namespace map {
     self: SELF,
   ) => MAPPED | Promise<MAPPED>;
 }
+
+const stream = new Stream([1, 2, 3, 4])
+  .pipe(
+    map((v) => {
+      if (v === 3) return Stream.err("kechmahaja" as const);
+      return v.toFixed();
+    }),
+  )
+  .pipe(map((v) => v));
+
+type S = Stream.ExtractValue<typeof stream>;
+//.  ^?
