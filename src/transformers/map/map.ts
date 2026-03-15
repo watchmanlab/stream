@@ -30,18 +30,17 @@ export class Map<
           const maybePromise = mapper(rawValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr(result)) {
-            result;
+          if (Stream.isErr<Stream.ExtractError<MAPPED>>(result)) {
             self._errors?.push({
               type: "expected",
               source: self,
               value: rawValue,
-              detail: result.value as never,
+              detail: result.value,
             });
 
             yield Stream.sourceErr({
               source: self,
-              value: value,
+              value: rawValue,
               detail: result.value,
             }) as never;
 
@@ -97,5 +96,11 @@ const stream = new Stream([1, 2, 3, 4])
   )
   .pipe(map((v) => v));
 
+stream.errors.next().then((r) => {
+  if (r.done) return;
+  if (r.value.type === "expected") {
+    r.value.detail;
+  }
+});
 type S = Stream.ExtractValue<typeof stream>;
 //.  ^?
