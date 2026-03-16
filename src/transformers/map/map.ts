@@ -4,33 +4,36 @@ const NAME = "map";
 
 export class Map<
   SOURCE extends Stream<any, any>,
-  MAPPED = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  MAPPED = CLEAN_VALUE,
+  ERROR = never,
   NAME extends string = map.Name,
 > extends Stream<
-  | Stream.ExtractCleanValue<MAPPED>
+  | MAPPED
   | Stream.ExtractSentinel<SOURCE>
-  | Stream.MaybeSourceErr<Map<SOURCE, MAPPED, NAME>, Stream.ExtractCleanValue<SOURCE>, Stream.ExtractError<MAPPED>>,
+  | Stream.MaybeSourceErr<Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>, CLEAN_VALUE, ERROR>,
   NAME
 > {
-  protected _errors?: Stream<
-    Stream.ErrorEvent<this, Stream.ExtractCleanValue<SOURCE>, Stream.ExtractError<MAPPED>>,
-    `${NAME}Errors`
-  >;
+  protected _errors?: Stream<Stream.ErrorEvent<this, CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
 
-  constructor(source: SOURCE, name = NAME as NAME, mapper: map.Mapper<SOURCE, MAPPED, Map<SOURCE, MAPPED, NAME>>) {
+  constructor(
+    source: SOURCE,
+    name = NAME as NAME,
+    mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR, Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
+  ) {
     super(name, async function* () {
       for await (const value of source) {
         if (Stream.isSentinel(value)) {
-          yield value as Stream.ExtractSentinel<SOURCE>;
+          yield value as never;
           continue;
         }
 
-        const rawValue = value as Stream.ExtractCleanValue<SOURCE>;
+        const rawValue = value as CLEAN_VALUE;
         try {
           const maybePromise = mapper(rawValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr<Stream.ExtractError<MAPPED>>(result)) {
+          if (Stream.isErr(result)) {
             self._errors?.push({
               type: "expected",
               source: self,
@@ -47,7 +50,7 @@ export class Map<
             continue;
           }
 
-          yield result as never;
+          yield result;
         } catch (error) {
           self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
 
@@ -70,21 +73,23 @@ export class Map<
 
 export function map<
   SOURCE extends Stream<any, any>,
-  MAPPED = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  MAPPED = CLEAN_VALUE,
+  ERROR = never,
   NAME extends string = map.Name,
 >(
-  mapper: map.Mapper<SOURCE, MAPPED, Map<SOURCE, MAPPED, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Map<SOURCE, MAPPED, NAME>> {
+  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR, Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
   return (_, source, name) => new Map(source, name, mapper);
 }
 
 export namespace map {
   export type Name = typeof NAME;
 
-  export type Mapper<SOURCE extends Stream<any, any>, MAPPED, SELF extends Stream<any, any>> = (
-    value: Stream.ExtractCleanValue<SOURCE>,
+  export type Mapper<CLEAN_VALUE, MAPPED, ERROR, SELF extends Stream<any, any>> = (
+    value: CLEAN_VALUE,
     self: SELF,
-  ) => MAPPED | Promise<MAPPED>;
+  ) => MAPPED | Stream.Err<ERROR> | Promise<MAPPED | Stream.Err<ERROR>>;
 }
 
 const stream = new Stream([1, 2, 3, 4])
@@ -96,7 +101,7 @@ const stream = new Stream([1, 2, 3, 4])
   )
   .pipe(map((v) => v));
 
-stream.errors.next().then((r) => {
+stream.map.errors.next().then((r) => {
   if (r.done) return;
   if (r.value.type === "expected") {
     r.value.detail;

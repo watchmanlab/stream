@@ -217,7 +217,7 @@ export namespace Stream {
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("__sentinel");
   }
-  export function isSentinel(object: unknown): object is Sentinel {
+  export function isSentinel<T extends Sentinel>(object: unknown): object is T {
     return object instanceof Sentinel;
   }
 
