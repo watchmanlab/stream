@@ -4,39 +4,25 @@ const NAME = "filter";
 
 export class Filter<
   SOURCE extends Stream<any, any>,
-  FILTERED extends Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>> =
-    Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = Filter.Name,
 > extends Stream<
   | FILTERED
-  | Stream.ExtractErrorFromValue<Stream.ExtractValueFromSource<SOURCE>>
-  | Stream.MaybeSourceErr<
-      ERROR,
-      Stream.SourceErr<
-        Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>>,
-        ERROR,
-        Filter<Stream.ExtractValueFromSource<SOURCE>, FILTERED, ERROR, NAME>
-      >
-    >,
+  | Stream.ExtractSentinel<SOURCE>
+  | Stream.MaybeSourceErr<Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>, CLEAN_VALUE, ERROR>,
   NAME
 > {
-  protected _errors?: Stream<
-    Stream.ErrorEvent<Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>>, ERROR, this>,
-    `${NAME}Errors`
-  >;
+  protected _errors?: Stream<Stream.ErrorEvent<this, CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
   constructor(
     source: SOURCE,
     name = NAME as NAME,
-    predicate: Filter.Predicate<
-      Stream.ExtractValueFromSource<SOURCE>,
-      ERROR,
-      Filter<Stream.ExtractValueFromSource<SOURCE>, FILTERED, ERROR, NAME>
-    >,
+    predicate: Filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>>,
   ) {
     super(name, async function* () {
       for await (const value of source) {
-        if (Stream.isSourceErr(value)) {
+        if (Stream.isSentinel(value)) {
           yield value as never;
           continue;
         }
@@ -81,45 +67,42 @@ export class Filter<
 
 export function filter<
   SOURCE extends Stream<any, any>,
-  FILTERED extends Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>> =
-    Stream.ExtractCleanValueFromValue<Stream.ExtractValueFromSource<SOURCE>>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = Filter.Name,
 >(
-  predicate: Filter.GardPredicate<
-    Stream.ExtractValueFromSource<SOURCE>,
-    FILTERED,
-    Filter<SOURCE, FILTERED, ERROR, NAME>
-  >,
-): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, FILTERED, ERROR, NAME>>;
+  predicate: Filter.GardPredicate<CLEAN_VALUE, FILTERED, Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>>;
 
-export function filter<SOURCE extends Stream<any, any>, ERROR = never, NAME extends string = Filter.Name>(
-  predicate: Filter.Predicate<
-    Stream.ExtractValueFromSource<SOURCE>,
-    ERROR,
-    Filter<SOURCE, Stream.ExtractCleanValueFromSource<SOURCE>, ERROR, NAME>
-  >,
-): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, Stream.ExtractCleanValueFromSource<SOURCE>, ERROR, NAME>>;
+export function filter<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  ERROR = never,
+  NAME extends string = Filter.Name,
+>(
+  predicate: Filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>;
 
-export function filter<SOURCE extends Stream<any, any>, ERROR = never, NAME extends string = Filter.Name>(
-  predicate: Filter.Predicate<
-    Stream.ExtractValueFromSource<SOURCE>,
-    ERROR,
-    Filter<SOURCE, Stream.ExtractCleanValueFromSource<SOURCE>, ERROR, NAME>
-  >,
-): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, Stream.ExtractCleanValueFromSource<SOURCE>, ERROR, NAME>> {
+export function filter<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  ERROR = never,
+  NAME extends string = Filter.Name,
+>(
+  predicate: Filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>> {
   return (_, source, name) => new Filter(source, name, predicate);
 }
 
 export namespace Filter {
   export type Name = typeof NAME;
-  export type GardPredicate<
-    VALUE,
-    FILTERED extends Stream.ExtractCleanValueFromValue<VALUE>,
-    SELF extends Stream<any, any>,
-  > = (value: Stream.ExtractCleanValueFromValue<VALUE>, self: SELF) => value is FILTERED;
-  export type Predicate<VALUE, ERROR, SELF extends Stream<any, any>> = (
-    value: Stream.ExtractCleanValueFromValue<VALUE>,
+  export type GardPredicate<CLEAN_VALUE, FILTERED extends CLEAN_VALUE, SELF extends Stream<any, any>> = (
+    value: CLEAN_VALUE,
+    self: SELF,
+  ) => value is FILTERED;
+  export type Predicate<CLEAN_VALUE, ERROR, SELF extends Stream<any, any>> = (
+    value: CLEAN_VALUE,
     self: SELF,
   ) => boolean | Stream.Err<ERROR> | Promise<boolean | Stream.Err<ERROR>>;
 }

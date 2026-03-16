@@ -52,7 +52,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._sourceGenerator.next().then((result) => {
         this._requestingNext = false;
         if (result.done) {
-          this.push(Stream.TERMINATE as VALUE);
+          this.push(new Stream.Terminate() as VALUE);
           return;
         }
         this.push(result.value);
@@ -77,7 +77,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       while (true) {
         if (queue.length) {
           const value = queue.shift()!;
-          if (value === Stream.TERMINATE) break;
+          if (Stream.isTerminate(value)) break;
 
           yield value;
         } else {
@@ -178,9 +178,9 @@ export namespace Stream {
   export type ExtractSource<SOURCE_ERR extends SourceErr<any, any, any>> =
     SOURCE_ERR extends SourceErr<infer SOURCE, any, any> ? SOURCE : never;
 
-  export type MaybeSourceErr<SOURCE extends Stream<any, any>, VALUE, ERROR> = [ERROR] extends [never]
+  export type MaybeSourceErr<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR> = [ERROR] extends [never]
     ? never
-    : SourceErr<SOURCE, VALUE, ERROR>;
+    : SourceErr<SOURCE, CLEAN_VALUE, ERROR>;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
   export type Source<VALUE> =
     | GeneratorFunction<VALUE>
@@ -217,23 +217,27 @@ export namespace Stream {
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("__sentinel");
   }
+  export class Terminate extends Sentinel {}
+  export function isTerminate(object: unknown): object is Terminate {
+    return object instanceof Terminate;
+  }
   export function isSentinel<T extends Sentinel>(object: unknown): object is T {
     return object instanceof Sentinel;
   }
 
-  export type ErrorEvent<SOURCE extends Stream<any, any>, VALUE, ERROR> =
+  export type ErrorEvent<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR> =
     | {
         type: "expected";
         source: SOURCE;
-        value: VALUE;
+        value: CLEAN_VALUE;
         detail: ERROR;
       }
-    | { type: "unexpected"; source: SOURCE; value: VALUE; detail: unknown };
+    | { type: "unexpected"; source: SOURCE; value: CLEAN_VALUE; detail: unknown };
 
-  export class SourceErr<SOURCE extends Stream<any, any>, VALUE, ERROR> extends Stream.Sentinel {
+  export class SourceErr<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR> extends Stream.Sentinel {
     constructor(
       public readonly source: SOURCE,
-      public readonly value: VALUE,
+      public readonly value: CLEAN_VALUE,
       public readonly detail: ERROR,
     ) {
       super();
@@ -248,13 +252,13 @@ export namespace Stream {
   export function err<ERROR>(value: ERROR): Err<ERROR> {
     return new Err(value);
   }
-  export function sourceErr<SOURCE extends Stream<any, any>, VALUE, ERROR>({
+  export function sourceErr<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR>({
     source,
     value,
     detail,
   }: {
     source: SOURCE;
-    value: VALUE;
+    value: CLEAN_VALUE;
     detail: ERROR;
   }) {
     return new SourceErr(source, value, detail);
@@ -262,13 +266,12 @@ export namespace Stream {
   export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
     return object instanceof Err;
   }
-  export function isSourceErr<SOURCE extends Stream<any, any>, VALUE, ERROR>(
+  export function isSourceErr<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR>(
     object: unknown,
-  ): object is SourceErr<SOURCE, VALUE, ERROR> {
+  ): object is SourceErr<SOURCE, CLEAN_VALUE, ERROR> {
     return object instanceof SourceErr;
   }
-  export const TERMINATE = Symbol("**TERMINATE##");
-  export type Terminate = typeof TERMINATE;
+
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 }
 

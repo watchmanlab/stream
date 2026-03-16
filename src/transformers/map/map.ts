@@ -91,21 +91,3 @@ export namespace map {
     self: SELF,
   ) => MAPPED | Stream.Err<ERROR> | Promise<MAPPED | Stream.Err<ERROR>>;
 }
-
-const stream = new Stream([1, 2, 3, 4])
-  .pipe(
-    map((v) => {
-      if (v === 3) return Stream.err("kechmahaja" as const);
-      return v.toFixed();
-    }),
-  )
-  .pipe(map((v) => v));
-
-stream.map.errors.next().then((r) => {
-  if (r.done) return;
-  if (r.value.type === "expected") {
-    r.value.detail;
-  }
-});
-type S = Stream.ExtractValue<typeof stream>;
-//.  ^?
