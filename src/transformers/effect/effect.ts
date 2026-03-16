@@ -2,18 +2,30 @@ import { Stream } from "../../streams";
 
 const NAME = "effect";
 
-export class Effect<VALUE, ERROR = never, NAME extends string = effect.Name> extends Stream<VALUE, NAME> {
-  protected _errors?: Stream<Stream.ErrorEvent<Stream.ExtractCleanValueFromValue<VALUE>, ERROR, this>, `${NAME}Errors`>;
+export class Effect<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  ERROR = never,
+  NAME extends string = effect.Name,
+> extends Stream<
+  Stream.ExtractValue<SOURCE> | Stream.MaybeSourceErr<Effect<SOURCE, CLEAN_VALUE, ERROR, NAME>, CLEAN_VALUE, ERROR>,
+  NAME
+> {
+  protected _errors?: Stream<Stream.ErrorEvent<this, CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
 
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback: effect.Callback<VALUE, ERROR, NAME>) {
+  constructor(
+    source: SOURCE,
+    name = NAME as NAME,
+    callback: effect.Callback<CLEAN_VALUE, ERROR, Effect<SOURCE, CLEAN_VALUE, ERROR, NAME>>,
+  ) {
     super(name, async function* () {
       for await (const value of source) {
-        if (Stream.isSourceErr(value)) {
+        if (Stream.isSentinel(value)) {
           yield value;
           continue;
         }
 
-        const rawValue = value as Stream.ExtractCleanValueFromValue<VALUE>;
+        const rawValue = value as CLEAN_VALUE;
 
         try {
           const maybePromise = callback(rawValue, self);
@@ -47,16 +59,21 @@ export class Effect<VALUE, ERROR = never, NAME extends string = effect.Name> ext
     return this._errors;
   }
 }
-export function effect<VALUE, ERROR = never, NAME extends string = effect.Name>(
-  callback: effect.Callback<VALUE, ERROR, NAME>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Effect<VALUE, ERROR, NAME>> {
+export function effect<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  ERROR = never,
+  NAME extends string = effect.Name,
+>(
+  callback: effect.Callback<CLEAN_VALUE, ERROR, Effect<SOURCE, CLEAN_VALUE, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, Effect<SOURCE, CLEAN_VALUE, ERROR, NAME>> {
   return (_, source, name) => new Effect(source, name, callback);
 }
 export namespace effect {
   export type Name = typeof NAME;
 
-  export type Callback<VALUE, ERROR, NAME extends string> = (
-    value: Stream.ExtractCleanValueFromValue<VALUE>,
-    self: Effect<VALUE, ERROR, NAME>,
+  export type Callback<CLEAN_VALUE, ERROR, SELF extends Stream<any, any>> = (
+    value: CLEAN_VALUE,
+    self: SELF,
   ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 }

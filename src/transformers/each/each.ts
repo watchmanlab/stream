@@ -30,7 +30,7 @@ export class Each<
           const maybePromise = callback(rawValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr(result)) {
+          if (Stream.isErr<ERROR>(result)) {
             self._errors?.push({ type: "expected", source: self, value: rawValue, detail: result.value });
 
             yield Stream.sourceErr({

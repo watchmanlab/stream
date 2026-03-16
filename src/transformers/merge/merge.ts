@@ -1,13 +1,15 @@
 import { Stream } from "../../streams";
+import { each } from "../each";
 
 const NAME = "merge";
 
 export class Merge<
-  VALUE,
-  ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]],
+  SOURCE extends Stream<any, any>,
+  VALUE = Stream.ExtractValue<SOURCE>,
+  ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]] = [AsyncIterable<any>],
   NAME extends string = merge.Name,
-> extends Stream<VALUE | Stream.ExtractValueFromSource<ITERABLES[number]>, NAME> {
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, others: ITERABLES) {
+> extends Stream<VALUE | Stream.ExtractValue<ITERABLES[number]>, NAME> {
+  constructor(source: SOURCE, name = NAME as NAME, others: ITERABLES) {
     super(name, async function* () {
       const iters = [source, ...others].map((i) => i[Symbol.asyncIterator]());
 
@@ -38,10 +40,11 @@ export class Merge<
 }
 
 export function merge<
-  VALUE,
-  ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]],
+  SOURCE extends Stream<any, any>,
+  VALUE = Stream.ExtractValue<SOURCE>,
+  ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]] = [AsyncIterable<any>],
   NAME extends string = merge.Name,
->(...others: ITERABLES): Stream.Transformer<NAME, Stream<VALUE, any>, Merge<VALUE, ITERABLES, NAME>> {
+>(...others: ITERABLES): Stream.Transformer<NAME, SOURCE, Merge<SOURCE, VALUE, ITERABLES, NAME>> {
   return (_, source, name) => new Merge(source, name, others);
 }
 
