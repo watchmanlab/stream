@@ -11,10 +11,10 @@ export class Map<
 > extends Stream<
   | MAPPED
   | Stream.ExtractSentinel<SOURCE>
-  | Stream.MaybeSourceErr<Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>, CLEAN_VALUE, ERROR>,
+  | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<this, CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
 
   constructor(
     source: SOURCE,
@@ -36,15 +36,15 @@ export class Map<
           if (Stream.isErr(result)) {
             self._errors?.push({
               type: "expected",
-              source: self,
               value: rawValue,
               detail: result.value,
+              source: self,
             });
 
             yield Stream.sourceErr({
-              source: self,
               value: rawValue,
               detail: result.value,
+              source: self,
             }) as never;
 
             continue;
@@ -55,9 +55,9 @@ export class Map<
           self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
 
           yield Stream.sourceErr({
-            source: self,
             value: value,
             detail: error,
+            source: self,
           }) as never;
         }
       }

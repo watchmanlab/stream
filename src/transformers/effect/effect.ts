@@ -8,10 +8,10 @@ export class Effect<
   ERROR = never,
   NAME extends string = effect.Name,
 > extends Stream<
-  Stream.ExtractValue<SOURCE> | Stream.MaybeSourceErr<Effect<SOURCE, CLEAN_VALUE, ERROR, NAME>, CLEAN_VALUE, ERROR>,
+  Stream.ExtractValue<SOURCE> | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, Effect<SOURCE, CLEAN_VALUE, ERROR, NAME>>,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<this, CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
 
   constructor(
     source: SOURCE,

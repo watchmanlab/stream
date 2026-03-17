@@ -2,14 +2,22 @@ import { Stream } from "../../streams/index.ts";
 
 const NAME = "audit";
 
-export class Audit<VALUE, NAME extends string = audit.Name> extends Stream<VALUE, NAME> {
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, ms: number) {
+export class Audit<SOURCE extends Stream<any, any>, NAME extends string = audit.Name> extends Stream<
+  Stream.ExtractValue<SOURCE>,
+  NAME
+> {
+  constructor(source: SOURCE, name = NAME as NAME, ms: number) {
     super(name, async function* () {
       let timer: any = null;
       let canEmit = true;
 
       try {
         for await (const value of source) {
+          if (Stream.isSentinel(value)) {
+            yield value;
+            continue;
+          }
+
           if (!canEmit) continue;
           canEmit = false;
           clearTimeout(timer);
@@ -23,9 +31,9 @@ export class Audit<VALUE, NAME extends string = audit.Name> extends Stream<VALUE
   }
 }
 
-export function audit<VALUE, NAME extends string = audit.Name>(
+export function audit<SOURCE extends Stream<any, any>, NAME extends string = audit.Name>(
   ms: number,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Audit<VALUE, NAME>> {
+): Stream.Transformer<NAME, SOURCE, Audit<SOURCE, NAME>> {
   return (_, source, name) => new Audit(source, name, ms);
 }
 

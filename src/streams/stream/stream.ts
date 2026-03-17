@@ -167,20 +167,21 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 export namespace Stream {
   export type Name = typeof NAME;
   export type ExtractValue<T> =
-    T extends Source<infer VALUE> ? VALUE : T extends SourceErr<any, infer VALUE, any> ? VALUE : T;
+    T extends Source<infer VALUE> ? VALUE : T extends SourceErr<infer VALUE, any, any> ? VALUE : T;
   export type ExtractName<T extends Stream<any, any> | SourceErr<any, any, any>> =
     T extends Stream<any, infer NAME> ? NAME : T extends SourceErr<any, any, any> ? ExtractName<T["source"]> : never;
   export type ExtractSentinel<T> = Extract<ExtractValue<T>, Sentinel>;
   export type ExtractCleanValue<T> = Exclude<ExtractValue<T>, Sentinel>;
-  export type ExtractError<T> =
-    T extends Err<infer ERROR> ? ERROR : T extends SourceErr<any, any, infer ERROR> ? ERROR : never;
-  export type ExtractSourceErr<T> = Extract<T, SourceErr<any, any, any>>;
+  export type ExtractError<T extends Err<any> | SourceErr<any, any, any>> =
+    T extends Err<infer ERROR> ? ERROR : T extends SourceErr<any, infer ERROR, any> ? ERROR : never;
+  export type ExtractSourceErr<T> = Extract<ExtractValue<T>, SourceErr<any, any, any>>;
+  export type ExcludeSourceErr<T> = Exclude<ExtractValue<T>, SourceErr<any, any, any>>;
   export type ExtractSource<SOURCE_ERR extends SourceErr<any, any, any>> =
-    SOURCE_ERR extends SourceErr<infer SOURCE, any, any> ? SOURCE : never;
+    SOURCE_ERR extends SourceErr<any, any, infer SOURCE> ? SOURCE : never;
 
-  export type MaybeSourceErr<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR> = [ERROR] extends [never]
+  export type MaybeSourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> = [ERROR] extends [never]
     ? never
-    : SourceErr<SOURCE, CLEAN_VALUE, ERROR>;
+    : SourceErr<CLEAN_VALUE, ERROR, SOURCE>;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
   export type Source<VALUE> =
     | GeneratorFunction<VALUE>
@@ -225,20 +226,20 @@ export namespace Stream {
     return object instanceof Sentinel;
   }
 
-  export type ErrorEvent<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR> =
+  export type ErrorEvent<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> =
     | {
         type: "expected";
-        source: SOURCE;
         value: CLEAN_VALUE;
         detail: ERROR;
+        source: SOURCE;
       }
     | { type: "unexpected"; source: SOURCE; value: CLEAN_VALUE; detail: unknown };
 
-  export class SourceErr<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR> extends Stream.Sentinel {
+  export class SourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> extends Stream.Sentinel {
     constructor(
-      public readonly source: SOURCE,
       public readonly value: CLEAN_VALUE,
       public readonly detail: ERROR,
+      public readonly source: SOURCE,
     ) {
       super();
     }
@@ -252,23 +253,23 @@ export namespace Stream {
   export function err<ERROR>(value: ERROR): Err<ERROR> {
     return new Err(value);
   }
-  export function sourceErr<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR>({
-    source,
+  export function sourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>>({
     value,
     detail,
+    source,
   }: {
-    source: SOURCE;
     value: CLEAN_VALUE;
     detail: ERROR;
+    source: SOURCE;
   }) {
-    return new SourceErr(source, value, detail);
+    return new SourceErr(value, detail, source);
   }
   export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
     return object instanceof Err;
   }
-  export function isSourceErr<SOURCE extends Stream<any, any>, CLEAN_VALUE, ERROR>(
+  export function isSourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>>(
     object: unknown,
-  ): object is SourceErr<SOURCE, CLEAN_VALUE, ERROR> {
+  ): object is SourceErr<CLEAN_VALUE, ERROR, SOURCE> {
     return object instanceof SourceErr;
   }
 

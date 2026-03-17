@@ -8,10 +8,10 @@ export class Each<
   ERROR = never,
   NAME extends string = each.Name,
 > extends Stream<
-  Stream.ExtractValue<SOURCE> | Stream.MaybeSourceErr<Each<SOURCE, CLEAN_VALUE, ERROR, NAME>, CLEAN_VALUE, ERROR>,
+  Stream.ExtractValue<SOURCE> | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, Each<SOURCE, CLEAN_VALUE, ERROR, NAME>>,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<this, CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
   constructor(
     source: SOURCE,
     name = NAME as NAME,

@@ -11,10 +11,10 @@ export class Filter<
 > extends Stream<
   | FILTERED
   | Stream.ExtractSentinel<SOURCE>
-  | Stream.MaybeSourceErr<Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>, CLEAN_VALUE, ERROR>,
+  | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>>,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<this, CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
   constructor(
     source: SOURCE,
     name = NAME as NAME,
@@ -36,9 +36,9 @@ export class Filter<
             self._errors?.push({ type: "expected", source: self, value: rawValue, detail: result.value });
 
             yield Stream.sourceErr({
-              source: self,
               value: value,
               detail: result.value,
+              source: self,
             }) as never;
 
             continue;
@@ -49,9 +49,9 @@ export class Filter<
           self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
 
           yield Stream.sourceErr({
-            source: self,
             value: value,
             detail: error,
+            source: self,
           }) as never;
         }
       }
