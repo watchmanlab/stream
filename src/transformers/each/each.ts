@@ -24,14 +24,14 @@ export class Each<
           continue;
         }
 
-        const rawValue = value as CLEAN_VALUE;
+        const cleanValue = value as CLEAN_VALUE;
 
         try {
-          const maybePromise = callback(rawValue, self);
+          const maybePromise = callback(cleanValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr<ERROR>(result)) {
-            self._errors?.push({ type: "expected", source: self, value: rawValue, detail: result.value });
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: result.value });
 
             yield Stream.sourceErr({
               source: self,
@@ -42,15 +42,15 @@ export class Each<
             continue;
           }
 
-          yield rawValue as never;
+          yield cleanValue as never;
         } catch (error) {
-          self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
-
-          yield Stream.sourceErr({
-            source: self,
-            value: value,
-            detail: error,
-          }) as never;
+          if (error instanceof Stream.Err) {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error.value });
+            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+          } else {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+          }
         }
       }
     });

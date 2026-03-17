@@ -27,13 +27,13 @@ export class Filter<
           continue;
         }
 
-        const rawValue = value as FILTERED;
+        const cleanValue = value as FILTERED;
         try {
-          const maybePromise = predicate(rawValue, self);
+          const maybePromise = predicate(cleanValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            self._errors?.push({ type: "expected", source: self, value: rawValue, detail: result.value });
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: result.value });
 
             yield Stream.sourceErr({
               value: value,
@@ -44,15 +44,15 @@ export class Filter<
             continue;
           }
 
-          if (result) yield rawValue;
+          if (result) yield cleanValue;
         } catch (error) {
-          self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
-
-          yield Stream.sourceErr({
-            value: value,
-            detail: error,
-            source: self,
-          }) as never;
+          if (error instanceof Stream.Err) {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error.value });
+            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+          } else {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+          }
         }
       }
     });

@@ -25,26 +25,31 @@ export class Effect<
           continue;
         }
 
-        const rawValue = value as CLEAN_VALUE;
+        const cleanValue = value as CLEAN_VALUE;
 
         try {
-          const maybePromise = callback(rawValue, self);
+          const maybePromise = callback(cleanValue, self);
 
           if (maybePromise instanceof Promise) {
             maybePromise
               .then((error) => {
-                if (error) self._errors?.push({ type: "expected", source: self, value: rawValue, detail: error.value });
+                if (error)
+                  self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
               })
               .catch((error) => {
-                self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
+                self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
               });
           }
 
           if (Stream.isErr(maybePromise)) {
-            self._errors?.push({ type: "expected", source: self, value: rawValue, detail: maybePromise.value });
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: maybePromise.value });
           }
         } catch (error) {
-          self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
+          if (error instanceof Stream.Err) {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error.value });
+          } else {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+          }
         } finally {
           yield value;
         }

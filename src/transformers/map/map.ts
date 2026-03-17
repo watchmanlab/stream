@@ -28,21 +28,21 @@ export class Map<
           continue;
         }
 
-        const rawValue = value as CLEAN_VALUE;
+        const cleanValue = value as CLEAN_VALUE;
         try {
-          const maybePromise = mapper(rawValue, self);
+          const maybePromise = mapper(cleanValue, self);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
             self._errors?.push({
               type: "expected",
-              value: rawValue,
+              value: cleanValue,
               detail: result.value,
               source: self,
             });
 
             yield Stream.sourceErr({
-              value: rawValue,
+              value: cleanValue,
               detail: result.value,
               source: self,
             }) as never;
@@ -52,13 +52,13 @@ export class Map<
 
           yield result;
         } catch (error) {
-          self._errors?.push({ type: "unexpected", source: self, value: rawValue, detail: error });
-
-          yield Stream.sourceErr({
-            value: value,
-            detail: error,
-            source: self,
-          }) as never;
+          if (error instanceof Stream.Err) {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error.value });
+            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+          } else {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+          }
         }
       }
     });

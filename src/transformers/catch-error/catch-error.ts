@@ -1,4 +1,7 @@
 import { Stream } from "../../streams/index.ts";
+import { each } from "../each/each.ts";
+import { map } from "../map/map.ts";
+import { pump } from "../pump/pump.ts";
 
 const NAME = "catchError";
 
@@ -42,8 +45,13 @@ export class CatchError<
 
           yield Stream.sourceErr({ value: sourceErr, detail: result.value, source: self });
         } catch (error) {
-          self._errors?.push({ type: "unexpected", value: sourceErr, detail: error, source: self });
-          yield Stream.sourceErr({ value: sourceErr, detail: error, source: self });
+          if (error instanceof Stream.Err) {
+            self._errors?.push({ type: "unexpected", value: sourceErr, detail: error.value, source: self });
+            yield Stream.sourceErr({ value: sourceErr, detail: error.value, source: self });
+          } else {
+            self._errors?.push({ type: "unexpected", value: sourceErr, detail: error, source: self });
+            yield Stream.sourceErr({ value: sourceErr, detail: error, source: self });
+          }
         }
       }
     });
@@ -74,7 +82,7 @@ export namespace catchError {
   export type Name = typeof NAME;
 
   export type Callback<SOURCE_ERR, ERROR, SELF extends Stream<any, any>> = (
-    error: SOURCE_ERR,
+    error: [SOURCE_ERR] extends [never] ? Stream.SourceErr<unknown, unknown, Stream<unknown, string>> : SOURCE_ERR,
     self: SELF,
   ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 
@@ -84,3 +92,19 @@ export namespace catchError {
     self: SELF;
   };
 }
+
+const stream = new Stream([1, 2, 3, 4])
+  .pipe(
+    map((v) => {
+      if (v === 3) throw Stream.err("kechmahaja" as const);
+      return v.toFixed();
+    }),
+  )
+  .pipe(each((v) => console.log(v)))
+  .pipe(
+    catchError((ev) => {
+      ev.source;
+      console.log(ev.detail);
+    }),
+  )
+  .pipe(pump());
