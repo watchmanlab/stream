@@ -1,62 +1,83 @@
-import { Stream } from "../../streams";
-import { catchError } from "../catch-error";
-import { map, Map } from "../map";
-import { pump } from "../pump";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "each";
 
-export class Each<VALUE, ERROR, NAME extends string = each.Name> extends Stream<VALUE, NAME> {
-  private _map: Map<VALUE, VALUE, ERROR>;
-  protected _errors?: Stream<map.ErrorEvent<ERROR, this>, `${NAME}Errors`>;
-
+export class Each<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  ERROR = never,
+  NAME extends string = each.Name,
+> extends Stream<
+  Stream.ExtractValue<SOURCE> | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, Each<SOURCE, CLEAN_VALUE, ERROR, NAME>>,
+  NAME
+> {
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
   constructor(
-    source: Stream<VALUE, any>,
+    source: SOURCE,
     name = NAME as NAME,
-    callback: each.Callback<VALUE, ERROR, Each<VALUE, ERROR, NAME>>,
+    callback: each.Callback<CLEAN_VALUE, ERROR, Each<SOURCE, CLEAN_VALUE, ERROR, NAME>>,
   ) {
     super(name, async function* () {
-      const generator = self._map[Symbol.asyncIterator]();
-      let next = await generator.next();
-      try {
-        while (!next.done) {
-          const feedback = yield next.value;
-          next = await generator.next(feedback);
+      for await (const value of source) {
+        if (Stream.isSourceErr(value)) {
+          yield value as never;
+          continue;
         }
-      } finally {
-        await generator.return();
+
+        const cleanValue = value as CLEAN_VALUE;
+
+        try {
+          const maybePromise = callback(cleanValue, self);
+          const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+
+          if (Stream.isErr<ERROR>(result)) {
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: result.value });
+
+            yield Stream.sourceErr({
+              source: self,
+              value: value,
+              detail: result.value,
+            }) as never;
+
+            continue;
+          }
+
+          yield cleanValue as never;
+        } catch (error) {
+          if (error instanceof Stream.Err) {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error.value });
+            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+          } else {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+          }
+        }
       }
     });
+
     const self = this;
-
-    this._map = new Map<VALUE, VALUE, ERROR>(source, undefined, async (value, _, compensate) => {
-      const result = await callback(value, this, compensate);
-      if (Stream.Result.isErr(result)) return result;
-
-      return value;
-    });
   }
 
   get errors() {
-    if (!this._errors)
-      this._errors = this._map.errors.pipe(
-        `${this._name}Errors`,
-        map((error) => ({ ...error, self: this })),
-      );
-
+    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
     return this._errors;
   }
 }
-export function each<VALUE, ERROR, NAME extends string = each.Name>(
-  callback: each.Callback<VALUE, ERROR, Each<VALUE, ERROR, NAME>>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Each<VALUE, ERROR, NAME>> {
+export function each<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  ERROR = never,
+  NAME extends string = each.Name,
+>(
+  callback: each.Callback<CLEAN_VALUE, ERROR, Each<SOURCE, CLEAN_VALUE, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, Each<SOURCE, CLEAN_VALUE, ERROR, NAME>> {
   return (_, source, name) => new Each(source, name, callback);
 }
 export namespace each {
   export type Name = typeof NAME;
 
-  export type Callback<VALUE, ERROR, SELF extends Stream<VALUE, any>> = (
-    value: VALUE,
+  export type Callback<CLEAN_VALUE, ERROR, SELF extends Stream<any, any>> = (
+    value: CLEAN_VALUE,
     self: SELF,
-    compensate: map.Compensate,
-  ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
+  ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 }

@@ -7,17 +7,15 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
   constructor();
   constructor(source: Stream.Source<VALUE>);
-  constructor(source: Stream.Source<VALUE>, name: NAME);
   constructor(name: NAME);
   constructor(name: NAME, source: Stream.Source<VALUE>);
 
-  constructor(sourceOrName1?: Stream.Source<VALUE> | NAME, sourceOrName2?: Stream.Source<VALUE>) {
-    if (typeof sourceOrName1 === "string" || sourceOrName1 instanceof String) {
-      this._name = (sourceOrName1 as NAME) ?? NAME;
-      this._source = sourceOrName2;
+  constructor(sourceOrName?: Stream.Source<VALUE> | NAME, source?: Stream.Source<VALUE>) {
+    if (typeof sourceOrName === "string" || sourceOrName instanceof String) {
+      this._name = (sourceOrName as NAME) ?? NAME;
+      this._source = source;
     } else {
-      this._name = (sourceOrName2 as NAME) ?? NAME;
-      this._source = sourceOrName1;
+      this._source = sourceOrName;
     }
   }
 
@@ -48,13 +46,13 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     };
   }
   protected _requestingNext = false;
-  protected _requestNext(feedback: unknown) {
+  protected _requestNext() {
     if (!this._requestingNext && this._sourceGenerator) {
       this._requestingNext = true;
-      this._sourceGenerator.next(feedback).then((result) => {
+      this._sourceGenerator.next().then((result) => {
         this._requestingNext = false;
         if (result.done) {
-          this.push(Stream.TERMINATE as VALUE);
+          this.push(new Stream.Terminate() as VALUE);
           return;
         }
         this.push(result.value);
@@ -75,15 +73,16 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
     let ready: () => void;
 
-    let feedback: unknown;
     try {
       while (true) {
         if (queue.length) {
           const value = queue.shift()!;
-          if (value === Stream.TERMINATE) break;
-          feedback = yield value;
+          if (Stream.isTerminate(value)) break;
+
+          yield value;
         } else {
-          this._requestNext(feedback);
+          ready!?.();
+          this._requestNext();
 
           await new Promise<void>((resolve) => {
             this._consumers.set(queue, {
@@ -92,8 +91,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
             });
           });
         }
-
-        ready!?.();
       }
     } finally {
       this._consumers.get(queue)?.resolve();
@@ -106,7 +103,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         this._sourceGenerator = undefined;
       }
       this._onConsumerLeft?.();
-      if (Stream.Result.isSourceErr(feedback)) throw feedback;
 
       return;
     }
@@ -170,8 +166,22 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type ValueOf<T extends Source<any>> = T extends Source<infer VALUE> ? VALUE : never;
-  export type NameOf<T extends Stream<any, any>> = T extends Stream<any, infer NAME> ? NAME : never;
+  export type ExtractValue<T> =
+    T extends Source<infer VALUE> ? VALUE : T extends SourceErr<infer VALUE, any, any> ? VALUE : T;
+  export type ExtractName<T extends Stream<any, any> | SourceErr<any, any, any>> =
+    T extends Stream<any, infer NAME> ? NAME : T extends SourceErr<any, any, any> ? ExtractName<T["source"]> : never;
+  export type ExtractSentinel<T> = Extract<ExtractValue<T>, Sentinel>;
+  export type ExtractCleanValue<T> = Exclude<ExtractValue<T>, Sentinel>;
+  export type ExtractError<T extends Err<any> | SourceErr<any, any, any>> =
+    T extends Err<infer ERROR> ? ERROR : T extends SourceErr<any, infer ERROR, any> ? ERROR : never;
+  export type ExtractSourceErr<T> = Extract<ExtractValue<T>, SourceErr<any, any, any>>;
+  export type ExcludeSourceErr<T> = Exclude<ExtractValue<T>, SourceErr<any, any, any>>;
+  export type ExtractSource<SOURCE_ERR extends SourceErr<any, any, any>> =
+    SOURCE_ERR extends SourceErr<any, any, infer SOURCE> ? SOURCE : never;
+
+  export type MaybeSourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> = [ERROR] extends [never]
+    ? never
+    : SourceErr<CLEAN_VALUE, ERROR, SOURCE>;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
   export type Source<VALUE> =
     | GeneratorFunction<VALUE>
@@ -188,6 +198,7 @@ export namespace Stream {
     stream: INPUT,
     name?: NAME,
   ) => OUTPUT;
+
   export type Traversable<NAME extends string, INPUT extends Stream<any, any>> = Record<
     NAME | (`$${string}` & {}),
     INPUT
@@ -204,44 +215,65 @@ export namespace Stream {
       }
     : OUTPUT & Traversable<NAME, INPUT>;
 
-  export const TERMINATE = Symbol("**TERMINATE##");
-  export type Terminate = typeof TERMINATE;
-  export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
-  export type Result<DATA, ERROR> = Result.Ok<DATA> | Result.Err<ERROR> | Result.SourceErr;
+  export abstract class Sentinel {
+    private readonly __sentinel = Symbol("__sentinel");
+  }
+  export class Terminate extends Sentinel {}
+  export function isTerminate(object: unknown): object is Terminate {
+    return object instanceof Terminate;
+  }
+  export function isSentinel<T extends Sentinel>(object: unknown): object is T {
+    return object instanceof Sentinel;
+  }
 
-  export namespace Result {
-    export class SourceErr {
-      constructor(
-        public readonly error: unknown,
-        public readonly source: Stream<any, any>,
-        public readonly value: unknown,
-      ) {}
-    }
-    export class Ok<VALUE> {
-      constructor(public readonly value: VALUE) {}
-    }
-    export class Err<VALUE> {
-      constructor(public readonly value: VALUE) {}
-    }
-    export function ok<VALUE>(value: VALUE): Ok<VALUE> {
-      return new Ok(value);
-    }
-    export function err<VALUE>(value: VALUE): Err<VALUE> {
-      return new Err(value);
-    }
-    export function sourceErr({ error, source, value }: { error: unknown; source: Stream<any, any>; value: unknown }) {
-      return new SourceErr(error, source, value);
-    }
-    export function isOk<VALUE>(object: unknown): object is Ok<VALUE> {
-      return object instanceof Ok;
-    }
-    export function isErr<VALUE>(object: unknown): object is Err<VALUE> {
-      return object instanceof Err;
-    }
-    export function isSourceErr(object: unknown): object is SourceErr {
-      return object instanceof SourceErr;
+  export type ErrorEvent<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> =
+    | {
+        type: "expected";
+        value: CLEAN_VALUE;
+        detail: ERROR;
+        source: SOURCE;
+      }
+    | { type: "unexpected"; source: SOURCE; value: CLEAN_VALUE; detail: unknown };
+
+  export class SourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> extends Stream.Sentinel {
+    constructor(
+      public readonly value: CLEAN_VALUE,
+      public readonly detail: ERROR,
+      public readonly source: SOURCE,
+    ) {
+      super();
     }
   }
+
+  export class Err<ERROR> extends Stream.Sentinel {
+    constructor(public readonly value: ERROR) {
+      super();
+    }
+  }
+  export function err<ERROR>(value: ERROR): Err<ERROR> {
+    return new Err(value);
+  }
+  export function sourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>>({
+    value,
+    detail,
+    source,
+  }: {
+    value: CLEAN_VALUE;
+    detail: ERROR;
+    source: SOURCE;
+  }) {
+    return new SourceErr(value, detail, source);
+  }
+  export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
+    return object instanceof Err;
+  }
+  export function isSourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>>(
+    object: unknown,
+  ): object is SourceErr<CLEAN_VALUE, ERROR, SOURCE> {
+    return object instanceof SourceErr;
+  }
+
+  export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 }
 
 const USE_TRANSFORMER_INSIDE_PIPE_PLEASE = Symbol("*USE_TRANSFORMER_INSIDE_PIPE_PLEASE#");

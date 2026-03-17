@@ -1,15 +1,18 @@
 import { Stream } from "../../streams";
 
-const NAME = "queued";
+const NAME = "queue";
 
-class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME> {
-  protected _buffer = new Array<VALUE>();
-  protected _events?: Stream<queue.Event<VALUE, NAME>, `${NAME}-events`>;
+export class Queue<SOURCE extends Stream<any, any>, NAME extends string = queue.Name> extends Stream<
+  Stream.ExtractValueFromSource<SOURCE>,
+  NAME
+> {
+  protected _buffer = new Array<Stream.ExtractValueFromSource<SOURCE>>();
+  protected _events?: Stream<queue.Event<this>, `${NAME}Events`>;
   protected _options: Required<queue.Options> = { dropStrategy: "oldest", maxSize: 10000 };
   protected _dropped = 0;
   protected _resolvers = new Set<() => void>();
 
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, options?: queue.Options) {
+  constructor(source: SOURCE, name = NAME as NAME, options?: queue.Options) {
     super(name, async function* () {
       let resolve;
 
@@ -17,7 +20,9 @@ class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME>
         while (true) {
           if (self._buffer.length) {
             const value = self._buffer.pop()!;
+
             yield value;
+
             self._events?.push({ type: "consumed", value, self });
           } else {
             await new Promise<void>((res) => {
@@ -54,10 +59,10 @@ class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME>
     })();
   }
 
-  // get events() {
-  //   if (!this._events) this._events = new Stream();
-  //   return this._events;
-  // }
+  get events() {
+    if (!this._events) this._events = new Stream(`${this._name}Events` as never);
+    return this._events;
+  }
   get options() {
     return { ...this._options };
   }
@@ -78,9 +83,9 @@ class Queue<VALUE, NAME extends string = queue.Name> extends Stream<VALUE, NAME>
   }
 }
 
-export function queue<VALUE, NAME extends string = queue.Name>(
+export function queue<SOURCE extends Stream<any, any>, NAME extends string = queue.Name>(
   options?: queue.Options,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Queue<VALUE, NAME>> {
+): Stream.Transformer<NAME, SOURCE, Queue<SOURCE, NAME>> {
   return (_, source, name) => new Queue(source, name, options);
 }
 
@@ -91,8 +96,20 @@ export namespace queue {
     dropStrategy?: "oldest" | "newest";
   };
 
-  export type Event<VALUE, NAME extends string> =
-    | { type: "evicted"; value: VALUE; self: Queue<VALUE, NAME> }
-    | { type: "buffered"; value: VALUE; self: Queue<VALUE, NAME> }
-    | { type: "consumed"; value: VALUE; self: Queue<VALUE, NAME> };
+  export type Event<SOURCE extends Stream<any, any>> =
+    | {
+        type: "evicted";
+        value: Stream.ExtractValueFromSource<SOURCE>;
+        self: SOURCE;
+      }
+    | {
+        type: "buffered";
+        value: Stream.ExtractValueFromSource<SOURCE>;
+        self: SOURCE;
+      }
+    | {
+        type: "consumed";
+        value: Stream.ExtractValueFromSource<SOURCE>;
+        self: SOURCE;
+      };
 }

@@ -1,44 +1,53 @@
 import { Stream } from "../../streams";
+import { each } from "../each";
 
-const NAME = "merged";
-type Name = typeof NAME;
+const NAME = "merge";
 
-class Merge<
-  VALUE,
-  ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]],
-  NAME extends string = Name,
-> extends Stream<VALUE | Stream.ValueOf<ITERABLES[number]>, NAME> {
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, others: ITERABLES) {
+export class Merge<
+  SOURCE extends Stream<any, any>,
+  VALUE = Stream.ExtractValue<SOURCE>,
+  ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]] = [AsyncIterable<any>],
+  NAME extends string = merge.Name,
+> extends Stream<VALUE | Stream.ExtractValue<ITERABLES[number]>, NAME> {
+  constructor(source: SOURCE, name = NAME as NAME, others: ITERABLES) {
     super(name, async function* () {
       const iters = [source, ...others].map((i) => i[Symbol.asyncIterator]());
 
-      const nexts = iters.map((it, index) => it.next().then((res) => ({ res, index })));
+      const active = new Map(iters.map((it, i) => [i, { it, next: it.next() }]));
 
       try {
-        while (nexts.length > 0) {
-          const { res, index } = await Promise.race(nexts);
+        while (active.size > 0) {
+          const results = await Promise.race(
+            Array.from(active.entries()).map(([id, { next }]) => next.then((result) => ({ result, id }))),
+          );
 
-          if (res.done) {
-            nexts.splice(index, 1);
-            iters.splice(index, 1);
+          const { result, id } = results;
+          const entry = active.get(id)!;
+
+          if (result.done) {
+            active.delete(id);
             continue;
           }
 
-          yield res.value;
-
-          nexts[index] = iters[index].next().then((r) => ({ res: r, index }));
+          yield result.value;
+          entry.next = entry.it.next();
         }
       } finally {
-        for (const it of iters) it.return?.();
+        await Promise.all(iters.map((iter) => iter.return?.()));
       }
     });
   }
 }
 
 export function merge<
-  VALUE,
-  ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]],
-  NAME extends string = Name,
->(...others: ITERABLES): Stream.Transformer<NAME, Stream<VALUE>, Merge<VALUE, ITERABLES, NAME>> {
+  SOURCE extends Stream<any, any>,
+  VALUE = Stream.ExtractValue<SOURCE>,
+  ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]] = [AsyncIterable<any>],
+  NAME extends string = merge.Name,
+>(...others: ITERABLES): Stream.Transformer<NAME, SOURCE, Merge<SOURCE, VALUE, ITERABLES, NAME>> {
   return (_, source, name) => new Merge(source, name, others);
+}
+
+export namespace merge {
+  export type Name = typeof NAME;
 }

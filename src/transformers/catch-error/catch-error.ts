@@ -1,90 +1,110 @@
-import { Stream } from "../../streams";
+import { Stream } from "../../streams/index.ts";
+import { each } from "../each/each.ts";
+import { map } from "../map/map.ts";
+import { pump } from "../pump/pump.ts";
 
 const NAME = "catchError";
 
-export class CatchError<VALUE, NAME extends string = catchError.Name, ERROR = unknown> extends Stream<VALUE, NAME> {
-  protected _events?: Stream<catchError.Event<VALUE, NAME, ERROR>, `${NAME}-events`>;
-  protected _errors?: Stream<catchError.ErrorEvent<VALUE, NAME, ERROR>, `${NAME}-errors`>;
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, callback?: catchError.Callback<VALUE, NAME, ERROR>) {
+export class CatchError<
+  SOURCE extends Stream<any, any>,
+  SOURCE_ERR extends Stream.SourceErr<any, any, any> = Stream.ExtractSourceErr<SOURCE>,
+  ERROR = never,
+  NAME extends string = catchError.Name,
+> extends Stream<
+  | Stream.ExcludeSourceErr<SOURCE>
+  | Stream.MaybeSourceErr<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
+  NAME
+> {
+  protected _events?: Stream<catchError.Event<SOURCE_ERR, this>, `${NAME}Events`>;
+  protected _errors?: Stream<Stream.ErrorEvent<SOURCE_ERR, ERROR, this>, `${NAME}Errors`>;
+  constructor(
+    source: SOURCE,
+    name = NAME as NAME,
+    callback?: catchError.Callback<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
+  ) {
     super(name, async function* () {
-      const generator = source[Symbol.asyncIterator]();
+      for await (const value of source) {
+        if (!Stream.isSourceErr(value)) {
+          yield value;
+          continue;
+        }
 
-      try {
-        let next = await generator.next();
-        while (!next.done) {
-          const feedback = yield next.value;
+        const sourceErr = value as SOURCE_ERR;
 
-          if (!Stream.Result.isSourceErr(feedback)) {
-            next = await generator.next(feedback);
-            continue;
-          }
+        self._events?.push({ type: "caught", sourceErr, self });
 
-          self._events?.push({ type: "caught", error: feedback, self });
+        if (!callback) continue;
 
-          if (!callback) {
-            next = await generator.next();
-            continue;
-          }
+        try {
+          const maybePromise = callback(sourceErr, self);
+          const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          try {
-            const result = await callback(feedback, self);
+          if (!result) continue;
 
-            if (!result) {
-              next = await generator.next();
-              continue;
-            }
+          self._errors?.push({ type: "expected", value: sourceErr, detail: result.value, source: self });
 
-            self._errors?.push({ type: "expected", error: result.value, self });
-
-            next = await generator.next(
-              Stream.Result.sourceErr({ error: result.value, source: self, value: next.value }),
-            );
-          } catch (error) {
-            if (Stream.Result.isErr(error)) {
-              self._errors?.push({ type: "expected", error: error.value as ERROR, self });
-            } else {
-              self._errors?.push({ type: "unexpected", error: error, self });
-            }
-            next = await generator.next(Stream.Result.sourceErr({ error, source: self, value: next.value }));
+          yield Stream.sourceErr({ value: sourceErr, detail: result.value, source: self });
+        } catch (error) {
+          if (error instanceof Stream.Err) {
+            self._errors?.push({ type: "unexpected", value: sourceErr, detail: error.value, source: self });
+            yield Stream.sourceErr({ value: sourceErr, detail: error.value, source: self });
+          } else {
+            self._errors?.push({ type: "unexpected", value: sourceErr, detail: error, source: self });
+            yield Stream.sourceErr({ value: sourceErr, detail: error, source: self });
           }
         }
-      } finally {
-        await generator.return();
       }
     });
     const self = this;
   }
   get events() {
-    if (!this._events) this._events = new Stream(`${this._name}-events` as never);
+    if (!this._events) this._events = new Stream(`${this._name}Events` as never);
     return this._events;
   }
   get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}-errors` as never);
+    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
     return this._errors;
   }
 }
 
-export function catchError<VALUE, NAME extends string = catchError.Name, ERROR = unknown>(
-  callback?: catchError.Callback<VALUE, NAME, ERROR>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, CatchError<VALUE, NAME, ERROR>> {
+export function catchError<
+  SOURCE extends Stream<any, any>,
+  SOURCE_ERR extends Stream.SourceErr<any, any, any> = Stream.ExtractSourceErr<SOURCE>,
+  ERROR = never,
+  NAME extends string = catchError.Name,
+>(
+  callback?: catchError.Callback<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>> {
   return (_, source, name) => new CatchError(source, name, callback);
 }
 
 export namespace catchError {
   export type Name = typeof NAME;
 
-  export type Callback<VALUE, NAME extends string, ERROR> = (
-    error: Stream.Result.SourceErr,
-    self: CatchError<VALUE, NAME, ERROR>,
-  ) => void | Stream.Result.Err<ERROR> | Promise<void | Stream.Result.Err<ERROR>>;
+  export type Callback<SOURCE_ERR, ERROR, SELF extends Stream<any, any>> = (
+    error: [SOURCE_ERR] extends [never] ? Stream.SourceErr<unknown, unknown, Stream<unknown, string>> : SOURCE_ERR,
+    self: SELF,
+  ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 
-  export type Event<VALUE, NAME extends string, ERROR> = {
+  export type Event<SOURCE_ERR, SELF extends Stream<any, any>> = {
     type: "caught";
-    error: Stream.Result.SourceErr;
-    self: CatchError<VALUE, NAME, ERROR>;
+    sourceErr: SOURCE_ERR;
+    self: SELF;
   };
-
-  export type ErrorEvent<VALUE, NAME extends string, ERROR> =
-    | { type: "expected"; error: ERROR; self: CatchError<VALUE, NAME, ERROR> }
-    | { type: "unexpected"; error: unknown; self: CatchError<VALUE, NAME, ERROR> };
 }
+
+const stream = new Stream([1, 2, 3, 4])
+  .pipe(
+    map((v) => {
+      if (v === 3) throw Stream.err("kechmahaja" as const);
+      return v.toFixed();
+    }),
+  )
+  .pipe(each((v) => console.log(v)))
+  .pipe(
+    catchError((ev) => {
+      ev.source;
+      console.log(ev.detail);
+    }),
+  )
+  .pipe(pump());
