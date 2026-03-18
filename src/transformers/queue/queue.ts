@@ -2,13 +2,14 @@ import { Stream } from "../../streams";
 
 const NAME = "queue";
 
-export class Queue<SOURCE extends Stream<any, any>, NAME extends string = queue.Name> extends Stream<
-  Stream.ExtractValueFromSource<SOURCE>,
-  NAME
-> {
-  protected _buffer = new Array<Stream.ExtractValueFromSource<SOURCE>>();
-  protected _events?: Stream<queue.Event<this>, `${NAME}Events`>;
-  protected _options: Required<queue.Options> = { dropStrategy: "oldest", maxSize: 10000 };
+export class Queue<
+  SOURCE extends Stream<any, any>,
+  VALUE = Stream.ExtractValue<SOURCE>,
+  NAME extends string = queue.Name,
+> extends Stream<VALUE, NAME> {
+  protected _buffer = new Array<VALUE>();
+  protected _events?: Stream<queue.Event<VALUE, this>, `${NAME}Events`>;
+  protected _options: Required<queue.Options> = { dropStrategy: "oldest", size: 1000 };
   protected _dropped = 0;
   protected _resolvers = new Set<() => void>();
 
@@ -42,7 +43,7 @@ export class Queue<SOURCE extends Stream<any, any>, NAME extends string = queue.
 
     (async () => {
       for await (const value of source) {
-        if (self._buffer.length >= self._options.maxSize) {
+        if (self._buffer.length >= self._options.size) {
           self._dropped++;
           if (self._options.dropStrategy === "newest") {
             self._events?.push({ type: "evicted", value, self });
@@ -83,33 +84,35 @@ export class Queue<SOURCE extends Stream<any, any>, NAME extends string = queue.
   }
 }
 
-export function queue<SOURCE extends Stream<any, any>, NAME extends string = queue.Name>(
-  options?: queue.Options,
-): Stream.Transformer<NAME, SOURCE, Queue<SOURCE, NAME>> {
+export function queue<
+  SOURCE extends Stream<any, any>,
+  VALUE = Stream.ExtractValue<SOURCE>,
+  NAME extends string = queue.Name,
+>(options?: queue.Options): Stream.Transformer<NAME, SOURCE, Queue<SOURCE, VALUE, NAME>> {
   return (_, source, name) => new Queue(source, name, options);
 }
 
 export namespace queue {
   export type Name = typeof NAME;
   export type Options = {
-    maxSize?: number;
+    size?: number;
     dropStrategy?: "oldest" | "newest";
   };
 
-  export type Event<SOURCE extends Stream<any, any>> =
+  export type Event<VALUE, SELF extends Stream<any, any>> =
     | {
         type: "evicted";
-        value: Stream.ExtractValueFromSource<SOURCE>;
-        self: SOURCE;
+        value: VALUE;
+        self: SELF;
       }
     | {
         type: "buffered";
-        value: Stream.ExtractValueFromSource<SOURCE>;
-        self: SOURCE;
+        value: VALUE;
+        self: SELF;
       }
     | {
         type: "consumed";
-        value: Stream.ExtractValueFromSource<SOURCE>;
-        self: SOURCE;
+        value: VALUE;
+        self: SELF;
       };
 }

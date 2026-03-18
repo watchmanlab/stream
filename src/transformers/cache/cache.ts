@@ -1,125 +1,120 @@
-import { Stream } from "../../stream-0";
+import { Stream } from "../../streams/index.ts";
 
-export function cache<VALUE>(
-  options?: cache.Options<VALUE>,
-): Stream.Transformer<Stream<VALUE>, Stream<VALUE> & { cache: cache.Cache<VALUE> }> {
-  return function (source) {
-    const { initialValues = [], size = 1000, dropStrategy = "oldest", ttl } = options ?? {};
+const NAME = "Cache";
 
-    const cacheArray: CacheEntry<VALUE>[] = initialValues.map((value) => ({
-      value,
-      timestamp: Date.now(),
-    }));
+export class Cache<
+  SOURCE extends Stream<any, any>,
+  VALUE = Stream.ExtractValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  NAME extends string = cache.Name,
+> extends Stream<VALUE, NAME> {
+  protected _buffer: CacheEntry<CLEAN_VALUE>[] = [];
+  protected _options: Required<cache.Options> = { dropStrategy: "oldest", size: 1000, ttl: null };
+  protected _events?: Stream<cache.Event<CLEAN_VALUE, this>>;
+  protected _dropped = 0;
 
-    const output = new Stream<VALUE>();
-    const evicted = new Stream<{ value: VALUE; reason: "size" | "ttl" }>();
+  constructor(source: SOURCE, name = NAME as NAME, options?: cache.Options) {
+    super(name, source);
 
-    let cleanupTimer: any;
+    this.options = options ?? {};
 
-    const startCleanup = () => {
-      if (ttl === undefined || cleanupTimer !== undefined) return;
-
-      cleanupTimer = setInterval(
-        () => {
-          const now = Date.now();
-          let i = 0;
-          while (i < cacheArray.length) {
-            if (now - cacheArray[i].timestamp >= ttl) {
-              const [entry] = cacheArray.splice(i, 1);
-              evicted.push({ value: entry.value, reason: "ttl" });
-            } else {
-              i++;
-            }
+    (async () => {
+      for await (const value of source) {
+        if (Stream.isSentinel(value)) continue;
+        if (this._buffer.length >= this._options.size) {
+          this._dropped++;
+          if (this._options.dropStrategy === "newest") {
+            this._events?.push({ type: "evicted", value, reason: "size", self: this });
+            continue;
+          } else {
+            this._events?.push({ type: "evicted", value: this._buffer.pop()!.value, reason: "size", self: this });
           }
+        }
 
-          // Stop timer if cache is empty
-          if (cacheArray.length === 0 && cleanupTimer !== undefined) {
-            clearInterval(cleanupTimer);
-            cleanupTimer = undefined;
+        this._buffer.unshift(value);
+        this._events?.push({ type: "buffered", value, self: this });
+
+        this._buffer.push({ value, timestamp: Date.now() });
+        this.startCleanup();
+      }
+    })();
+  }
+
+  protected cleanupTimer: any;
+  protected startCleanup() {
+    const ttl = this._options.ttl;
+
+    if (!ttl || this.cleanupTimer !== undefined) return;
+
+    this.cleanupTimer = setInterval(
+      () => {
+        const now = Date.now();
+        let i = 0;
+        while (i < this._buffer.length) {
+          if (now - this._buffer[i].timestamp >= ttl) {
+            const [entry] = this._buffer.splice(i, 1);
+            this._events?.push({ type: "evicted", value: entry.value, reason: "ttl", self: this });
+          } else {
+            i++;
           }
-        },
-        Math.min(ttl / 4, Math.max(500, ttl / 10)),
-      ); // Check at quarter TTL, min 500ms, max 10% of TTL
-    };
+        }
 
-    const stopCleanup = () => {
-      if (cleanupTimer !== undefined) {
-        clearInterval(cleanupTimer);
-        cleanupTimer = undefined;
-      }
-    };
-
-    // Start cleanup if we have initial values with TTL
-    if (ttl !== undefined && cacheArray.length > 0) {
-      startCleanup();
-    }
-
-    // HOT: Start listening immediately to cache ALL events
-    source.listen((value) => {
-      const entry: CacheEntry<VALUE> = {
-        value,
-        timestamp: Date.now(),
-      };
-
-      cacheArray.push(entry);
-      startCleanup();
-
-      if (cacheArray.length > size) {
-        const entry = dropStrategy === "oldest" ? cacheArray.shift() : cacheArray.pop();
-        if (entry) evicted.push({ value: entry.value, reason: "size" });
-      }
-
-      output.push(value);
-    });
-
-    Object.defineProperty(output, "cache", {
-      value: {
-        get values() {
-          return cacheArray.map((entry) => entry.value);
-        },
-        get size() {
-          return size;
-        },
-        get dropStrategy() {
-          return dropStrategy;
-        },
-        get ttl() {
-          return ttl;
-        },
-        get evicted() {
-          return evicted;
-        },
-        clear() {
-          stopCleanup();
-          cacheArray.length = 0;
-        },
+        // Stop timer if cache is empty
+        if (this._buffer.length === 0 && this.cleanupTimer !== undefined) {
+          clearInterval(this.cleanupTimer);
+          this.cleanupTimer = undefined;
+        }
       },
-      enumerable: true,
-      configurable: false,
-    });
+      Math.min(ttl / 4, Math.max(500, ttl / 10)),
+    ); // Check at quarter TTL, min 500ms, max 10% of TTL
+  }
+  protected stopCleanup() {
+    if (this.cleanupTimer !== undefined) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = undefined;
+    }
+  }
+  get options() {
+    return { ...this._options };
+  }
+  set options(options: cache.Options) {
+    this._options = { ...this._options, ...options };
+  }
+  get values() {
+    return this._buffer.map((v) => v.value);
+  }
 
-    return output as Stream<VALUE> & { cache: cache.Cache<VALUE> };
-  };
+  clear() {
+    this.stopCleanup();
+    this._buffer.length = 0;
+  }
+}
+export function cache<
+  SOURCE extends Stream<any, any>,
+  VALUE = Stream.ExtractValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  NAME extends string = cache.Name,
+>(options?: cache.Options): Stream.Transformer<NAME, SOURCE, Cache<SOURCE, VALUE, CLEAN_VALUE, NAME>> {
+  return (_, source, name) => new Cache(source, name, options);
 }
 
 export namespace cache {
-  export type Cache<VALUE> = {
-    readonly values: VALUE[];
-    readonly size: number;
-    readonly dropStrategy: "oldest" | "newest";
-    readonly ttl: number | undefined;
-    readonly evicted: Stream<{ value: VALUE; reason: "size" | "ttl" }>;
-    clear(): void;
-  };
-
-  export type Options<VALUE> = {
-    initialValues?: VALUE[];
-    size?: number;
-    dropStrategy?: "oldest" | "newest";
-    ttl?: number;
-  };
+  export type Name = typeof NAME;
+  export type Options = { size?: number; dropStrategy?: "oldest" | "newest"; ttl?: number | null };
+  export type Event<CLEAN_VALUE, SELF extends Stream<any, any>> =
+    | {
+        type: "evicted";
+        value: CLEAN_VALUE;
+        reason: "size" | "ttl";
+        self: SELF;
+      }
+    | {
+        type: "buffered";
+        value: CLEAN_VALUE;
+        self: SELF;
+      };
 }
-type CacheEntry<VALUE> = {
-  value: VALUE;
+type CacheEntry<CLEAN_VALUE> = {
+  value: CLEAN_VALUE;
   timestamp: number;
 };

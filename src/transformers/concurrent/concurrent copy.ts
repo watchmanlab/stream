@@ -15,11 +15,7 @@ export class Concurrent<
   NAME
 > {
   protected _options: Required<concurrent.Options> = { concurrencyLimit: 1000, preserveOrder: false };
-  protected _buffer: (
-    | { value: CLEAN_VALUE; mapped: MAPPED | Stream.Err<ERROR> }
-    | Stream.Sentinel
-    | { value: CLEAN_VALUE; mapped: Promise<MAPPED | Stream.Err<ERROR>> }
-  )[] = [];
+  protected _buffer: (MAPPED | Promise<MAPPED | Stream.Err<ERROR>>)[] = [];
   protected _pending: number = 0;
   protected _events?: Stream<concurrent.Event<this>, `${NAME}Events`>;
   protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
@@ -44,20 +40,15 @@ export class Concurrent<
           }
           self._pending++;
 
-          if (Stream.isSentinel(value)) {
-            self._buffer.push(value);
-            continue;
-          }
-
           if (self._options.preserveOrder) {
             try {
-              self._buffer.push({ value, mapped: mapper(value) });
+              self._buffer.push(mapper(value));
               resolver!?.();
             } catch (error) {
-              if (Stream.isErr<ERROR>(error)) {
-                self._buffer.push({ value, mapped: error });
+              if (Stream.isErr(error)) {
+                self._errors?.push({ type: "expected", error: error.value as ERROR, self });
               } else {
-                self._errors?.push({ type: "unexpected", value, detail: error, source: self });
+                self._errors?.push({ type: "unexpected", error, self });
               }
             }
           } else {
@@ -65,14 +56,20 @@ export class Concurrent<
               .then((mapped) => {
                 self._pending--;
                 if (aborted) return;
-                self._buffer.push({ value, mapped });
+
+                if (Stream.isErr(mapped)) {
+                  self._errors?.push({ type: "expected", error: mapped.value, self });
+                  return;
+                }
+
+                self._buffer.push(mapped);
                 resolver!?.();
               })
               .catch((error) => {
-                if (Stream.isErr<ERROR>(error)) {
-                  self._buffer.push({ value, mapped: error });
+                if (Stream.isErr(error)) {
+                  self._errors?.push({ type: "expected", error: error.value as ERROR, self });
                 } else {
-                  self._errors?.push({ type: "unexpected", value, detail: error, source: self });
+                  self._errors?.push({ type: "unexpected", error, self });
                 }
               });
           }
@@ -83,31 +80,26 @@ export class Concurrent<
       try {
         while (true) {
           if (self._buffer.length && !aborted) {
-            const entry = self._buffer.shift()!;
-            if (Stream.isSentinel(entry)) {
-              yield entry as never;
-              continue;
-            }
+            const maybePromise = self._buffer.shift()!;
 
-            if (entry.mapped instanceof Promise) self._pending--;
+            if (maybePromise instanceof Promise) self._pending--;
 
             try {
-              const mapped = entry.mapped instanceof Promise ? await entry.mapped : entry.mapped;
+              const result = await maybePromise;
 
-              if (Stream.isErr<ERROR>(mapped)) {
-                self._errors?.push({ type: "expected", value: entry.value, detail: mapped.value, source: self });
-                yield Stream.sourceErr({ value: entry.value, detail: mapped.value, source: self }) as never;
+              if (Stream.isErr(result)) {
+                self._errors?.push({ type: "expected", error: result.value as ERROR, self });
                 continue;
               }
 
-              yield mapped;
+              yield result;
 
               concurrencyLimitResolver!?.();
             } catch (error) {
-              if (Stream.isErr<ERROR>(error)) {
-                self._errors?.push({ type: "expected", value: entry.value, detail: error.value, source: self });
+              if (Stream.isErr(error)) {
+                self._errors?.push({ type: "expected", error: error.value as ERROR, self });
               } else {
-                self._errors?.push({ type: "unexpected", value: entry.value, detail: error, source: self });
+                self._errors?.push({ type: "unexpected", error, self });
               }
             }
           } else {
@@ -117,9 +109,9 @@ export class Concurrent<
       } finally {
         self._buffer.length = 0;
         aborted = true;
+        generator.return();
         concurrencyLimitResolver!?.();
         resolver!?.();
-        await generator.return();
       }
     });
     const self = this;

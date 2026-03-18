@@ -60,7 +60,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     }
   }
 
-  protected _onConsumerJoin?: () => void;
+  protected _onConsumerJoin?: (queue: VALUE[]) => void;
   protected _onConsumerLeft?: () => void;
   async *[Symbol.asyncIterator]() {
     if (this._consumers.size === 0 && this._source) {
@@ -69,7 +69,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
     const queue: VALUE[] = [];
     this._consumers.set(queue, { resolve() {}, ready: Promise.resolve() });
-    this._onConsumerJoin?.();
+    this._onConsumerJoin?.(queue);
 
     let ready: () => void;
 
@@ -245,10 +245,8 @@ export namespace Stream {
     }
   }
 
-  export class Err<ERROR> extends Stream.Sentinel {
-    constructor(public readonly value: ERROR) {
-      super();
-    }
+  export class Err<ERROR> {
+    constructor(public readonly value: ERROR) {}
   }
   export function err<ERROR>(value: ERROR): Err<ERROR> {
     return new Err(value);

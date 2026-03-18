@@ -37,7 +37,11 @@ export class Effect<
                   self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
               })
               .catch((error) => {
-                self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+                if (Stream.isErr<ERROR>(error)) {
+                  self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
+                } else {
+                  self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+                }
               });
           }
 
@@ -45,8 +49,8 @@ export class Effect<
             self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: maybePromise.value });
           }
         } catch (error) {
-          if (error instanceof Stream.Err) {
-            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error.value });
+          if (Stream.isErr<ERROR>(error)) {
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
           } else {
             self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
           }

@@ -52,8 +52,8 @@ export class Map<
 
           yield result;
         } catch (error) {
-          if (error instanceof Stream.Err) {
-            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error.value });
+          if (Stream.isErr<ERROR>(error)) {
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
             yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
           } else {
             self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });

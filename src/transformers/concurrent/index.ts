@@ -1,1 +1,1 @@
-export * from "./concurrent";
+export * from "./concurrent.ts";

@@ -45,8 +45,8 @@ export class CatchError<
 
           yield Stream.sourceErr({ value: sourceErr, detail: result.value, source: self });
         } catch (error) {
-          if (error instanceof Stream.Err) {
-            self._errors?.push({ type: "unexpected", value: sourceErr, detail: error.value, source: self });
+          if (Stream.isErr<ERROR>(error)) {
+            self._errors?.push({ type: "expected", value: sourceErr, detail: error.value, source: self });
             yield Stream.sourceErr({ value: sourceErr, detail: error.value, source: self });
           } else {
             self._errors?.push({ type: "unexpected", value: sourceErr, detail: error, source: self });
