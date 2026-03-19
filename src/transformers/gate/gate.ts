@@ -1,13 +1,16 @@
 import { Stream } from "../../streams/index.ts";
-import { consumer } from "../pump/pump.ts";
 
 const NAME = "gate";
 
-export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, NAME> {
+export class Gate<
+  SOURCE extends Stream<any, any>,
+  VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
+  NAME extends string = gate.Name,
+> extends Stream<VALUE, NAME> {
   protected _isOpen = true;
   protected _resolver?: () => void;
   protected __sourceGenerator?: AsyncGenerator<VALUE, void, any> | undefined;
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, isOpen = true) {
+  constructor(source: SOURCE, name = NAME as NAME, isOpen = true) {
     super(name, async function* () {
       try {
         while (true) {
@@ -17,8 +20,8 @@ export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, 
           let result = await self.__sourceGenerator.next();
 
           while (!result.done && self._isOpen) {
-            const maybeError = yield result.value;
-            result = await self.__sourceGenerator.next(maybeError);
+            yield result.value;
+            result = await self.__sourceGenerator.next();
           }
 
           if (self.__sourceGenerator) break;
@@ -42,9 +45,11 @@ export class Gate<VALUE, NAME extends string = gate.Name> extends Stream<VALUE, 
   }
 }
 
-export function gate<VALUE, NAME extends string = gate.Name>(
-  isOpen = true,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Gate<VALUE, NAME>> {
+export function gate<
+  SOURCE extends Stream<any, any>,
+  VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
+  NAME extends string = gate.Name,
+>(isOpen = true): Stream.Transformer<NAME, SOURCE, Gate<SOURCE, VALUE, NAME>> {
   return (_, source, name) => new Gate(source, name, isOpen);
 }
 
@@ -56,8 +61,3 @@ export namespace gate {
     readonly isOpen: boolean;
   };
 }
-
-new Stream([1, 2, 3])
-  .pipe(gate(true))
-  .pipe(consumer((v) => console.log(v)))
-  .gate.close();

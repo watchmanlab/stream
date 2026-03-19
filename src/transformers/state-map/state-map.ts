@@ -1,79 +1,114 @@
 import { Stream } from "../../streams/index.ts";
-import { effect } from "../effect/effect.ts";
-import { Map, map } from "../map/map.ts";
-import { pump } from "../pump/pump.ts";
 
 const NAME = "stateMap";
 
 export class StateMap<
-  VALUE,
-  MAPPED = VALUE,
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  MAPPED = CLEAN_VALUE,
   STATE extends Record<string, unknown> = {},
-  ERROR = unknown,
+  ERROR = never,
   NAME extends string = stateMap.Name,
-> extends Stream<MAPPED, NAME> {
-  private _map: Map<VALUE, MAPPED, ERROR>;
-  protected _errors?: Stream<map.ErrorEvent<ERROR, this>, `${NAME}Errors`>;
+> extends Stream<
+  | MAPPED
+  | Stream.ExtractSentinel<SOURCE>
+  | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>>,
+  NAME
+> {
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
 
   constructor(
-    source: Stream<VALUE, any>,
+    source: SOURCE,
     name = NAME as NAME,
     initialState: STATE,
-    mapper: stateMap.Mapper<VALUE, MAPPED, STATE, ERROR, StateMap<VALUE, MAPPED, STATE, ERROR, NAME>>,
+    mapper: stateMap.Mapper<
+      CLEAN_VALUE,
+      MAPPED,
+      STATE,
+      ERROR,
+      StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
+    >,
   ) {
     super(name, async function* () {
-      const generator = self._map[Symbol.asyncIterator]();
-      let next = await generator.next();
-      try {
-        while (!next.done) {
-          const feedback = yield next.value;
-          next = await generator.next(feedback);
+      let state = initialState;
+      for await (const value of source) {
+        if (Stream.isSentinel(value)) {
+          yield value as never;
+          continue;
         }
-      } finally {
-        await generator.return();
+
+        const cleanValue = value as CLEAN_VALUE;
+        try {
+          const maybePromise = mapper(state, cleanValue, self);
+          const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+
+          if (Stream.isErr(result)) {
+            self._errors?.push({
+              type: "expected",
+              value: cleanValue,
+              detail: result.value,
+              source: self,
+            });
+
+            yield Stream.sourceErr({
+              value: cleanValue,
+              detail: result.value,
+              source: self,
+            }) as never;
+
+            continue;
+          }
+          const [mapped, newState] = result;
+
+          state = { ...state, ...newState };
+
+          yield mapped;
+        } catch (error) {
+          if (Stream.isErr<ERROR>(error)) {
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
+            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+          } else {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+          }
+        }
       }
     });
     const self = this;
-
-    let state = initialState;
-    this._map = new Map<VALUE, MAPPED, ERROR>(source, undefined, async (value, _, compensate) => {
-      const result = await mapper(state, value, this, compensate);
-      if (Stream.Result.isErr(result)) return result;
-      const [mapped, newState] = result;
-      state = { ...state, ...newState };
-      return mapped;
-    });
   }
 
   get errors() {
-    if (!this._errors)
-      this._errors = this._map.errors.pipe(
-        `${this._name}Errors`,
-        map((error) => ({ ...error, self: this })),
-      );
+    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
+
     return this._errors;
   }
 }
 
 export function stateMap<
-  VALUE,
-  MAPPED = VALUE,
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  MAPPED = CLEAN_VALUE,
   STATE extends Record<string, unknown> = {},
-  ERROR = unknown,
+  ERROR = never,
   NAME extends string = stateMap.Name,
 >(
   initialState: STATE,
-  mapper: stateMap.Mapper<VALUE, MAPPED, STATE, ERROR, StateMap<VALUE, MAPPED, STATE, ERROR, NAME>>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, StateMap<VALUE, MAPPED, STATE, ERROR, NAME>> {
+  mapper: stateMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR, StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>> {
   return (_, source, name) => new StateMap(source, name, initialState, mapper);
 }
 
 export namespace stateMap {
   export type Name = typeof NAME;
-  export type Mapper<VALUE, MAPPED, STATE extends Record<string, unknown>, ERROR, SELF extends Stream<MAPPED, any>> = (
+  export type Mapper<
+    CLEAN_VALUE,
+    MAPPED,
+    STATE extends Record<string, unknown>,
+    ERROR,
+    SELF extends Stream<any, any>,
+  > = (
     state: STATE,
-    value: VALUE,
+    value: CLEAN_VALUE,
     self: SELF,
-    compensate: map.Compensate,
-  ) => [MAPPED, STATE] | Stream.Result.Err<ERROR> | Promise<[MAPPED, STATE] | Stream.Result.Err<ERROR>>;
+  ) => [MAPPED, Partial<STATE>] | Stream.Err<ERROR> | Promise<[MAPPED, Partial<STATE>] | Stream.Err<ERROR>>;
 }

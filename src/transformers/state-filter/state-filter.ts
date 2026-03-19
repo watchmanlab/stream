@@ -1,87 +1,94 @@
+import { CallExpression } from "typescript";
 import { Stream } from "../../streams";
-import { map } from "../map";
-import { StateMap } from "../state-map";
 
 const NAME = "stateFilter";
 
 export class StateFilter<
-  VALUE,
-  STATE extends Record<string, unknown>,
-  ERROR,
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  STATE extends Record<string, unknown> = {},
+  ERROR = never,
   NAME extends string = stateFilter.Name,
-> extends Stream<VALUE, NAME> {
-  protected _stateMap: StateMap<VALUE, { value: VALUE; keep: boolean }, STATE, ERROR>;
-  protected _errors?: Stream<map.ErrorEvent<ERROR, this>, `${NAME}Errors`>;
+> extends Stream<
+  | Stream.ExtractValue<SOURCE>
+  | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, StateFilter<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>>,
+  NAME
+> {
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
   constructor(
-    source: Stream<VALUE, any>,
+    source: SOURCE,
     name = NAME as NAME,
     initialState: STATE,
-    predicate: stateFilter.Predicate<VALUE, STATE, ERROR, StateFilter<VALUE, STATE, ERROR, NAME>>,
+    predicate: stateFilter.Predicate<CLEAN_VALUE, STATE, ERROR, StateFilter<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>>,
   ) {
     super(name, async function* () {
-      const generator = self._stateMap[Symbol.asyncIterator]();
-      let next = await generator.next();
-      try {
-        while (!next.done) {
-          const { value, keep } = next.value;
+      let state = initialState;
 
-          if (!keep) {
-            next = await generator.next();
+      for await (const value of source) {
+        if (Stream.isSentinel(value)) {
+          yield value as never;
+          continue;
+        }
+        const cleanValue = value as CLEAN_VALUE;
+        try {
+          const maybePromise = predicate(state, cleanValue, self);
+          const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+
+          if (Stream.isErr(result)) {
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: result.value });
+
+            yield Stream.sourceErr({
+              value: value,
+              detail: result.value,
+              source: self,
+            }) as never;
+
             continue;
           }
+          const [ok, newState] = result;
 
-          const feedback = yield value;
+          state = { ...state, ...newState };
 
-          next = await generator.next(feedback);
+          if (ok) yield cleanValue;
+        } catch (error) {
+          if (Stream.isErr<ERROR>(error)) {
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
+            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+          } else {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+          }
         }
-      } finally {
-        await generator.return();
       }
     });
     const self = this;
-
-    this._stateMap = new StateMap<VALUE, { value: VALUE; keep: boolean }, STATE, ERROR>(
-      source,
-      undefined,
-      initialState,
-      async (state, value, _, compensate) => {
-        const result = await predicate(state, value, this, compensate);
-        if (Stream.Result.isErr(result)) return result;
-        const [keep, newState] = result;
-        return [{ value, keep }, newState];
-      },
-    );
   }
 
   get errors() {
-    if (!this._errors)
-      this._errors = this._stateMap.errors.pipe(
-        `${this._name}Errors`,
-        map((error) => ({ ...error, self: this })),
-      );
+    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
     return this._errors;
   }
 }
 
 export function stateFilter<
-  VALUE,
-  STATE extends Record<string, unknown>,
-  ERROR,
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  STATE extends Record<string, unknown> = {},
+  ERROR = never,
   NAME extends string = stateFilter.Name,
 >(
   initialState: STATE,
-  predicate: stateFilter.Predicate<VALUE, STATE, ERROR, StateFilter<VALUE, STATE, ERROR, NAME>>,
-): Stream.Transformer<NAME, Stream<VALUE, any>, StateFilter<VALUE, STATE, ERROR, NAME>> {
+  predicate: stateFilter.Predicate<CLEAN_VALUE, STATE, ERROR, StateFilter<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, StateFilter<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>> {
   return (_, source, name) => new StateFilter(source, name, initialState, predicate);
 }
 
 export namespace stateFilter {
   export type Name = typeof NAME;
 
-  export type Predicate<VALUE, STATE extends Record<string, unknown>, ERROR, SELF extends Stream<VALUE, any>> = (
+  export type Predicate<CLEAN_VALUE, STATE extends Record<string, unknown>, ERROR, SELF extends Stream<any, any>> = (
     state: STATE,
-    value: VALUE,
+    value: CLEAN_VALUE,
     self: SELF,
-    compensate: map.Compensate,
-  ) => [boolean, STATE] | Stream.Result.Err<ERROR> | Promise<[boolean, STATE] | Stream.Result.Err<ERROR>>;
+  ) => [boolean, Partial<STATE>] | Stream.Err<ERROR> | Promise<[boolean, Partial<STATE>] | Stream.Err<ERROR>>;
 }
