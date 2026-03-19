@@ -1,4 +1,4 @@
-import { Stream } from "../../streams";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "concurrent";
 
@@ -14,7 +14,11 @@ export class Concurrent<
   | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, Concurrent<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
   NAME
 > {
-  protected _options: Required<concurrent.Options> = { concurrencyLimit: 1000, preserveOrder: false };
+  protected _options: Required<concurrent.Options> = {
+    concurrencyLimit: 1000,
+    preserveOrder: false,
+    onTerminate: "drain",
+  };
   protected _buffer: (
     | { value: CLEAN_VALUE; mapped: MAPPED | Stream.Err<ERROR> }
     | Stream.Sentinel
@@ -77,7 +81,7 @@ export class Concurrent<
               });
           }
         }
-        aborted = true;
+        if (self._options.onTerminate === "abort") aborted = true;
         resolver!?.();
       })();
       try {
@@ -111,7 +115,7 @@ export class Concurrent<
               }
             }
           } else {
-            await new Promise<void>((r) => (resolver = r));
+            if (!aborted) await new Promise<void>((r) => (resolver = r));
           }
         }
       } finally {
@@ -167,6 +171,7 @@ export namespace concurrent {
   export type Options = {
     concurrencyLimit?: number;
     preserveOrder?: boolean;
+    onTerminate?: "drain" | "abort";
   };
   export type Event<SELF extends Stream<any, any>> = {
     type: "concurrency-limit-reached";

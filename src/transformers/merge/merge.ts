@@ -1,5 +1,4 @@
 import { Stream } from "../../streams";
-import { each } from "../each";
 
 const NAME = "merge";
 

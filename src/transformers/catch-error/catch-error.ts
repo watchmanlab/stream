@@ -1,7 +1,4 @@
 import { Stream } from "../../streams/index.ts";
-import { each } from "../each/each.ts";
-import { map } from "../map/map.ts";
-import { pump } from "../pump/pump.ts";
 
 const NAME = "catchError";
 
@@ -92,19 +89,3 @@ export namespace catchError {
     self: SELF;
   };
 }
-
-const stream = new Stream([1, 2, 3, 4])
-  .pipe(
-    map((v) => {
-      if (v === 3) throw Stream.err("kechmahaja" as const);
-      return v.toFixed();
-    }),
-  )
-  .pipe(each((v) => console.log(v)))
-  .pipe(
-    catchError((ev) => {
-      ev.source;
-      console.log(ev.detail);
-    }),
-  )
-  .pipe(pump());
