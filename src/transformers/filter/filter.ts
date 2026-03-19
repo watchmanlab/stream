@@ -1,10 +1,10 @@
-import { Stream } from "../../streams/";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "filter";
 
 export class Filter<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = Filter.Name,
@@ -67,7 +67,7 @@ export class Filter<
 
 export function filter<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = Filter.Name,
@@ -77,7 +77,7 @@ export function filter<
 
 export function filter<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   ERROR = never,
   NAME extends string = Filter.Name,
 >(
@@ -86,7 +86,7 @@ export function filter<
 
 export function filter<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   ERROR = never,
   NAME extends string = Filter.Name,
 >(

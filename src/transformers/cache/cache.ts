@@ -4,10 +4,9 @@ const NAME = "Cache";
 
 export class Cache<
   SOURCE extends Stream<any, any>,
-  VALUE = Stream.ExtractValue<SOURCE>,
   CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   NAME extends string = cache.Name,
-> extends Stream<VALUE, NAME> {
+> extends Stream<Stream.ExtractValue<SOURCE>, NAME> {
   protected _buffer: CacheEntry<CLEAN_VALUE>[] = [];
   protected _options: Required<cache.Options> = { dropStrategy: "oldest", size: 1000, ttl: null };
   protected _events?: Stream<cache.Event<CLEAN_VALUE, this>>;
@@ -91,10 +90,9 @@ export class Cache<
 }
 export function cache<
   SOURCE extends Stream<any, any>,
-  VALUE = Stream.ExtractValue<SOURCE>,
   CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   NAME extends string = cache.Name,
->(options?: cache.Options): Stream.Transformer<NAME, SOURCE, Cache<SOURCE, VALUE, CLEAN_VALUE, NAME>> {
+>(options?: cache.Options): Stream.Transformer<NAME, SOURCE, Cache<SOURCE, CLEAN_VALUE, NAME>> {
   return (_, source, name) => new Cache(source, name, options);
 }
 

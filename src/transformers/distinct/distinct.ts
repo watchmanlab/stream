@@ -1,4 +1,4 @@
-import { Stream } from "../../streams";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "distinct";
 

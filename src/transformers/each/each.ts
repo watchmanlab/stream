@@ -4,7 +4,7 @@ const NAME = "each";
 
 export class Each<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   ERROR = never,
   NAME extends string = each.Name,
 > extends Stream<
@@ -65,7 +65,7 @@ export class Each<
 }
 export function each<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   ERROR = never,
   NAME extends string = each.Name,
 >(

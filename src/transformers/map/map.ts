@@ -4,7 +4,7 @@ const NAME = "map";
 
 export class Map<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = map.Name,
@@ -73,7 +73,7 @@ export class Map<
 
 export function map<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = map.Name,

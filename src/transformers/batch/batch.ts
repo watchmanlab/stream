@@ -8,7 +8,7 @@ type FixedArray<CLEAN_VALUE, SIZE extends number = 2, ARR extends Array<CLEAN_VA
 
 export class Batch<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   SIZE extends number = 2,
   NAME extends string = batch.Name,
 > extends Stream<FixedArray<CLEAN_VALUE, SIZE> | Stream.ExtractSentinel<SOURCE>, NAME> {
@@ -37,7 +37,7 @@ export class Batch<
 }
 export function batch<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   SIZE extends number = 2,
   NAME extends string = batch.Name,
 >(size: SIZE): Stream.Transformer<NAME, SOURCE, Batch<SOURCE, CLEAN_VALUE, SIZE, NAME>> {

@@ -1,10 +1,10 @@
-import { Stream } from "../../streams";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "effect";
 
 export class Effect<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   ERROR = never,
   NAME extends string = effect.Name,
 > extends Stream<
@@ -70,7 +70,7 @@ export class Effect<
 }
 export function effect<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   ERROR = never,
   NAME extends string = effect.Name,
 >(

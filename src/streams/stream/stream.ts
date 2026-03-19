@@ -219,6 +219,9 @@ export namespace Stream {
     private readonly __sentinel = Symbol("__sentinel");
   }
   export class Terminate extends Sentinel {}
+  export function terminate(): Terminate {
+    return new Terminate();
+  }
   export function isTerminate(object: unknown): object is Terminate {
     return object instanceof Terminate;
   }

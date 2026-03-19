@@ -4,7 +4,7 @@ const NAME = "branch";
 
 export class Branch<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   NAME extends string = branch.Name,
 > extends Stream<Stream.ExtractValue<SOURCE>, NAME> {
   constructor(
@@ -24,7 +24,7 @@ export class Branch<
 
 export function branch<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   NAME extends string = branch.Name,
 >(
   ...targets: [Stream<CLEAN_VALUE, any>, ...Stream<CLEAN_VALUE, any>[]]

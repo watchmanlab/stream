@@ -1,10 +1,10 @@
-import { Stream } from "../../streams";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "queue";
 
 export class Queue<
   SOURCE extends Stream<any, any>,
-  VALUE = Stream.ExtractValue<SOURCE>,
+  VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
   NAME extends string = queue.Name,
 > extends Stream<VALUE, NAME> {
   protected _buffer = new Array<VALUE>();
@@ -86,7 +86,7 @@ export class Queue<
 
 export function queue<
   SOURCE extends Stream<any, any>,
-  VALUE = Stream.ExtractValue<SOURCE>,
+  VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
   NAME extends string = queue.Name,
 >(options?: queue.Options): Stream.Transformer<NAME, SOURCE, Queue<SOURCE, VALUE, NAME>> {
   return (_, source, name) => new Queue(source, name, options);
