@@ -14,7 +14,8 @@ export class StateEach<
   ERROR = never,
   NAME extends string = stateEach.Name,
 > extends Stream<Stream.ExtractValue<SOURCE>, NAME> {
-  private _stateMap: StateMap<SOURCE, CLEAN_VALUE, CLEAN_VALUE, STATE, ERROR>;
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
+
   constructor(
     source: SOURCE,
     name = NAME as NAME,
@@ -22,20 +23,51 @@ export class StateEach<
     callback: stateEach.Callback<CLEAN_VALUE, STATE, ERROR, StateEach<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>>,
   ) {
     super(name, async function* () {
-      yield* self._stateMap;
+      let state = initialState;
+
+      for await (const value of source) {
+        if (Stream.isSourceErr(value)) {
+          yield value as never;
+          continue;
+        }
+
+        const cleanValue = value as CLEAN_VALUE;
+
+        try {
+          const maybePromise = callback(state, cleanValue, self);
+          const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+
+          if (Stream.isErr<ERROR>(result)) {
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: result.value });
+
+            yield Stream.sourceErr({
+              source: self,
+              value: value,
+              detail: result.value,
+            }) as never;
+
+            continue;
+          }
+
+          state = { ...state, ...result };
+
+          yield cleanValue;
+        } catch (error) {
+          if (Stream.isErr<ERROR>(error)) {
+            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
+            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+          } else {
+            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
+            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+          }
+        }
+      }
     });
     const self = this;
-
-    this._stateMap = new StateMap<SOURCE, CLEAN_VALUE, CLEAN_VALUE, STATE, ERROR>(
-      source,
-      undefined,
-      initialState,
-      async (state, value, _) => {
-        const newState = await callback(state, value, this);
-        if (Stream.isErr(newState)) return newState;
-        return [value, newState];
-      },
-    );
+  }
+  get errors() {
+    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
+    return this._errors;
   }
 }
 

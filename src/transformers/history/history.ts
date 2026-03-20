@@ -1,30 +1,40 @@
-import { statefull } from "../state-map";
-import { Stream } from "../../stream-0";
+import { Stream } from "../../streams/index.ts";
+import { FixedArray } from "../../types/index.ts";
 
-/**
- * Emit array of last N values (sliding window)
- *
- * @example
- * ```typescript
- * stream.pipe(history(3))
- * // 1 → [1]
- * // 2 → [1, 2]
- * // 3 → [1, 2, 3]
- * // 4 → [2, 3, 4]
- * ```
- */
+const NAME = "history";
 
-export function history<VALUE>(size: number): Stream.Transformer<Stream<VALUE>, Stream<VALUE[]>> {
-  return function (source) {
-    return new Stream((self) => {
-      let window: VALUE[] = [];
+export class History<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  NAME extends string = history.Name,
+> extends Stream<CLEAN_VALUE[] | Stream.ExtractSentinel<SOURCE>, NAME> {
+  constructor(source: SOURCE, name = NAME as NAME, size: number) {
+    super(name, async function* () {
+      let window: CLEAN_VALUE[] = [];
 
-      return source
-        .listen((value) => {
-          window = [...window, value].slice(-size);
-          self.push(window);
-        })
-        .addCleanup(() => (window.length = 0));
+      for await (const value of source) {
+        if (Stream.isSentinel(value)) {
+          yield value as never;
+          continue;
+        }
+        if (window.length === size) window.unshift();
+
+        window.push(value);
+
+        yield window;
+      }
     });
-  };
+  }
+}
+
+export function history<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  NAME extends string = history.Name,
+>(size: number): Stream.Transformer<NAME, SOURCE, History<SOURCE, CLEAN_VALUE, NAME>> {
+  return (_, source, name) => new History(source, name, size);
+}
+
+export namespace history {
+  export type Name = typeof NAME;
 }

@@ -1,19 +1,35 @@
-import { Stream } from "../../stream-0";
-import { map } from "../map";
+import { Stream } from "../../streams/index.ts";
+import { effect } from "../effect/effect.ts";
+import { Map } from "../map";
+import { pump } from "../pump/pump.ts";
 
-/**
- * Extract object property
- *
- * @example
- * ```typescript
- * stream.pipe(pluck("name"))
- * ```
- */
+const NAME = "pluck";
 
-export function pluck<VALUE extends object, KEY extends keyof VALUE>(
-  key: KEY,
-): Stream.Transformer<Stream<VALUE>, Stream<VALUE[KEY]>> {
-  return function (stream) {
-    return stream.pipe(map((value) => value[key]));
-  };
+export class Pluck<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  KEY extends keyof CLEAN_VALUE = keyof CLEAN_VALUE,
+  NAME extends string = pluck.Name,
+> extends Stream<CLEAN_VALUE[KEY], NAME> {
+  constructor(source: SOURCE, name = NAME as NAME, key: KEY) {
+    super(name, new Map(source, name, (value: any) => value[key]));
+  }
 }
+
+export function pluck<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  KEY extends keyof CLEAN_VALUE = keyof CLEAN_VALUE,
+  NAME extends string = pluck.Name,
+>(key: KEY): Stream.Transformer<NAME, SOURCE, Pluck<SOURCE, CLEAN_VALUE, KEY, NAME>> {
+  return (_, source, name) => new Pluck(source, name, key);
+}
+
+export namespace pluck {
+  export type Name = typeof NAME;
+}
+
+new Stream([1, 2, 4])
+  .pipe(pluck("toFixed"))
+  .pipe(effect((v) => console.log(v)))
+  .pipe(pump());

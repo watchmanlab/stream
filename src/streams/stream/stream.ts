@@ -107,7 +107,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       return;
     }
   }
-
   next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
     return this[Symbol.asyncIterator]().next();
   }
@@ -178,7 +177,6 @@ export namespace Stream {
   export type ExcludeSourceErr<T> = Exclude<ExtractValue<T>, SourceErr<any, any, any>>;
   export type ExtractSource<SOURCE_ERR extends SourceErr<any, any, any>> =
     SOURCE_ERR extends SourceErr<any, any, infer SOURCE> ? SOURCE : never;
-
   export type MaybeSourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> = [ERROR] extends [never]
     ? never
     : SourceErr<CLEAN_VALUE, ERROR, SOURCE>;
@@ -198,7 +196,6 @@ export namespace Stream {
     stream: INPUT,
     name?: NAME,
   ) => OUTPUT;
-
   export type Traversable<NAME extends string, INPUT extends Stream<any, any>> = Record<
     NAME | (`$${string}` & {}),
     INPUT
@@ -214,7 +211,6 @@ export namespace Stream {
         conflictingProperty: OUTPUT[NAME];
       }
     : OUTPUT & Traversable<NAME, INPUT>;
-
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("__sentinel");
   }
@@ -228,7 +224,6 @@ export namespace Stream {
   export function isSentinel<T extends Sentinel>(object: unknown): object is T {
     return object instanceof Sentinel;
   }
-
   export type ErrorEvent<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> =
     | {
         type: "expected";
@@ -237,7 +232,6 @@ export namespace Stream {
         source: SOURCE;
       }
     | { type: "unexpected"; source: SOURCE; value: CLEAN_VALUE; detail: unknown };
-
   export class SourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> extends Stream.Sentinel {
     constructor(
       public readonly value: CLEAN_VALUE,
@@ -247,7 +241,6 @@ export namespace Stream {
       super();
     }
   }
-
   export class Err<ERROR> {
     constructor(public readonly value: ERROR) {}
   }
@@ -273,7 +266,8 @@ export namespace Stream {
   ): object is SourceErr<CLEAN_VALUE, ERROR, SOURCE> {
     return object instanceof SourceErr;
   }
-
+  export const EMPTY = Symbol("*EMPTY#");
+  export type Empty = typeof EMPTY;
   export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 }
 

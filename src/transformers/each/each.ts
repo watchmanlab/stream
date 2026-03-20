@@ -42,7 +42,7 @@ export class Each<
             continue;
           }
 
-          yield cleanValue as never;
+          yield cleanValue;
         } catch (error) {
           if (Stream.isErr<ERROR>(error)) {
             self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });

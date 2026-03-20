@@ -1,10 +1,7 @@
 import { Stream } from "../../streams/index.ts";
+import { FixedArray } from "../../types/index.ts";
 
 const NAME = "batch";
-
-type FixedArray<CLEAN_VALUE, SIZE extends number = 2, ARR extends Array<CLEAN_VALUE> = []> = ARR["length"] extends SIZE
-  ? ARR
-  : FixedArray<CLEAN_VALUE, SIZE, [...ARR, CLEAN_VALUE]>;
 
 export class Batch<
   SOURCE extends Stream<any, any>,
