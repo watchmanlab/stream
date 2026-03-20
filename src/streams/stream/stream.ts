@@ -52,7 +52,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._sourceGenerator.next().then((result) => {
         this._requestingNext = false;
         if (result.done) {
-          this.push(new Stream.Terminate() as VALUE);
+          this.push(Stream.TERMINATE as VALUE);
           return;
         }
         this.push(result.value);
@@ -77,7 +77,11 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       while (true) {
         if (queue.length) {
           const value = queue.shift()!;
-          if (Stream.isTerminate(value)) break;
+          if (value === Stream.TERMINATE) {
+            break;
+          } else if (value === Stream.SKIP) {
+            continue;
+          }
 
           yield value;
         } else {
@@ -214,16 +218,15 @@ export namespace Stream {
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("__sentinel");
   }
-  export class Terminate extends Sentinel {}
-  export function terminate(): Terminate {
-    return new Terminate();
-  }
-  export function isTerminate(object: unknown): object is Terminate {
-    return object instanceof Terminate;
-  }
   export function isSentinel<T extends Sentinel>(object: unknown): object is T {
     return object instanceof Sentinel;
   }
+  export const TERMINATE = Symbol("*TEMINATE#");
+  export type Terminate = typeof TERMINATE;
+
+  export const SKIP = Symbol("*SKIP#");
+  export type Skip = typeof SKIP;
+
   export type ErrorEvent<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> =
     | {
         type: "expected";

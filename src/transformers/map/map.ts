@@ -4,14 +4,19 @@ const NAME = "map";
 
 export class Map<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  SELF extends Stream<any, any> = never,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = map.Name,
 > extends Stream<
   | MAPPED
   | Stream.ExtractSentinel<SOURCE>
-  | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
+  | Stream.MaybeSourceErr<
+      CLEAN_VALUE,
+      ERROR,
+      [SELF] extends [never] ? Map<SOURCE, never, CLEAN_VALUE, MAPPED, ERROR, NAME> : SELF
+    >,
   NAME
 > {
   protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
@@ -19,7 +24,7 @@ export class Map<
   constructor(
     source: SOURCE,
     name = NAME as NAME,
-    mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR, Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
+    mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR, Map<SOURCE, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
   ) {
     super(name, async function* () {
       for await (const value of source) {
@@ -50,7 +55,7 @@ export class Map<
             continue;
           }
 
-          yield result;
+          yield result as never;
         } catch (error) {
           if (Stream.isErr<ERROR>(error)) {
             self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
@@ -73,13 +78,14 @@ export class Map<
 
 export function map<
   SOURCE extends Stream<any, any>,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  SELF extends Stream<any, any> = never,
+  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = map.Name,
 >(
-  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR, Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Map<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
+  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR, Map<SOURCE, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
+): Stream.Transformer<NAME, SOURCE, Map<SOURCE, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
   return (_, source, name) => new Map(source, name, mapper);
 }
 
@@ -89,5 +95,10 @@ export namespace map {
   export type Mapper<CLEAN_VALUE, MAPPED, ERROR, SELF extends Stream<any, any>> = (
     value: CLEAN_VALUE,
     self: SELF,
-  ) => MAPPED | Stream.Err<ERROR> | Promise<MAPPED | Stream.Err<ERROR>>;
+  ) =>
+    | MAPPED
+    | Stream.Err<ERROR>
+    | Stream.Terminate
+    | Stream.Skip
+    | Promise<MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
 }

@@ -9,10 +9,11 @@ export class Pluck<
   SOURCE extends Stream<any, any>,
   CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   KEY extends keyof CLEAN_VALUE = keyof CLEAN_VALUE,
+  ERROR = never,
   NAME extends string = pluck.Name,
-> extends Stream<CLEAN_VALUE[KEY], NAME> {
+> extends Map<SOURCE, CLEAN_VALUE, CLEAN_VALUE[KEY], ERROR, NAME> {
   constructor(source: SOURCE, name = NAME as NAME, key: KEY) {
-    super(name, new Map(source, name, (value: any) => value[key]));
+    super(source, name, (value) => value[key]);
   }
 }
 
@@ -20,16 +21,12 @@ export function pluck<
   SOURCE extends Stream<any, any>,
   CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   KEY extends keyof CLEAN_VALUE = keyof CLEAN_VALUE,
+  ERROR = never,
   NAME extends string = pluck.Name,
->(key: KEY): Stream.Transformer<NAME, SOURCE, Pluck<SOURCE, CLEAN_VALUE, KEY, NAME>> {
+>(key: KEY): Stream.Transformer<NAME, SOURCE, Pluck<SOURCE, CLEAN_VALUE, KEY, ERROR, NAME>> {
   return (_, source, name) => new Pluck(source, name, key);
 }
 
 export namespace pluck {
   export type Name = typeof NAME;
 }
-
-new Stream([1, 2, 4])
-  .pipe(pluck("toFixed"))
-  .pipe(effect((v) => console.log(v)))
-  .pipe(pump());
