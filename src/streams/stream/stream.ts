@@ -243,6 +243,9 @@ export namespace Stream {
     ) {
       super();
     }
+    get name(): SOURCE["name"] {
+      return this.source.name;
+    }
   }
   export class Err<ERROR> {
     constructor(public readonly value: ERROR) {}

@@ -13,14 +13,17 @@ export class Filter<
   FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = filter.Name,
-> extends Map<
-  SOURCE,
-  [SELF] extends [never] ? Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME> : SELF,
-  CLEAN_VALUE,
-  FILTERED,
-  ERROR,
-  NAME
-> {
+>
+  extends Map<
+    SOURCE,
+    [SELF] extends [never] ? Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME> : SELF,
+    CLEAN_VALUE,
+    FILTERED,
+    ERROR,
+    NAME
+  >
+  implements Record<any, any>
+{
   protected _events?: Stream<filter.Event<CLEAN_VALUE, this>, `${NAME}Events`>;
   constructor(
     source: SOURCE,
@@ -98,11 +101,22 @@ new Stream([1, 2, 3])
       return v !== 2;
     }),
   )
-  .pipe(map((v) => v.toFixed()))
+  .pipe(
+    map((v) => {
+      if (v === 3) return Stream.err("error map" as const);
+      return v.toFixed();
+    }),
+  )
   .pipe(each((v) => console.log(v)))
   .pipe(
     catchError((e) => {
-      e.source;
+      switch (e.source.name) {
+        case "filter":
+          e.source;
+
+        case "map":
+          e.source;
+      }
     }),
   )
   .pipe(pump());

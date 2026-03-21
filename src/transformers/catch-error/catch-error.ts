@@ -4,7 +4,7 @@ const NAME = "catchError";
 
 export class CatchError<
   SOURCE extends Stream<any, any>,
-  SOURCE_ERR extends Stream.SourceErr<any, any, any> = Stream.ExtractSourceErr<SOURCE>,
+  SOURCE_ERR extends Stream.ExtractSourceErr<SOURCE> = Stream.ExtractSourceErr<SOURCE>,
   ERROR = never,
   NAME extends string = catchError.Name,
 > extends Stream<
@@ -66,7 +66,7 @@ export class CatchError<
 
 export function catchError<
   SOURCE extends Stream<any, any>,
-  SOURCE_ERR extends Stream.SourceErr<any, any, any> = Stream.ExtractSourceErr<SOURCE>,
+  SOURCE_ERR extends Stream.ExtractSourceErr<SOURCE> = Stream.ExtractSourceErr<SOURCE>,
   ERROR = never,
   NAME extends string = catchError.Name,
 >(
