@@ -4,12 +4,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   protected _source?: Stream.Source<VALUE>;
   protected _sourceGenerator?: AsyncGenerator<VALUE, void, unknown>;
   protected _name = NAME as NAME;
-
   constructor();
   constructor(source: Stream.Source<VALUE>);
   constructor(name: NAME);
   constructor(name: NAME, source: Stream.Source<VALUE>);
-
   constructor(sourceOrName?: Stream.Source<VALUE> | NAME, source?: Stream.Source<VALUE>) {
     if (typeof sourceOrName === "string" || sourceOrName instanceof String) {
       this._name = (sourceOrName as NAME) ?? NAME;
@@ -18,11 +16,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._source = sourceOrName;
     }
   }
-
   get name() {
     return this._name;
   }
-
   push(value: VALUE, ...values: VALUE[]): Stream.PushResult {
     const readyPromises = new Array<Promise<void>>();
 
@@ -59,7 +55,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       });
     }
   }
-
   protected _onConsumerJoin?: (queue: VALUE[]) => void;
   protected _onConsumerLeft?: () => void;
   async *[Symbol.asyncIterator]() {
@@ -115,11 +110,11 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     return this[Symbol.asyncIterator]().next();
   }
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream.Transformer<this, any, CUSTOM_NAME>>(
-    transformer: Stream.Transforme<CUSTOM_NAME, this, OUTPUT>,
+    transformer: Stream.Transforme<this, CUSTOM_NAME, OUTPUT>,
   ): Stream.Traversable<NAME, this, OUTPUT>;
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream.Transformer<this, any, CUSTOM_NAME>>(
     name: CUSTOM_NAME,
-    transformer: Stream.Transforme<CUSTOM_NAME, this, OUTPUT>,
+    transformer: Stream.Transforme<this, CUSTOM_NAME, OUTPUT>,
   ): Stream.Traversable<NAME, this, OUTPUT>;
   pipe(transformerOrName1: Function | string, transformer?: Function) {
     return typeof transformerOrName1 === "string"
@@ -146,6 +141,8 @@ export namespace Stream {
     T extends Source<infer VALUE> ? VALUE : T extends SourceErr<infer VALUE, any, any> ? VALUE : T;
   export type ExtractName<T extends Stream<any, any> | SourceErr<any, any, any>> =
     T extends Stream<any, infer NAME> ? NAME : T extends SourceErr<any, any, any> ? ExtractName<T["source"]> : never;
+  export type ExtractInputStream<T extends Transformer<any, any, any>> =
+    T extends Transformer<infer INPUT_STREAM, any, any> ? INPUT_STREAM : never;
   export type ExtractSentinel<T> = Extract<ExtractValue<T>, Sentinel>;
   export type ExtractCleanValue<T> = Exclude<ExtractValue<T>, Sentinel>;
   export type ExtractError<T extends Err<any> | SourceErr<any, any, any>> =
@@ -169,19 +166,23 @@ export namespace Stream {
     then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
   };
   export type Transforme<
-    NAME extends string,
     INPUT_STREAM extends Stream<any, any>,
-    OUTPUT extends Transformer<INPUT_STREAM, any, NAME>,
+    OUTPUT_NAME extends string,
+    OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, OUTPUT_NAME>,
   > = (
     useTransformerInsidePipePlease: UseTransformerInsidePipePlease,
     inputStream: INPUT_STREAM,
-    name?: NAME,
-  ) => OUTPUT;
+    name?: OUTPUT_NAME,
+  ) => OUTPUT_STREAM;
   export class Transformer<INPUT_STREAM extends Stream<any, any>, OUTPUT_VALUE, NAME extends string> extends Stream<
     OUTPUT_VALUE,
     NAME
   > {
-    constructor(name: NAME, inputStream: INPUT_STREAM, source: Stream.Source<OUTPUT_VALUE>) {
+    protected constructor(
+      name: NAME,
+      public readonly inputStream: INPUT_STREAM,
+      source: Stream.Source<OUTPUT_VALUE>,
+    ) {
       super(name, source);
       if (inputStream.name in this) {
         throw new Error(
@@ -203,21 +204,11 @@ export namespace Stream {
     }
   }
   export type Traversable<
-    NAME extends string,
-    INPUT extends Stream<any, any>,
-    OUTPUT extends Stream<any, any>,
-  > = OUTPUT & Record<NAME | (`$${string}` & {}), INPUT>;
-  // export type PipeResult<
-  //   NAME extends string,
-  //   INPUT extends Stream<any, NAME>,
-  //   OUTPUT extends Stream<any, any>,
-  // > = NAME extends keyof OUTPUT
-  //   ? {
-  //       error: `Naming conflict: "${NAME}" already exists in ${OUTPUT["name"]}`;
-  //       suggestion: `Use .pipe("$${NAME}", transformer) or rename the stream`;
-  //       conflictingProperty: OUTPUT[NAME];
-  //     }
-  //   : Traversable<NAME, INPUT, OUTPUT>;
+    INPUT_NAME extends string,
+    INPUT_STREAM extends Stream<any, INPUT_NAME>,
+    OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, any>,
+  > = OUTPUT_STREAM & Record<INPUT_NAME | (`$${string}` & {}), INPUT_STREAM>;
+
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("__sentinel");
   }
