@@ -4,7 +4,6 @@ const NAME = "map";
 
 export class Map<
   INPUT_STREAM extends Stream<any, any>,
-  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
   SELF extends Stream<any, any> = never,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
@@ -16,24 +15,19 @@ export class Map<
   | Stream.MaybeSourceErr<
       CLEAN_VALUE,
       ERROR,
-      [SELF] extends [never] ? Map<INPUT_STREAM, INPUT_NAME, never, CLEAN_VALUE, MAPPED, ERROR, NAME> : SELF
+      [SELF] extends [never] ? Map<INPUT_STREAM, never, CLEAN_VALUE, MAPPED, ERROR, NAME> : SELF
     >,
   NAME
 > {
   protected _errors?: Stream<
-    Stream.ErrorEvent<CLEAN_VALUE, ERROR, Stream.Traversable<this, INPUT_NAME, INPUT_STREAM>>,
+    Stream.ErrorEvent<CLEAN_VALUE, ERROR, Stream.Transformer<this, INPUT_STREAM>>,
     `${NAME}Errors`
   >;
 
   constructor(
     name = NAME as NAME,
     inputStream: INPUT_STREAM,
-    mapper: map.Mapper<
-      CLEAN_VALUE,
-      MAPPED,
-      ERROR,
-      Map<INPUT_STREAM, INPUT_NAME, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>
-    >,
+    mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR, Map<INPUT_STREAM, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
   ) {
     super(name, async function* () {
       for await (const value of inputStream) {
@@ -87,15 +81,14 @@ export class Map<
 
 export function map<
   INPUT_STREAM extends Stream<any, any>,
-  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
   SELF extends Stream<any, any> = never,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = map.Name,
 >(
-  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR, Map<INPUT_STREAM, INPUT_NAME, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
-): Stream.Transforme<INPUT_STREAM, NAME, Map<INPUT_STREAM, INPUT_NAME, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
+  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR, Map<INPUT_STREAM, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
+): Stream.Transforme<INPUT_STREAM, NAME, Map<INPUT_STREAM, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
   return (_, imputStream, name) => new Map(name, imputStream, mapper);
 }
 
@@ -119,5 +112,5 @@ const stream = new Stream([1, 2, 4])
     map((v) => v.toFixed()),
   )
   .pipe(map((v) => v));
-//                                                                           ^?
+//           ^?
 stream.mappa;
