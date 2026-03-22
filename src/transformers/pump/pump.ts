@@ -58,7 +58,7 @@ class Pump<VALUE, NAME extends string = pump.Name> extends Stream<VALUE, NAME> {
     this.__sourceGenerator = undefined;
   }
 }
-export function pump<VALUE, NAME extends string = pump.Name>(): Stream.Transformer<
+export function pump<VALUE, NAME extends string = pump.Name>(): Stream.Transforme<
   NAME,
   Stream<VALUE, any>,
   Pump<VALUE, NAME>
@@ -66,7 +66,7 @@ export function pump<VALUE, NAME extends string = pump.Name>(): Stream.Transform
 
 export function pump<VALUE, NAME extends string = pump.Name>(
   options?: pump.Options,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Pump<VALUE, NAME>> {
+): Stream.Transforme<NAME, Stream<VALUE, any>, Pump<VALUE, NAME>> {
   return (_, source, name) => new Pump(source, name, options);
 }
 

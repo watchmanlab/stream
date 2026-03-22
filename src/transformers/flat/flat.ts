@@ -32,7 +32,7 @@ export function flat<
   CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   DEPTH extends number = 0,
   NAME extends string = flat.Name,
->(depth: DEPTH = 0 as DEPTH): Stream.Transformer<NAME, SOURCE, Flat<SOURCE, CLEAN_VALUE, DEPTH, NAME>> {
+>(depth: DEPTH = 0 as DEPTH): Stream.Transforme<NAME, SOURCE, Flat<SOURCE, CLEAN_VALUE, DEPTH, NAME>> {
   return (_, source, name) => new Flat(source, name, depth);
 }
 

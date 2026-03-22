@@ -33,7 +33,7 @@ export function each<
   NAME extends string = each.Name,
 >(
   callback: each.Callback<CLEAN_VALUE, ERROR, Each<SOURCE, SELF, CLEAN_VALUE, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Each<SOURCE, SELF, CLEAN_VALUE, ERROR, NAME>> {
+): Stream.Transforme<NAME, SOURCE, Each<SOURCE, SELF, CLEAN_VALUE, ERROR, NAME>> {
   return (_, source, name) => new Each(source, name, callback);
 }
 export namespace each {

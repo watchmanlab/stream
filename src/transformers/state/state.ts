@@ -33,7 +33,7 @@ class State<VALUE, NAME extends string = state.Name> extends Stream<VALUE, NAME>
 
 export function state<VALUE, NAME extends string = state.Name>(
   initialValue: VALUE,
-): Stream.Transformer<NAME, Stream<VALUE, any>, State<VALUE, NAME>> {
+): Stream.Transforme<NAME, Stream<VALUE, any>, State<VALUE, NAME>> {
   return (_, source, name) => new State(source, name, initialValue);
 }
 

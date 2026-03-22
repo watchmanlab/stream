@@ -28,7 +28,7 @@ export function branch<
   NAME extends string = branch.Name,
 >(
   ...targets: [Stream<CLEAN_VALUE, any>, ...Stream<CLEAN_VALUE, any>[]]
-): Stream.Transformer<NAME, SOURCE, Branch<SOURCE, CLEAN_VALUE, NAME>> {
+): Stream.Transforme<NAME, SOURCE, Branch<SOURCE, CLEAN_VALUE, NAME>> {
   return (_, source, name) => new Branch(source, name, ...targets);
 }
 

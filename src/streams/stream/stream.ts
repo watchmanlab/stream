@@ -114,47 +114,20 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
     return this[Symbol.asyncIterator]().next();
   }
-  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
-    transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
-  ): Stream.PipeResult<NAME, this, OUTPUT>;
-  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
-    transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
+  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream.Transformer<this, any, CUSTOM_NAME>>(
+    transformer: Stream.Transforme<CUSTOM_NAME, this, OUTPUT>,
+  ): Stream.Traversable<NAME, this, OUTPUT>;
+  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream.Transformer<this, any, CUSTOM_NAME>>(
     name: CUSTOM_NAME,
-  ): Stream.PipeResult<NAME, this, OUTPUT>;
-  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
-    name: CUSTOM_NAME,
-    transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
-  ): Stream.PipeResult<NAME, this, OUTPUT>;
-  pipe(transformerOrName1: Function | string, transformerOrName2?: Function | string) {
-    const output =
-      typeof transformerOrName1 === "string" && typeof transformerOrName2 === "function"
-        ? (transformerOrName2!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this, transformerOrName1) as any)
-        : typeof transformerOrName1 === "function"
-          ? (transformerOrName1!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this, transformerOrName2) as any)
-          : void 0;
-
-    if (this._name in output) {
-      throw new Error(
-        `Naming conflict: Cannot name ${this.constructor.name} transformer with "${this._name}" ` +
-          `because ${output.constructor.name} already has a property with that name.\n` +
-          `Solutions:\n` +
-          `  1. Use different name in pipe: .pipe("$${this._name}", ${this.constructor.name})\n` +
-          `  2. Rename on stream creation: new Stream<T, "$${this._name}">()\n` +
-          `conflictingProperty:${output[this._name]};`,
-      );
-    }
-    output[this._name] = this;
-
-    const self = this;
-    return new Proxy(output, {
-      get(target, p, receiver) {
-        if (p in target) return Reflect.get(target, p, receiver);
-
-        return target[NAME] || self;
-      },
-    });
+    transformer: Stream.Transforme<CUSTOM_NAME, this, OUTPUT>,
+  ): Stream.Traversable<NAME, this, OUTPUT>;
+  pipe(transformerOrName1: Function | string, transformer?: Function) {
+    return typeof transformerOrName1 === "string"
+      ? (transformer!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this, transformerOrName1) as any)
+      : typeof transformerOrName1 === "function"
+        ? (transformerOrName1!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this) as any)
+        : void 0;
   }
-
   static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, unknown> {
     return (async function* () {
       if (!source) return;
@@ -195,26 +168,56 @@ export namespace Stream {
     readonly awaitAnyConsumer: Promise<void>;
     then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
   };
-  export type Transformer<NAME extends string, INPUT extends Stream<any, any>, OUTPUT extends Stream<any, NAME>> = (
+  export type Transforme<
+    NAME extends string,
+    INPUT_STREAM extends Stream<any, any>,
+    OUTPUT extends Transformer<INPUT_STREAM, any, NAME>,
+  > = (
     useTransformerInsidePipePlease: UseTransformerInsidePipePlease,
-    stream: INPUT,
+    inputStream: INPUT_STREAM,
     name?: NAME,
   ) => OUTPUT;
-  export type Traversable<NAME extends string, INPUT extends Stream<any, any>> = Record<
-    NAME | (`$${string}` & {}),
-    INPUT
-  >;
-  export type PipeResult<
-    NAME extends string,
-    INPUT extends Stream<any, NAME>,
-    OUTPUT extends Stream<any, any>,
-  > = NAME extends keyof OUTPUT
-    ? {
-        error: `Naming conflict: "${NAME}" already exists in ${OUTPUT["name"]}`;
-        suggestion: `Use .pipe("$${NAME}", transformer) or rename the stream`;
-        conflictingProperty: OUTPUT[NAME];
+  export class Transformer<INPUT_STREAM extends Stream<any, any>, OUTPUT_VALUE, NAME extends string> extends Stream<
+    OUTPUT_VALUE,
+    NAME
+  > {
+    constructor(name: NAME, inputStream: INPUT_STREAM, source: Stream.Source<OUTPUT_VALUE>) {
+      super(name, source);
+      if (inputStream.name in this) {
+        throw new Error(
+          `Naming conflict: Cannot name ${inputStream.constructor.name} ${inputStream instanceof Transformer ? "transformer" : "stream"} with "${inputStream.name}" ` +
+            `because ${this.constructor.name} already has a property with that name.\n` +
+            `Solution:\n` +
+            `${inputStream instanceof Transformer ? `Use different name in pipe: .pipe("$${inputStream.name}", ${inputStream.constructor.name})\n` : `Rename on stream creation: new Stream<T, "$${inputStream.name}">()\n`}` +
+            `conflictingProperty:${(this as any)[name]};`,
+        );
       }
-    : OUTPUT & Traversable<NAME, INPUT>;
+
+      return new Proxy(this, {
+        get(target, p, receiver) {
+          if (p in target) return Reflect.get(target, p, receiver);
+
+          return inputStream;
+        },
+      });
+    }
+  }
+  export type Traversable<
+    NAME extends string,
+    INPUT extends Stream<any, any>,
+    OUTPUT extends Stream<any, any>,
+  > = OUTPUT & Record<NAME | (`$${string}` & {}), INPUT>;
+  // export type PipeResult<
+  //   NAME extends string,
+  //   INPUT extends Stream<any, NAME>,
+  //   OUTPUT extends Stream<any, any>,
+  // > = NAME extends keyof OUTPUT
+  //   ? {
+  //       error: `Naming conflict: "${NAME}" already exists in ${OUTPUT["name"]}`;
+  //       suggestion: `Use .pipe("$${NAME}", transformer) or rename the stream`;
+  //       conflictingProperty: OUTPUT[NAME];
+  //     }
+  //   : Traversable<NAME, INPUT, OUTPUT>;
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("__sentinel");
   }
@@ -223,10 +226,8 @@ export namespace Stream {
   }
   export const TERMINATE = Symbol("*TEMINATE#");
   export type Terminate = typeof TERMINATE;
-
   export const SKIP = Symbol("*SKIP#");
   export type Skip = typeof SKIP;
-
   export type ErrorEvent<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> =
     | {
         type: "expected";

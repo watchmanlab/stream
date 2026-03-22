@@ -75,7 +75,7 @@ export function effect<
   NAME extends string = effect.Name,
 >(
   callback: effect.Callback<CLEAN_VALUE, ERROR, Effect<SOURCE, CLEAN_VALUE, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Effect<SOURCE, CLEAN_VALUE, ERROR, NAME>> {
+): Stream.Transforme<NAME, SOURCE, Effect<SOURCE, CLEAN_VALUE, ERROR, NAME>> {
   return (_, source, name) => new Effect(source, name, callback);
 }
 export namespace effect {

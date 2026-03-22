@@ -49,7 +49,7 @@ export function gate<
   SOURCE extends Stream<any, any>,
   VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
   NAME extends string = gate.Name,
->(isOpen = true): Stream.Transformer<NAME, SOURCE, Gate<SOURCE, VALUE, NAME>> {
+>(isOpen = true): Stream.Transforme<NAME, SOURCE, Gate<SOURCE, VALUE, NAME>> {
   return (_, source, name) => new Gate(source, name, isOpen);
 }
 

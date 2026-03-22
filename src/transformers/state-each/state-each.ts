@@ -80,7 +80,7 @@ export function stateEach<
 >(
   initialState: STATE,
   callback: stateEach.Callback<CLEAN_VALUE, STATE, ERROR, StateEach<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, StateEach<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>> {
+): Stream.Transforme<NAME, SOURCE, StateEach<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>> {
   return (_, source, name) => new StateEach(source, name, initialState, callback);
 }
 

@@ -1,6 +1,6 @@
-# Transformer Design Rules
+# Transforme Design Rules
 
-## When to Add a Builtin Transformer
+## When to Add a Builtin Transforme
 
 A transformer should be builtin ONLY if it meets ALL criteria:
 
@@ -27,13 +27,15 @@ Add `.events` property ONLY if transformer has:
 - **Internal decisions** (dropped values, buffering, concurrency limits)
 
 Don't add events if:
-- Transformer is pure pipeline transformation
+
+- Transforme is pure pipeline transformation
 - All behavior is observable by listening to output
 - No hidden internals to expose
 
 ## Examples
 
 **Good builtins** (fundamental, pipeline-focused):
+
 - `filter` - can't compose, operates on pipeline
 - `map` - can't compose, operates on pipeline
 - `throttle/audit` - temporal control, can't compose
@@ -41,16 +43,19 @@ Don't add events if:
 - `effect` - non-blocking side effect, fundamental
 
 **Use composition** (not builtin):
+
 - `auditTo(stream)` → `branch` + `audit`
 - `filterMap` → `filter` + `map`
 - `tapAsync` → `effect`
 
 **Events needed**:
+
 - `each/effect/consumer` - expose errors
 - `queue` - expose buffering state
 - `concurrent` - expose concurrency limits
 
 **Events NOT needed**:
+
 - `audit/throttle` - pure filtering, no hidden state
 - `filter` - pure transformation
 - `map` - pure transformation

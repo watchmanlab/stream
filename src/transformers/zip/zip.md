@@ -5,7 +5,7 @@ Combines multiple streams pairwise into tuples of synchronized values.
 ## Type
 
 ```typescript
-function zip<T, U>(...streams: Stream<U>[]): Stream.Transformer<Stream<T>, Stream<[T, ...U[]]>>;
+function zip<T, U>(...streams: Stream<U>[]): Stream.Transforme<Stream<T>, Stream<[T, ...U[]]>>;
 ```
 
 ## Behavior

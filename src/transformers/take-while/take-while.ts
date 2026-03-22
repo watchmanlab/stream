@@ -11,7 +11,7 @@ import { Stream } from "../../stream-0";
  */
 export const takeWhile = <T>(
   predicate: (value: T, index: number) => boolean,
-): Stream.Transformer<Stream<T>, Stream<T>> => {
+): Stream.Transforme<Stream<T>, Stream<T>> => {
   return (source) => {
     let index = 0;
     let terminated = false;

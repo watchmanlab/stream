@@ -16,7 +16,9 @@ export class Filter<
 >
   extends Map<
     SOURCE,
-    [SELF] extends [never] ? Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME> : SELF,
+    [SELF] extends [never]
+      ? Stream.Traversable<Stream.ExtractName<SOURCE>, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME>>
+      : Stream.Traversable<Stream.ExtractName<SOURCE>, SOURCE, SELF>,
     CLEAN_VALUE,
     FILTERED,
     ERROR,
@@ -24,7 +26,7 @@ export class Filter<
   >
   implements Record<any, any>
 {
-  protected _events?: Stream<filter.Event<CLEAN_VALUE, this>, `${NAME}Events`>;
+  protected _events?: Stream<filter.Event<CLEAN_VALUE, Stream.Traversable<NAME, SOURCE, this>>, `${NAME}Events`>;
   constructor(
     source: SOURCE,
     name = NAME as NAME,
@@ -35,7 +37,7 @@ export class Filter<
       const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
       if (Stream.isErr(result)) return result as FILTERED;
       if (result) return value as FILTERED;
-      self._events?.push({ type: "filtered", value: result as FILTERED, self });
+      self._events?.push({ type: "filtered", value: result as FILTERED, self: self as never });
       return Stream.SKIP;
     });
     const self = this;
@@ -56,7 +58,7 @@ export function filter<
   NAME extends string = filter.Name,
 >(
   predicate: filter.GardPredicate<CLEAN_VALUE, FILTERED, Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME>>;
+): Stream.Transforme<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME>>;
 
 export function filter<
   SOURCE extends Stream<any, any>,
@@ -66,7 +68,7 @@ export function filter<
   NAME extends string = filter.Name,
 >(
   predicate: filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>;
+): Stream.Transforme<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>;
 
 export function filter<
   SOURCE extends Stream<any, any>,
@@ -76,7 +78,7 @@ export function filter<
   NAME extends string = filter.Name,
 >(
   predicate: filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>> {
+): Stream.Transforme<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>> {
   return (_, source, name) => new Filter(source, name, predicate);
 }
 
@@ -94,8 +96,8 @@ export namespace filter {
   export type Event<CLEAN_VALUE, SELF extends Stream<any, any>> = { type: "filtered"; value: CLEAN_VALUE; self: SELF };
 }
 
-new Stream([1, 2, 3])
-  .pipe(
+const stream = new Stream([1, 2, 3])
+  .pipe("SSS",
     filter((v) => {
       if (v === 1) return Stream.err("kechmahaja" as const);
       return v !== 2;
@@ -112,7 +114,7 @@ new Stream([1, 2, 3])
     catchError((e) => {
       switch (e.source.name) {
         case "filter":
-          e.source;
+          e.source.
 
         case "map":
           e.source;

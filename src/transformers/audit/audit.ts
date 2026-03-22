@@ -33,7 +33,7 @@ export class Audit<SOURCE extends Stream<any, any>, NAME extends string = audit.
 
 export function audit<SOURCE extends Stream<any, any>, NAME extends string = audit.Name>(
   ms: number,
-): Stream.Transformer<NAME, SOURCE, Audit<SOURCE, NAME>> {
+): Stream.Transforme<NAME, SOURCE, Audit<SOURCE, NAME>> {
   return (_, source, name) => new Audit(source, name, ms);
 }
 

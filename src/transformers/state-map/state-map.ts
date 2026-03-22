@@ -94,7 +94,7 @@ export function stateMap<
 >(
   initialState: STATE,
   mapper: stateMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR, StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>> {
+): Stream.Transforme<NAME, SOURCE, StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>> {
   return (_, source, name) => new StateMap(source, name, initialState, mapper);
 }
 

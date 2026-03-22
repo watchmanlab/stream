@@ -31,7 +31,7 @@ export function history<
   SOURCE extends Stream<any, any>,
   CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   NAME extends string = history.Name,
->(size: number): Stream.Transformer<NAME, SOURCE, History<SOURCE, CLEAN_VALUE, NAME>> {
+>(size: number): Stream.Transforme<NAME, SOURCE, History<SOURCE, CLEAN_VALUE, NAME>> {
   return (_, source, name) => new History(source, name, size);
 }
 

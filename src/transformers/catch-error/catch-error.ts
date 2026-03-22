@@ -71,7 +71,7 @@ export function catchError<
   NAME extends string = catchError.Name,
 >(
   callback?: catchError.Callback<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>> {
+): Stream.Transforme<NAME, SOURCE, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>> {
   return (_, source, name) => new CatchError(source, name, callback);
 }
 
