@@ -10,8 +10,7 @@ export class Map<
   MAPPED = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = map.Name,
-> extends Stream.Transformer<
-  INPUT_STREAM,
+> extends Stream<
   | MAPPED
   | Stream.ExtractSentinel<INPUT_STREAM>
   | Stream.MaybeSourceErr<
@@ -22,7 +21,7 @@ export class Map<
   NAME
 > {
   protected _errors?: Stream<
-    Stream.ErrorEvent<CLEAN_VALUE, ERROR, Stream.Traversable<INPUT_NAME, INPUT_STREAM, this>>,
+    Stream.ErrorEvent<CLEAN_VALUE, ERROR, Stream.Traversable<this, INPUT_NAME, INPUT_STREAM>>,
     `${NAME}Errors`
   >;
 
@@ -36,7 +35,7 @@ export class Map<
       Map<INPUT_STREAM, INPUT_NAME, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>
     >,
   ) {
-    super(name, inputStream, async function* () {
+    super(name, async function* () {
       for await (const value of inputStream) {
         if (Stream.isSentinel(value)) {
           yield value as never;
@@ -52,13 +51,13 @@ export class Map<
             self._errors?.push({
               type: "expected",
               value: cleanValue,
-              detail: result.value,
+              error: result.value,
               source: self as never,
             });
 
             yield Stream.sourceErr({
               value: cleanValue,
-              detail: result.value,
+              error: result.value,
               source: self,
             }) as never;
 
@@ -68,11 +67,11 @@ export class Map<
           yield result as never;
         } catch (error) {
           if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", source: self as never, value: cleanValue, detail: error.value });
-            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+            self._errors?.push({ type: "expected", value: cleanValue, error: error.value, source: self as never });
+            yield Stream.sourceErr({ value: value, error: error.value, source: self }) as never;
           } else {
-            self._errors?.push({ type: "unexpected", source: self as never, value: cleanValue, detail: error });
-            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+            self._errors?.push({ type: "unexpected", value: cleanValue, error: error, source: self as never });
+            yield Stream.sourceErr({ value: value, error: error, source: self }) as never;
           }
         }
       }
