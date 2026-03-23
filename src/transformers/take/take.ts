@@ -13,6 +13,6 @@ import { takeWhile } from "../take-while";
  * ```
  */
 export const take =
-  <T>(n: number): Stream.Transforme<Stream<T>, Stream<T>> =>
+  <T>(n: number): Stream.Transform<Stream<T>, Stream<T>> =>
   (stream) =>
     stream.pipe(takeWhile((_, index) => index < n));

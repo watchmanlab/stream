@@ -161,7 +161,7 @@ export function concurrent<
 >(
   mapper: concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
   options?: concurrent.Options,
-): Stream.Transforme<NAME, SOURCE, Concurrent<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
+): Stream.Transform<NAME, SOURCE, Concurrent<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
   return (_, source, name) => new Concurrent(source, name, mapper, options);
 }
 

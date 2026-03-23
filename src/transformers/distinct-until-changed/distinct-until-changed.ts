@@ -26,7 +26,7 @@ export class DistinctUntilChanged<
 export function distinctUntilChanged<
   SOURCE extends Stream<any, any>,
   NAME extends string = distinctUntilChanged.Name,
->(): Stream.Transforme<NAME, SOURCE, DistinctUntilChanged<SOURCE, NAME>> {
+>(): Stream.Transform<NAME, SOURCE, DistinctUntilChanged<SOURCE, NAME>> {
   return (_, source, name) => new DistinctUntilChanged(source, name);
 }
 

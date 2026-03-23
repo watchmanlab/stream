@@ -5,7 +5,7 @@ import { sequential } from "../map/map";
 export function sequentialWorker<VALUE, MAPPED, ARGS extends any[]>(
   mapper: sequentialWorker.Mapper<VALUE, MAPPED, ARGS>,
   ...args: ARGS
-): Stream.Transforme<Stream<VALUE>, Stream<MAPPED>> {
+): Stream.Transform<Stream<VALUE>, Stream<MAPPED>> {
   if (typeof Worker === "undefined") return sequential(mapper as unknown as sequential.Mapper<VALUE, MAPPED>);
 
   return (stream) => {

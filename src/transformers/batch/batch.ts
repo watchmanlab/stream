@@ -37,7 +37,7 @@ export function batch<
   CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   SIZE extends number = 2,
   NAME extends string = batch.Name,
->(size: SIZE): Stream.Transforme<NAME, SOURCE, Batch<SOURCE, CLEAN_VALUE, SIZE, NAME>> {
+>(size: SIZE): Stream.Transform<NAME, SOURCE, Batch<SOURCE, CLEAN_VALUE, SIZE, NAME>> {
   return (_, source, name) => new Batch(source, name, size);
 }
 

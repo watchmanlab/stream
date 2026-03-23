@@ -23,7 +23,7 @@ export function pluck<
   KEY extends keyof CLEAN_VALUE = keyof CLEAN_VALUE,
   ERROR = never,
   NAME extends string = pluck.Name,
->(key: KEY): Stream.Transforme<NAME, SOURCE, Pluck<SOURCE, CLEAN_VALUE, KEY, ERROR, NAME>> {
+>(key: KEY): Stream.Transform<NAME, SOURCE, Pluck<SOURCE, CLEAN_VALUE, KEY, ERROR, NAME>> {
   return (_, source, name) => new Pluck(source, name, key);
 }
 

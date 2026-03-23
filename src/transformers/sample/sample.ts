@@ -5,7 +5,7 @@ import { Stream } from "../../stream-0";
  * Creates a parallel branch for monitoring, logging, or side effects.
  *
  * @param target - Stream to forward values to
- * @returns Transforme that forwards values
+ * @returns Transform that forwards values
  *
  * @example
  * ```typescript
@@ -20,7 +20,7 @@ import { Stream } from "../../stream-0";
  * monitoring.listen(console.log);
  * ```
  */
-export function sample<T>(target: Stream<T>): Stream.Transforme<Stream<T>> {
+export function sample<T>(target: Stream<T>): Stream.Transform<Stream<T>> {
   return function (source) {
     return new Stream<T>((self) => {
       return source.listen((value) => {

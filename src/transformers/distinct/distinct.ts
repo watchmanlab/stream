@@ -28,7 +28,7 @@ export function distinct<
   SOURCE extends Stream<any, any>,
   CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   NAME extends string = distinct.Name,
->(): Stream.Transforme<NAME, SOURCE, Distinct<SOURCE, CLEAN_VALUE, NAME>> {
+>(): Stream.Transform<NAME, SOURCE, Distinct<SOURCE, CLEAN_VALUE, NAME>> {
   return (_, source, name) => new Distinct(source, name);
 }
 

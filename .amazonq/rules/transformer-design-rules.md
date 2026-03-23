@@ -1,6 +1,6 @@
-# Transforme Design Rules
+# Transform Design Rules
 
-## When to Add a Builtin Transforme
+## When to Add a Builtin Transform
 
 A transformer should be builtin ONLY if it meets ALL criteria:
 
@@ -28,7 +28,7 @@ Add `.events` property ONLY if transformer has:
 
 Don't add events if:
 
-- Transforme is pure pipeline transformation
+- Transform is pure pipeline transformation
 - All behavior is observable by listening to output
 - No hidden internals to expose
 

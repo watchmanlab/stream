@@ -58,7 +58,7 @@ export function filter<
   NAME extends string = filter.Name,
 >(
   predicate: filter.GardPredicate<CLEAN_VALUE, FILTERED, Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME>>,
-): Stream.Transforme<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME>>;
+): Stream.Transform<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, FILTERED, ERROR, NAME>>;
 
 export function filter<
   SOURCE extends Stream<any, any>,
@@ -68,7 +68,7 @@ export function filter<
   NAME extends string = filter.Name,
 >(
   predicate: filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>,
-): Stream.Transforme<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>;
+): Stream.Transform<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>;
 
 export function filter<
   SOURCE extends Stream<any, any>,
@@ -78,7 +78,7 @@ export function filter<
   NAME extends string = filter.Name,
 >(
   predicate: filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>,
-): Stream.Transforme<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>> {
+): Stream.Transform<NAME, SOURCE, Filter<SOURCE, SELF, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>> {
   return (_, source, name) => new Filter(source, name, predicate);
 }
 

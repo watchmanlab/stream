@@ -5,7 +5,7 @@ Combines multiple streams into one unified flow with union types.
 ## Type
 
 ```typescript
-function merge<T, U>(...streams: Stream<U>[]): Stream.Transforme<Stream<T>, Stream<T | U>>;
+function merge<T, U>(...streams: Stream<U>[]): Stream.Transform<Stream<T>, Stream<T | U>>;
 ```
 
 ## Behavior

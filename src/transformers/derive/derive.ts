@@ -11,7 +11,7 @@ export class Derive<SOURCE extends Stream<any, any>, NAME extends string = deriv
   }
 }
 
-export function derive<SOURCE extends Stream<any, any>, NAME extends string = derive.Name>(): Stream.Transforme<
+export function derive<SOURCE extends Stream<any, any>, NAME extends string = derive.Name>(): Stream.Transform<
   NAME,
   SOURCE,
   Derive<SOURCE, NAME>

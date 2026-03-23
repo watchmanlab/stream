@@ -1,29 +1,28 @@
 const NAME = "root";
-
-export function stream<
-  VALUE,
-  NAME extends string = stream.Name,
-  PROPS extends Record<string | symbol | number, any> = {},
->(name: NAME, source: stream.Source<VALUE>, props: PROPS) {
-  const consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
-  let sourceGenerator: AsyncGenerator<VALUE, void, unknown> | undefined;
-  let requestingNext = false;
-  let onConsumerJoin: ((queue: VALUE[]) => void) | undefined;
-  let onConsumerLeft: (() => void) | undefined;
-
-  const output = {
-    push,
-    next,
-    pipe,
-    [Symbol.asyncIterator]: generator,
-  };
-
-  return output;
-
-  function push(value: VALUE, ...values: VALUE[]): stream.PushResult {
+export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE> {
+  protected _consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
+  protected _source?: Stream.Source<VALUE>;
+  protected _sourceGenerator?: AsyncGenerator<VALUE, void, unknown>;
+  protected _name = NAME as NAME;
+  constructor();
+  constructor(source: Stream.Source<VALUE>);
+  constructor(name: NAME);
+  constructor(name: NAME, source: Stream.Source<VALUE>);
+  constructor(sourceOrName?: Stream.Source<VALUE> | NAME, source?: Stream.Source<VALUE>) {
+    if (typeof sourceOrName === "string" || sourceOrName instanceof String) {
+      this._name = (sourceOrName as NAME) ?? NAME;
+      this._source = source;
+    } else {
+      this._source = sourceOrName;
+    }
+  }
+  get name() {
+    return this._name;
+  }
+  push(value: VALUE, ...values: VALUE[]): Stream.PushResult {
     const readyPromises = new Array<Promise<void>>();
 
-    for (const [queue, { resolve, ready }] of consumers) {
+    for (const [queue, { resolve, ready }] of this._consumers) {
       queue.push(value, ...values);
       resolve();
       readyPromises.push(ready);
@@ -42,27 +41,30 @@ export function stream<
       then: (resolve?: () => void, reject?: () => void) => Promise.resolve().then(resolve, reject),
     };
   }
-  function requestNext() {
-    if (!requestingNext && sourceGenerator) {
-      requestingNext = true;
-      sourceGenerator.next().then((result) => {
-        requestingNext = false;
+  protected _requestingNext = false;
+  protected _requestNext() {
+    if (!this._requestingNext && this._sourceGenerator) {
+      this._requestingNext = true;
+      this._sourceGenerator.next().then((result) => {
+        this._requestingNext = false;
         if (result.done) {
-          push(stream.TERMINATE as VALUE);
+          this.push(Stream.TERMINATE as VALUE);
           return;
         }
-        push(result.value);
+        this.push(result.value);
       });
     }
   }
-  async function* generator() {
-    if (consumers.size === 0 && source) {
-      sourceGenerator = stream.getGenerator(source);
+  protected _onConsumerJoin?: (queue: VALUE[]) => void;
+  protected _onConsumerLeft?: () => void;
+  async *[Symbol.asyncIterator]() {
+    if (this._consumers.size === 0 && this._source) {
+      this._sourceGenerator = Stream.generator(this._source);
     }
 
     const queue: VALUE[] = [];
-    consumers.set(queue, { resolve() {}, ready: Promise.resolve() });
-    onConsumerJoin?.(queue);
+    this._consumers.set(queue, { resolve() {}, ready: Promise.resolve() });
+    this._onConsumerJoin?.(queue);
 
     let ready: () => void;
 
@@ -70,19 +72,19 @@ export function stream<
       while (true) {
         if (queue.length) {
           const value = queue.shift()!;
-          if (value === stream.TERMINATE) {
+          if (value === Stream.TERMINATE) {
             break;
-          } else if (value === stream.SKIP) {
+          } else if (value === Stream.SKIP) {
             continue;
           }
 
           yield value;
         } else {
           ready!?.();
-          requestNext();
+          this._requestNext();
 
           await new Promise<void>((resolve) => {
-            consumers.set(queue, {
+            this._consumers.set(queue, {
               resolve,
               ready: new Promise<void>((r) => (ready = r)),
             });
@@ -90,36 +92,40 @@ export function stream<
         }
       }
     } finally {
-      consumers.get(queue)?.resolve();
-      consumers.delete(queue);
+      this._consumers.get(queue)?.resolve();
+      this._consumers.delete(queue);
 
       queue.length = 0;
 
-      if (consumers.size === 0) {
-        await sourceGenerator?.return?.();
-        sourceGenerator = undefined;
+      if (this._consumers.size === 0) {
+        await this._sourceGenerator?.return?.();
+        this._sourceGenerator = undefined;
       }
-      onConsumerLeft?.();
+      this._onConsumerLeft?.();
 
       return;
     }
   }
-  function next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
-    return generator().next();
+  next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
+    return this[Symbol.asyncIterator]().next();
   }
-  function pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
-    transformer: stream.Transforme<this, CUSTOM_NAME, OUTPUT>,
-  ): stream.Transformer<OUTPUT, this>;
-  function pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
+  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
+    transformer: Stream.Transform<this, CUSTOM_NAME, OUTPUT>,
+  ): Stream.Transformer<OUTPUT, NAME, this>;
+  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     name: CUSTOM_NAME,
-    transformer: stream.Transforme<this, CUSTOM_NAME, OUTPUT>,
-  ): stream.Transformer<OUTPUT, this>;
-  function pipe(transformerOrName1: Function | string, transformer?: Function) {
+    transformer: Stream.Transform<this, CUSTOM_NAME, OUTPUT>,
+  ): Stream.Transformer<OUTPUT, NAME, this>;
+  pipe(transformerOrName1: Function | string, transformer?: Function) {
     const output =
       typeof transformerOrName1 === "string"
-        ? (transformer!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this, transformerOrName1) as any)
+        ? (transformer!({
+            token: USE_TRANSFORMER_INSIDE_PIPE_PLEASE,
+            inputStream: this,
+            name: transformerOrName1,
+          }) as any)
         : typeof transformerOrName1 === "function"
-          ? (transformerOrName1!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this) as any)
+          ? (transformerOrName1!({ token: USE_TRANSFORMER_INSIDE_PIPE_PLEASE, inputStream: this }) as any)
           : void 0;
 
     return new Proxy(output, {
@@ -130,9 +136,7 @@ export function stream<
       },
     });
   }
-}
-export namespace stream {
-  export function getGenerator<VALUE>(source: stream.Source<VALUE>): AsyncGenerator<VALUE, void, unknown> {
+  static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, unknown> {
     return (async function* () {
       if (!source) return;
       if (Symbol.asyncIterator in source || Symbol.iterator in source) {
@@ -142,8 +146,9 @@ export namespace stream {
       }
     })();
   }
+}
 
-  export type Stream<VALUE, NAME extends string> = {};
+export namespace Stream {
   export type Name = typeof NAME;
   export type ExtractValue<T> =
     T extends Source<infer VALUE> ? VALUE : T extends SourceErr<infer VALUE, any, any> ? VALUE : T;
@@ -171,16 +176,22 @@ export namespace stream {
     readonly awaitAnyConsumer: Promise<void>;
     then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
   };
-  export type Transforme<
+  export type TransformOptions<INPUT_STREAM extends Stream<any, any>, OUTPUT_NAME extends string> = {
+    token: UseTransformerInsidePipePlease;
+    inputStream: INPUT_STREAM;
+    name?: OUTPUT_NAME;
+  };
+  export type Transform<
     INPUT_STREAM extends Stream<any, any>,
     OUTPUT_NAME extends string,
     OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>,
-  > = (_: UseTransformerInsidePipePlease, inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
+  > = (options: TransformOptions<INPUT_STREAM, OUTPUT_NAME>) => OUTPUT_STREAM;
 
   export type Transformer<
     OUTPUT_STREAM extends Stream<any, any>,
-    INPUT_STREAM extends Stream<any, any>,
-  > = OUTPUT_STREAM & Record<ExtractName<INPUT_STREAM> | (`$${string}` & {}), INPUT_STREAM>;
+    INPUT_NAME extends string,
+    INPUT_STREAM extends Stream<any, INPUT_NAME>,
+  > = OUTPUT_STREAM & Record<INPUT_NAME | (`$${string}` & {}), INPUT_STREAM>;
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("__sentinel");
   }
@@ -198,7 +209,12 @@ export namespace stream {
         error: ERROR;
         source: SOURCE;
       }
-    | { type: "unexpected"; value: CLEAN_VALUE; error: unknown; source: SOURCE };
+    | {
+        type: "unexpected";
+        value: CLEAN_VALUE;
+        error: unknown;
+        source: SOURCE;
+      };
   export class SourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> extends Stream.Sentinel {
     constructor(
       public readonly value: CLEAN_VALUE,

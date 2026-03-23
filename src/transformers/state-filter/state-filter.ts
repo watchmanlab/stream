@@ -79,7 +79,7 @@ export function stateFilter<
 >(
   initialState: STATE,
   predicate: stateFilter.Predicate<CLEAN_VALUE, STATE, ERROR, StateFilter<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>>,
-): Stream.Transforme<NAME, SOURCE, StateFilter<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>> {
+): Stream.Transform<NAME, SOURCE, StateFilter<SOURCE, CLEAN_VALUE, STATE, ERROR, NAME>> {
   return (_, source, name) => new StateFilter(source, name, initialState, predicate);
 }
 

@@ -43,7 +43,7 @@ export function merge<
   VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
   ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]] = [AsyncIterable<any>],
   NAME extends string = merge.Name,
->(...others: ITERABLES): Stream.Transforme<NAME, SOURCE, Merge<SOURCE, VALUE, ITERABLES, NAME>> {
+>(...others: ITERABLES): Stream.Transform<NAME, SOURCE, Merge<SOURCE, VALUE, ITERABLES, NAME>> {
   return (_, source, name) => new Merge(source, name, others);
 }
 

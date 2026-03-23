@@ -31,7 +31,7 @@ export class Delay<SOURCE extends Stream<any, any>, NAME extends string = delay.
 
 export function delay<SOURCE extends Stream<any, any>, NAME extends string = delay.Name>(
   ms: number,
-): Stream.Transforme<NAME, SOURCE, Delay<SOURCE, NAME>> {
+): Stream.Transform<NAME, SOURCE, Delay<SOURCE, NAME>> {
   return (_, source, name) => new Delay(source, name, ms);
 }
 

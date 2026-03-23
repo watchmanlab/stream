@@ -47,7 +47,7 @@ export function debounce<
   SOURCE extends Stream<any, any>,
   VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
   NAME extends string = debounce.Name,
->(ms: number): Stream.Transforme<NAME, SOURCE, Debounce<SOURCE, VALUE, NAME>> {
+>(ms: number): Stream.Transform<NAME, SOURCE, Debounce<SOURCE, VALUE, NAME>> {
   return (_, source, name) => new Debounce(source, name, ms);
 }
 

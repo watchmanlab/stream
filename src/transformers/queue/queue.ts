@@ -88,7 +88,7 @@ export function queue<
   SOURCE extends Stream<any, any>,
   VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
   NAME extends string = queue.Name,
->(options?: queue.Options): Stream.Transforme<NAME, SOURCE, Queue<SOURCE, VALUE, NAME>> {
+>(options?: queue.Options): Stream.Transform<NAME, SOURCE, Queue<SOURCE, VALUE, NAME>> {
   return (_, source, name) => new Queue(source, name, options);
 }
 
