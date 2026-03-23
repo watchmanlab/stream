@@ -22,7 +22,7 @@ export class Map<
             INPUT_NAME,
             INPUT_STREAM
           >
-        : SELF
+        : Stream.Transformer<SELF, INPUT_NAME, INPUT_STREAM>
     >,
   NAME
 > {
@@ -118,7 +118,7 @@ export function map<
 export namespace map {
   export type Name = typeof NAME;
 
-  export type Mapper<CLEAN_VALUE, MAPPED, ERROR, SELF extends Stream<any, any>> = (
+  export type Mapper<CLEAN_VALUE, MAPPED, ERROR, SELF extends Stream.Transformer<any, any, any>> = (
     value: CLEAN_VALUE,
     self: SELF,
   ) =>
