@@ -3,24 +3,46 @@ import { Stream } from "../../streams/index.ts";
 const NAME = "catchError";
 
 export class CatchError<
-  SOURCE extends Stream<any, any>,
-  SOURCE_ERR extends Stream.ExtractSourceErr<SOURCE> = Stream.ExtractSourceErr<SOURCE>,
+  INPUT_STREAM extends Stream<any, any>,
+  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
+  SOURCE_ERR extends Stream.SourceErr<any, any, any> = Stream.ExtractSourceErr<INPUT_STREAM>,
   ERROR = never,
   NAME extends string = catchError.Name,
 > extends Stream<
-  | Stream.ExcludeSourceErr<SOURCE>
-  | Stream.MaybeSourceErr<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
+  | Stream.ExcludeSourceErr<INPUT_STREAM>
+  | Stream.MaybeSourceErr<
+      SOURCE_ERR,
+      ERROR,
+      Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+    >,
   NAME
 > {
-  protected _events?: Stream<catchError.Event<SOURCE_ERR, this>, `${NAME}Events`>;
-  protected _errors?: Stream<Stream.ErrorEvent<SOURCE_ERR, ERROR, this>, `${NAME}Errors`>;
+  protected _events?: Stream<
+    catchError.Event<
+      SOURCE_ERR,
+      Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+    >,
+    `${NAME}Events`
+  >;
+  protected _errors?: Stream<
+    Stream.ErrorEvent<
+      SOURCE_ERR,
+      ERROR,
+      Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+    >,
+    `${NAME}Errors`
+  >;
   constructor(
-    source: SOURCE,
-    name = NAME as NAME,
-    callback?: catchError.Callback<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
+    options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
+      callback?: catchError.Callback<
+        SOURCE_ERR,
+        ERROR,
+        Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+      >;
+    },
   ) {
-    super(name, async function* () {
-      for await (const value of source) {
+    super(options.name ?? (NAME as NAME), async function* () {
+      for await (const value of options.inputStream) {
         if (!Stream.isSourceErr(value)) {
           yield value;
           continue;
@@ -28,26 +50,26 @@ export class CatchError<
 
         const sourceErr = value as SOURCE_ERR;
 
-        self._events?.push({ type: "caught", sourceErr, self });
+        self._events?.push({ type: "caught", sourceErr, self: self as never });
 
-        if (!callback) continue;
+        if (!options.callback) continue;
 
         try {
-          const maybePromise = callback(sourceErr, self);
+          const maybePromise = options.callback(sourceErr, self as never);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (!result) continue;
 
-          self._errors?.push({ type: "expected", value: sourceErr, detail: result.value, source: self });
+          self._errors?.push({ type: "expected", value: sourceErr, error: result.value, source: self as never });
 
-          yield Stream.sourceErr({ value: sourceErr, detail: result.value, source: self });
+          yield Stream.sourceErr({ value: sourceErr, error: result.value, source: self });
         } catch (error) {
           if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", value: sourceErr, detail: error.value, source: self });
-            yield Stream.sourceErr({ value: sourceErr, detail: error.value, source: self });
+            self._errors?.push({ type: "expected", value: sourceErr, error: error.value, source: self as never });
+            yield Stream.sourceErr({ value: sourceErr, error: error.value, source: self });
           } else {
-            self._errors?.push({ type: "unexpected", value: sourceErr, detail: error, source: self });
-            yield Stream.sourceErr({ value: sourceErr, detail: error, source: self });
+            self._errors?.push({ type: "unexpected", value: sourceErr, error, source: self as never });
+            yield Stream.sourceErr({ value: sourceErr, error, source: self });
           }
         }
       }
@@ -65,14 +87,19 @@ export class CatchError<
 }
 
 export function catchError<
-  SOURCE extends Stream<any, any>,
-  SOURCE_ERR extends Stream.ExtractSourceErr<SOURCE> = Stream.ExtractSourceErr<SOURCE>,
+  INPUT_STREAM extends Stream<any, any>,
+  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
+  SOURCE_ERR extends Stream.SourceErr<any, any, any> = Stream.ExtractSourceErr<INPUT_STREAM>,
   ERROR = never,
   NAME extends string = catchError.Name,
 >(
-  callback?: catchError.Callback<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
-): Stream.Transform<NAME, SOURCE, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>> {
-  return (_, source, name) => new CatchError(source, name, callback);
+  callback?: catchError.Callback<
+    SOURCE_ERR,
+    ERROR,
+    Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+  >,
+): Stream.Transform<INPUT_STREAM, NAME, CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>> {
+  return (options) => new CatchError({ ...options, callback });
 }
 
 export namespace catchError {

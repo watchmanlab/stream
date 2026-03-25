@@ -118,7 +118,12 @@ export function map<
 export namespace map {
   export type Name = typeof NAME;
 
-  export type Mapper<CLEAN_VALUE, MAPPED, ERROR, SELF extends Stream.Transformer<any, any, any>> = (
+  export type Mapper<
+    CLEAN_VALUE,
+    MAPPED,
+    ERROR,
+    SELF extends Stream.Transformer<Stream<any, any>, string, Stream<any, any>>,
+  > = (
     value: CLEAN_VALUE,
     self: SELF,
   ) =>

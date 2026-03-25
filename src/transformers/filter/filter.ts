@@ -143,29 +143,30 @@ export namespace filter {
   };
 }
 
-// const stream = new Stream([1, 2, 3])
-//   .pipe("SSS",
-//     filter((v) => {
-//       if (v === 1) return Stream.err("kechmahaja" as const);
-//       return v !== 2;
-//     }),
-//   )
-//   .pipe(
-//     map((v) => {
-//       if (v === 3) return Stream.err("error map" as const);
-//       return v.toFixed();
-//     }),
-//   )
-//   .pipe(each((v) => console.log(v)))
-//   .pipe(
-//     catchError((e) => {
-//       switch (e.source.name) {
-//         case "filter":
-//           e.source.
+const stream = new Stream([1, 2, 3])
+  .pipe(
+    "SSS",
+    filter((v) => {
+      if (v === 1) return Stream.err("kechmahaja" as const);
+      return v !== 2;
+    }),
+  )
+  .pipe(
+    map((v) => {
+      if (v === 3) return Stream.err("error map" as const);
+      return v.toFixed();
+    }),
+  )
+  .pipe(each((v) => console.log(v)))
+  .pipe(
+    catchError((e) => {
+      switch (e.source.name) {
+        case "SSS":
+          e.source;
 
-//         case "map":
-//           e.source;
-//       }
-//     }),
-//   )
-//   .pipe(pump());
+        case "map":
+          e.source;
+      }
+    }),
+  )
+  .pipe(pump());
