@@ -17,28 +17,11 @@ export class CatchError<
     >,
   NAME
 > {
-  protected _events?: Stream<
-    catchError.Event<
-      SOURCE_ERR,
-      Stream.Traversable<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
-    >,
-    `${NAME}Events`
-  >;
-  protected _errors?: Stream<
-    Stream.ErrorEvent<
-      SOURCE_ERR,
-      ERROR,
-      Stream.Traversable<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
-    >,
-    `${NAME}Errors`
-  >;
+  protected _events?: Stream<catchError.Event<SOURCE_ERR>, `${NAME}Events`>;
+  protected _errors?: Stream<Stream.ErrorEvent<SOURCE_ERR, ERROR>, `${NAME}Errors`>;
   constructor(
     options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
-      callback?: catchError.Callback<
-        SOURCE_ERR,
-        ERROR,
-        Stream.Traversable<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
-      >;
+      callback?: catchError.Callback<SOURCE_ERR, ERROR>;
     },
   ) {
     super(options.name ?? (NAME as NAME), async function* () {
@@ -50,25 +33,25 @@ export class CatchError<
 
         const sourceErr = value as SOURCE_ERR;
 
-        self._events?.push({ type: "caught", sourceErr, self: self as never });
+        self._events?.push({ type: "caught", sourceErr });
 
         if (!options.callback) continue;
 
         try {
-          const maybePromise = options.callback(sourceErr, self as never);
+          const maybePromise = options.callback(sourceErr);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (!result) continue;
 
-          self._errors?.push({ type: "expected", value: sourceErr, error: result.value, source: self as never });
+          self._errors?.push({ type: "expected", value: sourceErr, error: result.value });
 
           yield Stream.sourceErr({ value: sourceErr, error: result.value, source: self });
         } catch (error) {
           if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", value: sourceErr, error: error.value, source: self as never });
+            self._errors?.push({ type: "expected", value: sourceErr, error: error.value });
             yield Stream.sourceErr({ value: sourceErr, error: error.value, source: self });
           } else {
-            self._errors?.push({ type: "unexpected", value: sourceErr, error, source: self as never });
+            self._errors?.push({ type: "unexpected", value: sourceErr, error });
             yield Stream.sourceErr({ value: sourceErr, error, source: self });
           }
         }
@@ -93,11 +76,7 @@ export function catchError<
   ERROR = never,
   NAME extends string = catchError.Name,
 >(
-  callback?: catchError.Callback<
-    SOURCE_ERR,
-    ERROR,
-    Stream.Traversable<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
-  >,
+  callback?: catchError.Callback<SOURCE_ERR, ERROR>,
 ): Stream.Transform<INPUT_STREAM, NAME, CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>> {
   return (options) => new CatchError({ ...options, callback });
 }
@@ -105,14 +84,12 @@ export function catchError<
 export namespace catchError {
   export type Name = typeof NAME;
 
-  export type Callback<SOURCE_ERR, ERROR, SELF extends Stream<any, any>> = (
+  export type Callback<SOURCE_ERR, ERROR> = (
     error: [SOURCE_ERR] extends [never] ? Stream.SourceErr<unknown, unknown, Stream<unknown, string>> : SOURCE_ERR,
-    self: SELF,
   ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 
-  export type Event<SOURCE_ERR, SELF extends Stream<any, any>> = {
+  export type Event<SOURCE_ERR> = {
     type: "caught";
     sourceErr: SOURCE_ERR;
-    self: SELF;
   };
 }

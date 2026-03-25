@@ -9,15 +9,26 @@ export class Each<
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,
   NAME extends string = each.Name,
-> extends Map<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME> {
+> extends Stream<
+  | Stream.ExtractValue<INPUT_STREAM>
+  | Stream.MaybeSourceErr<
+      CLEAN_VALUE,
+      ERROR,
+      Stream.Traversable<Each<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+    >,
+  NAME
+> {
   constructor(
     options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
       callback: each.Callback<CLEAN_VALUE, ERROR>;
     },
   ) {
-    super({
+    super(options.name ?? (NAME as NAME));
+
+    const self = this;
+
+    const out = new Map({
       inputStream: options.inputStream,
-      name: options.name ?? (NAME as NAME),
       token: options.token,
       mapper: async (value) => {
         const maybePromise = options.callback(value);
@@ -26,8 +37,6 @@ export class Each<
         return result ?? value;
       },
     });
-
-    const self = this;
   }
 }
 export function each<

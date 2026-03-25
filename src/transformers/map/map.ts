@@ -3,7 +3,7 @@ import { Stream } from "../../streams/index.ts";
 const NAME = "map";
 
 export class Map<
-  INPUT_STREAM extends Stream<any, any>,
+  INPUT_STREAM extends Stream.AnyStream,
   INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
@@ -76,7 +76,7 @@ export class Map<
 }
 
 export function map<
-  INPUT_STREAM extends Stream<any, any>,
+  INPUT_STREAM extends Stream.AnyStream,
   INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,

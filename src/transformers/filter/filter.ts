@@ -14,23 +14,22 @@ export class Filter<
   ERROR = never,
   NAME extends string = filter.Name,
 > extends Map<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, FILTERED, ERROR, NAME> {
-  protected _events?: Stream<filter.Event<CLEAN_VALUE, this>, `${NAME}Events`>;
+  protected _events?: Stream<filter.Event<CLEAN_VALUE>, `${NAME}Events`>;
   constructor(
     options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
       predicate: filter.Predicate<CLEAN_VALUE, ERROR>;
     },
   ) {
-    const { name = NAME as NAME, inputStream, predicate } = options;
     super({
-      inputStream,
-      name,
+      inputStream: options.inputStream,
       token: options.token,
+      name: options.name ?? (NAME as NAME),
       mapper: async (value) => {
-        const maybePromise = predicate(value);
+        const maybePromise = options.predicate(value);
         const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
         if (Stream.isErr(result)) return result as FILTERED;
         if (result) return value as FILTERED;
-        self._events?.push({ type: "filtered", value: result as FILTERED, self: self as never });
+        self._events?.push({ type: "filtered", value: result as FILTERED });
         return Stream.SKIP;
       },
     });
@@ -83,10 +82,9 @@ export namespace filter {
     value: CLEAN_VALUE,
   ) => boolean | Stream.Err<ERROR> | Promise<boolean | Stream.Err<ERROR>>;
 
-  export type Event<CLEAN_VALUE, SELF extends Stream<any, any>> = {
+  export type Event<CLEAN_VALUE> = {
     type: "filtered";
     value: CLEAN_VALUE;
-    self: SELF;
   };
 }
 
@@ -108,7 +106,7 @@ const stream = new Stream([1, 2, 3])
   .pipe(
     catchError((e) => {
       if (e.sourceName === "SSS") {
-        e.source.errors.name;
+        e.source;
       } else {
         e.error;
       }
