@@ -13,7 +13,7 @@ class Pump<
   protected __sourceGenerator?: AsyncGenerator<VALUE, void>;
   protected _options: pump.Options = { autoStart: true };
   protected _events?: Stream<
-    pump.Event<Stream.Transformer<Pump<INPUT_STREAM, INPUT_NAME, VALUE, NAME>, INPUT_NAME, INPUT_STREAM>>,
+    pump.Event<Stream.Traversable<Pump<INPUT_STREAM, INPUT_NAME, VALUE, NAME>, INPUT_NAME, INPUT_STREAM>>,
     `${NAME}-events`
   >;
   constructor(options: Stream.TransformOptions<INPUT_STREAM, NAME> & { options?: pump.Options }) {

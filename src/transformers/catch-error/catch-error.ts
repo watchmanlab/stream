@@ -13,14 +13,14 @@ export class CatchError<
   | Stream.MaybeSourceErr<
       SOURCE_ERR,
       ERROR,
-      Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+      Stream.Traversable<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
     >,
   NAME
 > {
   protected _events?: Stream<
     catchError.Event<
       SOURCE_ERR,
-      Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+      Stream.Traversable<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
     >,
     `${NAME}Events`
   >;
@@ -28,7 +28,7 @@ export class CatchError<
     Stream.ErrorEvent<
       SOURCE_ERR,
       ERROR,
-      Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+      Stream.Traversable<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
     >,
     `${NAME}Errors`
   >;
@@ -37,7 +37,7 @@ export class CatchError<
       callback?: catchError.Callback<
         SOURCE_ERR,
         ERROR,
-        Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+        Stream.Traversable<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
       >;
     },
   ) {
@@ -96,7 +96,7 @@ export function catchError<
   callback?: catchError.Callback<
     SOURCE_ERR,
     ERROR,
-    Stream.Transformer<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+    Stream.Traversable<CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
   >,
 ): Stream.Transform<INPUT_STREAM, NAME, CatchError<INPUT_STREAM, INPUT_NAME, SOURCE_ERR, ERROR, NAME>> {
   return (options) => new CatchError({ ...options, callback });

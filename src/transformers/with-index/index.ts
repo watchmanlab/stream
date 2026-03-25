@@ -1,4 +1,4 @@
-import { statefull } from "../state-map/state-map";
+import { statefull } from "../statefull-map/statefull-map";
 
 /**
  * Add index to values

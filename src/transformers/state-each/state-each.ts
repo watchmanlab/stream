@@ -3,7 +3,7 @@ import { each } from "../each";
 import { effect } from "../effect";
 import { map } from "../map";
 import { pump } from "../pump";
-import { stateMap, StateMap } from "../state-map";
+import { stateMap, StateMap } from "../statefull-map";
 
 const NAME = "stateEach";
 

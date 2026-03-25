@@ -5,7 +5,6 @@ const NAME = "map";
 export class Map<
   INPUT_STREAM extends Stream<any, any>,
   INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
-  SELF extends Stream<any, any> = never,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
@@ -16,38 +15,19 @@ export class Map<
   | Stream.MaybeSourceErr<
       CLEAN_VALUE,
       ERROR,
-      [SELF] extends [never]
-        ? Stream.Transformer<
-            Map<INPUT_STREAM, INPUT_NAME, never, CLEAN_VALUE, MAPPED, ERROR, NAME>,
-            INPUT_NAME,
-            INPUT_STREAM
-          >
-        : Stream.Transformer<SELF, INPUT_NAME, INPUT_STREAM>
+      Stream.Traversable<Map<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
     >,
   NAME
 > {
-  protected _errors?: Stream<
-    Stream.ErrorEvent<CLEAN_VALUE, ERROR, Stream.Transformer<this, INPUT_NAME, INPUT_STREAM>>,
-    `${NAME}Errors`
-  >;
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
 
   constructor(
     options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
-      mapper: map.Mapper<
-        CLEAN_VALUE,
-        MAPPED,
-        ERROR,
-        Stream.Transformer<
-          Map<INPUT_STREAM, INPUT_NAME, never, CLEAN_VALUE, MAPPED, ERROR, NAME>,
-          INPUT_NAME,
-          INPUT_STREAM
-        >
-      >;
+      mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>;
     },
   ) {
-    const { name = NAME as NAME, inputStream, mapper } = options;
-    super(name, async function* () {
-      for await (const value of inputStream) {
+    super(options.name ?? (NAME as NAME), async function* () {
+      for await (const value of options.inputStream) {
         if (Stream.isSentinel(value)) {
           yield value as never;
           continue;
@@ -55,7 +35,7 @@ export class Map<
 
         const cleanValue = value as CLEAN_VALUE;
         try {
-          const maybePromise = mapper(cleanValue, self as never);
+          const maybePromise = options.mapper(cleanValue);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
@@ -63,7 +43,6 @@ export class Map<
               type: "expected",
               value: cleanValue,
               error: result.value,
-              source: self as never,
             });
 
             yield Stream.sourceErr({
@@ -78,10 +57,10 @@ export class Map<
           yield result as never;
         } catch (error) {
           if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", value: cleanValue, error: error.value, source: self as never });
+            self._errors?.push({ type: "expected", value: cleanValue, error: error.value });
             yield Stream.sourceErr({ value: value, error: error.value, source: self }) as never;
           } else {
-            self._errors?.push({ type: "unexpected", value: cleanValue, error: error, source: self as never });
+            self._errors?.push({ type: "unexpected", value: cleanValue, error: error });
             yield Stream.sourceErr({ value: value, error: error, source: self }) as never;
           }
         }
@@ -99,33 +78,21 @@ export class Map<
 export function map<
   INPUT_STREAM extends Stream<any, any>,
   INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
-  SELF extends Stream<any, any> = never,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = map.Name,
 >(
-  mapper: map.Mapper<
-    CLEAN_VALUE,
-    MAPPED,
-    ERROR,
-    Stream.Transformer<Map<INPUT_STREAM, INPUT_NAME, never, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
-  >,
-): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, INPUT_NAME, SELF, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
+  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
   return (options) => new Map({ ...options, mapper });
 }
 
 export namespace map {
   export type Name = typeof NAME;
 
-  export type Mapper<
-    CLEAN_VALUE,
-    MAPPED,
-    ERROR,
-    SELF extends Stream.Transformer<Stream<any, any>, string, Stream<any, any>>,
-  > = (
+  export type Mapper<CLEAN_VALUE, MAPPED, ERROR> = (
     value: CLEAN_VALUE,
-    self: SELF,
   ) =>
     | MAPPED
     | Stream.Err<ERROR>

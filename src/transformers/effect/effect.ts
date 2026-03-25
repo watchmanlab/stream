@@ -13,7 +13,7 @@ export class Effect<
   | Stream.MaybeSourceErr<
       CLEAN_VALUE,
       ERROR,
-      Stream.Transformer<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+      Stream.Traversable<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
     >,
   NAME
 > {
@@ -21,7 +21,7 @@ export class Effect<
     Stream.ErrorEvent<
       CLEAN_VALUE,
       ERROR,
-      Stream.Transformer<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+      Stream.Traversable<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
     >,
     `${NAME}Errors`
   >;
@@ -31,7 +31,7 @@ export class Effect<
       callback: effect.Callback<
         CLEAN_VALUE,
         ERROR,
-        Stream.Transformer<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+        Stream.Traversable<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
       >;
     },
   ) {
@@ -110,7 +110,7 @@ export function effect<
   callback: effect.Callback<
     CLEAN_VALUE,
     ERROR,
-    Stream.Transformer<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+    Stream.Traversable<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
   >,
 ): Stream.Transform<INPUT_STREAM, NAME, Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>> {
   return (options) => new Effect({ ...options, callback });

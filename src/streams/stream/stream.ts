@@ -111,11 +111,11 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   }
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     transformer: Stream.Transform<this, CUSTOM_NAME, OUTPUT>,
-  ): Stream.Transformer<OUTPUT, NAME, this>;
+  ): Stream.Traversable<OUTPUT, NAME, this>;
   pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
     name: CUSTOM_NAME,
     transformer: Stream.Transform<this, CUSTOM_NAME, OUTPUT>,
-  ): Stream.Transformer<OUTPUT, NAME, this>;
+  ): Stream.Traversable<OUTPUT, NAME, this>;
   pipe(transformerOrName1: Function | string, transformer?: Function) {
     const output =
       typeof transformerOrName1 === "string"
@@ -187,7 +187,7 @@ export namespace Stream {
     OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>,
   > = (options: TransformOptions<INPUT_STREAM, OUTPUT_NAME>) => OUTPUT_STREAM;
 
-  export type Transformer<
+  export type Traversable<
     OUTPUT_STREAM extends Stream<any, any>,
     INPUT_NAME extends string,
     INPUT_STREAM extends Stream<any, INPUT_NAME>,
@@ -202,18 +202,16 @@ export namespace Stream {
   export type Terminate = typeof TERMINATE;
   export const SKIP = Symbol("*SKIP#");
   export type Skip = typeof SKIP;
-  export type ErrorEvent<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> =
+  export type ErrorEvent<CLEAN_VALUE, ERROR> =
     | {
         type: "expected";
         value: CLEAN_VALUE;
         error: ERROR;
-        source: SOURCE;
       }
     | {
         type: "unexpected";
         value: CLEAN_VALUE;
         error: unknown;
-        source: SOURCE;
       };
   export class SourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> extends Stream.Sentinel {
     constructor(

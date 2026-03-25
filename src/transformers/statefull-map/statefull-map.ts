@@ -1,18 +1,26 @@
 import { Stream } from "../../streams/index.ts";
 
-const NAME = "stateMap";
+const NAME = "statefullMap";
 
-export class StateMap<
-  SOURCE extends Stream<any, any>,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+export class StatefullMap<
+  INPUT_STREAM extends Stream<any, any>,
+  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
+  SELF extends Stream<any, any> = never,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   STATE extends Record<string, unknown> = {},
   ERROR = never,
-  NAME extends string = stateMap.Name,
+  NAME extends string = statefullMap.Name,
 > extends Stream<
   | MAPPED
-  | Stream.ExtractSentinel<SOURCE>
-  | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>>,
+  | Stream.ExtractSentinel<INPUT_STREAM>
+  | Stream.MaybeSourceErr<
+      CLEAN_VALUE,
+      ERROR,
+      [SELF] extends [never]
+        ? StatefullMap<INPUT_STREAM, INPUT_NAME, SELF, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
+        : SELF
+    >,
   NAME
 > {
   protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
@@ -21,12 +29,12 @@ export class StateMap<
     source: SOURCE,
     name = NAME as NAME,
     initialState: STATE,
-    mapper: stateMap.Mapper<
+    mapper: statefullMap.Mapper<
       CLEAN_VALUE,
       MAPPED,
       STATE,
       ERROR,
-      StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
+      StatefullMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
     >,
   ) {
     super(name, async function* () {
@@ -84,21 +92,27 @@ export class StateMap<
   }
 }
 
-export function stateMap<
+export function statefullMap<
   SOURCE extends Stream<any, any>,
   CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
   MAPPED = CLEAN_VALUE,
   STATE extends Record<string, unknown> = {},
   ERROR = never,
-  NAME extends string = stateMap.Name,
+  NAME extends string = statefullMap.Name,
 >(
   initialState: STATE,
-  mapper: stateMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR, StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>>,
-): Stream.Transform<NAME, SOURCE, StateMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>> {
-  return (_, source, name) => new StateMap(source, name, initialState, mapper);
+  mapper: statefullMap.Mapper<
+    CLEAN_VALUE,
+    MAPPED,
+    STATE,
+    ERROR,
+    StatefullMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
+  >,
+): Stream.Transform<NAME, SOURCE, StatefullMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>> {
+  return (_, source, name) => new StatefullMap(source, name, initialState, mapper);
 }
 
-export namespace stateMap {
+export namespace statefullMap {
   export type Name = typeof NAME;
   export type Mapper<
     CLEAN_VALUE,
