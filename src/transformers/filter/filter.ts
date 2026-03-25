@@ -160,12 +160,10 @@ const stream = new Stream([1, 2, 3])
   .pipe(each((v) => console.log(v)))
   .pipe(
     catchError((e) => {
-      switch (e.source.name) {
-        case "SSS":
-          e.source;
-
-        case "map":
-          e.source;
+      if (e.sourceName === "SSS") {
+        e.source.errors.name;
+      } else {
+        e.error;
       }
     }),
   )

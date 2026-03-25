@@ -223,7 +223,7 @@ export namespace Stream {
     ) {
       super();
     }
-    get name(): SOURCE["name"] {
+    get sourceName(): SOURCE["name"] {
       return this.source.name;
     }
   }
