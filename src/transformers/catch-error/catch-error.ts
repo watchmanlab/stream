@@ -17,8 +17,8 @@ export class CatchError<
     >,
   NAME
 > {
-  protected _events?: Stream<catchError.Event<SOURCE_ERR>, `${NAME}Events`>;
   protected _errors?: Stream<Stream.ErrorEvent<SOURCE_ERR, ERROR>, `${NAME}Errors`>;
+  protected _events?: Stream<catchError.Event<SOURCE_ERR>, `${NAME}Events`>;
   constructor(
     options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
       callback?: catchError.Callback<SOURCE_ERR, ERROR>;
@@ -59,13 +59,13 @@ export class CatchError<
     });
     const self = this;
   }
-  get events() {
-    if (!this._events) this._events = new Stream(`${this._name}Events` as never);
-    return this._events;
-  }
   get errors() {
     if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
     return this._errors;
+  }
+  get events() {
+    if (!this._events) this._events = new Stream(`${this._name}Events` as never);
+    return this._events;
   }
 }
 

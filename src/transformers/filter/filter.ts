@@ -37,39 +37,28 @@ export class Filter<
           continue;
         }
 
-        const cleanValue = value as FILTERED;
         try {
-          const maybePromise = options.predicate(cleanValue);
+          const maybePromise = options.predicate(value);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            self._errors?.push({
-              type: "expected",
-              value: cleanValue,
-              error: result.value,
-            });
-
-            yield Stream.sourceErr({
-              value: cleanValue,
-              error: result.value,
-              source: self,
-            }) as never;
-
+            self._errors?.push({ type: "expected", value, error: result.value });
+            yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
             continue;
           }
 
           if (result) {
-            yield cleanValue;
+            yield value;
           } else {
-            self._events?.push({ type: "filtered", value: cleanValue });
+            self._events?.push({ type: "filtered", value });
           }
         } catch (error) {
           if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", value: cleanValue, error: error.value });
-            yield Stream.sourceErr({ value: value, error: error.value, source: self }) as never;
+            self._errors?.push({ type: "expected", value, error: error.value });
+            yield Stream.sourceErr({ value, error: error.value, source: self }) as never;
           } else {
-            self._errors?.push({ type: "unexpected", value: cleanValue, error: error });
-            yield Stream.sourceErr({ value: value, error: error, source: self }) as never;
+            self._errors?.push({ type: "unexpected", value, error: error });
+            yield Stream.sourceErr({ value, error: error, source: self }) as never;
           }
         }
       }

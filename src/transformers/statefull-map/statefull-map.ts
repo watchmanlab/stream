@@ -3,9 +3,8 @@ import { Stream } from "../../streams/index.ts";
 const NAME = "statefullMap";
 
 export class StatefullMap<
-  INPUT_STREAM extends Stream<any, any>,
+  INPUT_STREAM extends Stream.AnyStream,
   INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
-  SELF extends Stream<any, any> = never,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   STATE extends Record<string, unknown> = {},
@@ -17,52 +16,39 @@ export class StatefullMap<
   | Stream.MaybeSourceErr<
       CLEAN_VALUE,
       ERROR,
-      [SELF] extends [never]
-        ? StatefullMap<INPUT_STREAM, INPUT_NAME, SELF, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
-        : SELF
+      Stream.Traversable<
+        StatefullMap<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>,
+        INPUT_NAME,
+        INPUT_STREAM
+      >
     >,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
+  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
 
   constructor(
-    source: SOURCE,
-    name = NAME as NAME,
-    initialState: STATE,
-    mapper: statefullMap.Mapper<
-      CLEAN_VALUE,
-      MAPPED,
-      STATE,
-      ERROR,
-      StatefullMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
-    >,
+    options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
+      initialState: STATE;
+      mapper: statefullMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>;
+    },
   ) {
-    super(name, async function* () {
+    const { initialState, inputStream, mapper, name } = options;
+    super(name ?? (NAME as NAME), async function* () {
       let state = initialState;
-      for await (const value of source) {
+      for await (const value of inputStream) {
         if (Stream.isSentinel(value)) {
           yield value as never;
           continue;
         }
 
-        const cleanValue = value as CLEAN_VALUE;
         try {
-          const maybePromise = mapper(state, cleanValue, self);
+          const maybePromise = mapper(state, value);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            self._errors?.push({
-              type: "expected",
-              value: cleanValue,
-              detail: result.value,
-              source: self,
-            });
+            self._errors?.push({ type: "expected", value, error: result.value });
 
-            yield Stream.sourceErr({
-              value: cleanValue,
-              detail: result.value,
-              source: self,
-            }) as never;
+            yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
 
             continue;
           }
@@ -73,11 +59,11 @@ export class StatefullMap<
           yield mapped;
         } catch (error) {
           if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: error.value });
-            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+            self._errors?.push({ type: "expected", value, error: error.value });
+            yield Stream.sourceErr({ value, error: error.value, source: self }) as never;
           } else {
-            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
-            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+            self._errors?.push({ type: "unexpected", value, error });
+            yield Stream.sourceErr({ value, error, source: self }) as never;
           }
         }
       }
@@ -87,42 +73,33 @@ export class StatefullMap<
 
   get errors() {
     if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
-
     return this._errors;
   }
 }
 
 export function statefullMap<
-  SOURCE extends Stream<any, any>,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  INPUT_STREAM extends Stream.AnyStream,
+  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   STATE extends Record<string, unknown> = {},
   ERROR = never,
   NAME extends string = statefullMap.Name,
 >(
   initialState: STATE,
-  mapper: statefullMap.Mapper<
-    CLEAN_VALUE,
-    MAPPED,
-    STATE,
-    ERROR,
-    StatefullMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
-  >,
-): Stream.Transform<NAME, SOURCE, StatefullMap<SOURCE, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>> {
-  return (_, source, name) => new StatefullMap(source, name, initialState, mapper);
+  mapper: statefullMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  NAME,
+  StatefullMap<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
+> {
+  return (options) => new StatefullMap({ ...options, initialState, mapper });
 }
 
 export namespace statefullMap {
   export type Name = typeof NAME;
-  export type Mapper<
-    CLEAN_VALUE,
-    MAPPED,
-    STATE extends Record<string, unknown>,
-    ERROR,
-    SELF extends Stream<any, any>,
-  > = (
+  export type Mapper<CLEAN_VALUE, MAPPED, STATE extends Record<string, unknown>, ERROR> = (
     state: STATE,
     value: CLEAN_VALUE,
-    self: SELF,
   ) => [MAPPED, Partial<STATE>] | Stream.Err<ERROR> | Promise<[MAPPED, Partial<STATE>] | Stream.Err<ERROR>>;
 }

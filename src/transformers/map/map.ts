@@ -33,35 +33,24 @@ export class Map<
           continue;
         }
 
-        const cleanValue = value as CLEAN_VALUE;
         try {
-          const maybePromise = options.mapper(cleanValue);
+          const maybePromise = options.mapper(value);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            self._errors?.push({
-              type: "expected",
-              value: cleanValue,
-              error: result.value,
-            });
-
-            yield Stream.sourceErr({
-              value: cleanValue,
-              error: result.value,
-              source: self,
-            }) as never;
-
+            self._errors?.push({ type: "expected", value, error: result.value });
+            yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
             continue;
           }
 
           yield result as never;
         } catch (error) {
           if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", value: cleanValue, error: error.value });
-            yield Stream.sourceErr({ value: value, error: error.value, source: self }) as never;
+            self._errors?.push({ type: "expected", value, error: error.value });
+            yield Stream.sourceErr({ value, error: error.value, source: self }) as never;
           } else {
-            self._errors?.push({ type: "unexpected", value: cleanValue, error: error });
-            yield Stream.sourceErr({ value: value, error: error, source: self }) as never;
+            self._errors?.push({ type: "unexpected", value, error: error });
+            yield Stream.sourceErr({ value, error: error, source: self }) as never;
           }
         }
       }
@@ -84,7 +73,11 @@ export function map<
   NAME extends string = map.Name,
 >(
   mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
-): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
+): Stream.Transform<
+  INPUT_STREAM,
+  NAME,
+  Stream.Traversable<Map<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+> {
   return (options) => new Map({ ...options, mapper });
 }
 
