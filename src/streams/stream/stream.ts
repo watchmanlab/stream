@@ -109,32 +109,19 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
     return this[Symbol.asyncIterator]().next();
   }
-  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
-    transformer: Stream.Transform<this, CUSTOM_NAME, OUTPUT>,
-  ): Stream.Traversable<OUTPUT, NAME, this>;
-  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
+  pipe<CUSTOM_NAME extends string, OUTPUT_STREAM extends Stream<any, CUSTOM_NAME>>(
+    transform: Stream.Transform<this, CUSTOM_NAME, OUTPUT_STREAM>,
+  ): OUTPUT_STREAM;
+  pipe<CUSTOM_NAME extends string, OUTPUT_STREAM extends Stream<any, CUSTOM_NAME>>(
     name: CUSTOM_NAME,
-    transformer: Stream.Transform<this, CUSTOM_NAME, OUTPUT>,
-  ): Stream.Traversable<OUTPUT, NAME, this>;
-  pipe(transformerOrName1: Function | string, transformer?: Function) {
-    const output =
-      typeof transformerOrName1 === "string"
-        ? (transformer!({
-            token: USE_TRANSFORMER_INSIDE_PIPE_PLEASE,
-            inputStream: this,
-            name: transformerOrName1,
-          }) as any)
-        : typeof transformerOrName1 === "function"
-          ? (transformerOrName1!({ token: USE_TRANSFORMER_INSIDE_PIPE_PLEASE, inputStream: this }) as any)
-          : void 0;
-
-    return new Proxy(output, {
-      get(target, p, receiver) {
-        if (p in target) return Reflect.get(target, p, receiver);
-
-        return this;
-      },
-    });
+    transform: Stream.Transform<this, CUSTOM_NAME, OUTPUT_STREAM>,
+  ): OUTPUT_STREAM;
+  pipe(transformOrName: Function | string, transform?: Function) {
+    return typeof transformOrName === "string"
+      ? (transform!(this, transformOrName) as any)
+      : typeof transformOrName === "function"
+        ? (transformOrName!(this) as any)
+        : void 0;
   }
   static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, unknown> {
     return (async function* () {
@@ -153,7 +140,7 @@ export namespace Stream {
   export type AnyStream = Stream<any, any>;
   export type AnySource = Source<any>;
   export type AnySourceErr = SourceErr<any, any, AnyStream>;
-  export type AnyTraversable = Traversable<AnyStream, string, AnyStream>;
+  export type AnyTraversable = Traversable<AnyStream, AnyStream>;
   export type ExtractValue<T> =
     T extends Source<infer VALUE> ? VALUE : T extends SourceErr<infer VALUE, any, any> ? VALUE : T;
   export type ExtractName<T extends AnyStream | AnySourceErr> =
@@ -180,21 +167,26 @@ export namespace Stream {
     readonly awaitAnyConsumer: Promise<void>;
     then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
   };
-  export type TransformOptions<INPUT_STREAM extends AnyStream, OUTPUT_NAME extends string> = {
-    token: Token;
-    inputStream: INPUT_STREAM;
-    name?: OUTPUT_NAME;
-  };
+
   export type Transform<
     INPUT_STREAM extends AnyStream,
     OUTPUT_NAME extends string,
     OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>,
-  > = (options: TransformOptions<INPUT_STREAM, OUTPUT_NAME>) => OUTPUT_STREAM;
-  export type Traversable<
-    OUTPUT_STREAM extends AnyStream,
-    INPUT_NAME extends string,
-    INPUT_STREAM extends Stream<any, INPUT_NAME>,
-  > = OUTPUT_STREAM & Record<INPUT_NAME | (`$${string}` & {}), INPUT_STREAM>;
+  > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
+  export type Traversable<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream> = OUTPUT_STREAM &
+    Record<ExtractName<INPUT_STREAM> | (`$${string}` & {}), INPUT_STREAM>;
+  export function traversable<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream>(
+    outputStream: OUTPUT_STREAM,
+    inputStream: INPUT_STREAM,
+  ): Traversable<OUTPUT_STREAM, INPUT_STREAM> {
+    return new Proxy(outputStream, {
+      get(target, p, receiver) {
+        if (p in target) return Reflect.get(target, p, receiver);
+        return inputStream;
+      },
+    }) as never;
+  }
+
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("__sentinel");
   }
@@ -255,7 +247,4 @@ export namespace Stream {
   export type Terminate = typeof TERMINATE;
   export const SKIP = Symbol("*SKIP#");
   export type Skip = typeof SKIP;
-  export type Token = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 }
-
-const USE_TRANSFORMER_INSIDE_PIPE_PLEASE = Symbol("*USE_TRANSFORMER_INSIDE_PIPE_PLEASE#");

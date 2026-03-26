@@ -4,7 +4,6 @@ const NAME = "map";
 
 export class Map<
   INPUT_STREAM extends Stream.AnyStream,
-  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
@@ -15,26 +14,22 @@ export class Map<
   | Stream.MaybeSourceErr<
       CLEAN_VALUE,
       ERROR,
-      Stream.Traversable<Map<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+      Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
     >,
   NAME
 > {
   protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
 
-  constructor(
-    options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
-      mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>;
-    },
-  ) {
-    super(options.name ?? (NAME as NAME), async function* () {
-      for await (const value of options.inputStream) {
+  constructor(inputStream: INPUT_STREAM, name = NAME as NAME, mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>) {
+    super(name, async function* () {
+      for await (const value of inputStream) {
         if (Stream.isSentinel(value)) {
           yield value as never;
           continue;
         }
 
         try {
-          const maybePromise = options.mapper(value);
+          const maybePromise = mapper(value);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
@@ -66,7 +61,6 @@ export class Map<
 
 export function map<
   INPUT_STREAM extends Stream.AnyStream,
-  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
@@ -76,9 +70,9 @@ export function map<
 ): Stream.Transform<
   INPUT_STREAM,
   NAME,
-  Stream.Traversable<Map<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+  Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
 > {
-  return (options) => new Map({ ...options, mapper });
+  return (inputStream, name) => Stream.traversable(new Map(inputStream, name, mapper), inputStream);
 }
 
 export namespace map {
@@ -109,3 +103,8 @@ const s2 = stream.pipe(
   "toNumber",
   map((v) => Number(v)),
 );
+s2.name;
+// ^?
+s2.pipe((s, name) => {
+  return Stream.traversable(new Stream<string, "kech">(), s);
+});
