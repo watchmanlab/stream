@@ -152,7 +152,7 @@ export namespace Stream {
   export type Name = typeof NAME;
   export type AnyStream = Stream<any, any>;
   export type AnySource = Source<any>;
-  export type AnySourceErr = SourceErr<any, any, any>;
+  export type AnySourceErr = SourceErr<any, any, AnyStream>;
   export type AnyTraversable = Traversable<AnyStream, string, AnyStream>;
   export type ExtractValue<T> =
     T extends Source<infer VALUE> ? VALUE : T extends SourceErr<infer VALUE, any, any> ? VALUE : T;
@@ -164,8 +164,8 @@ export namespace Stream {
     T extends Err<infer ERROR> ? ERROR : T extends SourceErr<any, infer ERROR, any> ? ERROR : never;
   export type ExtractSourceErr<T> = Extract<ExtractValue<T>, AnySourceErr>;
   export type ExcludeSourceErr<T> = Exclude<ExtractValue<T>, AnySourceErr>;
-  export type ExtractSource<SOURCE_ERR extends AnySourceErr> =
-    SOURCE_ERR extends SourceErr<any, any, infer SOURCE> ? SOURCE : never;
+  export type ExtractSourceErrStream<T extends AnySourceErr> =
+    T extends SourceErr<any, any, infer SOURCE> ? SOURCE : never;
   export type MaybeSourceErr<CLEAN_VALUE, ERROR, SOURCE extends AnyStream> = [ERROR] extends [never]
     ? never
     : SourceErr<CLEAN_VALUE, ERROR, SOURCE>;
@@ -181,7 +181,7 @@ export namespace Stream {
     then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
   };
   export type TransformOptions<INPUT_STREAM extends AnyStream, OUTPUT_NAME extends string> = {
-    token: UseTransformerInsidePipePlease;
+    token: Token;
     inputStream: INPUT_STREAM;
     name?: OUTPUT_NAME;
   };
@@ -190,20 +190,17 @@ export namespace Stream {
     OUTPUT_NAME extends string,
     OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>,
   > = (options: TransformOptions<INPUT_STREAM, OUTPUT_NAME>) => OUTPUT_STREAM;
-
   export type Traversable<
     OUTPUT_STREAM extends AnyStream,
     INPUT_NAME extends string,
     INPUT_STREAM extends Stream<any, INPUT_NAME>,
   > = OUTPUT_STREAM & Record<INPUT_NAME | (`$${string}` & {}), INPUT_STREAM>;
-
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("__sentinel");
   }
   export function isSentinel<T extends Sentinel>(object: unknown): object is T {
     return object instanceof Sentinel;
   }
-
   export type ErrorEvent<CLEAN_VALUE, ERROR> =
     | {
         type: "expected";
@@ -258,7 +255,7 @@ export namespace Stream {
   export type Terminate = typeof TERMINATE;
   export const SKIP = Symbol("*SKIP#");
   export type Skip = typeof SKIP;
-  export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
+  export type Token = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
 }
 
 const USE_TRANSFORMER_INSIDE_PIPE_PLEASE = Symbol("*USE_TRANSFORMER_INSIDE_PIPE_PLEASE#");
