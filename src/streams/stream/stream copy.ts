@@ -5,8 +5,8 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   protected _sourceGenerator?: AsyncGenerator<VALUE, void, unknown>;
   protected _name = NAME as NAME;
   constructor();
-  constructor(name: NAME);
   constructor(source: Stream.Source<VALUE>);
+  constructor(name: NAME);
   constructor(name: NAME, source: Stream.Source<VALUE>);
   constructor(sourceOrName?: Stream.Source<VALUE> | NAME, source?: Stream.Source<VALUE>) {
     if (typeof sourceOrName === "string" || sourceOrName instanceof String) {
@@ -109,10 +109,20 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
     return this[Symbol.asyncIterator]().next();
   }
-  pipe<OUTPUT_STREAM extends Stream.AnyStream>(transform: Stream.Transform<this, OUTPUT_STREAM>): OUTPUT_STREAM {
-    return transform(this);
+  pipe<CUSTOM_NAME extends string, OUTPUT_STREAM extends Stream<any, CUSTOM_NAME>>(
+    transform: Stream.Transform<this, CUSTOM_NAME, OUTPUT_STREAM>,
+  ): OUTPUT_STREAM;
+  pipe<CUSTOM_NAME extends string, OUTPUT_STREAM extends Stream<any, CUSTOM_NAME>>(
+    name: CUSTOM_NAME,
+    transform: Stream.Transform<this, CUSTOM_NAME, OUTPUT_STREAM>,
+  ): OUTPUT_STREAM;
+  pipe(transformOrName: Function | string, transform?: Function) {
+    return typeof transformOrName === "string"
+      ? (transform!(this, transformOrName) as any)
+      : typeof transformOrName === "function"
+        ? (transformOrName!(this) as any)
+        : void 0;
   }
-
   static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, unknown> {
     return (async function* () {
       if (!source) return;
@@ -134,7 +144,7 @@ export namespace Stream {
   export type ExtractValue<T> =
     T extends Source<infer VALUE> ? VALUE : T extends SourceErr<infer VALUE, any, any> ? VALUE : T;
   export type ExtractName<T extends AnyStream | AnySourceErr> =
-    T extends Stream<any, infer NAME> ? NAME : T extends AnySourceErr ? ExtractName<ExtractSourceErrStream<T>> : never;
+    T extends Stream<any, infer NAME> ? NAME : T extends AnySourceErr ? ExtractName<T["source"]> : never;
   export type ExtractSentinel<T> = Extract<ExtractValue<T>, Sentinel>;
   export type ExtractCleanValue<T> = Exclude<ExtractValue<T>, Sentinel>;
   export type ExtractError<T extends Err<any> | AnySourceErr> =
@@ -158,9 +168,11 @@ export namespace Stream {
     then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
   };
 
-  export type Transform<INPUT_STREAM extends AnyStream, OUTPUT_STREAM extends AnyStream> = (
-    inputStream: INPUT_STREAM,
-  ) => OUTPUT_STREAM;
+  export type Transform<
+    INPUT_STREAM extends AnyStream,
+    OUTPUT_NAME extends string,
+    OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>,
+  > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
   export type Traversable<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream> = OUTPUT_STREAM &
     Record<ExtractName<INPUT_STREAM> | (`$${string}` & {}), INPUT_STREAM>;
   export function traversable<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream>(
@@ -176,7 +188,7 @@ export namespace Stream {
   }
 
   export abstract class Sentinel {
-    private readonly __sentinel = Symbol("*__sentinel#");
+    private readonly __sentinel = Symbol("__sentinel");
   }
   export function isSentinel<T extends Sentinel>(object: unknown): object is T {
     return object instanceof Sentinel;
