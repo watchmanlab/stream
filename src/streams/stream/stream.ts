@@ -127,7 +127,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type AnyStream = Stream<any, any>;
+  export type AnyStream<T = any, N extends string = string> = Stream<T, N>;
   export type AnySource = Source<any>;
   export type AnySourceErr = SourceErr<any, any, AnyStream>;
   export type AnyTraversable = Traversable<AnyStream, AnyStream>;
