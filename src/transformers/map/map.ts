@@ -20,7 +20,7 @@ class Map<
 > {
   private _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
 
-  constructor(inputStream: INPUT_STREAM, name: NAME, mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>) {
+  constructor(name: NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>) {
     super(name, async function* () {
       for await (const value of inputStream) {
         if (Stream.isSentinel(value)) {
@@ -84,8 +84,26 @@ export function map<
   INPUT_STREAM,
   Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
 >;
-export function map(mapperOrName: any, mapper?: any): any {
-  return (inputStream: any) => new Map(inputStream, mapperOrName, mapper);
+export function map<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = CLEAN_VALUE,
+  ERROR = never,
+  NAME extends string = map.Name,
+>(
+  mapperOrName: map.Mapper<CLEAN_VALUE, MAPPED, ERROR> | NAME,
+  mapper?: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+> {
+  return (inputStream) =>
+    Stream.traversable(
+      typeof mapperOrName === "string"
+        ? new Map(mapperOrName, inputStream, mapper!)
+        : new Map(NAME as NAME, inputStream, mapperOrName),
+      inputStream,
+    );
 }
 
 export namespace map {
@@ -110,3 +128,4 @@ const stream = new Stream([1, 2, 4])
   .pipe(map("map3", (v) => v));
 
 stream.inner2.inner1.map2.map1;
+stream.inner2.inner1.map2.map1.root.name;
