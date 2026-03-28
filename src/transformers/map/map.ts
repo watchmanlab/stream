@@ -60,8 +60,20 @@ class Map<
 }
 
 export function map<
+  NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
-  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = CLEAN_VALUE,
+  ERROR = never,
+>(
+  name: NAME,
+  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+>;
+export function map<
+  INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
@@ -70,19 +82,6 @@ export function map<
 ): Stream.Transform<
   INPUT_STREAM,
   Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, map.Name>, INPUT_STREAM>
->;
-export function map<
-  INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = CLEAN_VALUE,
-  ERROR = never,
-  NAME extends string = map.Name,
->(
-  name: NAME,
-  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
-): Stream.Transform<
-  INPUT_STREAM,
-  Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
 >;
 export function map<
   INPUT_STREAM extends Stream.AnyStream,
@@ -127,5 +126,5 @@ const stream = new Stream([1, 2, 4])
   .pipe(custom)
   .pipe(map("map3", (v) => v));
 
-stream.inner2.inner1.map2.map1;
+stream.inner2.inner1.map2.map1.name;
 stream.inner2.inner1.map2.map1.root.name;
