@@ -48,13 +48,21 @@ export class Map<
 
     const self = this;
   }
-  get expectedErrors() {
-    if (!this._expectedErrors) this._expectedErrors = new Stream(`${this._name}ExpectedErrors` as never);
-    return this._expectedErrors;
-  }
-  get unexpectedErrors() {
-    if (!this._unexpectedErrors) this._unexpectedErrors = new Stream(`${this._name}UnexpectedErrors` as never);
-    return this._unexpectedErrors;
+  get errors(): {
+    expected: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}ExpectedErrors`>;
+    unexpected: Stream<Stream.ErrorEvent<CLEAN_VALUE, unknown>, `${NAME}UnexpectedErrors`>;
+  } {
+    const self = this;
+    return {
+      get expected() {
+        if (!self._expectedErrors) self._expectedErrors = new Stream(`${self._name}ExpectedErrors` as never);
+        return self._expectedErrors;
+      },
+      get unexpected() {
+        if (!self._unexpectedErrors) self._unexpectedErrors = new Stream(`${self._name}UnexpectedErrors` as never);
+        return self._unexpectedErrors;
+      },
+    };
   }
 }
 
