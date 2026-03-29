@@ -3,7 +3,7 @@ import { Map, map } from "../map/map.ts";
 
 const NAME = "each";
 
-function each<
+export function each<
   NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
@@ -15,7 +15,7 @@ function each<
   INPUT_STREAM,
   Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>
 >;
-function each<
+export function each<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,
@@ -26,7 +26,7 @@ function each<
   Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, each.Name>, INPUT_STREAM>
 >;
 
-function each<
+export function each<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,
@@ -43,17 +43,14 @@ function each<
       ? { name: nameOrCallback, fn: callback! }
       : { name: NAME as NAME, fn: nameOrCallback };
   return (inputStream: INPUT_STREAM) =>
-    Stream.traversable(
-      inputStream.pipe(
-        map(name, async (v) => {
-          const maybePromise = fn(v);
-          const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
-          if (Stream.isErr(result)) return result;
+    inputStream.pipe(
+      map(name, async (v) => {
+        const maybePromise = fn(v);
+        const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+        if (Stream.isErr(result)) return result;
 
-          return v;
-        }),
-      ),
-      inputStream,
+        return v;
+      }),
     );
 }
 
@@ -69,4 +66,4 @@ const stream = new Stream([1, 2, 4])
   )
   .pipe(map((v) => v.toFixed()));
 
-stream.each22;
+stream.each22.root;

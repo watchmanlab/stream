@@ -18,8 +18,8 @@ export class Map<
     >,
   NAME
 > {
-  private _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
-
+  protected _expectedErrors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}ExpectedErrors`>;
+  protected _unexpectedErrors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, unknown>, `${NAME}UnexpectedErrors`>;
   constructor(name: NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>) {
     super(name, async function* () {
       for await (const value of inputStream) {
@@ -33,29 +33,28 @@ export class Map<
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            self._errors?.push({ type: "expected", value, error: result.value });
+            self._expectedErrors?.push({ value, error: result.value });
             yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
             continue;
           }
 
           yield result as never;
         } catch (error) {
-          if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", value, error: error.value });
-            yield Stream.sourceErr({ value, error: error.value, source: self }) as never;
-          } else {
-            self._errors?.push({ type: "unexpected", value, error: error });
-            yield Stream.sourceErr({ value, error: error, source: self }) as never;
-          }
+          self._unexpectedErrors?.push({ value, error: error });
+          yield Stream.sourceErr({ value, error: error, source: self }) as never;
         }
       }
     });
 
     const self = this;
   }
-  get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
-    return this._errors;
+  get expectedErrors() {
+    if (!this._expectedErrors) this._expectedErrors = new Stream(`${this._name}ExpectedErrors` as never);
+    return this._expectedErrors;
+  }
+  get unexpectedErrors() {
+    if (!this._unexpectedErrors) this._unexpectedErrors = new Stream(`${this._name}UnexpectedErrors` as never);
+    return this._unexpectedErrors;
   }
 }
 

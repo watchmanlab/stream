@@ -181,17 +181,9 @@ export namespace Stream {
   export function isSentinel<T extends Sentinel>(object: unknown): object is T {
     return object instanceof Sentinel;
   }
-  export type ErrorEvent<CLEAN_VALUE, ERROR> =
-    | {
-        type: "expected";
-        value: CLEAN_VALUE;
-        error: ERROR;
-      }
-    | {
-        type: "unexpected";
-        value: CLEAN_VALUE;
-        error: unknown;
-      };
+
+  export type ErrorEvent<CLEAN_VALUE, ERROR> = { value: CLEAN_VALUE; error: ERROR };
+
   export class SourceErr<CLEAN_VALUE, ERROR, SOURCE extends AnyStream> extends Stream.Sentinel {
     constructor(
       public readonly value: CLEAN_VALUE,
@@ -199,9 +191,6 @@ export namespace Stream {
       public readonly source: SOURCE,
     ) {
       super();
-    }
-    get sourceName(): SOURCE["name"] {
-      return this.source.name;
     }
   }
   export class Err<ERROR> {
