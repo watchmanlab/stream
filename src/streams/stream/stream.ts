@@ -127,7 +127,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type AnyStream<T = any, N extends string = string> = Stream<T, N>;
+  export type AnyStream = Stream<any, any>;
   export type AnySource = Source<any>;
   export type AnySourceErr = SourceErr<any, any, AnyStream>;
   export type AnyTraversable = Traversable<AnyStream, AnyStream>;
@@ -182,11 +182,9 @@ export namespace Stream {
     return object instanceof Sentinel;
   }
 
-  export type ErrorEvent<CLEAN_VALUE, ERROR> = { value: CLEAN_VALUE; error: ERROR };
-
-  export class SourceErr<CLEAN_VALUE, ERROR, SOURCE extends AnyStream> extends Stream.Sentinel {
+  export class SourceErr<VALUE, ERROR, SOURCE extends AnyStream> extends Stream.Sentinel {
     constructor(
-      public readonly value: CLEAN_VALUE,
+      public readonly value: VALUE,
       public readonly error: ERROR,
       public readonly source: SOURCE,
     ) {
@@ -199,12 +197,12 @@ export namespace Stream {
   export function err<ERROR>(value: ERROR): Err<ERROR> {
     return new Err(value);
   }
-  export function sourceErr<CLEAN_VALUE, ERROR, SOURCE extends AnyStream>({
+  export function sourceErr<VALUE, ERROR, SOURCE extends AnyStream>({
     value,
     error,
     source,
   }: {
-    value: CLEAN_VALUE;
+    value: VALUE;
     error: ERROR;
     source: SOURCE;
   }) {
@@ -213,9 +211,9 @@ export namespace Stream {
   export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
     return object instanceof Err;
   }
-  export function isSourceErr<CLEAN_VALUE, ERROR, SOURCE extends AnyStream>(
+  export function isSourceErr<VALUE, ERROR, SOURCE extends AnyStream>(
     object: unknown,
-  ): object is SourceErr<CLEAN_VALUE, ERROR, SOURCE> {
+  ): object is SourceErr<VALUE, ERROR, SOURCE> {
     return object instanceof SourceErr;
   }
   export const EMPTY = Symbol("*EMPTY#");

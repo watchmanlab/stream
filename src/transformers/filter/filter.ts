@@ -1,6 +1,7 @@
 import { Stream } from "../../streams/index.ts";
 import { catchError } from "../catch-error/catch-error.ts";
 import { each } from "../each/each.ts";
+import { error } from "../error/error.ts";
 import { map } from "../map/map.ts";
 import { pump } from "../pump/pump.ts";
 
@@ -23,8 +24,6 @@ export class Filter<
   NAME
 > {
   protected _filtered?: Stream<CLEAN_VALUE, `${NAME}Filtered`>;
-  protected _expectedErrors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}ExpectedErrors`>;
-  protected _unexpectedErrors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, unknown>, `${NAME}UnexpectedErrors`>;
 
   constructor(name: NAME, inputStream: INPUT_STREAM, predicate: filter.Predicate<CLEAN_VALUE, ERROR>) {
     super(name, async function* () {
@@ -39,8 +38,7 @@ export class Filter<
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            self._expectedErrors?.push({ value, error: result.value });
-            yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
+            yield Stream.sourceErr({ value, error: result, source: self }) as never;
             continue;
           }
 
@@ -50,38 +48,16 @@ export class Filter<
             self._filtered?.push(value);
           }
         } catch (error) {
-          self._unexpectedErrors?.push({ value, error: error });
-          yield Stream.sourceErr({ value, error: error, source: self }) as never;
+          yield Stream.sourceErr({ value, error, source: self }) as never;
         }
       }
     });
     const self = this;
   }
-  get errors(): {
-    expected: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}ExpectedErrors`>;
-    unexpected: Stream<Stream.ErrorEvent<CLEAN_VALUE, unknown>, `${NAME}UnexpectedErrors`>;
-  } {
-    const self = this;
-    return {
-      get expected() {
-        if (!self._expectedErrors) self._expectedErrors = new Stream(`${self._name}ExpectedErrors` as never);
-        return self._expectedErrors;
-      },
-      get unexpected() {
-        if (!self._unexpectedErrors) self._unexpectedErrors = new Stream(`${self._name}UnexpectedErrors` as never);
-        return self._unexpectedErrors;
-      },
-    };
-  }
 
-  get events(): { filtered: Stream<CLEAN_VALUE, `${NAME}Filtered`> } {
-    const self = this;
-    return {
-      get filtered() {
-        if (!self._filtered) self._filtered = new Stream(`${self._name}Filtered` as never);
-        return self._filtered;
-      },
-    };
+  get filtered() {
+    if (!this._filtered) this._filtered = new Stream(`${this._name}Filtered` as never);
+    return this._filtered;
   }
 }
 
@@ -177,13 +153,14 @@ const stream = new Stream([1, 2, 3])
       return v !== 2;
     }),
   )
-  .pipe(
-    map((v) => {
-      if (v === 3) return Stream.err("error map" as const);
-      return v.toFixed();
-    }),
-  )
-  .pipe(each((v) => console.log(v)));
+  .pipe(error());
+// .pipe(
+//   map((v) => {
+//     if (v === 3) return Stream.err("error map" as const);
+//     return v.toFixed();
+//   }),
+// )
+// .pipe(each((v) => console.log(v)));
 // .pipe(
 //   catchError((e) => {
 //     if (e.sourceName === "SSS") {
@@ -195,4 +172,6 @@ const stream = new Stream([1, 2, 3])
 // )
 // .pipe(pump());
 
-stream.map.filter.events;
+stream.expected.name;
+stream.unexpected;
+stream.filter;

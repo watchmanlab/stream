@@ -18,8 +18,6 @@ export class Map<
     >,
   NAME
 > {
-  protected _expectedErrors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}ExpectedErrors`>;
-  protected _unexpectedErrors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, unknown>, `${NAME}UnexpectedErrors`>;
   constructor(name: NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>) {
     super(name, async function* () {
       for await (const value of inputStream) {
@@ -33,36 +31,18 @@ export class Map<
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            self._expectedErrors?.push({ value, error: result.value });
             yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
             continue;
           }
 
           yield result as never;
         } catch (error) {
-          self._unexpectedErrors?.push({ value, error: error });
           yield Stream.sourceErr({ value, error: error, source: self }) as never;
         }
       }
     });
 
     const self = this;
-  }
-  get errors(): {
-    expected: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}ExpectedErrors`>;
-    unexpected: Stream<Stream.ErrorEvent<CLEAN_VALUE, unknown>, `${NAME}UnexpectedErrors`>;
-  } {
-    const self = this;
-    return {
-      get expected() {
-        if (!self._expectedErrors) self._expectedErrors = new Stream(`${self._name}ExpectedErrors` as never);
-        return self._expectedErrors;
-      },
-      get unexpected() {
-        if (!self._unexpectedErrors) self._unexpectedErrors = new Stream(`${self._name}UnexpectedErrors` as never);
-        return self._unexpectedErrors;
-      },
-    };
   }
 }
 
@@ -124,7 +104,7 @@ export namespace map {
     | Promise<MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
 }
 
-const custom = <INPUT_STREAM extends Stream.AnyStream<number, "map2">>(source: INPUT_STREAM) =>
+const custom = <INPUT_STREAM extends Stream<number, "map2">>(source: INPUT_STREAM) =>
   source.pipe(map("inner1", (v) => v.toFixed())).pipe(map("inner2", (v) => true));
 
 const stream = new Stream([1, 2, 4])

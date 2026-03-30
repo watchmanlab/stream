@@ -3,8 +3,7 @@ import { Stream } from "../../streams/index.ts";
 const NAME = "effect";
 
 export class Effect<
-  INPUT_STREAM extends Stream<any, any>,
-  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
+  INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,
   NAME extends string = effect.Name,
@@ -13,113 +12,87 @@ export class Effect<
   | Stream.MaybeSourceErr<
       CLEAN_VALUE,
       ERROR,
-      Stream.Traversable<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
+      Stream.Traversable<Effect<INPUT_STREAM, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>
     >,
   NAME
 > {
-  protected _errors?: Stream<
-    Stream.ErrorEvent<
-      CLEAN_VALUE,
-      ERROR,
-      Stream.Traversable<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
-    >,
-    `${NAME}Errors`
-  >;
+  protected _expectedError?: Stream<{ value: CLEAN_VALUE; error: ERROR }, `${NAME}ExpectedError`>;
+  protected _unexpectedError?: Stream<{ value: CLEAN_VALUE; error: unknown }, `${NAME}UnexpectedError`>;
 
-  constructor(
-    options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
-      callback: effect.Callback<
-        CLEAN_VALUE,
-        ERROR,
-        Stream.Traversable<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
-      >;
-    },
-  ) {
-    super(options.name ?? (NAME as NAME), async function* () {
-      for await (const value of options.inputStream) {
-        if (Stream.isSentinel(value)) {
-          yield value;
-          continue;
-        }
-
-        const cleanValue = value as CLEAN_VALUE;
-
-        try {
-          const maybePromise = options.callback(cleanValue, self as never);
-
-          if (maybePromise instanceof Promise) {
-            maybePromise
-              .then((error) => {
-                if (error)
-                  self._errors?.push({
-                    type: "expected",
-                    value: cleanValue,
-                    error: error.value,
-                    source: self as never,
-                  });
-              })
-              .catch((error) => {
-                if (Stream.isErr<ERROR>(error)) {
-                  self._errors?.push({
-                    type: "expected",
-                    value: cleanValue,
-                    error: error.value,
-                    source: self as never,
-                  });
-                } else {
-                  self._errors?.push({ type: "unexpected", value: cleanValue, error: error, source: self as never });
-                }
-              });
+  constructor(name: NAME, inputStream: INPUT_STREAM, callback: effect.Callback<CLEAN_VALUE, ERROR>) {
+    super(name, async function* () {
+      for await (const value of inputStream) {
+        (async () => {
+          if (Stream.isSentinel(value)) return;
+          try {
+            const result = await callback(value);
+            if (Stream.isErr(result)) {
+              self._expectedError?.push({ value, error: result.value });
+            }
+          } catch (error) {
+            self._unexpectedError?.push({ value, error });
           }
+        })();
 
-          if (Stream.isErr(maybePromise)) {
-            self._errors?.push({
-              type: "expected",
-              value: cleanValue,
-              error: maybePromise.value,
-              source: self as never,
-            });
-          }
-        } catch (error) {
-          if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", value: cleanValue, error: error.value, source: self as never });
-          } else {
-            self._errors?.push({ type: "unexpected", value: cleanValue, error, source: self as never });
-          }
-        } finally {
-          yield value;
-        }
+        yield value;
       }
     });
 
     const self = this;
   }
 
-  get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
-    return this._errors;
+  get expectedError() {
+    if (!this._expectedError) this._expectedError = new Stream(`${this._name}ExpectedErrors` as never);
+    return this._expectedError;
+  }
+  get unexpectedError() {
+    if (!this._unexpectedError) this._unexpectedError = new Stream(`${this._name}UnexpectedErrors` as never);
+    return this._unexpectedError;
   }
 }
+
 export function effect<
-  INPUT_STREAM extends Stream<any, any>,
-  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
+  NAME extends string,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  ERROR = never,
+>(
+  name: NAME,
+  callback: effect.Callback<CLEAN_VALUE, ERROR>,
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Effect<INPUT_STREAM, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>>;
+
+export function effect<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  ERROR = never,
+>(
+  callback: effect.Callback<CLEAN_VALUE, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Effect<INPUT_STREAM, CLEAN_VALUE, ERROR, effect.Name>, INPUT_STREAM>
+>;
+
+export function effect<
+  INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,
   NAME extends string = effect.Name,
 >(
-  callback: effect.Callback<
-    CLEAN_VALUE,
-    ERROR,
-    Stream.Traversable<Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>, INPUT_NAME, INPUT_STREAM>
-  >,
-): Stream.Transform<INPUT_STREAM, NAME, Effect<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, ERROR, NAME>> {
-  return (options) => new Effect({ ...options, callback });
+  nameOrCallback: NAME | effect.Callback<CLEAN_VALUE, ERROR>,
+  callback?: effect.Callback<CLEAN_VALUE, ERROR>,
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Effect<INPUT_STREAM, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>> {
+  return (inputStream) =>
+    Stream.traversable(
+      typeof nameOrCallback === "string"
+        ? new Effect(nameOrCallback, inputStream, callback!)
+        : new Effect(NAME as NAME, inputStream, nameOrCallback),
+      inputStream,
+    );
 }
 export namespace effect {
   export type Name = typeof NAME;
 
-  export type Callback<CLEAN_VALUE, ERROR, SELF extends Stream<any, any>> = (
+  export type Callback<CLEAN_VALUE, ERROR> = (
     value: CLEAN_VALUE,
-    self: SELF,
   ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
 }
