@@ -103,15 +103,3 @@ export namespace map {
     | Stream.Skip
     | Promise<MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
 }
-
-const custom = <INPUT_STREAM extends Stream<number, "map2">>(source: INPUT_STREAM) =>
-  source.pipe(map("inner1", (v) => v.toFixed())).pipe(map("inner2", (v) => true));
-
-const stream = new Stream([1, 2, 4])
-  .pipe(map("map1", (v) => v.toFixed()))
-  .pipe(map("map2", (v) => Number(v)))
-  .pipe(custom)
-  .pipe(map("map3", (v) => v));
-
-stream.inner2.inner1.map2.map1.name;
-stream.inner2.inner1.map2.map1.root.name;

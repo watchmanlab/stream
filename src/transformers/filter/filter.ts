@@ -1,7 +1,6 @@
 import { Stream } from "../../streams/index.ts";
 import { catchError } from "../catch-error/catch-error.ts";
 import { each } from "../each/each.ts";
-import { error } from "../error/error.ts";
 import { map } from "../map/map.ts";
 import { pump } from "../pump/pump.ts";
 
@@ -63,7 +62,7 @@ export class Filter<
 
 export function filter<
   NAME extends string,
-  INPUT_STREAM extends Stream<any, any>,
+  INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
@@ -76,7 +75,7 @@ export function filter<
 >;
 export function filter<
   NAME extends string,
-  INPUT_STREAM extends Stream<any, any>,
+  INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,
 >(
@@ -87,7 +86,7 @@ export function filter<
   Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>
 >;
 export function filter<
-  INPUT_STREAM extends Stream<any, any>,
+  INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
@@ -98,7 +97,7 @@ export function filter<
   Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, FILTERED, ERROR, filter.Name>, INPUT_STREAM>
 >;
 export function filter<
-  INPUT_STREAM extends Stream<any, any>,
+  INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,
 >(
@@ -108,7 +107,7 @@ export function filter<
   Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, filter.Name>, INPUT_STREAM>
 >;
 export function filter<
-  INPUT_STREAM extends Stream<any, any>,
+  INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,
   NAME extends string = filter.Name,
@@ -146,14 +145,13 @@ export namespace filter {
   };
 }
 
-const stream = new Stream([1, 2, 3])
-  .pipe(
-    filter((v) => {
-      if (v === 1) return Stream.err("kechmahaja" as const);
-      return v !== 2;
-    }),
-  )
-  .pipe(error());
+const stream = new Stream([1, 2, 3]).pipe(
+  filter((v) => {
+    if (v === 1) return Stream.err("kechmahaja" as const);
+    return v !== 2;
+  }),
+);
+
 // .pipe(
 //   map((v) => {
 //     if (v === 3) return Stream.err("error map" as const);
@@ -171,7 +169,3 @@ const stream = new Stream([1, 2, 3])
 //   }),
 // )
 // .pipe(pump());
-
-stream.expected.name;
-stream.unexpected;
-stream.filter;

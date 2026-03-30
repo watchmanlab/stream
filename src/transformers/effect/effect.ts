@@ -42,11 +42,11 @@ export class Effect<
   }
 
   get expectedError() {
-    if (!this._expectedError) this._expectedError = new Stream(`${this._name}ExpectedErrors` as never);
+    if (!this._expectedError) this._expectedError = new Stream(`${this._name}ExpectedError` as never);
     return this._expectedError;
   }
   get unexpectedError() {
-    if (!this._unexpectedError) this._unexpectedError = new Stream(`${this._name}UnexpectedErrors` as never);
+    if (!this._unexpectedError) this._unexpectedError = new Stream(`${this._name}UnexpectedError` as never);
     return this._unexpectedError;
   }
 }
