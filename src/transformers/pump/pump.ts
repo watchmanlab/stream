@@ -11,9 +11,9 @@ class Pump<
   protected __source: Stream<VALUE, any>;
   protected __sourceGenerator?: AsyncGenerator<VALUE, void>;
   protected _options: pump.Options = { autoStart: true, startSignalActivated: true, stopSignalActivated: true };
-  protected _startEvents?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}StartEvents`>;
-  protected _stopEvents?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}StopEvents`>;
-  protected _optionsChangeEvents?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}OptionsChangeEvents`>;
+  protected _started?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}StartEvents`>;
+  protected _stoped?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}StopEvents`>;
+  protected _optionsChanged?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}OptionsChangeEvents`>;
   protected _traversable: Stream.Traversable<this, INPUT_STREAM>;
   constructor(name: NAME, inputStream: INPUT_STREAM, options?: pump.Options) {
     super(name, inputStream);
@@ -38,25 +38,25 @@ class Pump<
   }
   set options(options: pump.Options) {
     this._options = { ...this._options, ...options };
-    this._optionsChangeEvents?.push(this._traversable);
+    this._optionsChanged?.push(this._traversable);
   }
-  get startEvents() {
-    if (!this._startEvents) this._startEvents = new Stream(`${this._name}StartEvents` as never);
-    return this._startEvents;
+  get started() {
+    if (!this._started) this._started = new Stream(`${this._name}StartEvents` as never);
+    return this._started;
   }
-  get stopEvents() {
-    if (!this._stopEvents) this._stopEvents = new Stream(`${this._name}StopEvents` as never);
-    return this._stopEvents;
+  get stoped() {
+    if (!this._stoped) this._stoped = new Stream(`${this._name}StopEvents` as never);
+    return this._stoped;
   }
-  get optionsChangeEvents() {
-    if (!this._optionsChangeEvents) this._optionsChangeEvents = new Stream(`${this._name}OptionsChangeEvents` as never);
-    return this._optionsChangeEvents;
+  get optionsChanged() {
+    if (!this._optionsChanged) this._optionsChanged = new Stream(`${this._name}OptionsChangeEvents` as never);
+    return this._optionsChanged;
   }
 
   async start() {
     if (this._pumping) return;
     this._pumping = true;
-    this._startEvents?.push(this._traversable);
+    this._started?.push(this._traversable);
 
     if (this._options.stopSignalActivated) this._options.stopSignal?.next().then(() => this.stop());
 
@@ -72,7 +72,7 @@ class Pump<
     if (!this._pumping) return;
     if (this._options.startSignalActivated) this._options.startSignal?.next().then(() => this.start());
     this._pumping = false;
-    this._stopEvents?.push(this._traversable);
+    this._stoped?.push(this._traversable);
     await this.__sourceGenerator?.return();
     this.__sourceGenerator = undefined;
   }
@@ -81,11 +81,16 @@ class Pump<
 export function pump<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE = Stream.ExtractValue<INPUT_STREAM>,
->(): Stream.Transform<INPUT_STREAM, Stream.Traversable<Pump<INPUT_STREAM, VALUE, pump.Name>, INPUT_STREAM>>;
+  NAME extends string = pump.Name,
+>(): Stream.Transform<INPUT_STREAM, Stream.Traversable<Pump<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>>;
 
-export function pump<INPUT_STREAM extends Stream.AnyStream, VALUE = Stream.ExtractValue<INPUT_STREAM>>(
+export function pump<
+  INPUT_STREAM extends Stream.AnyStream,
+  VALUE = Stream.ExtractValue<INPUT_STREAM>,
+  NAME extends string = pump.Name,
+>(
   options: pump.Options,
-): Stream.Transform<INPUT_STREAM, Stream.Traversable<Pump<INPUT_STREAM, VALUE, pump.Name>, INPUT_STREAM>>;
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Pump<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>>;
 
 export function pump<
   NAME extends string,
