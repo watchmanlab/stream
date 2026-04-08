@@ -57,13 +57,3 @@ export function each<
 export namespace each {
   export type Name = typeof NAME;
 }
-
-const stream = new Stream([1, 2, 4])
-  .pipe(
-    each("each22", (v) => {
-      v + 1;
-    }),
-  )
-  .pipe(map((v) => v.toFixed()));
-
-stream.each22.root;

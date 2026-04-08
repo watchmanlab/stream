@@ -37,7 +37,7 @@ export class Filter<
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            yield Stream.sourceErr({ value, error: result, source: self }) as never;
+            yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
             continue;
           }
 
@@ -148,14 +148,18 @@ export namespace filter {
 const stream = new Stream([1, 2, 3])
   .pipe(
     filter("SSS", (v) => {
-      if (v === 1) return Stream.err("kechmahaja" as const);
-      return v !== 2;
+      if (v === 1) {
+        JSON.parse(new Date() as any);
+
+        return Stream.err("kechmahaja" as const);
+      }
+      return v === 2;
     }),
   )
   .pipe(
     map((v) => {
       if (v === 3) return Stream.err("error map" as const);
-      return v.toFixed();
+      return v.toFixed() + " mapped";
     }),
   )
   .pipe(each((v) => console.log(v)))
@@ -164,6 +168,7 @@ const stream = new Stream([1, 2, 3])
       if (e.sourceName === "SSS") {
         e.source;
         e.error;
+        console.log(e.error);
       } else {
         e.error;
       }
