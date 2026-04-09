@@ -1,8 +1,4 @@
 import { Stream } from "../../streams/index.ts";
-import { catchError } from "../catch-error/catch-error.ts";
-import { each } from "../each/each.ts";
-import { map } from "../map/map.ts";
-import { pump } from "../pump/pump.ts";
 
 const NAME = "filter";
 
@@ -144,34 +140,3 @@ export namespace filter {
     value: CLEAN_VALUE;
   };
 }
-
-const stream = new Stream([1, 2, 3])
-  .pipe(
-    filter("SSS", (v) => {
-      if (v === 1) {
-        JSON.parse(new Date() as any);
-
-        return Stream.err("kechmahaja" as const);
-      }
-      return v === 2;
-    }),
-  )
-  .pipe(
-    map((v) => {
-      if (v === 3) return Stream.err("error map" as const);
-      return v.toFixed() + " mapped";
-    }),
-  )
-  .pipe(each((v) => console.log(v)))
-  .pipe(
-    catchError((e) => {
-      if (e.sourceName === "SSS") {
-        e.source;
-        e.error;
-        console.log(e.error);
-      } else {
-        e.error;
-      }
-    }),
-  )
-  .pipe(pump());

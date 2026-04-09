@@ -1,17 +1,25 @@
 import { Stream } from "../../streams/index.ts";
+import { catchError } from "../catch-error/catch-error.ts";
+import { each } from "../each/each.ts";
+import { effect } from "../effect/effect.ts";
+import { pump } from "../pump/pump.ts";
 
 const NAME = "concurrent";
 
 export class Concurrent<
-  SOURCE extends Stream<any, any>,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = concurrent.Name,
 > extends Stream<
   | MAPPED
-  | Stream.ExtractSentinel<SOURCE>
-  | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, Concurrent<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>>,
+  | Stream.ExtractSentinel<INPUT_STREAM>
+  | Stream.MaybeSourceErr<
+      CLEAN_VALUE,
+      ERROR,
+      Stream.Traversable<Concurrent<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+    >,
   NAME
 > {
   protected _options: Required<concurrent.Options> = {
@@ -20,16 +28,22 @@ export class Concurrent<
     onTerminate: "drain",
   };
   protected _buffer: (
-    | { value: CLEAN_VALUE; mapped: MAPPED | Stream.Err<ERROR> }
+    | {
+        value: CLEAN_VALUE;
+        mapped:
+          | MAPPED
+          | Stream.Err<ERROR>
+          | Stream.Terminate
+          | Stream.Skip
+          | Promise<MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
+      }
     | Stream.Sentinel
-    | { value: CLEAN_VALUE; mapped: Promise<MAPPED | Stream.Err<ERROR>> }
   )[] = [];
   protected _pending: number = 0;
-  protected _events?: Stream<concurrent.Event<this>, `${NAME}Events`>;
-  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
+  protected _concurrencyLimitReached?: Stream<void, `${NAME}ConcurrencyLimitReached`>;
   constructor(
-    source: SOURCE,
-    name = NAME as NAME,
+    name: NAME,
+    inputStream: INPUT_STREAM,
     mapper: concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
     options?: concurrent.Options,
   ) {
@@ -37,13 +51,13 @@ export class Concurrent<
       let resolver: () => void;
       let concurrencyLimitResolver: () => void;
       let aborted = false;
-      const generator = Stream.generator(source);
+      const generator = Stream.generator(inputStream);
 
       (async () => {
         for await (const value of generator) {
           if (aborted) break;
           if (self._pending >= self._options.concurrencyLimit) {
-            self._events?.push({ type: "concurrency-limit-reached", self });
+            self._concurrencyLimitReached?.push();
             await new Promise<void>((r) => (concurrencyLimitResolver = r));
           }
           self._pending++;
@@ -57,12 +71,8 @@ export class Concurrent<
             try {
               self._buffer.push({ value, mapped: mapper(value) });
               resolver!?.();
-            } catch (error) {
-              if (Stream.isErr<ERROR>(error)) {
-                self._buffer.push({ value, mapped: error });
-              } else {
-                self._errors?.push({ type: "unexpected", value, detail: error, source: self });
-              }
+            } catch (error: any) {
+              self._buffer.push({ value, mapped: Stream.err<ERROR>(error) });
             }
           } else {
             mapper(value)
@@ -73,11 +83,7 @@ export class Concurrent<
                 resolver!?.();
               })
               .catch((error) => {
-                if (Stream.isErr<ERROR>(error)) {
-                  self._buffer.push({ value, mapped: error });
-                } else {
-                  self._errors?.push({ type: "unexpected", value, detail: error, source: self });
-                }
+                self._buffer.push({ value, mapped: Stream.err<ERROR>(error) });
               });
           }
         }
@@ -99,20 +105,15 @@ export class Concurrent<
               const mapped = entry.mapped instanceof Promise ? await entry.mapped : entry.mapped;
 
               if (Stream.isErr<ERROR>(mapped)) {
-                self._errors?.push({ type: "expected", value: entry.value, detail: mapped.value, source: self });
-                yield Stream.sourceErr({ value: entry.value, detail: mapped.value, source: self }) as never;
+                yield Stream.sourceErr({ value: entry.value, error: mapped.value, source: self }) as never;
                 continue;
               }
 
-              yield mapped;
+              yield mapped as never;
 
               concurrencyLimitResolver!?.();
             } catch (error) {
-              if (Stream.isErr<ERROR>(error)) {
-                self._errors?.push({ type: "expected", value: entry.value, detail: error.value, source: self });
-              } else {
-                self._errors?.push({ type: "unexpected", value: entry.value, detail: error, source: self });
-              }
+              yield Stream.sourceErr({ value: entry.value, error, source: self }) as never;
             }
           } else {
             if (!aborted) await new Promise<void>((r) => (resolver = r));
@@ -136,13 +137,10 @@ export class Concurrent<
   set options(options: concurrent.Options) {
     this._options = { ...this._options, ...options };
   }
-  get events() {
-    if (!this._events) this._events = new Stream(`${this._name}Events` as never);
-    return this._events;
-  }
-  get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
-    return this._errors;
+  get concurrencyLimitReached() {
+    if (!this._concurrencyLimitReached)
+      this._concurrencyLimitReached = new Stream(`${this._name}ConcurrencyLimitReached` as never);
+    return this._concurrencyLimitReached;
   }
   get buffer() {
     return [...this._buffer];
@@ -151,30 +149,93 @@ export class Concurrent<
     return this._pending;
   }
 }
-
 export function concurrent<
-  SOURCE extends Stream<any, any>,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  NAME extends string,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = CLEAN_VALUE,
+  ERROR = never,
+>(
+  name: NAME,
+  mapper: concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+  options?: concurrent.Options,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Concurrent<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+>;
+export function concurrent<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = CLEAN_VALUE,
+  ERROR = never,
+>(
+  mapper: concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+  options?: concurrent.Options,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Concurrent<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, concurrent.Name>, INPUT_STREAM>
+>;
+export function concurrent<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   ERROR = never,
   NAME extends string = concurrent.Name,
 >(
-  mapper: concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+  nameOrMapper: NAME | concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+  mapperOrOptions?: concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR> | concurrent.Options,
   options?: concurrent.Options,
-): Stream.Transform<NAME, SOURCE, Concurrent<SOURCE, CLEAN_VALUE, MAPPED, ERROR, NAME>> {
-  return (_, source, name) => new Concurrent(source, name, mapper, options);
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Concurrent<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+> {
+  return (inputStream) =>
+    Stream.traversable(
+      typeof nameOrMapper === "string"
+        ? new Concurrent(
+            nameOrMapper,
+            inputStream,
+            mapperOrOptions as concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+            options,
+          )
+        : new Concurrent(NAME as NAME, inputStream, nameOrMapper, options),
+      inputStream,
+    );
 }
 
 export namespace concurrent {
   export type Name = typeof NAME;
-  export type Mapper<CLEAN_VALUE, MAPPED, ERROR> = (value: CLEAN_VALUE) => Promise<MAPPED | Stream.Err<ERROR>>;
+  export type Mapper<CLEAN_VALUE, MAPPED, ERROR> = (
+    value: CLEAN_VALUE,
+  ) => Promise<MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
   export type Options = {
     concurrencyLimit?: number;
     preserveOrder?: boolean;
     onTerminate?: "drain" | "abort";
   };
-  export type Event<SELF extends Stream<any, any>> = {
-    type: "concurrency-limit-reached";
-    self: SELF;
-  };
 }
+
+const stream = new Stream([1, 2, 3, 4, 5, 6])
+  .pipe(
+    concurrent(
+      "c1",
+      async (v) => {
+        await new Promise((r) => setTimeout(r, Math.random() * 100));
+        if (v === 2) return Stream.err("kechmahaja" as const);
+        return v.toFixed();
+      },
+      { preserveOrder: false },
+    ),
+  )
+  // .pipe(effect((v) => console.log(v)))
+  .pipe(
+    catchError((e) => {
+      e.error;
+      switch (e.sourceName) {
+        case "c1":
+          return "";
+      }
+    }),
+  )
+  .pipe(each((v) => console.log(v)))
+  .pipe(pump());
