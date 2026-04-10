@@ -31,11 +31,11 @@ class Audit<INPUT_STREAM extends Stream.AnyStream, NAME extends string = audit.N
   }
 }
 
-export function audit<NAME extends string, INPUT_STREAM extends Stream.AnyStream>(
-  name: NAME,
+export function audit<INPUT_STREAM extends Stream.AnyStream, NAME extends string = audit.Name>(
   ms: number,
 ): Stream.Transform<INPUT_STREAM, Stream.Traversable<Audit<INPUT_STREAM, NAME>, INPUT_STREAM>>;
-export function audit<INPUT_STREAM extends Stream.AnyStream, NAME extends string = audit.Name>(
+export function audit<NAME extends string, INPUT_STREAM extends Stream.AnyStream>(
+  name: NAME,
   ms: number,
 ): Stream.Transform<INPUT_STREAM, Stream.Traversable<Audit<INPUT_STREAM, NAME>, INPUT_STREAM>>;
 export function audit<INPUT_STREAM extends Stream.AnyStream, NAME extends string = audit.Name>(

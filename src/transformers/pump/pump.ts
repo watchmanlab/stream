@@ -11,9 +11,9 @@ class Pump<
   protected __source: Stream<VALUE, any>;
   protected __sourceGenerator?: AsyncGenerator<VALUE, void>;
   protected _options: pump.Options = { autoStart: true, startSignalActivated: true, stopSignalActivated: true };
-  protected _started?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}StartEvents`>;
-  protected _stoped?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}StopEvents`>;
-  protected _optionsChanged?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}OptionsChangeEvents`>;
+  protected _started?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}Started`>;
+  protected _stoped?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}Stoped`>;
+  protected _optionsChanged?: Stream<Stream.Traversable<this, INPUT_STREAM>, `${NAME}OptionsChanged`>;
   protected _traversable: Stream.Traversable<this, INPUT_STREAM>;
   constructor(name: NAME, inputStream: INPUT_STREAM, options?: pump.Options) {
     super(name, inputStream);
@@ -41,15 +41,15 @@ class Pump<
     this._optionsChanged?.push(this._traversable);
   }
   get started() {
-    if (!this._started) this._started = new Stream(`${this._name}StartEvents` as never);
+    if (!this._started) this._started = new Stream(`${this._name}Started`);
     return this._started;
   }
   get stoped() {
-    if (!this._stoped) this._stoped = new Stream(`${this._name}StopEvents` as never);
+    if (!this._stoped) this._stoped = new Stream(`${this._name}Stoped`);
     return this._stoped;
   }
   get optionsChanged() {
-    if (!this._optionsChanged) this._optionsChanged = new Stream(`${this._name}OptionsChangeEvents` as never);
+    if (!this._optionsChanged) this._optionsChanged = new Stream(`${this._name}OptionsChanged`);
     return this._optionsChanged;
   }
 
@@ -82,22 +82,14 @@ export function pump<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE = Stream.ExtractValue<INPUT_STREAM>,
   NAME extends string = pump.Name,
->(): Stream.Transform<INPUT_STREAM, Stream.Traversable<Pump<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>>;
-
-export function pump<
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE = Stream.ExtractValue<INPUT_STREAM>,
-  NAME extends string = pump.Name,
 >(
   options: pump.Options,
 ): Stream.Transform<INPUT_STREAM, Stream.Traversable<Pump<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>>;
-
 export function pump<
   NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
   VALUE = Stream.ExtractValue<INPUT_STREAM>,
 >(name: NAME): Stream.Transform<INPUT_STREAM, Stream.Traversable<Pump<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>>;
-
 export function pump<
   NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
@@ -106,6 +98,11 @@ export function pump<
   name: NAME,
   options: pump.Options,
 ): Stream.Transform<INPUT_STREAM, Stream.Traversable<Pump<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>>;
+export function pump<
+  INPUT_STREAM extends Stream.AnyStream,
+  VALUE = Stream.ExtractValue<INPUT_STREAM>,
+  NAME extends string = pump.Name,
+>(): Stream.Transform<INPUT_STREAM, Stream.Traversable<Pump<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>>;
 
 export function pump<
   INPUT_STREAM extends Stream.AnyStream,

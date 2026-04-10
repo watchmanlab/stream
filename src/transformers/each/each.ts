@@ -52,6 +52,13 @@ class Each<
 }
 
 export function each<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  ERROR = never,
+>(
+  callback: each.Callback<CLEAN_VALUE, ERROR>,
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Each<INPUT_STREAM, CLEAN_VALUE, ERROR, each.Name>, INPUT_STREAM>>;
+export function each<
   NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
@@ -60,13 +67,6 @@ export function each<
   name: NAME,
   callback: each.Callback<CLEAN_VALUE, ERROR>,
 ): Stream.Transform<INPUT_STREAM, Stream.Traversable<Each<INPUT_STREAM, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>>;
-export function each<
-  INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
-  ERROR = never,
->(
-  callback: each.Callback<CLEAN_VALUE, ERROR>,
-): Stream.Transform<INPUT_STREAM, Stream.Traversable<Each<INPUT_STREAM, CLEAN_VALUE, ERROR, each.Name>, INPUT_STREAM>>;
 export function each<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,

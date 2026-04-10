@@ -51,6 +51,17 @@ class Map<
 }
 
 export function map<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = CLEAN_VALUE,
+  ERROR = never,
+>(
+  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, map.Name>, INPUT_STREAM>
+>;
+export function map<
   NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
@@ -62,17 +73,6 @@ export function map<
 ): Stream.Transform<
   INPUT_STREAM,
   Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
->;
-export function map<
-  INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = CLEAN_VALUE,
-  ERROR = never,
->(
-  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
-): Stream.Transform<
-  INPUT_STREAM,
-  Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, map.Name>, INPUT_STREAM>
 >;
 export function map<
   INPUT_STREAM extends Stream.AnyStream,

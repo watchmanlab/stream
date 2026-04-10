@@ -56,7 +56,9 @@ export function catchError<
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   SOURCE_ERR extends Stream.AnySourceErr = Stream.ExtractSourceErr<INPUT_STREAM>,
   ERROR = never,
->(): Stream.Transform<
+>(
+  callback: catchError.Callback<CLEAN_VALUE, SOURCE_ERR, ERROR>,
+): Stream.Transform<
   INPUT_STREAM,
   Stream.Traversable<CatchError<INPUT_STREAM, CLEAN_VALUE, SOURCE_ERR, ERROR, catchError.Name>, INPUT_STREAM>
 >;
@@ -90,9 +92,7 @@ export function catchError<
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   SOURCE_ERR extends Stream.AnySourceErr = Stream.ExtractSourceErr<INPUT_STREAM>,
   ERROR = never,
->(
-  callback: catchError.Callback<CLEAN_VALUE, SOURCE_ERR, ERROR>,
-): Stream.Transform<
+>(): Stream.Transform<
   INPUT_STREAM,
   Stream.Traversable<CatchError<INPUT_STREAM, CLEAN_VALUE, SOURCE_ERR, ERROR, catchError.Name>, INPUT_STREAM>
 >;

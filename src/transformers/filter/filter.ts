@@ -55,11 +55,32 @@ class Filter<
   }
 
   get filtered() {
-    if (!this._filtered) this._filtered = new Stream(`${this._name}Filtered` as never);
+    if (!this._filtered) this._filtered = new Stream(`${this._name}Filtered`);
     return this._filtered;
   }
 }
 
+export function filter<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
+  ERROR = never,
+>(
+  predicate: filter.GardPredicate<CLEAN_VALUE, FILTERED>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, FILTERED, ERROR, filter.Name>, INPUT_STREAM>
+>;
+export function filter<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  ERROR = never,
+>(
+  predicate: filter.Predicate<CLEAN_VALUE, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, filter.Name>, INPUT_STREAM>
+>;
 export function filter<
   NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
@@ -84,27 +105,6 @@ export function filter<
 ): Stream.Transform<
   INPUT_STREAM,
   Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>
->;
-export function filter<
-  INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
-  FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
-  ERROR = never,
->(
-  predicate: filter.GardPredicate<CLEAN_VALUE, FILTERED>,
-): Stream.Transform<
-  INPUT_STREAM,
-  Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, FILTERED, ERROR, filter.Name>, INPUT_STREAM>
->;
-export function filter<
-  INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
-  ERROR = never,
->(
-  predicate: filter.Predicate<CLEAN_VALUE, ERROR>,
-): Stream.Transform<
-  INPUT_STREAM,
-  Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, filter.Name>, INPUT_STREAM>
 >;
 export function filter<
   INPUT_STREAM extends Stream.AnyStream,

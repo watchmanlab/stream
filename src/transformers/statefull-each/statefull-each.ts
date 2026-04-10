@@ -1,30 +1,29 @@
 import { Stream } from "../../streams/index.ts";
 
-const NAME = "statefulFilter";
+const NAME = "statefulEach";
 
-class StatefulFilter<
+export class StatefulEach<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   STATE extends Record<string, unknown> = {},
   ERROR = never,
-  NAME extends string = statefulFilter.Name,
+  NAME extends string = statefulEach.Name,
 > extends Stream<
   | Stream.ExtractValue<INPUT_STREAM>
   | Stream.MaybeSourceErr<
       CLEAN_VALUE,
       ERROR,
-      Stream.Traversable<StatefulFilter<INPUT_STREAM, CLEAN_VALUE, STATE, ERROR, NAME>, INPUT_STREAM>
+      Stream.Traversable<StatefulEach<INPUT_STREAM, CLEAN_VALUE, STATE, ERROR, NAME>, INPUT_STREAM>
     >,
   NAME
 > {
   private _state: STATE;
   private _stateChanged?: Stream<{ value?: CLEAN_VALUE; state: Partial<STATE> }, `${NAME}StateChanged`>;
-
   constructor(
     name: NAME,
     inputStream: INPUT_STREAM,
     initialState: STATE,
-    predicate: statefulFilter.Predicate<CLEAN_VALUE, STATE, ERROR>,
+    callback: statefulEach.Callback<CLEAN_VALUE, STATE, ERROR>,
   ) {
     super(name, async function* () {
       try {
@@ -35,39 +34,38 @@ class StatefulFilter<
           }
 
           try {
-            const maybePromise = predicate(self.state, value);
-            const [ok, newState] = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+            const maybePromise = callback(self.state, value);
+            const [result, newState] = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
             self.setState(newState, value);
 
-            if (Stream.isErr(ok)) {
+            if (Stream.isErr<ERROR>(result)) {
               yield Stream.sourceErr({
                 value: value,
-                error: ok.value,
+                error: result.value,
                 source: self,
               });
 
               continue;
             }
-
-            if (Stream.isControl(ok)) {
-              yield ok;
+            if (Stream.isControl(result)) {
+              yield result;
               continue;
             }
 
-            if (ok) yield value;
+            yield value;
           } catch (error) {
-            yield Stream.sourceErr({ value: value, error: error, source: self }) as never;
+            yield Stream.sourceErr({ value: value, error, source: self }) as never;
           }
         }
       } finally {
         self._state = {} as STATE;
       }
     });
-
     const self = Stream.traversable(this, inputStream);
     this._state = initialState;
   }
+
   private setState(state: Partial<STATE>, value?: CLEAN_VALUE) {
     if (Object.keys(state).length > 0) {
       this._state = { ...this._state, ...state };
@@ -85,21 +83,20 @@ class StatefulFilter<
     return this._stateChanged;
   }
 }
-
-export function statefulFilter<
+export function statefulEach<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   STATE extends Record<string, unknown> = {},
   ERROR = never,
-  NAME extends string = statefulFilter.Name,
+  NAME extends string = statefulEach.Name,
 >(
   initialState: STATE,
-  predicate: statefulFilter.Predicate<CLEAN_VALUE, STATE, ERROR>,
+  callback: statefulEach.Callback<CLEAN_VALUE, STATE, ERROR>,
 ): Stream.Transform<
   INPUT_STREAM,
-  Stream.Traversable<StatefulFilter<INPUT_STREAM, CLEAN_VALUE, STATE, ERROR, NAME>, INPUT_STREAM>
+  Stream.Traversable<StatefulEach<INPUT_STREAM, CLEAN_VALUE, STATE, ERROR, NAME>, INPUT_STREAM>
 >;
-export function statefulFilter<
+export function statefulEach<
   NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
@@ -108,46 +105,46 @@ export function statefulFilter<
 >(
   name: NAME,
   initialState: STATE,
-  predicate: statefulFilter.Predicate<CLEAN_VALUE, STATE, ERROR>,
+  callback: statefulEach.Callback<CLEAN_VALUE, STATE, ERROR>,
 ): Stream.Transform<
   INPUT_STREAM,
-  Stream.Traversable<StatefulFilter<INPUT_STREAM, CLEAN_VALUE, STATE, ERROR, NAME>, INPUT_STREAM>
+  Stream.Traversable<StatefulEach<INPUT_STREAM, CLEAN_VALUE, STATE, ERROR, NAME>, INPUT_STREAM>
 >;
-export function statefulFilter<
+export function statefulEach<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   STATE extends Record<string, unknown> = {},
   ERROR = never,
-  NAME extends string = statefulFilter.Name,
+  NAME extends string = statefulEach.Name,
 >(
   nameOrInitialState: NAME | STATE,
-  initialStateOrPredicate: STATE | statefulFilter.Predicate<CLEAN_VALUE, STATE, ERROR>,
-  predicate?: statefulFilter.Predicate<CLEAN_VALUE, STATE, ERROR>,
+  initialStateOrCallback: STATE | statefulEach.Callback<CLEAN_VALUE, STATE, ERROR>,
+  callback?: statefulEach.Callback<CLEAN_VALUE, STATE, ERROR>,
 ): Stream.Transform<
   INPUT_STREAM,
-  Stream.Traversable<StatefulFilter<INPUT_STREAM, CLEAN_VALUE, STATE, ERROR, NAME>, INPUT_STREAM>
+  Stream.Traversable<StatefulEach<INPUT_STREAM, CLEAN_VALUE, STATE, ERROR, NAME>, INPUT_STREAM>
 > {
   return (inputStream) =>
     Stream.traversable(
       typeof nameOrInitialState === "string"
-        ? new StatefulFilter(nameOrInitialState, inputStream, initialStateOrPredicate as STATE, predicate!)
-        : new StatefulFilter(
+        ? new StatefulEach(nameOrInitialState, inputStream, initialStateOrCallback as STATE, callback!)
+        : new StatefulEach(
             NAME as NAME,
             inputStream,
             nameOrInitialState,
-            initialStateOrPredicate as statefulFilter.Predicate<CLEAN_VALUE, STATE, ERROR>,
+            initialStateOrCallback as statefulEach.Callback<CLEAN_VALUE, STATE, ERROR>,
           ),
       inputStream,
     );
 }
 
-export namespace statefulFilter {
+export namespace statefulEach {
   export type Name = typeof NAME;
 
-  export type Predicate<CLEAN_VALUE, STATE extends Record<string, unknown>, ERROR> = (
+  export type Callback<CLEAN_VALUE, STATE extends Record<string, unknown>, ERROR> = (
     state: STATE,
     value: CLEAN_VALUE,
   ) =>
-    | [boolean | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]
-    | Promise<[boolean | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]>;
+    | [undefined | null | Stream.Err<ERROR> | Stream.Control, Partial<STATE>]
+    | Promise<[undefined | null | Stream.Err<ERROR> | Stream.Control, Partial<STATE>]>;
 }

@@ -16,8 +16,8 @@ class Effect<
     >,
   NAME
 > {
-  protected _expectedError?: Stream<{ value: CLEAN_VALUE; error: ERROR }, `${NAME}ExpectedError`>;
-  protected _unexpectedError?: Stream<{ value: CLEAN_VALUE; error: unknown }, `${NAME}UnexpectedError`>;
+  protected _errorExpected?: Stream<{ value: CLEAN_VALUE; error: ERROR }, `${NAME}ErrorExpected`>;
+  protected _errorUnexpected?: Stream<{ value: CLEAN_VALUE; error: unknown }, `${NAME}ErrorUnexpected`>;
 
   constructor(name: NAME, inputStream: INPUT_STREAM, callback: effect.Callback<CLEAN_VALUE, ERROR>) {
     super(name, async function* () {
@@ -27,10 +27,10 @@ class Effect<
           try {
             const result = await callback(value);
             if (Stream.isErr(result)) {
-              self._expectedError?.push({ value, error: result.value });
+              self._errorExpected?.push({ value, error: result.value });
             }
           } catch (error) {
-            self._unexpectedError?.push({ value, error });
+            self._errorUnexpected?.push({ value, error });
           }
         })();
 
@@ -41,25 +41,15 @@ class Effect<
     const self = this;
   }
 
-  get expectedError() {
-    if (!this._expectedError) this._expectedError = new Stream(`${this._name}ExpectedError` as never);
-    return this._expectedError;
+  get errorExpected() {
+    if (!this._errorExpected) this._errorExpected = new Stream(`${this._name}ErrorExpected`);
+    return this._errorExpected;
   }
-  get unexpectedError() {
-    if (!this._unexpectedError) this._unexpectedError = new Stream(`${this._name}UnexpectedError` as never);
-    return this._unexpectedError;
+  get errorUnexpected() {
+    if (!this._errorUnexpected) this._errorUnexpected = new Stream(`${this._name}ErrorUnexpected`);
+    return this._errorUnexpected;
   }
 }
-
-export function effect<
-  NAME extends string,
-  INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
-  ERROR = never,
->(
-  name: NAME,
-  callback: effect.Callback<CLEAN_VALUE, ERROR>,
-): Stream.Transform<INPUT_STREAM, Stream.Traversable<Effect<INPUT_STREAM, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>>;
 
 export function effect<
   INPUT_STREAM extends Stream.AnyStream,
@@ -71,6 +61,15 @@ export function effect<
   INPUT_STREAM,
   Stream.Traversable<Effect<INPUT_STREAM, CLEAN_VALUE, ERROR, effect.Name>, INPUT_STREAM>
 >;
+export function effect<
+  NAME extends string,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  ERROR = never,
+>(
+  name: NAME,
+  callback: effect.Callback<CLEAN_VALUE, ERROR>,
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Effect<INPUT_STREAM, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>>;
 
 export function effect<
   INPUT_STREAM extends Stream.AnyStream,

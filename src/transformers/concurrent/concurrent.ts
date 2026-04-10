@@ -143,7 +143,7 @@ class Concurrent<
   }
   get concurrencyLimitReached() {
     if (!this._concurrencyLimitReached)
-      this._concurrencyLimitReached = new Stream(`${this._name}ConcurrencyLimitReached` as never);
+      this._concurrencyLimitReached = new Stream(`${this._name}ConcurrencyLimitReached`);
     return this._concurrencyLimitReached;
   }
   get buffer() {
@@ -153,6 +153,18 @@ class Concurrent<
     return this._pending;
   }
 }
+export function concurrent<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = CLEAN_VALUE,
+  ERROR = never,
+>(
+  mapper: concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
+  options?: concurrent.Options,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Concurrent<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, concurrent.Name>, INPUT_STREAM>
+>;
 export function concurrent<
   NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
@@ -166,18 +178,6 @@ export function concurrent<
 ): Stream.Transform<
   INPUT_STREAM,
   Stream.Traversable<Concurrent<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
->;
-export function concurrent<
-  INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = CLEAN_VALUE,
-  ERROR = never,
->(
-  mapper: concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
-  options?: concurrent.Options,
-): Stream.Transform<
-  INPUT_STREAM,
-  Stream.Traversable<Concurrent<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, concurrent.Name>, INPUT_STREAM>
 >;
 export function concurrent<
   INPUT_STREAM extends Stream.AnyStream,
@@ -202,7 +202,7 @@ export function concurrent<
             mapperOrOptions as concurrent.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
             options,
           )
-        : new Concurrent(NAME as NAME, inputStream, nameOrMapper, options),
+        : new Concurrent(NAME as NAME, inputStream, nameOrMapper, mapperOrOptions as concurrent.Options),
       inputStream,
     );
 }
