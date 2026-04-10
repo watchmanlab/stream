@@ -1,12 +1,8 @@
 import { Stream } from "../../streams/index.ts";
-import { catchError } from "../catch-error/catch-error.ts";
-import { each } from "../each/each.ts";
-import { effect } from "../effect/effect.ts";
-import { pump } from "../pump/pump.ts";
 
 const NAME = "concurrent";
 
-export class Concurrent<
+class Concurrent<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
@@ -40,7 +36,7 @@ export class Concurrent<
     | Stream.Sentinel
   )[] = [];
   protected _pending: number = 0;
-  protected _concurrencyLimitReached?: Stream<void, `${NAME}ConcurrencyLimitReached`>;
+  protected _concurrencyLimitReached?: Stream<number, `${NAME}ConcurrencyLimitReached`>;
   constructor(
     name: NAME,
     inputStream: INPUT_STREAM,
@@ -57,7 +53,7 @@ export class Concurrent<
         for await (const value of generator) {
           if (aborted) break;
           if (self._pending >= self._options.concurrencyLimit) {
-            self._concurrencyLimitReached?.push();
+            self._concurrencyLimitReached?.push(self._options.concurrencyLimit);
             await new Promise<void>((r) => (concurrencyLimitResolver = r));
           }
           self._pending++;
@@ -105,7 +101,11 @@ export class Concurrent<
               const mapped = entry.mapped instanceof Promise ? await entry.mapped : entry.mapped;
 
               if (Stream.isErr<ERROR>(mapped)) {
-                yield Stream.sourceErr({ value: entry.value, error: mapped.value, source: self }) as never;
+                yield Stream.sourceErr({
+                  value: entry.value,
+                  error: mapped.value,
+                  source: self,
+                }) as never;
                 continue;
               }
 
@@ -113,7 +113,11 @@ export class Concurrent<
 
               concurrencyLimitResolver!?.();
             } catch (error) {
-              yield Stream.sourceErr({ value: entry.value, error, source: self }) as never;
+              yield Stream.sourceErr({
+                value: entry.value,
+                error,
+                source: self,
+              }) as never;
             }
           } else {
             if (!aborted) await new Promise<void>((r) => (resolver = r));
@@ -127,7 +131,7 @@ export class Concurrent<
         await generator.return();
       }
     });
-    const self = this;
+    const self = Stream.traversable(this, inputStream);
     this.options = options ?? {};
   }
 
@@ -214,28 +218,3 @@ export namespace concurrent {
     onTerminate?: "drain" | "abort";
   };
 }
-
-const stream = new Stream([1, 2, 3, 4, 5, 6])
-  .pipe(
-    concurrent(
-      "c1",
-      async (v) => {
-        await new Promise((r) => setTimeout(r, Math.random() * 100));
-        if (v === 2) return Stream.err("kechmahaja" as const);
-        return v.toFixed();
-      },
-      { preserveOrder: false },
-    ),
-  )
-  // .pipe(effect((v) => console.log(v)))
-  .pipe(
-    catchError((e) => {
-      e.error;
-      switch (e.sourceName) {
-        case "c1":
-          return "";
-      }
-    }),
-  )
-  .pipe(each((v) => console.log(v)))
-  .pipe(pump());

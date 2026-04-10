@@ -2,7 +2,7 @@ import { Stream } from "../../streams/index.ts";
 
 const NAME = "filter";
 
-export class Filter<
+class Filter<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
@@ -33,7 +33,11 @@ export class Filter<
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
+            yield Stream.sourceErr({
+              value,
+              error: result.value,
+              source: self,
+            }) as never;
             continue;
           }
 
@@ -47,7 +51,7 @@ export class Filter<
         }
       }
     });
-    const self = this;
+    const self = Stream.traversable(this, inputStream);
   }
 
   get filtered() {

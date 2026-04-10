@@ -2,7 +2,7 @@ import { Stream } from "../../streams/index.ts";
 
 const NAME = "effect";
 
-export class Effect<
+class Effect<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,

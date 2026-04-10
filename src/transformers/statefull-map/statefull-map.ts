@@ -1,10 +1,11 @@
 import { Stream } from "../../streams/index.ts";
+import { each } from "../each/each.ts";
+import { pump } from "../pump/pump.ts";
 
 const NAME = "statefullMap";
 
-export class StatefullMap<
+class StatefullMap<
   INPUT_STREAM extends Stream.AnyStream,
-  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   STATE extends Record<string, unknown> = {},
@@ -16,24 +17,17 @@ export class StatefullMap<
   | Stream.MaybeSourceErr<
       CLEAN_VALUE,
       ERROR,
-      Stream.Traversable<
-        StatefullMap<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>,
-        INPUT_NAME,
-        INPUT_STREAM
-      >
+      Stream.Traversable<StatefullMap<INPUT_STREAM, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>, INPUT_STREAM>
     >,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR>, `${NAME}Errors`>;
-
   constructor(
-    options: Stream.TransformOptions<INPUT_STREAM, NAME> & {
-      initialState: STATE;
-      mapper: statefullMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>;
-    },
+    name: NAME,
+    inputStream: INPUT_STREAM,
+    initialState: STATE,
+    mapper: statefullMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>,
   ) {
-    const { initialState, inputStream, mapper, name } = options;
-    super(name ?? (NAME as NAME), async function* () {
+    super(name, async function* () {
       let state = initialState;
       for await (const value of inputStream) {
         if (Stream.isSentinel(value)) {
@@ -43,43 +37,42 @@ export class StatefullMap<
 
         try {
           const maybePromise = mapper(state, value);
-          const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+          const [mapped, newState] = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr(result)) {
-            self._errors?.push({ type: "expected", value, error: result.value });
+          if (state !== newState) state = { ...state, ...newState };
 
-            yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
-
+          if (Stream.isErr(mapped)) {
+            yield Stream.sourceErr({
+              value,
+              error: mapped.value,
+              source: self,
+            }) as never;
             continue;
           }
-          const [mapped, newState] = result;
 
-          state = { ...state, ...newState };
-
-          yield mapped;
+          yield mapped as never;
         } catch (error) {
-          if (Stream.isErr<ERROR>(error)) {
-            self._errors?.push({ type: "expected", value, error: error.value });
-            yield Stream.sourceErr({ value, error: error.value, source: self }) as never;
-          } else {
-            self._errors?.push({ type: "unexpected", value, error });
-            yield Stream.sourceErr({ value, error, source: self }) as never;
-          }
+          yield Stream.sourceErr({ value, error, source: self }) as never;
         }
       }
     });
-    const self = this;
-  }
-
-  get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
-    return this._errors;
+    const self = Stream.traversable(this, inputStream);
   }
 }
-
+export function statefullMap<
+  NAME extends string,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = CLEAN_VALUE,
+  STATE extends Record<string, unknown> = {},
+  ERROR = never,
+>(
+  name: NAME,
+  initialState: STATE,
+  mapper: statefullMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>,
+): Stream.Transform<INPUT_STREAM, StatefullMap<INPUT_STREAM, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>>;
 export function statefullMap<
   INPUT_STREAM extends Stream.AnyStream,
-  INPUT_NAME extends string = Stream.ExtractName<INPUT_STREAM>,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
   STATE extends Record<string, unknown> = {},
@@ -88,12 +81,31 @@ export function statefullMap<
 >(
   initialState: STATE,
   mapper: statefullMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>,
-): Stream.Transform<
-  INPUT_STREAM,
-  NAME,
-  StatefullMap<INPUT_STREAM, INPUT_NAME, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>
-> {
-  return (options) => new StatefullMap({ ...options, initialState, mapper });
+): Stream.Transform<INPUT_STREAM, StatefullMap<INPUT_STREAM, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>>;
+export function statefullMap<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = CLEAN_VALUE,
+  STATE extends Record<string, unknown> = {},
+  ERROR = never,
+  NAME extends string = statefullMap.Name,
+>(
+  nameOrInitialState: NAME | STATE,
+  initialStateOrMapper: STATE | statefullMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>,
+  mapper?: statefullMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>,
+): Stream.Transform<INPUT_STREAM, StatefullMap<INPUT_STREAM, CLEAN_VALUE, MAPPED, STATE, ERROR, NAME>> {
+  return (inputStream) =>
+    Stream.traversable(
+      typeof nameOrInitialState === "string"
+        ? new StatefullMap(nameOrInitialState, inputStream, initialStateOrMapper as STATE, mapper!)
+        : new StatefullMap(
+            NAME as NAME,
+            inputStream,
+            nameOrInitialState,
+            initialStateOrMapper as statefullMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>,
+          ),
+      inputStream,
+    );
 }
 
 export namespace statefullMap {
@@ -101,5 +113,7 @@ export namespace statefullMap {
   export type Mapper<CLEAN_VALUE, MAPPED, STATE extends Record<string, unknown>, ERROR> = (
     state: STATE,
     value: CLEAN_VALUE,
-  ) => [MAPPED, Partial<STATE>] | Stream.Err<ERROR> | Promise<[MAPPED, Partial<STATE>] | Stream.Err<ERROR>>;
+  ) =>
+    | [MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]
+    | Promise<[MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]>;
 }

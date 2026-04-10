@@ -2,17 +2,17 @@ import { Stream } from "../../streams/index.ts";
 
 const NAME = "audit";
 
-export class Audit<SOURCE extends Stream<any, any>, NAME extends string = audit.Name> extends Stream<
-  Stream.ExtractValue<SOURCE>,
+class Audit<INPUT_STREAM extends Stream.AnyStream, NAME extends string = audit.Name> extends Stream<
+  Stream.ExtractValue<INPUT_STREAM>,
   NAME
 > {
-  constructor(source: SOURCE, name = NAME as NAME, ms: number) {
+  constructor(name: NAME, inputStream: INPUT_STREAM, ms: number) {
     super(name, async function* () {
       let timer: any = null;
       let canEmit = true;
 
       try {
-        for await (const value of source) {
+        for await (const value of inputStream) {
           if (Stream.isSentinel(value)) {
             yield value;
             continue;
@@ -31,12 +31,29 @@ export class Audit<SOURCE extends Stream<any, any>, NAME extends string = audit.
   }
 }
 
-export function audit<SOURCE extends Stream<any, any>, NAME extends string = audit.Name>(
+export function audit<NAME extends string, INPUT_STREAM extends Stream.AnyStream>(
+  name: NAME,
   ms: number,
-): Stream.Transform<NAME, SOURCE, Audit<SOURCE, NAME>> {
-  return (_, source, name) => new Audit(source, name, ms);
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Audit<INPUT_STREAM, NAME>, INPUT_STREAM>>;
+export function audit<INPUT_STREAM extends Stream.AnyStream, NAME extends string = audit.Name>(
+  ms: number,
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Audit<INPUT_STREAM, NAME>, INPUT_STREAM>>;
+export function audit<INPUT_STREAM extends Stream.AnyStream, NAME extends string = audit.Name>(
+  nameOrMs: NAME | number,
+  ms?: number,
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Audit<INPUT_STREAM, NAME>, INPUT_STREAM>> {
+  return (inputStream) =>
+    Stream.traversable(
+      typeof nameOrMs === "string"
+        ? new Audit(nameOrMs, inputStream, ms!)
+        : new Audit(NAME as NAME, inputStream, nameOrMs),
+      inputStream,
+    );
 }
 
 export namespace audit {
   export type Name = typeof NAME;
+  export type Options = {
+    type: "time" | "count";
+  };
 }

@@ -113,6 +113,12 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     return transform(this);
   }
 
+  static pipe<INPUT_STREAM extends Stream.AnyStream, OUTPUT_STREAM extends Stream.AnyStream>(
+    inputStream: INPUT_STREAM,
+    transform: Stream.Transform<INPUT_STREAM, OUTPUT_STREAM>,
+  ): OUTPUT_STREAM {
+    return transform(inputStream);
+  }
   static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, unknown> {
     return (async function* () {
       if (!source) return;
@@ -174,14 +180,12 @@ export namespace Stream {
       },
     }) as never;
   }
-
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("*__sentinel#");
   }
   export function isSentinel<T extends Sentinel>(object: unknown): object is T {
     return object instanceof Sentinel;
   }
-
   export class SourceErr<VALUE, ERROR, SOURCE extends AnyStream> extends Stream.Sentinel {
     constructor(
       public readonly value: VALUE,
@@ -219,10 +223,20 @@ export namespace Stream {
   ): object is SourceErr<VALUE, ERROR, SOURCE> {
     return object instanceof SourceErr;
   }
-  export const EMPTY = Symbol("*EMPTY#");
-  export type Empty = typeof EMPTY;
+  // export const EMPTY = Symbol("*EMPTY#");
+  // export type Empty = typeof EMPTY;
   export const TERMINATE = Symbol("*TEMINATE#");
   export type Terminate = typeof TERMINATE;
+  export function isTerminate(object: unknown): object is Terminate {
+    return object === TERMINATE;
+  }
   export const SKIP = Symbol("*SKIP#");
   export type Skip = typeof SKIP;
+  export function isSkip(object: unknown): object is Skip {
+    return object === SKIP;
+  }
+  export type Control = Terminate | Skip;
+  export function isControl(object: unknown): object is Control {
+    return object === SKIP || object === TERMINATE;
+  }
 }

@@ -2,7 +2,7 @@ import { Stream } from "../../streams/index.ts";
 
 const NAME = "map";
 
-export class Map<
+class Map<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   MAPPED = CLEAN_VALUE,
@@ -31,13 +31,17 @@ export class Map<
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            yield Stream.sourceErr({ value, error: result.value, source: self }) as never;
+            yield Stream.sourceErr({
+              value,
+              error: result.value,
+              source: Stream.traversable(self, inputStream),
+            }) as never;
             continue;
           }
 
           yield result as never;
         } catch (error) {
-          yield Stream.sourceErr({ value, error: error, source: self }) as never;
+          yield Stream.sourceErr({ value, error: error, source: Stream.traversable(self, inputStream) }) as never;
         }
       }
     });
@@ -77,7 +81,7 @@ export function map<
   ERROR = never,
   NAME extends string = map.Name,
 >(
-  mapperOrName: map.Mapper<CLEAN_VALUE, MAPPED, ERROR> | NAME,
+  nameOrMapper: NAME | map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
   mapper?: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
 ): Stream.Transform<
   INPUT_STREAM,
@@ -85,9 +89,9 @@ export function map<
 > {
   return (inputStream) =>
     Stream.traversable(
-      typeof mapperOrName === "string"
-        ? new Map(mapperOrName, inputStream, mapper!)
-        : new Map(NAME as NAME, inputStream, mapperOrName),
+      typeof nameOrMapper === "string"
+        ? new Map(nameOrMapper, inputStream, mapper!)
+        : new Map(NAME as NAME, inputStream, nameOrMapper),
       inputStream,
     );
 }

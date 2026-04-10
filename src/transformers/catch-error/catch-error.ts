@@ -2,7 +2,7 @@ import { Stream } from "../../streams/index.ts";
 
 const NAME = "catchError";
 
-export class CatchError<
+class CatchError<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   SOURCE_ERR extends Stream.AnySourceErr = Stream.ExtractSourceErr<INPUT_STREAM>,
@@ -17,7 +17,6 @@ export class CatchError<
     >,
   NAME
 > {
-  protected _caught?: Stream<SOURCE_ERR, `${NAME}Caught`>;
   constructor(name: NAME, inputStream: INPUT_STREAM, callback?: catchError.Callback<CLEAN_VALUE, SOURCE_ERR, ERROR>) {
     super(name, async function* () {
       for await (const value of inputStream) {
@@ -28,15 +27,20 @@ export class CatchError<
 
         const sourceErr = value as SOURCE_ERR;
 
-        self._caught?.push(sourceErr);
-
         if (!callback) continue;
 
         try {
           const maybePromise = callback(sourceErr);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr(result)) yield Stream.sourceErr({ value: sourceErr, error: result.value, source: self });
+          if (Stream.isErr(result)) {
+            yield Stream.sourceErr({
+              value: sourceErr,
+              error: result.value,
+              source: self,
+            });
+            continue;
+          }
 
           if (result) yield result;
         } catch (error) {
@@ -44,12 +48,7 @@ export class CatchError<
         }
       }
     });
-    const self = this;
-  }
-
-  get caught() {
-    if (!this._caught) this._caught = new Stream(`${this._name}Caught` as never);
-    return this._caught;
+    const self = Stream.traversable(this, inputStream);
   }
 }
 export function catchError<
