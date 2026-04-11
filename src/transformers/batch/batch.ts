@@ -1,7 +1,5 @@
 import { Stream } from "../../streams/index.ts";
 import { FixedArray } from "../../types/index.ts";
-import { each } from "../each/each.ts";
-import { pump } from "../pump/pump.ts";
 
 const NAME = "batch";
 
@@ -76,9 +74,3 @@ export function batch<
 export namespace batch {
   export type Name = typeof NAME;
 }
-
-const stream = new Stream([1, 2, 3, 4, 5, 6, 7, 8, 9])
-  .pipe(batch(2))
-  .pipe(each(console.log))
-  .pipe(pump())
-  .pipe(each((v) => {}));
