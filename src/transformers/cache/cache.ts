@@ -1,6 +1,6 @@
 import { Stream } from "../../streams/index.ts";
 
-const NAME = "Cache";
+const NAME = "cache";
 
 export class Cache<
   INPUT_STREAM extends Stream.AnyStream,
@@ -24,12 +24,15 @@ export class Cache<
 
           if (Stream.isSentinel(value)) continue;
 
+          if (self._options.size <= 0) continue;
+
           if (self._buffer.length >= self._options.size) {
             if (self._options.dropStrategy === "newest") {
               self._evicted?.push({ value, reason: "size" });
               continue;
             } else {
-              self._evicted?.push({ value: self._buffer.shift()!.value, reason: "size" });
+              const value = self._buffer.shift()!.value;
+              self._evicted?.push({ value, reason: "size" });
             }
           }
 
@@ -43,14 +46,16 @@ export class Cache<
 
     const self = Stream.traversable(this, inputStream);
 
-    this.options = options ?? {};
+    this._options = { ...this._options, ...options };
   }
 
   private cleanupTimer: any;
   private startCleanup() {
+    if (this.cleanupTimer || !this._buffer.length) return;
+
     const ttl = this._options.ttl;
 
-    if (!ttl || this.cleanupTimer !== undefined) {
+    if (!ttl) {
       this.stopCleanup();
       return;
     }
@@ -60,6 +65,7 @@ export class Cache<
       () => {
         const now = Date.now();
         let i = 0;
+
         while (i < this._buffer.length) {
           if (now - this._buffer[i].timestamp >= ttl) {
             const [entry] = this._buffer.splice(i, 1);
@@ -69,10 +75,7 @@ export class Cache<
           }
         }
 
-        if (this._buffer.length === 0 && this.cleanupTimer !== undefined) {
-          clearInterval(this.cleanupTimer);
-          this.cleanupTimer = undefined;
-        }
+        if (this._buffer.length === 0) this.stopCleanup();
       },
       Math.min(ttl / 4, Math.max(500, ttl / 10)),
     );
@@ -88,6 +91,8 @@ export class Cache<
     return { ...this._options };
   }
   set options(options: cache.Options) {
+    this._options = { ...this._options, ...options };
+
     if (options.size && this._options.size > options.size) {
       const count = (this._options.size = options.size);
       if (this._options.dropStrategy === "newest") {
@@ -96,10 +101,7 @@ export class Cache<
         this._buffer.splice(0, count);
       }
     }
-    if (options.ttl !== this._options.ttl) {
-      this.startCleanup();
-    }
-    this._options = { ...this._options, ...options };
+    if (options.ttl) this.startCleanup();
 
     if (Object.keys(options).length) this._optionsChanged?.push(options);
   }

@@ -1,6 +1,4 @@
 import { Stream } from "../../streams/index.ts";
-import { each } from "../each/each.ts";
-import { pump } from "../pump/pump.ts";
 
 const NAME = "branch";
 
