@@ -22,6 +22,10 @@ class Map<
     super(name);
 
     inputStream.listen(async (value) => {
+      if (value === Stream.TERMINATE) {
+        this.terminate();
+        return;
+      }
       const maybePromise = mapper(value);
       const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
       if (Stream.isErr(result)) {
@@ -92,4 +96,4 @@ const stream = new Stream<number>().pipe(map((v) => v.toFixed()));
 
 stream.listen((v) => console.log(v));
 
-stream.stream.push(1, 2, 3, 4);
+stream.stream.pushMany([1, 2, 3, 4]);

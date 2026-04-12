@@ -1,45 +1,108 @@
 const NAME = "stream";
 
 export class Stream<VALUE, NAME extends string = Stream.Name> {
-  protected listeners: ((value: VALUE) => void)[] = [];
+  protected props?: {
+    listeners?: Stream.Listener<VALUE>[];
+    beforeListenerAdded?: (fn: Stream.Listener<VALUE>) => Stream.Listener<VALUE> | void;
+    afterListenerAdded?: (fn: Stream.Listener<VALUE>) => void;
+    beforeListenerRemoved?: (fn: Stream.Listener<VALUE>) => Stream.Listener<VALUE> | void;
+    afterListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
+    afterListenersCleared?: () => void;
+    beforePush?: (values: VALUE[]) => VALUE[] | void;
+    afterPush?: (values: VALUE[]) => void;
+    afterValuesDropped?: (values: VALUE[]) => void;
+    beforeTerminate?: () => void;
+    afterTerminate?: () => void;
+  };
 
   constructor(public readonly name: NAME = NAME as NAME) {}
 
-  protected listenerAdded?: () => void;
-  protected listenerRemoved?: () => void;
-  protected listenerEmptied?: () => void;
+  terminate() {
+    if (!this.props?.listeners) return;
+    this.props.beforeTerminate?.();
+    this.push(Stream.TERMINATE as VALUE);
+  }
 
-  push(...values: VALUE[]) {
-    const listenersLenght = this.listeners.length;
-    const valuesLenght = values.length;
+  [Symbol.dispose]() {
+    this.terminate();
+  }
+  push(value: VALUE) {
+    const values = this.props?.beforePush ? this.props.beforePush([value]) : [value];
+    const listeners = this.props?.listeners;
+    if (!values || !listeners) {
+      this.props?.afterValuesDropped?.(values ? values : [value]);
+      return;
+    }
+
+    if (values.length === 1) {
+      const value = values[0];
+      const length = listeners.length;
+      for (let i = 0; i < length; i++) {
+        listeners[i](value);
+      }
+      if (value === Stream.TERMINATE) {
+        delete this.props?.listeners;
+        this.props?.afterTerminate?.();
+      }
+      this.props?.afterPush?.(values);
+    } else {
+      this.pushMany(values);
+    }
+  }
+  pushMany(values: VALUE[]) {
+    const newValues = this.props?.beforePush ? this.props.beforePush(values) : values;
+    const listeners = this.props?.listeners;
+    if (!newValues || !listeners) {
+      this.props?.afterValuesDropped?.(newValues ? newValues : values);
+      return;
+    }
+
+    const listenersLenght = listeners.length;
+    const valuesLenght = newValues.length;
     let terminate = false;
+
     for (let i = 0; i < listenersLenght; i++) {
-      const fn = this.listeners[i];
+      const fn = listeners[i];
       for (let j = 0; j < valuesLenght; j++) {
-        const value = values[j];
+        const value = newValues[j];
+        fn(value);
         if (value === Stream.TERMINATE) terminate = true;
-        fn(values[j]);
       }
     }
-    if (terminate) this.listeners.length = 0;
+    if (terminate) {
+      delete this.props?.listeners;
+      this.props?.afterTerminate?.();
+    }
+
+    this.props?.afterPush?.(newValues);
   }
-
-  listen(fn: (value: VALUE) => void) {
-    this.listenerAdded?.();
-
+  listen(fn: Stream.Listener<VALUE>) {
     const self = this;
 
-    this.listeners.push(fn);
+    const listener = self.props?.beforeListenerAdded ? self.props.beforeListenerAdded(fn) : fn;
+    if (!listener) return () => {};
 
-    return abort;
+    if (!self.props?.listeners) self.props = { ...self.props, listeners: [] };
 
-    function abort() {
-      self.listeners = self.listeners.filter((listener) => listener !== fn);
-      self.listenerRemoved?.();
-      if (self.listeners.length === 0) self.listenerEmptied?.();
-    }
+    self.props.listeners!.push(listener);
+
+    self.props?.afterListenerAdded?.(fn);
+
+    return function () {
+      const listener = self.props?.beforeListenerRemoved ? self.props.beforeListenerRemoved(fn) : fn;
+      if (!listener) return;
+      const index = self.props!.listeners?.indexOf(fn);
+      if (index) self.props!.listeners?.splice(index, 1);
+
+      if (self.props?.listeners && self.props.listeners.length === 0) {
+        const { listeners, ...rest } = self.props;
+        self.props = rest;
+        self.props?.afterListenersCleared?.();
+      }
+      self.props?.afterListenerRemoved?.(fn);
+    };
   }
-  next(fn: (value: VALUE) => void) {
+  listenOnce(fn: Stream.Listener<VALUE>) {
     const abort = this.listen((value) => {
       fn(value);
       abort();
@@ -52,6 +115,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> {
 
 export namespace Stream {
   export type Name = typeof NAME;
+  export type Listener<VALUE> = (value: VALUE) => any;
   export type AnyStream = Stream<any, any>;
   export type AnySourceErr = SourceErr<any, any, AnyStream>;
   export type AnyTraversable = Traversable<AnyStream, AnyStream>;
