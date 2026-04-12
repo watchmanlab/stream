@@ -2,7 +2,7 @@ import { Stream } from "../../streams/index.ts";
 
 const NAME = "cache";
 
-export class Cache<
+class Cache<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   NAME extends string = cache.Name,
@@ -18,29 +18,26 @@ export class Cache<
 
   constructor(name: NAME, inputStream: INPUT_STREAM, options?: cache.Options) {
     super(name, async function* () {
-      try {
-        for await (const value of inputStream) {
-          yield value;
+      for await (const value of inputStream) {
+        yield value;
 
-          if (Stream.isSentinel(value)) continue;
+        if (Stream.isSentinel(value)) continue;
 
-          if (self._options.size <= 0) continue;
+        if (self._options.size <= 0) continue;
 
-          if (self._buffer.length >= self._options.size) {
-            if (self._options.dropStrategy === "newest") {
-              self._evicted?.push({ value, reason: "size" });
-              continue;
-            } else {
-              const value = self._buffer.shift()!.value;
-              self._evicted?.push({ value, reason: "size" });
-            }
+        if (self._buffer.length >= self._options.size) {
+          if (self._options.dropStrategy === "newest") {
+            self._evicted?.push({ value, reason: "size" });
+            continue;
+          } else {
+            const value = self._buffer.shift()!.value;
+            self._evicted?.push({ value, reason: "size" });
           }
-
-          self._buffer.push({ value, timestamp: Date.now() });
-          self.startCleanup();
-          self._buffered?.push(value);
         }
-      } finally {
+
+        self._buffer.push({ value, timestamp: Date.now() });
+        self.startCleanup();
+        self._buffered?.push(value);
       }
     });
 

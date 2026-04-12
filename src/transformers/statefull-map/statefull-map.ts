@@ -29,35 +29,31 @@ class StatefulMap<
     mapper: statefulMap.Mapper<CLEAN_VALUE, MAPPED, STATE, ERROR>,
   ) {
     super(name, async function* () {
-      try {
-        for await (const value of inputStream) {
-          if (Stream.isSentinel(value)) {
-            yield value as never;
+      for await (const value of inputStream) {
+        if (Stream.isSentinel(value)) {
+          yield value as never;
+          continue;
+        }
+
+        try {
+          const maybePromise = mapper(self.state, value);
+          const [mapped, newState] = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+
+          self.setState(newState, value);
+
+          if (Stream.isErr(mapped)) {
+            yield Stream.sourceErr({
+              value,
+              error: mapped.value,
+              source: self,
+            }) as never;
             continue;
           }
 
-          try {
-            const maybePromise = mapper(self.state, value);
-            const [mapped, newState] = maybePromise instanceof Promise ? await maybePromise : maybePromise;
-
-            self.setState(newState, value);
-
-            if (Stream.isErr(mapped)) {
-              yield Stream.sourceErr({
-                value,
-                error: mapped.value,
-                source: self,
-              }) as never;
-              continue;
-            }
-
-            yield mapped as never;
-          } catch (error) {
-            yield Stream.sourceErr({ value, error, source: self }) as never;
-          }
+          yield mapped as never;
+        } catch (error) {
+          yield Stream.sourceErr({ value, error, source: self }) as never;
         }
-      } finally {
-        self._state = {} as STATE;
       }
     });
     const self = Stream.traversable(this, inputStream);

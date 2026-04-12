@@ -3,7 +3,7 @@ import { FixedArray } from "../../types/index.ts";
 
 const NAME = "batch";
 
-export class Batch<
+class Batch<
   INPUT_STREAM extends Stream.AnyStream,
   CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   SIZE extends number = 2,
@@ -12,21 +12,17 @@ export class Batch<
   private _buffer = new Array<CLEAN_VALUE>();
   constructor(name: NAME, inputStream: INPUT_STREAM, size: SIZE) {
     super(name, async function* () {
-      try {
-        for await (const value of inputStream) {
-          if (Stream.isSentinel(value)) {
-            yield value as never;
-            continue;
-          }
-
-          self._buffer.push(value);
-          if (self._buffer.length >= size) {
-            yield [...self._buffer] as FixedArray<CLEAN_VALUE, SIZE>;
-            self._buffer.length = 0;
-          }
+      for await (const value of inputStream) {
+        if (Stream.isSentinel(value)) {
+          yield value as never;
+          continue;
         }
-      } finally {
-        self._buffer.length = 0;
+
+        self._buffer.push(value);
+        if (self._buffer.length >= size) {
+          yield [...self._buffer] as FixedArray<CLEAN_VALUE, SIZE>;
+          self._buffer.length = 0;
+        }
       }
     });
     const self = this;

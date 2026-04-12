@@ -27,41 +27,37 @@ class StatefulFilter<
     predicate: statefulFilter.Predicate<CLEAN_VALUE, STATE, ERROR>,
   ) {
     super(name, async function* () {
-      try {
-        for await (const value of inputStream) {
-          if (Stream.isSentinel(value)) {
-            yield value;
+      for await (const value of inputStream) {
+        if (Stream.isSentinel(value)) {
+          yield value;
+          continue;
+        }
+
+        try {
+          const maybePromise = predicate(self.state, value);
+          const [ok, newState] = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+
+          self.setState(newState, value);
+
+          if (Stream.isErr(ok)) {
+            yield Stream.sourceErr({
+              value: value,
+              error: ok.value,
+              source: self,
+            });
+
             continue;
           }
 
-          try {
-            const maybePromise = predicate(self.state, value);
-            const [ok, newState] = maybePromise instanceof Promise ? await maybePromise : maybePromise;
-
-            self.setState(newState, value);
-
-            if (Stream.isErr(ok)) {
-              yield Stream.sourceErr({
-                value: value,
-                error: ok.value,
-                source: self,
-              });
-
-              continue;
-            }
-
-            if (Stream.isControl(ok)) {
-              yield ok;
-              continue;
-            }
-
-            if (ok) yield value;
-          } catch (error) {
-            yield Stream.sourceErr({ value: value, error: error, source: self }) as never;
+          if (Stream.isControl(ok)) {
+            yield ok;
+            continue;
           }
+
+          if (ok) yield value;
+        } catch (error) {
+          yield Stream.sourceErr({ value: value, error: error, source: self }) as never;
         }
-      } finally {
-        self._state = {} as STATE;
       }
     });
 

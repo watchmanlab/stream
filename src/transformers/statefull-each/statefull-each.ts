@@ -26,40 +26,36 @@ export class StatefulEach<
     callback: statefulEach.Callback<CLEAN_VALUE, STATE, ERROR>,
   ) {
     super(name, async function* () {
-      try {
-        for await (const value of inputStream) {
-          if (Stream.isSentinel(value)) {
-            yield value;
+      for await (const value of inputStream) {
+        if (Stream.isSentinel(value)) {
+          yield value;
+          continue;
+        }
+
+        try {
+          const maybePromise = callback(self.state, value);
+          const [result, newState] = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+
+          self.setState(newState, value);
+
+          if (Stream.isErr<ERROR>(result)) {
+            yield Stream.sourceErr({
+              value: value,
+              error: result.value,
+              source: self,
+            });
+
+            continue;
+          }
+          if (Stream.isControl(result)) {
+            yield result;
             continue;
           }
 
-          try {
-            const maybePromise = callback(self.state, value);
-            const [result, newState] = maybePromise instanceof Promise ? await maybePromise : maybePromise;
-
-            self.setState(newState, value);
-
-            if (Stream.isErr<ERROR>(result)) {
-              yield Stream.sourceErr({
-                value: value,
-                error: result.value,
-                source: self,
-              });
-
-              continue;
-            }
-            if (Stream.isControl(result)) {
-              yield result;
-              continue;
-            }
-
-            yield value;
-          } catch (error) {
-            yield Stream.sourceErr({ value: value, error, source: self }) as never;
-          }
+          yield value;
+        } catch (error) {
+          yield Stream.sourceErr({ value: value, error, source: self }) as never;
         }
-      } finally {
-        self._state = {} as STATE;
       }
     });
     const self = Stream.traversable(this, inputStream);

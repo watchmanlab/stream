@@ -11,42 +11,33 @@ export class Debounce<
     super(name, async function* () {
       let timer: any = null;
       let aborted = false;
-      let currentValue: VALUE | undefined;
-      let sentinels: Stream.Sentinel[] = [];
 
-      let resolve: () => void = () => {};
+      let resolve: (value: VALUE) => void = () => {};
       const generator = inputStream[Symbol.asyncIterator]();
 
       (async () => {
         for await (const value of generator) {
           if (Stream.isSentinel(value)) {
-            sentinels.push(value);
+            resolve(value as never);
             continue;
           }
           clearTimeout(timer);
-          currentValue = value;
-          timer = setTimeout(() => resolve(), ms);
+          if (aborted) {
+            resolve(value);
+            break;
+          }
+          timer = setTimeout(() => resolve(value), ms);
         }
       })();
 
       try {
         while (true) {
-          if (sentinels.length) {
-            yield sentinels.shift() as never;
-            continue;
-          }
-          if (currentValue) {
-            yield currentValue;
-            currentValue = undefined;
-            continue;
-          }
-          await new Promise<void>((r) => (resolve = r));
+          yield await new Promise<VALUE>((r) => (resolve = r));
         }
       } finally {
         clearTimeout(timer);
         aborted = true;
-        resolve();
-        sentinels.length = 0;
+        resolve(Stream.TERMINATE as never);
         await generator.return();
       }
     });
