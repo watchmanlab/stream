@@ -1,29 +1,25 @@
 import { Stream } from "../../streams/index.ts";
-import { each } from "../each/each.ts";
-import { map } from "../map/map.ts";
-import { pump } from "../pump/pump.ts";
 
 const NAME = "catchError";
 
-export class CatchError<
-  SOURCE extends Stream<any, any>,
-  SOURCE_ERR extends Stream.SourceErr<any, any, any> = Stream.ExtractSourceErr<SOURCE>,
+class CatchError<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  SOURCE_ERR extends Stream.AnySourceErr = Stream.ExtractSourceErr<INPUT_STREAM>,
   ERROR = never,
   NAME extends string = catchError.Name,
 > extends Stream<
-  | Stream.ExcludeSourceErr<SOURCE>
-  | Stream.MaybeSourceErr<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
+  | Stream.ExcludeSourceErr<INPUT_STREAM>
+  | Stream.MaybeSourceErr<
+      SOURCE_ERR,
+      ERROR,
+      Stream.Traversable<CatchError<INPUT_STREAM, CLEAN_VALUE, SOURCE_ERR, ERROR, NAME>, INPUT_STREAM>
+    >,
   NAME
 > {
-  protected _events?: Stream<catchError.Event<SOURCE_ERR, this>, `${NAME}Events`>;
-  protected _errors?: Stream<Stream.ErrorEvent<SOURCE_ERR, ERROR, this>, `${NAME}Errors`>;
-  constructor(
-    source: SOURCE,
-    name = NAME as NAME,
-    callback?: catchError.Callback<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
-  ) {
+  constructor(name: NAME, inputStream: INPUT_STREAM, callback?: catchError.Callback<CLEAN_VALUE, SOURCE_ERR, ERROR>) {
     super(name, async function* () {
-      for await (const value of source) {
+      for await (const value of inputStream) {
         if (!Stream.isSourceErr(value)) {
           yield value;
           continue;
@@ -31,80 +27,106 @@ export class CatchError<
 
         const sourceErr = value as SOURCE_ERR;
 
-        self._events?.push({ type: "caught", sourceErr, self });
-
         if (!callback) continue;
 
         try {
-          const maybePromise = callback(sourceErr, self);
+          const maybePromise = callback(sourceErr);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (!result) continue;
-
-          self._errors?.push({ type: "expected", value: sourceErr, detail: result.value, source: self });
-
-          yield Stream.sourceErr({ value: sourceErr, detail: result.value, source: self });
-        } catch (error) {
-          if (error instanceof Stream.Err) {
-            self._errors?.push({ type: "unexpected", value: sourceErr, detail: error.value, source: self });
-            yield Stream.sourceErr({ value: sourceErr, detail: error.value, source: self });
-          } else {
-            self._errors?.push({ type: "unexpected", value: sourceErr, detail: error, source: self });
-            yield Stream.sourceErr({ value: sourceErr, detail: error, source: self });
+          if (Stream.isErr(result)) {
+            yield Stream.sourceErr({
+              value: sourceErr,
+              error: result.value,
+              source: self,
+            });
+            continue;
           }
+
+          if (result) yield result;
+        } catch (error) {
+          yield Stream.sourceErr({ value: sourceErr, error, source: self });
         }
       }
     });
-    const self = this;
-  }
-  get events() {
-    if (!this._events) this._events = new Stream(`${this._name}Events` as never);
-    return this._events;
-  }
-  get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
-    return this._errors;
+    const self = Stream.traversable(this, inputStream);
   }
 }
-
 export function catchError<
-  SOURCE extends Stream<any, any>,
-  SOURCE_ERR extends Stream.SourceErr<any, any, any> = Stream.ExtractSourceErr<SOURCE>,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  SOURCE_ERR extends Stream.AnySourceErr = Stream.ExtractSourceErr<INPUT_STREAM>,
+  ERROR = never,
+>(
+  callback: catchError.Callback<CLEAN_VALUE, SOURCE_ERR, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<CatchError<INPUT_STREAM, CLEAN_VALUE, SOURCE_ERR, ERROR, catchError.Name>, INPUT_STREAM>
+>;
+export function catchError<
+  NAME extends string,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  SOURCE_ERR extends Stream.AnySourceErr = Stream.ExtractSourceErr<INPUT_STREAM>,
+  ERROR = never,
+>(
+  name: NAME,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<CatchError<INPUT_STREAM, CLEAN_VALUE, SOURCE_ERR, ERROR, NAME>, INPUT_STREAM>
+>;
+export function catchError<
+  NAME extends string,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  SOURCE_ERR extends Stream.AnySourceErr = Stream.ExtractSourceErr<INPUT_STREAM>,
+  ERROR = never,
+>(
+  name: NAME,
+  callback: catchError.Callback<CLEAN_VALUE, SOURCE_ERR, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<CatchError<INPUT_STREAM, CLEAN_VALUE, SOURCE_ERR, ERROR, NAME>, INPUT_STREAM>
+>;
+export function catchError<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  SOURCE_ERR extends Stream.AnySourceErr = Stream.ExtractSourceErr<INPUT_STREAM>,
+  ERROR = never,
+>(): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<CatchError<INPUT_STREAM, CLEAN_VALUE, SOURCE_ERR, ERROR, catchError.Name>, INPUT_STREAM>
+>;
+export function catchError<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  SOURCE_ERR extends Stream.AnySourceErr = Stream.ExtractSourceErr<INPUT_STREAM>,
   ERROR = never,
   NAME extends string = catchError.Name,
 >(
-  callback?: catchError.Callback<SOURCE_ERR, ERROR, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, CatchError<SOURCE, SOURCE_ERR, ERROR, NAME>> {
-  return (_, source, name) => new CatchError(source, name, callback);
+  nameOrCallback?: NAME | catchError.Callback<CLEAN_VALUE, SOURCE_ERR, ERROR>,
+  callback?: catchError.Callback<CLEAN_VALUE, SOURCE_ERR, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<CatchError<INPUT_STREAM, CLEAN_VALUE, SOURCE_ERR, ERROR, NAME>, INPUT_STREAM>
+> {
+  return (inputStream) =>
+    Stream.traversable(
+      typeof nameOrCallback === "string"
+        ? new CatchError(nameOrCallback, inputStream, callback)
+        : new CatchError(NAME as NAME, inputStream, nameOrCallback),
+      inputStream,
+    );
 }
 
 export namespace catchError {
   export type Name = typeof NAME;
-
-  export type Callback<SOURCE_ERR, ERROR, SELF extends Stream<any, any>> = (
+  export type Callback<CLEAN_VALUE, SOURCE_ERR, ERROR> = (
     error: [SOURCE_ERR] extends [never] ? Stream.SourceErr<unknown, unknown, Stream<unknown, string>> : SOURCE_ERR,
-    self: SELF,
-  ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
-
-  export type Event<SOURCE_ERR, SELF extends Stream<any, any>> = {
-    type: "caught";
-    sourceErr: SOURCE_ERR;
-    self: SELF;
-  };
+  ) =>
+    | NoInfer<CLEAN_VALUE>
+    | void
+    | Stream.Err<ERROR>
+    | Stream.Terminate
+    | Stream.Skip
+    | Promise<NoInfer<CLEAN_VALUE> | void | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
 }
-
-const stream = new Stream([1, 2, 3, 4])
-  .pipe(
-    map((v) => {
-      if (v === 3) throw Stream.err("kechmahaja" as const);
-      return v.toFixed();
-    }),
-  )
-  .pipe(each((v) => console.log(v)))
-  .pipe(
-    catchError((ev) => {
-      ev.source;
-      console.log(ev.detail);
-    }),
-  )
-  .pipe(pump());

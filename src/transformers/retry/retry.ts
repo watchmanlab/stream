@@ -65,7 +65,7 @@ export class Retry<VALUE, NAME extends string = retry.Name> extends Stream<VALUE
 
 export function retry<VALUE, NAME extends string = retry.Name>(
   options?: retry.Options,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Retry<VALUE, NAME>> {
+): Stream.Transform<NAME, Stream<VALUE, any>, Retry<VALUE, NAME>> {
   return (_, source, name) => new Retry(source, name, options);
 }
 

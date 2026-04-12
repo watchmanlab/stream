@@ -1,18 +1,20 @@
-import { Stream } from "../../streams";
-import { consumer } from "../pump";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "derive";
 
-export class Derive<VALUE, NAME extends string = derive.Name> extends Stream<VALUE, NAME> {
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME) {
+export class Derive<SOURCE extends Stream<any, any>, NAME extends string = derive.Name> extends Stream<
+  Stream.ExtractValue<SOURCE>,
+  NAME
+> {
+  constructor(source: SOURCE, name = NAME as NAME) {
     super(name, source);
   }
 }
 
-export function derive<VALUE, NAME extends string = derive.Name>(): Stream.Transformer<
+export function derive<SOURCE extends Stream<any, any>, NAME extends string = derive.Name>(): Stream.Transform<
   NAME,
-  Stream<VALUE, any>,
-  Derive<VALUE, NAME>
+  SOURCE,
+  Derive<SOURCE, NAME>
 > {
   return (_, source, name) => new Derive(source, name);
 }

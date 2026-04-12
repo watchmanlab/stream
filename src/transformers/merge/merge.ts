@@ -1,11 +1,10 @@
-import { Stream } from "../../streams";
-import { each } from "../each";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "merge";
 
 export class Merge<
   SOURCE extends Stream<any, any>,
-  VALUE = Stream.ExtractValue<SOURCE>,
+  VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
   ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]] = [AsyncIterable<any>],
   NAME extends string = merge.Name,
 > extends Stream<VALUE | Stream.ExtractValue<ITERABLES[number]>, NAME> {
@@ -41,10 +40,10 @@ export class Merge<
 
 export function merge<
   SOURCE extends Stream<any, any>,
-  VALUE = Stream.ExtractValue<SOURCE>,
+  VALUE extends Stream.ExtractValue<SOURCE> = Stream.ExtractValue<SOURCE>,
   ITERABLES extends [AsyncIterable<any>, ...AsyncIterable<any>[]] = [AsyncIterable<any>],
   NAME extends string = merge.Name,
->(...others: ITERABLES): Stream.Transformer<NAME, SOURCE, Merge<SOURCE, VALUE, ITERABLES, NAME>> {
+>(...others: ITERABLES): Stream.Transform<NAME, SOURCE, Merge<SOURCE, VALUE, ITERABLES, NAME>> {
   return (_, source, name) => new Merge(source, name, others);
 }
 

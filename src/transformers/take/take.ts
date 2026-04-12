@@ -1,7 +1,7 @@
 import { Stream } from "../../stream-0";
 import { filter } from "../filter/filter";
 import { sequential } from "../map/map";
-import { statefull } from "../state-map";
+import { statefull } from "../statefull-map";
 import { takeWhile } from "../take-while";
 
 /**
@@ -13,6 +13,6 @@ import { takeWhile } from "../take-while";
  * ```
  */
 export const take =
-  <T>(n: number): Stream.Transformer<Stream<T>, Stream<T>> =>
+  <T>(n: number): Stream.Transform<Stream<T>, Stream<T>> =>
   (stream) =>
     stream.pipe(takeWhile((_, index) => index < n));

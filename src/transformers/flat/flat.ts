@@ -2,28 +2,37 @@ import { Stream } from "../../streams/index.ts";
 
 const NAME = "flat";
 
-export class Flat<VALUE, DEPTH extends number = 0, NAME extends string = flat.Name> extends Stream<
-  FlatArray<VALUE, DEPTH>,
-  NAME
-> {
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, depth = 0 as DEPTH) {
+export class Flat<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  DEPTH extends number = 0,
+  NAME extends string = flat.Name,
+> extends Stream<FlatArray<CLEAN_VALUE, DEPTH> | Stream.ExtractSentinel<SOURCE>, NAME> {
+  constructor(source: SOURCE, name = NAME as NAME, depth = 0 as DEPTH) {
     super(name, async function* () {
       for await (const value of source) {
+        if (Stream.isSentinel(value)) {
+          yield value as never;
+          continue;
+        }
         if (Array.isArray(value)) {
           const values = value.flat(depth);
           for (let i = 0; i < values.length; i++) {
             yield values[i]!;
           }
         } else {
-          yield value as FlatArray<VALUE, DEPTH>;
+          yield value as FlatArray<CLEAN_VALUE, DEPTH>;
         }
       }
     });
   }
 }
-export function flat<VALUE, DEPTH extends number = 0, NAME extends string = flat.Name>(
-  depth: DEPTH = 0 as DEPTH,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Flat<VALUE, DEPTH, NAME>> {
+export function flat<
+  SOURCE extends Stream<any, any>,
+  CLEAN_VALUE extends Stream.ExtractCleanValue<SOURCE> = Stream.ExtractCleanValue<SOURCE>,
+  DEPTH extends number = 0,
+  NAME extends string = flat.Name,
+>(depth: DEPTH = 0 as DEPTH): Stream.Transform<NAME, SOURCE, Flat<SOURCE, CLEAN_VALUE, DEPTH, NAME>> {
   return (_, source, name) => new Flat(source, name, depth);
 }
 

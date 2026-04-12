@@ -4,12 +4,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   protected _source?: Stream.Source<VALUE>;
   protected _sourceGenerator?: AsyncGenerator<VALUE, void, unknown>;
   protected _name = NAME as NAME;
-
   constructor();
-  constructor(source: Stream.Source<VALUE>);
   constructor(name: NAME);
+  constructor(source: Stream.Source<VALUE>);
   constructor(name: NAME, source: Stream.Source<VALUE>);
-
   constructor(sourceOrName?: Stream.Source<VALUE> | NAME, source?: Stream.Source<VALUE>) {
     if (typeof sourceOrName === "string" || sourceOrName instanceof String) {
       this._name = (sourceOrName as NAME) ?? NAME;
@@ -18,11 +16,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._source = sourceOrName;
     }
   }
-
   get name() {
     return this._name;
   }
-
   push(value: VALUE, ...values: VALUE[]): Stream.PushResult {
     const readyPromises = new Array<Promise<void>>();
 
@@ -52,15 +48,14 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       this._sourceGenerator.next().then((result) => {
         this._requestingNext = false;
         if (result.done) {
-          this.push(new Stream.Terminate() as VALUE);
+          this.push(Stream.TERMINATE as VALUE);
           return;
         }
         this.push(result.value);
       });
     }
   }
-
-  protected _onConsumerJoin?: () => void;
+  protected _onConsumerJoin?: (queue: VALUE[]) => void;
   protected _onConsumerLeft?: () => void;
   async *[Symbol.asyncIterator]() {
     if (this._consumers.size === 0 && this._source) {
@@ -69,7 +64,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
     const queue: VALUE[] = [];
     this._consumers.set(queue, { resolve() {}, ready: Promise.resolve() });
-    this._onConsumerJoin?.();
+    this._onConsumerJoin?.(queue);
 
     let ready: () => void;
 
@@ -77,7 +72,11 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       while (true) {
         if (queue.length) {
           const value = queue.shift()!;
-          if (Stream.isTerminate(value)) break;
+          if (value === Stream.TERMINATE) {
+            break;
+          } else if (value === Stream.SKIP) {
+            continue;
+          }
 
           yield value;
         } else {
@@ -107,51 +106,19 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
       return;
     }
   }
-
   next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
     return this[Symbol.asyncIterator]().next();
   }
-  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
-    transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
-  ): Stream.PipeResult<NAME, this, OUTPUT>;
-  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
-    transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
-    name: CUSTOM_NAME,
-  ): Stream.PipeResult<NAME, this, OUTPUT>;
-  pipe<CUSTOM_NAME extends string, OUTPUT extends Stream<any, CUSTOM_NAME>>(
-    name: CUSTOM_NAME,
-    transformer: Stream.Transformer<CUSTOM_NAME, this, OUTPUT>,
-  ): Stream.PipeResult<NAME, this, OUTPUT>;
-  pipe(transformerOrName1: Function | string, transformerOrName2?: Function | string) {
-    const output =
-      typeof transformerOrName1 === "string" && typeof transformerOrName2 === "function"
-        ? (transformerOrName2!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this, transformerOrName1) as any)
-        : typeof transformerOrName1 === "function"
-          ? (transformerOrName1!(USE_TRANSFORMER_INSIDE_PIPE_PLEASE, this, transformerOrName2) as any)
-          : void 0;
-
-    if (this._name in output) {
-      throw new Error(
-        `Naming conflict: Cannot name ${this.constructor.name} transformer with "${this._name}" ` +
-          `because ${output.constructor.name} already has a property with that name.\n` +
-          `Solutions:\n` +
-          `  1. Use different name in pipe: .pipe("$${this._name}", ${this.constructor.name})\n` +
-          `  2. Rename on stream creation: new Stream<T, "$${this._name}">()\n` +
-          `conflictingProperty:${output[this._name]};`,
-      );
-    }
-    output[this._name] = this;
-
-    const self = this;
-    return new Proxy(output, {
-      get(target, p, receiver) {
-        if (p in target) return Reflect.get(target, p, receiver);
-
-        return target[NAME] || self;
-      },
-    });
+  pipe<OUTPUT_STREAM extends Stream.AnyStream>(transform: Stream.Transform<this, OUTPUT_STREAM>): OUTPUT_STREAM {
+    return transform(this);
   }
 
+  static pipe<INPUT_STREAM extends Stream.AnyStream, OUTPUT_STREAM extends Stream.AnyStream>(
+    inputStream: INPUT_STREAM,
+    transform: Stream.Transform<INPUT_STREAM, OUTPUT_STREAM>,
+  ): OUTPUT_STREAM {
+    return transform(inputStream);
+  }
   static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, unknown> {
     return (async function* () {
       if (!source) return;
@@ -166,20 +133,23 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
 export namespace Stream {
   export type Name = typeof NAME;
+  export type AnyStream = Stream<any, any>;
+  export type AnySource = Source<any>;
+  export type AnySourceErr = SourceErr<any, any, AnyStream>;
+  export type AnyTraversable = Traversable<AnyStream, AnyStream>;
   export type ExtractValue<T> =
     T extends Source<infer VALUE> ? VALUE : T extends SourceErr<infer VALUE, any, any> ? VALUE : T;
-  export type ExtractName<T extends Stream<any, any> | SourceErr<any, any, any>> =
-    T extends Stream<any, infer NAME> ? NAME : T extends SourceErr<any, any, any> ? ExtractName<T["source"]> : never;
+  export type ExtractName<T extends AnyStream | AnySourceErr> =
+    T extends Stream<any, infer NAME> ? NAME : T extends AnySourceErr ? ExtractName<ExtractSourceErrStream<T>> : never;
   export type ExtractSentinel<T> = Extract<ExtractValue<T>, Sentinel>;
   export type ExtractCleanValue<T> = Exclude<ExtractValue<T>, Sentinel>;
-  export type ExtractError<T extends Err<any> | SourceErr<any, any, any>> =
+  export type ExtractError<T extends Err<any> | AnySourceErr> =
     T extends Err<infer ERROR> ? ERROR : T extends SourceErr<any, infer ERROR, any> ? ERROR : never;
-  export type ExtractSourceErr<T> = Extract<ExtractValue<T>, SourceErr<any, any, any>>;
-  export type ExcludeSourceErr<T> = Exclude<ExtractValue<T>, SourceErr<any, any, any>>;
-  export type ExtractSource<SOURCE_ERR extends SourceErr<any, any, any>> =
-    SOURCE_ERR extends SourceErr<any, any, infer SOURCE> ? SOURCE : never;
-
-  export type MaybeSourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> = [ERROR] extends [never]
+  export type ExtractSourceErr<T> = Extract<ExtractValue<T>, AnySourceErr>;
+  export type ExcludeSourceErr<T> = Exclude<ExtractValue<T>, AnySourceErr>;
+  export type ExtractSourceErrStream<T extends AnySourceErr> =
+    T extends SourceErr<any, any, infer SOURCE> ? SOURCE : never;
+  export type MaybeSourceErr<CLEAN_VALUE, ERROR, SOURCE extends AnyStream> = [ERROR] extends [never]
     ? never
     : SourceErr<CLEAN_VALUE, ERROR, SOURCE>;
   export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
@@ -193,87 +163,80 @@ export namespace Stream {
     readonly awaitAnyConsumer: Promise<void>;
     then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
   };
-  export type Transformer<NAME extends string, INPUT extends Stream<any, any>, OUTPUT extends Stream<any, NAME>> = (
-    useTransformerInsidePipePlease: UseTransformerInsidePipePlease,
-    stream: INPUT,
-    name?: NAME,
-  ) => OUTPUT;
 
-  export type Traversable<NAME extends string, INPUT extends Stream<any, any>> = Record<
-    NAME | (`$${string}` & {}),
-    INPUT
-  >;
-  export type PipeResult<
-    NAME extends string,
-    INPUT extends Stream<any, NAME>,
-    OUTPUT extends Stream<any, any>,
-  > = NAME extends keyof OUTPUT
-    ? {
-        error: `Naming conflict: "${NAME}" already exists in ${OUTPUT["name"]}`;
-        suggestion: `Use .pipe("$${NAME}", transformer) or rename the stream`;
-        conflictingProperty: OUTPUT[NAME];
-      }
-    : OUTPUT & Traversable<NAME, INPUT>;
-
-  export abstract class Sentinel {
-    private readonly __sentinel = Symbol("__sentinel");
+  export type Transform<INPUT_STREAM extends AnyStream, OUTPUT_STREAM extends AnyStream> = (
+    inputStream: INPUT_STREAM,
+  ) => OUTPUT_STREAM;
+  export type Traversable<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream> = OUTPUT_STREAM &
+    Record<ExtractName<INPUT_STREAM> | (`$${string}` & {}), INPUT_STREAM>;
+  export function traversable<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream>(
+    outputStream: OUTPUT_STREAM,
+    inputStream: INPUT_STREAM,
+  ): Traversable<OUTPUT_STREAM, INPUT_STREAM> {
+    return new Proxy(outputStream, {
+      get(target, p, receiver) {
+        if (p in target) return Reflect.get(target, p, receiver);
+        return inputStream;
+      },
+    }) as never;
   }
-  export class Terminate extends Sentinel {}
-  export function isTerminate(object: unknown): object is Terminate {
-    return object instanceof Terminate;
+  export abstract class Sentinel {
+    private readonly __sentinel = Symbol("*__sentinel#");
   }
   export function isSentinel<T extends Sentinel>(object: unknown): object is T {
     return object instanceof Sentinel;
   }
-
-  export type ErrorEvent<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> =
-    | {
-        type: "expected";
-        value: CLEAN_VALUE;
-        detail: ERROR;
-        source: SOURCE;
-      }
-    | { type: "unexpected"; source: SOURCE; value: CLEAN_VALUE; detail: unknown };
-
-  export class SourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>> extends Stream.Sentinel {
+  export class SourceErr<VALUE, ERROR, SOURCE extends AnyStream> extends Stream.Sentinel {
     constructor(
-      public readonly value: CLEAN_VALUE,
-      public readonly detail: ERROR,
+      public readonly value: VALUE,
+      public readonly error: ERROR,
       public readonly source: SOURCE,
     ) {
       super();
     }
-  }
-
-  export class Err<ERROR> extends Stream.Sentinel {
-    constructor(public readonly value: ERROR) {
-      super();
+    get sourceName(): SOURCE["name"] {
+      return this.source.name;
     }
+  }
+  export class Err<ERROR> {
+    constructor(public readonly value: ERROR) {}
   }
   export function err<ERROR>(value: ERROR): Err<ERROR> {
     return new Err(value);
   }
-  export function sourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>>({
+  export function sourceErr<VALUE, ERROR, SOURCE extends AnyStream>({
     value,
-    detail,
+    error,
     source,
   }: {
-    value: CLEAN_VALUE;
-    detail: ERROR;
+    value: VALUE;
+    error: ERROR;
     source: SOURCE;
   }) {
-    return new SourceErr(value, detail, source);
+    return new SourceErr(value, error, source);
   }
   export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
     return object instanceof Err;
   }
-  export function isSourceErr<CLEAN_VALUE, ERROR, SOURCE extends Stream<any, any>>(
+  export function isSourceErr<VALUE, ERROR, SOURCE extends AnyStream>(
     object: unknown,
-  ): object is SourceErr<CLEAN_VALUE, ERROR, SOURCE> {
+  ): object is SourceErr<VALUE, ERROR, SOURCE> {
     return object instanceof SourceErr;
   }
-
-  export type UseTransformerInsidePipePlease = typeof USE_TRANSFORMER_INSIDE_PIPE_PLEASE;
+  // export const EMPTY = Symbol("*EMPTY#");
+  // export type Empty = typeof EMPTY;
+  export const TERMINATE = Symbol("*TEMINATE#");
+  export type Terminate = typeof TERMINATE;
+  export function isTerminate(object: unknown): object is Terminate {
+    return object === TERMINATE;
+  }
+  export const SKIP = Symbol("*SKIP#");
+  export type Skip = typeof SKIP;
+  export function isSkip(object: unknown): object is Skip {
+    return object === SKIP;
+  }
+  export type Control = Terminate | Skip;
+  export function isControl(object: unknown): object is Control {
+    return object === SKIP || object === TERMINATE;
+  }
 }
-
-const USE_TRANSFORMER_INSIDE_PIPE_PLEASE = Symbol("*USE_TRANSFORMER_INSIDE_PIPE_PLEASE#");

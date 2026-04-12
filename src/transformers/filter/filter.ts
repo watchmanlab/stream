@@ -1,108 +1,146 @@
-import { Stream } from "../../streams/";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "filter";
 
-export class Filter<
-  SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+class Filter<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
-  NAME extends string = Filter.Name,
+  NAME extends string = filter.Name,
 > extends Stream<
   | FILTERED
-  | Stream.ExtractSentinel<SOURCE>
-  | Stream.MaybeSourceErr<CLEAN_VALUE, ERROR, Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>>,
+  | Stream.ExtractSentinel<INPUT_STREAM>
+  | Stream.MaybeSourceErr<
+      CLEAN_VALUE,
+      ERROR,
+      Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, FILTERED, ERROR, NAME>, INPUT_STREAM>
+    >,
   NAME
 > {
-  protected _errors?: Stream<Stream.ErrorEvent<CLEAN_VALUE, ERROR, this>, `${NAME}Errors`>;
-  constructor(
-    source: SOURCE,
-    name = NAME as NAME,
-    predicate: Filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>>,
-  ) {
+  protected _filtered?: Stream<CLEAN_VALUE, `${NAME}Filtered`>;
+
+  constructor(name: NAME, inputStream: INPUT_STREAM, predicate: filter.Predicate<CLEAN_VALUE, ERROR>) {
     super(name, async function* () {
-      for await (const value of source) {
+      for await (const value of inputStream) {
         if (Stream.isSentinel(value)) {
           yield value as never;
           continue;
         }
 
-        const cleanValue = value as FILTERED;
         try {
-          const maybePromise = predicate(cleanValue, self);
+          const maybePromise = predicate(value);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
           if (Stream.isErr(result)) {
-            self._errors?.push({ type: "expected", source: self, value: cleanValue, detail: result.value });
-
             yield Stream.sourceErr({
-              value: value,
-              detail: result.value,
+              value,
+              error: result.value,
               source: self,
             }) as never;
-
             continue;
           }
 
-          if (result) yield cleanValue;
-        } catch (error) {
-          if (error instanceof Stream.Err) {
-            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error.value });
-            yield Stream.sourceErr({ value: value, detail: error.value, source: self }) as never;
+          if (result) {
+            yield value;
           } else {
-            self._errors?.push({ type: "unexpected", source: self, value: cleanValue, detail: error });
-            yield Stream.sourceErr({ value: value, detail: error, source: self }) as never;
+            self._filtered?.push(value);
           }
+        } catch (error) {
+          yield Stream.sourceErr({ value, error, source: self }) as never;
         }
       }
     });
-    const self = this;
+    const self = Stream.traversable(this, inputStream);
   }
 
-  get errors() {
-    if (!this._errors) this._errors = new Stream(`${this._name}Errors` as never);
-    return this._errors;
+  get filtered() {
+    if (!this._filtered) this._filtered = new Stream(`${this._name}Filtered`);
+    return this._filtered;
   }
 }
 
 export function filter<
-  SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
-  NAME extends string = Filter.Name,
 >(
-  predicate: Filter.GardPredicate<CLEAN_VALUE, FILTERED, Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, CLEAN_VALUE, FILTERED, ERROR, NAME>>;
-
+  predicate: filter.GardPredicate<CLEAN_VALUE, FILTERED>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, FILTERED, ERROR, filter.Name>, INPUT_STREAM>
+>;
 export function filter<
-  SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
   ERROR = never,
-  NAME extends string = Filter.Name,
 >(
-  predicate: Filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>;
-
+  predicate: filter.Predicate<CLEAN_VALUE, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, filter.Name>, INPUT_STREAM>
+>;
 export function filter<
-  SOURCE extends Stream<any, any>,
-  CLEAN_VALUE = Stream.ExtractCleanValue<SOURCE>,
+  NAME extends string,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  FILTERED extends CLEAN_VALUE = CLEAN_VALUE,
   ERROR = never,
-  NAME extends string = Filter.Name,
 >(
-  predicate: Filter.Predicate<CLEAN_VALUE, ERROR, Filter<SOURCE, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>>,
-): Stream.Transformer<NAME, SOURCE, Filter<SOURCE, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>> {
-  return (_, source, name) => new Filter(source, name, predicate);
+  name: NAME,
+  predicate: filter.GardPredicate<CLEAN_VALUE, FILTERED>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, FILTERED, ERROR, NAME>, INPUT_STREAM>
+>;
+export function filter<
+  NAME extends string,
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  ERROR = never,
+>(
+  name: NAME,
+  predicate: filter.Predicate<CLEAN_VALUE, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>
+>;
+export function filter<
+  INPUT_STREAM extends Stream.AnyStream,
+  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  ERROR = never,
+  NAME extends string = filter.Name,
+>(
+  nameOrPredicate: NAME | filter.Predicate<CLEAN_VALUE, ERROR>,
+  predicate?: filter.Predicate<CLEAN_VALUE, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  Stream.Traversable<Filter<INPUT_STREAM, CLEAN_VALUE, CLEAN_VALUE, ERROR, NAME>, INPUT_STREAM>
+> {
+  return (inputStream) =>
+    Stream.traversable(
+      typeof nameOrPredicate === "string"
+        ? new Filter(nameOrPredicate, inputStream, predicate!)
+        : new Filter(NAME as NAME, inputStream, nameOrPredicate),
+      inputStream,
+    );
 }
 
-export namespace Filter {
+export namespace filter {
   export type Name = typeof NAME;
-  export type GardPredicate<CLEAN_VALUE, FILTERED extends CLEAN_VALUE, SELF extends Stream<any, any>> = (
+  export type GardPredicate<CLEAN_VALUE, FILTERED extends CLEAN_VALUE> = (value: CLEAN_VALUE) => value is FILTERED;
+  export type Predicate<CLEAN_VALUE, ERROR> = (
     value: CLEAN_VALUE,
-    self: SELF,
-  ) => value is FILTERED;
-  export type Predicate<CLEAN_VALUE, ERROR, SELF extends Stream<any, any>> = (
-    value: CLEAN_VALUE,
-    self: SELF,
-  ) => boolean | Stream.Err<ERROR> | Promise<boolean | Stream.Err<ERROR>>;
+  ) =>
+    | boolean
+    | Stream.Terminate
+    | Stream.Skip
+    | Stream.Err<ERROR>
+    | Promise<boolean | Stream.Terminate | Stream.Skip | Stream.Err<ERROR>>;
+
+  export type Event<CLEAN_VALUE> = {
+    type: "filtered";
+    value: CLEAN_VALUE;
+  };
 }

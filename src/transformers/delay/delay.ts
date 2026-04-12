@@ -1,38 +1,37 @@
-import { Stream } from "../../streams";
-import { consumer } from "../pump";
+import { Stream } from "../../streams/index.ts";
 
 const NAME = "delay";
 
-export class Delay<VALUE, NAME extends string = delay.Name> extends Stream<VALUE, NAME> {
-  constructor(source: Stream<VALUE, any>, name = NAME as NAME, ms: number) {
+export class Delay<SOURCE extends Stream<any, any>, NAME extends string = delay.Name> extends Stream<
+  Stream.ExtractValue<SOURCE>,
+  NAME
+> {
+  constructor(source: SOURCE, name = NAME as NAME, ms: number) {
     super(name, async function* () {
       let timer: any = null;
-      let aborted = false;
-      let resolver: () => void;
+      let resolver: () => void = () => {};
 
       try {
         for await (const value of source) {
-          if (aborted) break;
-          await new Promise<void>((r) => {
-            resolver = r;
-            timer = setTimeout(() => r(), ms);
-          });
-
-          if (aborted) break;
+          if (!Stream.isSentinel(value))
+            await new Promise<void>((r) => {
+              resolver = r;
+              timer = setTimeout(r, ms);
+            });
 
           yield value;
         }
       } finally {
-        resolver!?.();
-        aborted = true;
+        clearInterval(timer);
+        resolver();
       }
     });
   }
 }
 
-export function delay<VALUE, NAME extends string = delay.Name>(
+export function delay<SOURCE extends Stream<any, any>, NAME extends string = delay.Name>(
   ms: number,
-): Stream.Transformer<NAME, Stream<VALUE, any>, Delay<VALUE, NAME>> {
+): Stream.Transform<NAME, SOURCE, Delay<SOURCE, NAME>> {
   return (_, source, name) => new Delay(source, name, ms);
 }
 

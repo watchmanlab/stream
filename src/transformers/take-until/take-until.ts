@@ -8,10 +8,10 @@ import { Stream } from "../../stream-0";
  * stream.pipe(takeUntil(stopSignal))
  * ```
  */
-export function takeUntil<T>(notifier: AbortSignal): Stream.Transformer<Stream<T>, Stream<T>>;
-export function takeUntil<T>(notifier: object): Stream.Transformer<Stream<T>, Stream<T>>;
-export function takeUntil<T>(notifier: Stream): Stream.Transformer<Stream<T>, Stream<T>>;
-export function takeUntil<T>(notifier: AbortSignal | object | Stream): Stream.Transformer<Stream<T>, Stream<T>> {
+export function takeUntil<T>(notifier: AbortSignal): Stream.Transform<Stream<T>, Stream<T>>;
+export function takeUntil<T>(notifier: object): Stream.Transform<Stream<T>, Stream<T>>;
+export function takeUntil<T>(notifier: Stream): Stream.Transform<Stream<T>, Stream<T>>;
+export function takeUntil<T>(notifier: AbortSignal | object | Stream): Stream.Transform<Stream<T>, Stream<T>> {
   return (source) =>
     new Stream<T>(async function* () {
       const output = new Stream<T>();

@@ -7,7 +7,7 @@ type ZipOutput<VALUE, STREAMS extends [Stream<any>, ...Stream<any>[]]> = [
 
 export function zip<VALUE, STREAMS extends [Stream<any>, ...Stream<any>[]]>(
   ...streams: STREAMS
-): Stream.Transformer<Stream<VALUE>, Stream<ZipOutput<VALUE, STREAMS>>> {
+): Stream.Transform<Stream<VALUE>, Stream<ZipOutput<VALUE, STREAMS>>> {
   return (source: Stream<VALUE>): Stream<ZipOutput<VALUE, STREAMS>> =>
     new Stream(async function* () {
       const iterators = [source, ...streams].map((s) => s[Symbol.asyncIterator]());
