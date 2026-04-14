@@ -21,19 +21,26 @@ class Map<
   constructor(name: NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>) {
     super(name);
 
-    inputStream.listen(async (value) => {
-      if (value === Stream.TERMINATE) {
-        this.terminate();
-        return;
-      }
-      const maybePromise = mapper(value);
-      const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
-      if (Stream.isErr(result)) {
-        this.push(Stream.sourceErr({ value: value, error: result.value, source: this }) as never);
-      } else {
-        this.push(result);
-      }
-    });
+    const signal = new Stream();
+    this.hooks = {
+      afterFirstListenerAdded: () => {
+        inputStream.listen(async (value) => {
+          if (value === Stream.TERMINATE) {
+            this.terminate();
+            return;
+          }
+          const result = mapper(value);
+
+          if (Stream.isErr(result)) {
+            this.push(Stream.sourceErr({ value: value, error: result.value, source: this }) as never);
+          } else {
+            this.push(result);
+          }
+        }, signal);
+      },
+      afterLastListenerRemoved: signal.terminate.bind(signal),
+      afterTerminate: signal?.terminate.bind(signal),
+    };
   }
 }
 
@@ -87,13 +94,35 @@ export function map<
 export namespace map {
   export type Name = typeof NAME;
 
-  export type Mapper<CLEAN_VALUE, MAPPED, ERROR> = (
-    value: CLEAN_VALUE,
-  ) => MAPPED | Stream.Err<ERROR> | Promise<MAPPED | Stream.Err<ERROR>>;
+  export type Mapper<CLEAN_VALUE, MAPPED, ERROR> = (value: CLEAN_VALUE) => MAPPED | Stream.Err<ERROR>;
 }
 
-const stream = new Stream<number>().pipe(map((v) => v.toFixed()));
+const stream = new Stream<number>();
+const mapped = stream
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v))
+  .pipe(map((v) => v));
 
-stream.listen((v) => console.log(v));
+const now = performance.now();
+const MAX = 1_000_000;
+// mapped.listen((v) => {
+//   if (v === MAX) console.log("hot", performance.now() - now);
+// });
 
-stream.stream.pushMany([1, 2, 3, 4]);
+(async () => {
+  for await (const v of mapped) {
+    if (v === MAX) console.log("cold", performance.now() - now);
+  }
+})();
+for (let i = 1; i <= MAX; i++) {
+  stream.push(i);
+}

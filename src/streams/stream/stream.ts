@@ -74,8 +74,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
           const value = queue.shift()!;
           if (value === Stream.TERMINATE) {
             break;
-          } else if (value === Stream.SKIP) {
-            continue;
           }
 
           yield value;
