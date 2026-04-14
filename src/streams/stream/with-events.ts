@@ -10,7 +10,7 @@ class WithEvents<
   private events?: {
     listenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}ListenerAdded`>;
     listenerRemoved?: Stream<Stream.Listener<VALUE>, `${NAME}ListenerRemoved`>;
-    listenersCleared?: Stream<void, `${NAME}ListenersCleared`>;
+    allListenersRemoved?: Stream<void, `${NAME}ListenersCleared`>;
     valuesDropped?: Stream<VALUE[], `${NAME}ValuesDropped`>;
     terminated?: Stream<void, `${NAME}Terminated`>;
   };
@@ -21,7 +21,7 @@ class WithEvents<
     this.props = {
       afterListenerAdded: (fn) => this.events?.listenerAdded?.push(fn),
       afterListenerRemoved: (fn) => this.events?.listenerRemoved?.push(fn),
-      afterListenersCleared: () => this.events?.listenersCleared?.push(),
+      afterAllListenersRemoved: () => this.events?.allListenersRemoved?.push(),
       afterValuesDropped: (values) => this.events?.valuesDropped?.push(values),
       afterTerminate: () => {
         this.events?.terminated?.push();
@@ -43,10 +43,10 @@ class WithEvents<
       this.events = { ...this.events, listenerRemoved: new Stream(`${this.name}ListenerRemoved`) };
     return this.events.listenerRemoved;
   }
-  get listenersCleared() {
-    if (!this.events?.listenersCleared)
-      this.events = { ...this.events, listenersCleared: new Stream(`${this.name}ListenersCleared`) };
-    return this.events.listenersCleared;
+  get allListenersRemoved() {
+    if (!this.events?.allListenersRemoved)
+      this.events = { ...this.events, allListenersRemoved: new Stream(`${this.name}ListenersCleared`) };
+    return this.events.allListenersRemoved;
   }
   get valuesDropped() {
     if (!this.events?.valuesDropped)

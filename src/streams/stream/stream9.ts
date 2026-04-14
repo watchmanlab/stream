@@ -1,13 +1,13 @@
 const NAME = "stream";
 
-export class Stream<VALUE, NAME extends string = Stream.Name> {
+export class Stream<VALUE, NAME extends string = Stream.Name, SOURCE extends Stream.AnyStream = never> {
   protected props?: {
     listeners?: Stream.Listener<VALUE>[];
     beforeListenerAdded?: (fn: Stream.Listener<VALUE>) => Stream.Listener<VALUE> | void;
     afterListenerAdded?: (fn: Stream.Listener<VALUE>) => void;
     beforeListenerRemoved?: (fn: Stream.Listener<VALUE>) => Stream.Listener<VALUE> | void;
     afterListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
-    afterListenersCleared?: () => void;
+    afterAllListenersRemoved?: () => void;
     beforePush?: (values: VALUE[]) => VALUE[] | void;
     afterPush?: (values: VALUE[]) => void;
     afterValuesDropped?: (values: VALUE[]) => void;
@@ -15,7 +15,40 @@ export class Stream<VALUE, NAME extends string = Stream.Name> {
     afterTerminate?: () => void;
   };
 
-  constructor(public readonly name: NAME = NAME as NAME) {}
+  readonly name: NAME;
+
+  private constructor(name: NAME, source?: Stream<VALUE, any>) {
+    this.name = name;
+    if (source) {
+      let abort = () => {};
+      this.props = {
+        afterListenerAdded: () => {
+          if (this.props?.listeners?.length === 1) {
+            abort = source.listen((value) => this.push(value));
+          }
+        },
+        afterListenerRemoved: () => {
+          if (this.props?.listeners?.length === 0) {
+            abort();
+          }
+        },
+      };
+    }
+  }
+
+  static create<VALUE>(): Stream<VALUE, Stream.Name, never>;
+  static create<VALUE, SOURCE extends Stream<VALUE, any>>(source: SOURCE): Stream<VALUE, Stream.Name, SOURCE>;
+  static create<VALUE, NAME extends string>(name: NAME): Stream<VALUE, NAME, never>;
+  static create<VALUE, NAME extends string, SOURCE extends Stream<VALUE, any>>(
+    name: NAME,
+    source: SOURCE,
+  ): Stream<VALUE, NAME, SOURCE>;
+  static create<VALUE, NAME extends string, SOURCE extends Stream<VALUE, any>>(
+    nameOrSource?: NAME | SOURCE,
+    source?: SOURCE,
+  ) {
+    return typeof nameOrSource === "string" ? new Stream(nameOrSource, source) : new Stream(NAME as NAME, nameOrSource);
+  }
 
   terminate() {
     if (!this.props?.listeners) return;
@@ -27,15 +60,15 @@ export class Stream<VALUE, NAME extends string = Stream.Name> {
     this.terminate();
   }
   push(value: VALUE) {
-    const values = this.props?.beforePush ? this.props.beforePush([value]) : [value];
+    const newValues = this.props?.beforePush ? this.props.beforePush([value]) : [value];
     const listeners = this.props?.listeners;
-    if (!values || !listeners) {
-      this.props?.afterValuesDropped?.(values ? values : [value]);
+    if (!newValues || !listeners) {
+      this.props?.afterValuesDropped?.(newValues ?? [value]);
       return;
     }
 
-    if (values.length === 1) {
-      const value = values[0];
+    if (newValues.length === 1) {
+      const value = newValues[0];
       const length = listeners.length;
       for (let i = 0; i < length; i++) {
         listeners[i](value);
@@ -44,16 +77,16 @@ export class Stream<VALUE, NAME extends string = Stream.Name> {
         delete this.props?.listeners;
         this.props?.afterTerminate?.();
       }
-      this.props?.afterPush?.(values);
+      this.props?.afterPush?.(newValues);
     } else {
-      this.pushMany(values);
+      this.pushMany(newValues);
     }
   }
   pushMany(values: VALUE[]) {
     const newValues = this.props?.beforePush ? this.props.beforePush(values) : values;
     const listeners = this.props?.listeners;
     if (!newValues || !listeners) {
-      this.props?.afterValuesDropped?.(newValues ? newValues : values);
+      this.props?.afterValuesDropped?.(newValues ?? values);
       return;
     }
 
@@ -97,7 +130,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> {
       if (self.props?.listeners && self.props.listeners.length === 0) {
         const { listeners, ...rest } = self.props;
         self.props = rest;
-        self.props?.afterListenersCleared?.();
+        self.props?.afterAllListenersRemoved?.();
       }
       self.props?.afterListenerRemoved?.(fn);
     };
