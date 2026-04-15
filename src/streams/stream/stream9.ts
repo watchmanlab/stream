@@ -41,11 +41,12 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name>
   }
 
   async *[Symbol.asyncIterator]() {
-    let resolve = () => {};
-    const queue: VALUE[] = [];
+    let queue: VALUE[] | undefined = [];
+    let resolve: Function | undefined = () => {};
+
     const abort = this.listen((value) => {
-      queue.push(value);
-      resolve();
+      queue?.push(value);
+      resolve?.();
     });
 
     try {
@@ -61,20 +62,14 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name>
     } finally {
       abort();
       resolve();
-      queue.length = 0;
+      queue = undefined;
+      resolve = undefined;
     }
   }
   [Symbol.dispose]() {
     this.terminate();
   }
-  protected rawPush(value: VALUE) {
-    if (this.listeners) {
-      const length = this.listeners.length;
-      for (let i = 0; i < length; i++) {
-        this.listeners[i](value);
-      }
-    }
-  }
+
   push(value: VALUE) {
     const newValues = this.hooks?.beforePush ? this.hooks.beforePush([value]) : [value];
     const listeners = this.listeners;
@@ -190,11 +185,11 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name>
       const index = self.listeners?.indexOf(listener) ?? -1;
       if (index === -1) return;
 
-      self.listeners!.splice(index, 1);
+      self.listeners.splice(index, 1);
 
       self.hooks?.afterListenerRemoved?.(listener);
 
-      if (self.listeners?.length === 0) {
+      if (self.listeners.length === 0) {
         sourceGenerator?.return?.();
         abortSource?.();
         self.listeners = undefined;
@@ -202,11 +197,14 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name>
       }
     }
   }
-  listenOnce(fn: Stream.Listener<VALUE>) {
+  listenOnce(fn: Stream.Listener<VALUE>, signal?: Stream.AnyStream): void {
     const abort = this.listen((value) => {
       fn(value);
       abort();
-    });
+    }, signal);
+  }
+  next(): Promise<VALUE> {
+    return new Promise<VALUE>((resolve) => this.listenOnce(resolve));
   }
   pipe<OUTPUT_STREAM extends Stream.AnyStream>(transform: Stream.Transform<this, OUTPUT_STREAM>): OUTPUT_STREAM {
     return transform(this);
@@ -216,7 +214,6 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name>
 export namespace Stream {
   export type Name = typeof NAME;
   export type Listener<VALUE> = (value: VALUE) => any;
-  export type Consumer<VALUE> = { queue: VALUE[]; resolve: () => void };
   export type Abort = () => void;
   export type AnyStream = Stream<any, any>;
   export type AnySource = Source<any>;
@@ -237,6 +234,11 @@ export namespace Stream {
   export type MaybeSourceErr<CLEAN_VALUE, ERROR, SOURCE extends AnyStream> = [ERROR] extends [never]
     ? never
     : SourceErr<CLEAN_VALUE, ERROR, SOURCE>;
+  export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void> | Generator<VALUE, void>;
+  export type Source<VALUE> =
+    | GeneratorFunction<VALUE>
+    | AsyncIterable<VALUE, void>
+    | Exclude<Iterable<VALUE, void>, string | String>;
   export type Transform<INPUT_STREAM extends AnyStream, OUTPUT_STREAM extends AnyStream> = (
     inputStream: INPUT_STREAM,
   ) => OUTPUT_STREAM;
@@ -253,12 +255,6 @@ export namespace Stream {
       },
     }) as never;
   }
-  export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void> | Generator<VALUE, void>;
-  export type Source<VALUE> =
-    | Stream<VALUE, any>
-    | GeneratorFunction<VALUE>
-    | AsyncIterable<VALUE, void>
-    | Exclude<Iterable<VALUE, void>, string | String>;
   export abstract class Sentinel {
     private readonly __sentinel = Symbol("*__sentinel#");
   }
@@ -283,6 +279,9 @@ export namespace Stream {
   export function err<ERROR>(value: ERROR): Err<ERROR> {
     return new Err(value);
   }
+  export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
+    return object instanceof Err;
+  }
   export function sourceErr<VALUE, ERROR, SOURCE extends AnyStream>({
     value,
     error,
@@ -294,16 +293,11 @@ export namespace Stream {
   }) {
     return new SourceErr(value, error, source);
   }
-  export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
-    return object instanceof Err;
-  }
   export function isSourceErr<VALUE, ERROR, SOURCE extends AnyStream>(
     object: unknown,
   ): object is SourceErr<VALUE, ERROR, SOURCE> {
     return object instanceof SourceErr;
   }
-  // export const EMPTY = Symbol("*EMPTY#");
-  // export type Empty = typeof EMPTY;
   export const TERMINATE = Symbol("*TEMINATE#");
   export type Terminate = typeof TERMINATE;
   export function isTerminate(object: unknown): object is Terminate {

@@ -1,136 +1,220 @@
-const NAME = "root";
-export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE> {
-  protected _consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
-  protected _source?: Stream.Source<VALUE>;
-  protected _sourceGenerator?: AsyncGenerator<VALUE, void, unknown>;
-  protected _name = NAME as NAME;
+const NAME = "stream";
+
+export class Stream<VALUE = void, NAME extends string = Stream.Name>
+  implements AsyncIterable<VALUE, void, void>, Disposable
+{
+  protected listeners?: Stream.Listener<VALUE>[];
+  protected hooks?: {
+    beforeListenerAdded?: (fn: Stream.Listener<VALUE>) => Stream.Listener<VALUE> | void;
+    afterListenerAdded?: (fn: Stream.Listener<VALUE>) => void;
+    afterFirstListenerAdded?: (fn: Stream.Listener<VALUE>) => void;
+    beforeListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
+    afterListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
+    afterLastListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
+    beforePush?: (values: VALUE[]) => VALUE[] | void;
+    afterPush?: (values: VALUE[]) => void;
+    afterValuesDropped?: (values: VALUE[]) => void;
+    beforeTerminate?: () => void;
+    afterTerminate?: () => void;
+  };
+
+  readonly name: NAME;
+  private source?: Stream.Source<VALUE>;
   constructor();
   constructor(name: NAME);
   constructor(source: Stream.Source<VALUE>);
   constructor(name: NAME, source: Stream.Source<VALUE>);
-  constructor(sourceOrName?: Stream.Source<VALUE> | NAME, source?: Stream.Source<VALUE>) {
-    if (typeof sourceOrName === "string" || sourceOrName instanceof String) {
-      this._name = (sourceOrName as NAME) ?? NAME;
-      this._source = source;
+  constructor(nameOrSource?: NAME | Stream.Source<VALUE>, source?: Stream.Source<VALUE>) {
+    if (typeof nameOrSource === "string") {
+      this.name = nameOrSource;
+      this.source = source;
     } else {
-      this._source = sourceOrName;
+      this.name = NAME as NAME;
+      this.source = nameOrSource;
     }
   }
-  get name() {
-    return this._name;
-  }
-  push(value: VALUE, ...values: VALUE[]): Stream.PushResult {
-    const readyPromises = new Array<Promise<void>>();
 
-    for (const [queue, { resolve, ready }] of this._consumers) {
-      queue.push(value, ...values);
-      resolve();
-      readyPromises.push(ready);
-    }
+  terminate() {
+    if (!this.listeners) return;
+    this.hooks?.beforeTerminate?.();
+    this.push(Stream.TERMINATE as VALUE);
+  }
 
-    return {
-      get awaitBroadcast() {
-        return new Promise<void>((r) => setTimeout(r, 0));
-      },
-      get awaitAllConsumers() {
-        return Promise.all(readyPromises);
-      },
-      get awaitAnyConsumer() {
-        return Promise.any(readyPromises);
-      },
-      then: (resolve?: () => void, reject?: () => void) => Promise.resolve().then(resolve, reject),
-    };
-  }
-  protected _requestingNext = false;
-  protected _requestNext() {
-    if (!this._requestingNext && this._sourceGenerator) {
-      this._requestingNext = true;
-      this._sourceGenerator.next().then((result) => {
-        this._requestingNext = false;
-        if (result.done) {
-          this.push(Stream.TERMINATE as VALUE);
-          return;
-        }
-        this.push(result.value);
-      });
-    }
-  }
-  protected _onConsumerJoin?: (queue: VALUE[]) => void;
-  protected _onConsumerLeft?: () => void;
   async *[Symbol.asyncIterator]() {
-    if (this._consumers.size === 0 && this._source) {
-      this._sourceGenerator = Stream.generator(this._source);
-    }
+    let queue: VALUE[] | undefined = [];
+    let resolve: Function | undefined = () => {};
 
-    const queue: VALUE[] = [];
-    this._consumers.set(queue, { resolve() {}, ready: Promise.resolve() });
-    this._onConsumerJoin?.(queue);
-
-    let ready: () => void;
+    const abort = this.listen((value) => {
+      queue?.push(value);
+      resolve?.();
+    });
 
     try {
       while (true) {
         if (queue.length) {
           const value = queue.shift()!;
-          if (value === Stream.TERMINATE) {
-            break;
-          }
-
+          if (value === Stream.TERMINATE) break;
           yield value;
         } else {
-          ready!?.();
-          this._requestNext();
-
-          await new Promise<void>((resolve) => {
-            this._consumers.set(queue, {
-              resolve,
-              ready: new Promise<void>((r) => (ready = r)),
-            });
-          });
+          await new Promise<void>((r) => (resolve = r));
         }
       }
     } finally {
-      this._consumers.get(queue)?.resolve();
-      this._consumers.delete(queue);
-
-      queue.length = 0;
-
-      if (this._consumers.size === 0) {
-        await this._sourceGenerator?.return?.();
-        this._sourceGenerator = undefined;
-      }
-      this._onConsumerLeft?.();
-
-      return;
+      abort();
+      resolve();
+      queue = undefined;
+      resolve = undefined;
     }
   }
-  next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
-    return this[Symbol.asyncIterator]().next();
+  [Symbol.dispose]() {
+    this.terminate();
+  }
+
+  push(value: VALUE) {
+    const newValues = this.hooks?.beforePush ? this.hooks.beforePush([value]) : [value];
+    const listeners = this.listeners;
+
+    if (!newValues || !listeners) {
+      this.hooks?.afterValuesDropped?.(newValues ?? [value]);
+      return;
+    }
+
+    if (newValues.length === 1) {
+      const value = newValues[0];
+      if (listeners) {
+        const length = listeners.length;
+        for (let i = 0; i < length; i++) {
+          listeners[i](value);
+        }
+      }
+
+      this.hooks?.afterPush?.(newValues);
+
+      if (value === Stream.TERMINATE) {
+        this.listeners = undefined;
+        this.hooks?.afterTerminate?.();
+      }
+    } else {
+      this.pushMany(newValues);
+    }
+  }
+  pushMany(values: VALUE[]) {
+    const newValues = this.hooks?.beforePush ? this.hooks.beforePush(values) : values;
+    const listeners = this.listeners;
+
+    if (!newValues || !listeners) {
+      this.hooks?.afterValuesDropped?.(newValues ?? values);
+      return;
+    }
+
+    let terminate = false;
+    const valuesLenght = newValues.length;
+
+    if (listeners) {
+      const listenersLenght = listeners.length;
+      for (let i = 0; i < listenersLenght; i++) {
+        const fn = listeners[i];
+        for (let j = 0; j < valuesLenght; j++) {
+          const value = newValues[j];
+          fn(value);
+          if (value === Stream.TERMINATE) terminate = true;
+        }
+      }
+    }
+
+    this.hooks?.afterPush?.(newValues);
+
+    if (terminate) {
+      this.listeners = undefined;
+      this.hooks?.afterTerminate?.();
+    }
+  }
+  listen(fn: Stream.Listener<VALUE>, signal?: Stream.AnyStream): Stream.Abort {
+    const self = this;
+    signal?.listenOnce(abort);
+
+    const listener = self.hooks?.beforeListenerAdded ? self.hooks.beforeListenerAdded(fn) : fn;
+    if (!listener) return abort;
+
+    if (!self.listeners) self.listeners = [];
+
+    self.listeners.push(listener);
+
+    self.hooks?.afterListenerAdded?.(listener);
+
+    if (self.listeners.length > 1) return abort;
+
+    self.hooks?.afterFirstListenerAdded?.(listener);
+
+    let sourceGenerator:
+      | AsyncGenerator<VALUE, void>
+      | Generator<VALUE, void>
+      | AsyncIterator<VALUE, void>
+      | Iterator<VALUE, void>
+      | undefined;
+
+    let abortSource: Stream.Abort | undefined;
+
+    if (self.source) {
+      if (self.source instanceof Stream) {
+        abortSource = self.source.listen((value) => self.push(value));
+      } else if (typeof self.source === "function") {
+        sourceGenerator = self.source();
+      } else if (Symbol.asyncIterator in self.source) {
+        sourceGenerator = self.source[Symbol.asyncIterator]();
+      } else {
+        sourceGenerator = self.source[Symbol.iterator]();
+      }
+
+      if (Symbol.asyncIterator in sourceGenerator!) {
+        (async () => {
+          for await (const value of sourceGenerator) {
+            self.push(value);
+          }
+        })();
+      } else if (Symbol.iterator in sourceGenerator!) {
+        for (const value of sourceGenerator) {
+          self.push(value);
+        }
+      }
+    }
+
+    return abort;
+    function abort() {
+      if (!listener || !self.listeners?.length) return;
+      const index = self.listeners?.indexOf(listener) ?? -1;
+      if (index === -1) return;
+
+      self.listeners.splice(index, 1);
+
+      self.hooks?.afterListenerRemoved?.(listener);
+
+      if (self.listeners.length === 0) {
+        sourceGenerator?.return?.();
+        abortSource?.();
+        self.listeners = undefined;
+        self.hooks?.afterLastListenerRemoved?.(listener);
+      }
+    }
+  }
+  listenOnce(fn: Stream.Listener<VALUE>, signal?: Stream.AnyStream): void {
+    const abort = this.listen((value) => {
+      fn(value);
+      abort();
+    }, signal);
+  }
+  next(): Promise<VALUE> {
+    return new Promise<VALUE>((resolve) => this.listenOnce(resolve));
   }
   pipe<OUTPUT_STREAM extends Stream.AnyStream>(transform: Stream.Transform<this, OUTPUT_STREAM>): OUTPUT_STREAM {
     return transform(this);
-  }
-
-  static pipe<INPUT_STREAM extends Stream.AnyStream, OUTPUT_STREAM extends Stream.AnyStream>(
-    inputStream: INPUT_STREAM,
-    transform: Stream.Transform<INPUT_STREAM, OUTPUT_STREAM>,
-  ): OUTPUT_STREAM {
-    return transform(inputStream);
-  }
-  static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, unknown> {
-    return (async function* () {
-      if (!source) return;
-      if (Symbol.asyncIterator in source || Symbol.iterator in source) {
-        yield* source;
-      } else if (typeof source === "function") {
-        yield* source();
-      }
-    })();
   }
 }
 
 export namespace Stream {
   export type Name = typeof NAME;
+  export type Listener<VALUE> = (value: VALUE) => any;
+  export type Abort = () => void;
   export type AnyStream = Stream<any, any>;
   export type AnySource = Source<any>;
   export type AnySourceErr = SourceErr<any, any, AnyStream>;
@@ -150,18 +234,11 @@ export namespace Stream {
   export type MaybeSourceErr<CLEAN_VALUE, ERROR, SOURCE extends AnyStream> = [ERROR] extends [never]
     ? never
     : SourceErr<CLEAN_VALUE, ERROR, SOURCE>;
-  export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
+  export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void> | Generator<VALUE, void>;
   export type Source<VALUE> =
     | GeneratorFunction<VALUE>
-    | AsyncIterable<VALUE, void, unknown>
-    | Exclude<Iterable<VALUE, void, unknown>, string | String>;
-  export type PushResult = {
-    readonly awaitBroadcast: Promise<void>;
-    readonly awaitAllConsumers: Promise<void[]>;
-    readonly awaitAnyConsumer: Promise<void>;
-    then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
-  };
-
+    | AsyncIterable<VALUE, void>
+    | Exclude<Iterable<VALUE, void>, string | String>;
   export type Transform<INPUT_STREAM extends AnyStream, OUTPUT_STREAM extends AnyStream> = (
     inputStream: INPUT_STREAM,
   ) => OUTPUT_STREAM;
@@ -202,6 +279,9 @@ export namespace Stream {
   export function err<ERROR>(value: ERROR): Err<ERROR> {
     return new Err(value);
   }
+  export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
+    return object instanceof Err;
+  }
   export function sourceErr<VALUE, ERROR, SOURCE extends AnyStream>({
     value,
     error,
@@ -213,16 +293,11 @@ export namespace Stream {
   }) {
     return new SourceErr(value, error, source);
   }
-  export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
-    return object instanceof Err;
-  }
   export function isSourceErr<VALUE, ERROR, SOURCE extends AnyStream>(
     object: unknown,
   ): object is SourceErr<VALUE, ERROR, SOURCE> {
     return object instanceof SourceErr;
   }
-  // export const EMPTY = Symbol("*EMPTY#");
-  // export type Empty = typeof EMPTY;
   export const TERMINATE = Symbol("*TEMINATE#");
   export type Terminate = typeof TERMINATE;
   export function isTerminate(object: unknown): object is Terminate {
