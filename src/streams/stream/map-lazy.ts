@@ -19,28 +19,23 @@ class Map<
   NAME
 > {
   constructor(name: NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>) {
-    super(name);
+    super(name, async function* () {
+      for await (const value of inputStream) {
+        if (value === Stream.TERMINATE) {
+          self.terminate();
+          return;
+        }
+        const result = mapper(value);
 
-    const signal = new Stream();
-    this.hooks = {
-      afterFirstListenerAdded: () => {
-        inputStream.listen(async (value) => {
-          if (value === Stream.TERMINATE) {
-            this.terminate();
-            return;
-          }
-          const result = mapper(value);
+        if (Stream.isErr(result)) {
+          yield Stream.sourceErr({ value: value, error: result.value, source: self }) as never;
+        } else {
+          yield result;
+        }
+      }
+    });
 
-          if (Stream.isErr(result)) {
-            this.push(Stream.sourceErr({ value: value, error: result.value, source: this }) as never);
-          } else {
-            this.push(result);
-          }
-        }, signal);
-      },
-      afterLastListenerRemoved: signal.terminate.bind(signal),
-      afterTerminate: signal?.terminate.bind(signal),
-    };
+    const self = this;
   }
 }
 
@@ -114,15 +109,15 @@ const mapped = stream
 
 const now = performance.now();
 const MAX = 1_000_000;
-mapped.listen((v) => {
-  if (v === MAX) console.log("hot", performance.now() - now);
-});
+// mapped.listen((v) => {
+//   if (v === MAX) console.log("hot", performance.now() - now);
+// });
 
-// (async () => {
-//   for await (const v of mapped) {
-//     if (v === MAX) console.log("cold", performance.now() - now);
-//   }
-// })();
+(async () => {
+  for await (const v of mapped) {
+    if (v === MAX) console.log("cold", performance.now() - now);
+  }
+})();
 for (let i = 1; i <= MAX; i++) {
   stream.push(i);
 }

@@ -4,20 +4,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name>
   implements AsyncIterable<VALUE, void, void>, Disposable
 {
   protected listeners?: Stream.Listener<VALUE>[];
-  protected hooks?: {
-    beforeListenerAdded?: (fn: Stream.Listener<VALUE>) => Stream.Listener<VALUE> | void;
-    afterListenerAdded?: (fn: Stream.Listener<VALUE>) => void;
-    afterFirstListenerAdded?: (fn: Stream.Listener<VALUE>) => void;
-    beforeListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
-    afterListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
-    afterLastListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
-    beforePush?: (values: VALUE[]) => VALUE[] | void;
-    afterPush?: (values: VALUE[]) => void;
-    afterValuesDropped?: (values: VALUE[]) => void;
-    beforeTerminate?: () => void;
-    afterTerminate?: () => void;
-  };
-
+  protected hooks?: Stream.Hooks<VALUE>;
   readonly name: NAME;
   private source?: Stream.Source<VALUE>;
   constructor();
@@ -215,6 +202,19 @@ export namespace Stream {
   export type Name = typeof NAME;
   export type Listener<VALUE> = (value: VALUE) => any;
   export type Abort = () => void;
+  export type Hooks<VALUE> = {
+    beforeListenerAdded?: (fn: Stream.Listener<VALUE>) => Stream.Listener<VALUE> | void;
+    afterListenerAdded?: (fn: Stream.Listener<VALUE>) => void;
+    afterFirstListenerAdded?: (fn: Stream.Listener<VALUE>) => void;
+    beforeListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
+    afterListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
+    afterLastListenerRemoved?: (fn: Stream.Listener<VALUE>) => void;
+    beforePush?: (values: VALUE[]) => VALUE[] | void;
+    afterPush?: (values: VALUE[]) => void;
+    afterValuesDropped?: (values: VALUE[]) => void;
+    beforeTerminate?: () => void;
+    afterTerminate?: () => void;
+  };
   export type AnyStream = Stream<any, any>;
   export type AnySource = Source<any>;
   export type AnySourceErr = SourceErr<any, any, AnyStream>;

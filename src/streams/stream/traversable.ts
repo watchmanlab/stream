@@ -1,4 +1,4 @@
-import { Stream } from "./stream9";
+import { Stream } from "./stream";
 
 export function traversable<INPUT_STREAM extends Stream.AnyStream, PARENT extends Stream.AnyStream>(
   parent: PARENT,

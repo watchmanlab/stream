@@ -1,4 +1,4 @@
-import { Stream } from "./stream9";
+import { Stream } from "./stream";
 
 const NAME = "withEvents";
 
