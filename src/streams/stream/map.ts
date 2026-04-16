@@ -4,84 +4,102 @@ const NAME = "map";
 
 class Map<
   INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = CLEAN_VALUE,
+  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
+  MAPPED = VALUE,
   ERROR = never,
   NAME extends string = map.Name,
-> extends Stream<
-  | MAPPED
-  | Stream.ExtractSentinel<INPUT_STREAM>
-  | Stream.MaybeSourceErr<
-      CLEAN_VALUE,
+> extends Stream<MAPPED, NAME> {
+  private _error?: Stream<{ value: VALUE; error: ERROR }, `${NAME}Error`>;
+  private signal = new Stream();
+  constructor(
+    name: NAME,
+    private inputStream: INPUT_STREAM,
+    private mapper: map.Mapper<
+      VALUE,
+      MAPPED,
       ERROR,
-      Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+      Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
     >,
-  NAME
-> {
-  constructor(name: NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>) {
+  ) {
     super(name);
 
-    const signal = new Stream();
     this.hooks = {
-      afterFirstListenerAdded: () => {
-        inputStream.listen(async (value) => {
-          if (value === Stream.TERMINATE) {
-            this.terminate();
-            return;
-          }
-          const result = mapper(value);
-
-          if (Stream.isErr(result)) {
-            this.push(Stream.sourceErr({ value: value, error: result.value, source: this }) as never);
-          } else {
-            this.push(result);
-          }
-        }, signal);
-      },
-      afterLastListenerRemoved: signal.terminate.bind(signal),
-      afterTerminate: signal?.terminate.bind(signal),
+      afterFirstListenerAdded: this.transforme.bind(this),
+      afterLastListenerRemoved: this.signal.terminate.bind(this.signal),
+      afterTerminate: this.signal?.terminate.bind(this.signal),
     };
+  }
+
+  transforme() {
+    const self = this;
+    this.inputStream.listen(function (value) {
+      try {
+        const result = self.mapper(value, Stream.traversable(self, self.inputStream));
+
+        if (Stream.isErr(result)) {
+          if (!self._error) throw result.value;
+          self._error.push({ value, error: result.value });
+        } else {
+          self.push(result);
+        }
+      } catch (error: any) {
+        if (!self._error) throw error;
+        self._error.push({ value, error });
+      }
+    }, self.signal);
+  }
+  get error() {
+    if (!this._error) this._error = new Stream(`${this.name}Error`);
+    return this._error;
   }
 }
 
 export function map<
   INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = CLEAN_VALUE,
+  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = VALUE,
   ERROR = never,
   NAME extends string = map.Name,
 >(
-  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
-): Stream.Transform<
-  INPUT_STREAM,
-  Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
->;
+  mapper: map.Mapper<
+    VALUE,
+    MAPPED,
+    ERROR,
+    Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+  >,
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>>;
 export function map<
   NAME extends string,
   INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = CLEAN_VALUE,
+  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = VALUE,
   ERROR = never,
 >(
   name: NAME,
-  mapper: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
-): Stream.Transform<
-  INPUT_STREAM,
-  Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
->;
+  mapper: map.Mapper<
+    VALUE,
+    MAPPED,
+    ERROR,
+    Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+  >,
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>>;
 export function map<
   INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = CLEAN_VALUE,
+  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
+  MAPPED = VALUE,
   ERROR = never,
   NAME extends string = map.Name,
 >(
-  nameOrMapper: NAME | map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
-  mapper?: map.Mapper<CLEAN_VALUE, MAPPED, ERROR>,
-): Stream.Transform<
-  INPUT_STREAM,
-  Stream.Traversable<Map<INPUT_STREAM, CLEAN_VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
-> {
+  nameOrMapper:
+    | NAME
+    | map.Mapper<VALUE, MAPPED, ERROR, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>>,
+  mapper?: map.Mapper<
+    VALUE,
+    MAPPED,
+    ERROR,
+    Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+  >,
+): Stream.Transform<INPUT_STREAM, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>> {
   return (inputStream) =>
     Stream.traversable(
       typeof nameOrMapper === "string"
@@ -94,14 +112,22 @@ export function map<
 export namespace map {
   export type Name = typeof NAME;
 
-  export type Mapper<CLEAN_VALUE, MAPPED, ERROR> = (value: CLEAN_VALUE) => MAPPED | Stream.Err<ERROR>;
+  export type Mapper<VALUE, MAPPED, ERROR, THIS extends Stream.AnyTraversable> = (
+    value: VALUE,
+    self: THIS,
+  ) => MAPPED | Stream.Err<ERROR>;
 }
 
 const stream = new Stream<number>();
 const mapped = stream
   .pipe(map((v) => v))
   .pipe(map((v) => v))
-  .pipe(map((v) => v))
+  .pipe(
+    map("custom", (v, self) => {
+      self.name;
+      return v;
+    }),
+  )
   .pipe(map((v) => v))
   .pipe(map((v) => v))
   .pipe(map((v) => v))
