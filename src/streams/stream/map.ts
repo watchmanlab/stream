@@ -10,11 +10,11 @@ class Map<
   NAME extends string = map.Name,
 > extends Stream<MAPPED, NAME> {
   private _error?: Stream<{ value: VALUE; error: ERROR }, `${NAME}Error`>;
-  private signal = new Stream();
+
   constructor(
     name: NAME,
-    private inputStream: INPUT_STREAM,
-    private mapper: map.Mapper<
+    inputStream: INPUT_STREAM,
+    mapper: map.Mapper<
       VALUE,
       MAPPED,
       ERROR,
@@ -23,31 +23,31 @@ class Map<
   ) {
     super(name);
 
+    const self = this;
+    const signal = new Stream();
     this.hooks = {
-      afterFirstListenerAdded: () => this.transform(),
-      afterLastListenerRemoved: this.signal.terminate.bind(this.signal),
-      afterTerminate: this.signal?.terminate.bind(this.signal),
+      afterFirstListenerAdded() {
+        inputStream.listen(function (value) {
+          try {
+            const result = mapper(value, Stream.traversable(self, inputStream));
+
+            if (Stream.isErr(result)) {
+              if (!self._error) throw result.value;
+              self._error.push({ value, error: result.value });
+            } else {
+              self.push(result);
+            }
+          } catch (error: any) {
+            if (!self._error) throw error;
+            self._error.push({ value, error });
+          }
+        }, signal);
+      },
+      afterLastListenerRemoved: signal.terminate.bind(signal),
+      afterTerminate: signal?.terminate.bind(signal),
     };
   }
 
-  private transform() {
-    const self = this;
-    self.inputStream.listen(function (value) {
-      try {
-        const result = self.mapper(value, Stream.traversable(self, self.inputStream));
-
-        if (Stream.isErr(result)) {
-          if (!self._error) throw result.value;
-          self._error.push({ value, error: result.value });
-        } else {
-          self.push(result);
-        }
-      } catch (error: any) {
-        if (!self._error) throw error;
-        self._error.push({ value, error });
-      }
-    }, self.signal);
-  }
   get error() {
     if (!this._error) this._error = new Stream(`${this.name}Error`);
     return this._error;

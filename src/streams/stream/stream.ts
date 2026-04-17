@@ -18,6 +18,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
       this.source = nameOrSource;
     }
   }
+
   terminate() {
     if (!this.listeners.length) return;
     this.hooks?.beforeTerminate?.();
@@ -25,7 +26,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     this.hooks?.afterTerminate?.();
   }
   async *[Symbol.asyncIterator]() {
-    let queue: (VALUE | Stream.Terminate)[] | undefined = [];
+    let queue: VALUE[] | undefined = [];
     let resolve: Function | undefined = Function();
 
     const abort = this.listen((value) => {
@@ -37,7 +38,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
       while (true) {
         if (queue.length) {
           const value = queue.shift()!;
-          if (value === Stream.TERMINATE) break;
+
           yield value;
         } else {
           await new Promise<void>((r) => (resolve = r));
@@ -56,14 +57,17 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
   push(...values: VALUE[]) {
     const listeners = this.listeners;
     const listenersLenght = this.listeners.length;
-    const newValues = this.hooks?.beforePush ? this.hooks.beforePush(values) : values;
+    const hooks = this.hooks;
+
+    const newValues = hooks?.beforePush ? hooks.beforePush(values) : values;
     if (!newValues || !listenersLenght) {
-      this.hooks?.afterValuesDropped?.(values);
+      hooks?.afterValuesDropped?.(values);
       return;
     }
 
     for (let i = 0; i < newValues.length; i++) {
       const value = values[i];
+
       for (let j = 0; j < listenersLenght; j++) {
         listeners[j](value);
       }
