@@ -24,15 +24,15 @@ class Map<
     super(name);
 
     this.hooks = {
-      afterFirstListenerAdded: this.transforme.bind(this),
+      afterFirstListenerAdded: () => this.transform(),
       afterLastListenerRemoved: this.signal.terminate.bind(this.signal),
       afterTerminate: this.signal?.terminate.bind(this.signal),
     };
   }
 
-  transforme() {
+  private transform() {
     const self = this;
-    this.inputStream.listen(function (value) {
+    self.inputStream.listen(function (value) {
       try {
         const result = self.mapper(value, Stream.traversable(self, self.inputStream));
 
