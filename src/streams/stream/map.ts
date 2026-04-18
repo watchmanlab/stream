@@ -11,41 +11,35 @@ class Map<
 > extends Stream<MAPPED, NAME> {
   private _error?: Stream<{ value: VALUE; error: ERROR }, `${NAME}Error`>;
 
-  constructor(
-    name: NAME,
-    inputStream: INPUT_STREAM,
-    mapper: map.Mapper<
-      VALUE,
-      MAPPED,
-      ERROR,
-      Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
-    >,
-  ) {
+  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
     super(name);
 
-    const self = this;
     const signal = new Stream();
-    this.hooks = {
-      afterFirstListenerAdded() {
-        inputStream.listen(function (value) {
-          try {
-            const result = mapper(value, Stream.traversable(self, inputStream));
 
-            if (Stream.isErr(result)) {
-              if (!self._error) throw result.value;
-              self._error.push({ value, error: result.value });
-            } else {
-              self.push(result);
-            }
-          } catch (error: any) {
-            if (!self._error) throw error;
-            self._error.push({ value, error });
+    this.afterFirstListenerAdded.listen(() => {
+      inputStream.listen((value) => {
+        try {
+          const result = mapper(value);
+
+          if (Stream.isErr(result)) {
+            result.sourceName = this.name;
+            if (!this._error?.listenersCount) throw result;
+            this._error?.push({ value, error: result.value });
+          } else {
+            this.push(result);
           }
-        }, signal);
-      },
-      afterLastListenerRemoved: signal.terminate.bind(signal),
-      afterTerminate: signal?.terminate.bind(signal),
-    };
+        } catch (error: any) {
+          if (!this._error?.listenersCount) throw error;
+          this._error?.push({ value, error });
+        }
+      }, signal);
+    });
+    this.afterLastListenerRemoved.listen(() => {
+      signal.push();
+    });
+    this.afterTerminate.listen(() => {
+      signal.push();
+    });
   }
 
   get error() {
@@ -56,92 +50,47 @@ class Map<
 
 export function map<
   INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
+  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
   ERROR = never,
   NAME extends string = map.Name,
 >(
-  mapper: map.Mapper<
-    VALUE,
-    MAPPED,
-    ERROR,
-    Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
-  >,
-): Stream.Transform<INPUT_STREAM, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>>;
-export function map<
-  NAME extends string,
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = VALUE,
-  ERROR = never,
->(
-  name: NAME,
-  mapper: map.Mapper<
-    VALUE,
-    MAPPED,
-    ERROR,
-    Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
-  >,
-): Stream.Transform<INPUT_STREAM, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>>;
-export function map<
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = VALUE,
-  ERROR = never,
-  NAME extends string = map.Name,
->(
-  nameOrMapper:
-    | NAME
-    | map.Mapper<VALUE, MAPPED, ERROR, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>>,
-  mapper?: map.Mapper<
-    VALUE,
-    MAPPED,
-    ERROR,
-    Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
-  >,
-): Stream.Transform<INPUT_STREAM, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>> {
-  return (inputStream) =>
-    Stream.traversable(
-      typeof nameOrMapper === "string"
-        ? new Map(nameOrMapper, inputStream, mapper!)
-        : new Map(NAME as NAME, inputStream, nameOrMapper),
-      inputStream,
-    );
+  mapper: map.Mapper<VALUE, MAPPED, ERROR>,
+): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>> {
+  return (inputStream, name) => Stream.transformer(new Map(name, inputStream, mapper), inputStream);
 }
 
 export namespace map {
   export type Name = typeof NAME;
 
-  export type Mapper<VALUE, MAPPED, ERROR, THIS extends Stream.AnyTraversable> = (
-    value: VALUE,
-    self: THIS,
-  ) => MAPPED | Stream.Err<ERROR>;
+  export type Mapper<VALUE, MAPPED, ERROR> = (value: VALUE) => MAPPED | Stream.Err<ERROR>;
 }
 
 const stream = new Stream<number>();
 const mapped = stream
-  .pipe(map((v) => v))
-  .pipe(map((v) => v))
   .pipe(
-    map("custom", (v, self) => {
-      self.name;
+    "map1",
+    map((v) => v),
+  )
+  .pipe(
+    "map2",
+    map((v) => v),
+  )
+
+  .pipe(
+    map((v) => {
+      if (v === 4) return Stream.err("kechmahaja" as const);
       return v;
     }),
-  )
-  .pipe(map((v) => v))
-  .pipe(map((v) => v))
-  .pipe(map((v) => v))
-  .pipe(map((v) => v))
-  .pipe(map((v) => v))
-  .pipe(map((v) => v))
-  .pipe(map((v) => v))
-  .pipe(map((v) => v))
-  .pipe(map((v) => v));
+  );
 
 const now = performance.now();
 const MAX = 1_000_000;
 mapped.listen((v) => {
   if (v === MAX) console.log("hot", performance.now() - now);
+});
+mapped.error.listen((err) => {
+  console.log(err);
 });
 
 // (async () => {

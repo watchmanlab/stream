@@ -4,13 +4,13 @@ const NAME = "map";
 
 class Map<
   INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
+  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
   ERROR = never,
   NAME extends string = map.Name,
 > extends Stream<MAPPED, NAME> {
   private _error?: Stream<{ value: VALUE; error: ERROR }, `${NAME}Error`>;
-  constructor(name: NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
+  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
     super(name, async function* () {
       for await (const value of inputStream) {
         try {
@@ -39,45 +39,18 @@ class Map<
 
 export function map<
   INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
+  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
   ERROR = never,
   NAME extends string = map.Name,
 >(
   mapper: map.Mapper<VALUE, MAPPED, ERROR>,
-): Stream.Transform<INPUT_STREAM, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>>;
-export function map<
-  NAME extends string,
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = VALUE,
-  ERROR = never,
->(
-  name: NAME,
-  mapper: map.Mapper<VALUE, MAPPED, ERROR>,
-): Stream.Transform<INPUT_STREAM, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>>;
-export function map<
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractCleanValue<INPUT_STREAM> = Stream.ExtractCleanValue<INPUT_STREAM>,
-  MAPPED = VALUE,
-  ERROR = never,
-  NAME extends string = map.Name,
->(
-  nameOrMapper: NAME | map.Mapper<VALUE, MAPPED, ERROR>,
-  mapper?: map.Mapper<VALUE, MAPPED, ERROR>,
-): Stream.Transform<INPUT_STREAM, Stream.Traversable<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>> {
-  return (inputStream) =>
-    Stream.traversable(
-      typeof nameOrMapper === "string"
-        ? new Map(nameOrMapper, inputStream, mapper!)
-        : new Map(NAME as NAME, inputStream, nameOrMapper),
-      inputStream,
-    );
+): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>> {
+  return (inputStream, name) => Stream.transformer(new Map(name, inputStream, mapper), inputStream);
 }
 
 export namespace map {
   export type Name = typeof NAME;
-
   export type Mapper<VALUE, MAPPED, ERROR> = (value: VALUE) => MAPPED | Stream.Err<ERROR>;
 }
 
