@@ -14,21 +14,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
   private _beforeTerminate?: Stream<VALUE[], `${NAME}BeforeTerminate`>;
   private _afterTerminate?: Stream<VALUE[], `${NAME}AfterTerminate`>;
 
-  readonly name: NAME;
-  private source?: Stream.Source<VALUE>;
-  constructor();
-  constructor(name: NAME);
-  constructor(source: Stream.Source<VALUE>);
-  constructor(name: NAME, source: Stream.Source<VALUE>);
-  constructor(nameOrSource?: NAME | Stream.Source<VALUE>, source?: Stream.Source<VALUE>) {
-    if (typeof nameOrSource === "string") {
-      this.name = nameOrSource;
-      this.source = source;
-    } else {
-      this.name = NAME as NAME;
-      this.source = nameOrSource;
-    }
-  }
+  constructor(public readonly name = NAME as NAME) {}
   get listenersCount() {
     return this._listeners.length;
   }
@@ -172,38 +158,6 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
 
     this._afterFirstListenerAdded?.push(fn);
 
-    let sourceGenerator:
-      | AsyncGenerator<VALUE, void>
-      | Generator<VALUE, void>
-      | AsyncIterator<VALUE, void>
-      | Iterator<VALUE, void>
-      | undefined;
-
-    let abortSource: Stream.Abort | undefined;
-
-    if (!this.source) return abort;
-
-    if (typeof this.source === "function") {
-      sourceGenerator = this.source();
-    } else if (Symbol.asyncIterator in this.source) {
-      sourceGenerator = this.source[Symbol.asyncIterator]();
-    } else {
-      sourceGenerator = this.source[Symbol.iterator]();
-    }
-
-    if (Symbol.asyncIterator in sourceGenerator!) {
-      (async () => {
-        for await (const value of sourceGenerator) {
-          await Promise.all(this.push(value));
-        }
-      })();
-    } else if (Symbol.iterator in sourceGenerator!) {
-      (async () => {
-        for (const value of sourceGenerator) {
-          await Promise.all(this.push(value));
-        }
-      })();
-    }
     const self = this;
 
     return abort;
@@ -218,8 +172,6 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
       self._afterListenerRemoved?.push(fn);
 
       if (!self._listeners.length) {
-        sourceGenerator?.return?.();
-        abortSource?.();
         self._listeners.length = 0;
         self._afterLastListenerRemoved?.push(fn);
       }
@@ -254,16 +206,11 @@ export namespace Stream {
   export type Abort = () => void;
   export type Listener<VALUE> = (value: VALUE) => any;
   export type AnyStream = Stream<any, any>;
-  export type AnySource = Source<any>;
   export type AnyTransformer = Transformer<AnyStream, AnyStream>;
-  export type ExtractValue<T> = T extends Source<infer VALUE> ? VALUE : T;
+  export type ExtractValue<T extends AnyStream> = T extends Stream<infer VALUE, any> ? VALUE : never;
   export type ExtractName<T extends AnyStream> = T extends Stream<any, infer NAME> ? NAME : never;
   export type ExtractError<T extends Err<any>> = T extends Err<infer ERROR> ? ERROR : never;
-  export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void> | Generator<VALUE, void>;
-  export type Source<VALUE> =
-    | GeneratorFunction<VALUE>
-    | AsyncIterable<VALUE, void>
-    | Exclude<Iterable<VALUE, void>, string | String>;
+
   export type Transform<
     INPUT_STREAM extends AnyStream,
     OUTPUT_NAME extends string,

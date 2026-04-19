@@ -27,6 +27,7 @@ class Map<
             this._error?.push({ value, error: result.value });
           } else {
             this.push(result);
+            // await Promise.all(this.push(result));
           }
         } catch (error: any) {
           if (!this._error?.listenersCount) throw error;

@@ -4,7 +4,7 @@ const NAME = "each";
 
 class Each<
   INPUT_STREAM extends Stream.AnyStream,
-  CLEAN_VALUE = Stream.ExtractCleanValue<INPUT_STREAM>,
+  CLEAN_VALUE = Stream.ExtractValue<INPUT_STREAM>,
   ERROR = never,
   NAME extends string = each.Name,
 > extends Stream<Stream.ExtractValue<INPUT_STREAM>, NAME> {
