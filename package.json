@@ -43,6 +43,7 @@
   "scripts": {
     "generate-docs": "bun run scripts/generate-docs.ts",
     "test": "bun test",
-    "test:patterns": "bun test patterns/"
+    "test:patterns": "bun test patterns/",
+    "bench": "bun --watch src/streams/stream/mini-bench.ts"
   }
 }

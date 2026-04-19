@@ -106,21 +106,20 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     this._afterTerminate?.terminate();
     this._afterTerminate = undefined;
   }
+
   async *[Symbol.asyncIterator]() {
-    let queue: VALUE[] | undefined = [];
-    let resolve: Function | undefined = Function();
+    const queue: VALUE[] = [];
+    let resolve: Function = Function();
 
     const abort = this.listen((value) => {
-      queue?.push(value);
-      resolve?.();
+      queue.push(value);
+      resolve();
     });
 
     try {
       while (true) {
         if (queue.length) {
-          const value = queue.shift()!;
-
-          yield value;
+          yield queue.shift()!;
         } else {
           await new Promise<void>((r) => (resolve = r));
         }
@@ -128,8 +127,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     } finally {
       abort();
       resolve();
-      queue = undefined;
-      resolve = undefined;
+      queue.length = 0;
     }
   }
   [Symbol.dispose]() {
@@ -165,8 +163,6 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     signal?.listenOnce(abort);
 
     this._beforeListenerAdded?.push(fn);
-
-    if (!this._listeners) this._listeners = [];
 
     this._listeners.push(fn);
 
@@ -212,7 +208,8 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
 
     return abort;
     function abort() {
-      if (!self._listeners?.length) return;
+      if (!self._listeners.length) return;
+
       const index = self._listeners?.indexOf(fn) ?? -1;
       if (index === -1) return;
 
@@ -220,7 +217,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
 
       self._afterListenerRemoved?.push(fn);
 
-      if (self._listeners.length === 0) {
+      if (!self._listeners.length) {
         sourceGenerator?.return?.();
         abortSource?.();
         self._listeners.length = 0;
