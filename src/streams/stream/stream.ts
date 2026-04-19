@@ -139,23 +139,26 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     const listeners = this._listeners;
     const listenersLenght = this._listeners.length;
     const valuesLength = values.length;
+    const results: any[] = [];
 
     this._beforePush?.push(values);
 
     if (!listenersLenght) {
       this._afterValuesDropped?.push(values);
-      return;
+      return results;
     }
 
     for (let i = 0; i < valuesLength; i++) {
       const value = values[i];
 
       for (let j = 0; j < listenersLenght; j++) {
-        listeners[j](value);
+        results.push(listeners[j](value));
       }
     }
 
     this._afterPush?.push(values);
+
+    return results;
   }
 
   listen(fn: Stream.Listener<VALUE>, signal?: Stream.AnyStream): Stream.Abort {
@@ -184,9 +187,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
 
     if (!this.source) return abort;
 
-    if (this.source instanceof Stream) {
-      abortSource = this.source.listen((value) => this.push(value));
-    } else if (typeof this.source === "function") {
+    if (typeof this.source === "function") {
       sourceGenerator = this.source();
     } else if (Symbol.asyncIterator in this.source) {
       sourceGenerator = this.source[Symbol.asyncIterator]();
@@ -197,13 +198,15 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     if (Symbol.asyncIterator in sourceGenerator!) {
       (async () => {
         for await (const value of sourceGenerator) {
-          this.push(value);
+          await Promise.all(this.push(value));
         }
       })();
     } else if (Symbol.iterator in sourceGenerator!) {
-      for (const value of sourceGenerator) {
-        this.push(value);
-      }
+      (async () => {
+        for (const value of sourceGenerator) {
+          await Promise.all(this.push(value));
+        }
+      })();
     }
     const self = this;
 

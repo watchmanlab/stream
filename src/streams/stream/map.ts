@@ -79,7 +79,7 @@ const mapped = stream
 
   .pipe(
     map((v) => {
-      if (v === 4) return Stream.err("kechmahaja" as const);
+      // if (v === 4) return Stream.err("kechmahaja" as const);
       return v;
     }),
   );
