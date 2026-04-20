@@ -9,7 +9,7 @@ class Map<
   ERROR = never,
   NAME extends string = map.Name,
 > extends Stream<MAPPED, NAME> {
-  private _error?: Stream<Stream.TransformError<VALUE, ERROR, this>, `${NAME}Error`>;
+  private _error?: Stream<{ value: VALUE; error: ERROR }, `${NAME}Error`>;
 
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
     super(name);
@@ -63,6 +63,5 @@ export function map<
 
 export namespace map {
   export type Name = typeof NAME;
-
   export type Mapper<VALUE, MAPPED, ERROR> = (value: VALUE) => MAPPED | Stream.Error<ERROR>;
 }

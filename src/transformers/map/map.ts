@@ -30,7 +30,7 @@ class Map<
           const maybePromise = mapper(value);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr(result)) {
+          if (Stream.isGenericError(result)) {
             yield Stream.sourceErr({
               value,
               error: result.value,
@@ -102,8 +102,8 @@ export namespace map {
     value: CLEAN_VALUE,
   ) =>
     | MAPPED
-    | Stream.Err<ERROR>
+    | Stream.Error<ERROR>
     | Stream.Terminate
     | Stream.Skip
-    | Promise<MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
+    | Promise<MAPPED | Stream.Error<ERROR> | Stream.Terminate | Stream.Skip>;
 }

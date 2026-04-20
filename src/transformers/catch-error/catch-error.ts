@@ -33,7 +33,7 @@ class CatchError<
           const maybePromise = callback(sourceErr);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr(result)) {
+          if (Stream.isGenericError(result)) {
             yield Stream.sourceErr({
               value: sourceErr,
               error: result.value,
@@ -121,12 +121,12 @@ export function catchError<
 export namespace catchError {
   export type Name = typeof NAME;
   export type Callback<CLEAN_VALUE, SOURCE_ERR, ERROR> = (
-    error: [SOURCE_ERR] extends [never] ? Stream.SourceErr<unknown, unknown, Stream<unknown, string>> : SOURCE_ERR,
+    error: [SOURCE_ERR] extends [never] ? Stream.TransformError<unknown, unknown, Stream<unknown, string>> : SOURCE_ERR,
   ) =>
     | NoInfer<CLEAN_VALUE>
     | void
-    | Stream.Err<ERROR>
+    | Stream.Error<ERROR>
     | Stream.Terminate
     | Stream.Skip
-    | Promise<NoInfer<CLEAN_VALUE> | void | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
+    | Promise<NoInfer<CLEAN_VALUE> | void | Stream.Error<ERROR> | Stream.Terminate | Stream.Skip>;
 }

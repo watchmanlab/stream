@@ -26,7 +26,7 @@ class Effect<
           if (Stream.isSentinel(value)) return;
           try {
             const result = await callback(value);
-            if (Stream.isErr(result)) {
+            if (Stream.isGenericError(result)) {
               self._errorExpected?.push({ value, error: result.value });
             }
           } catch (error) {
@@ -93,5 +93,5 @@ export namespace effect {
 
   export type Callback<CLEAN_VALUE, ERROR> = (
     value: CLEAN_VALUE,
-  ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
+  ) => void | Stream.Error<ERROR> | Promise<void | Stream.Error<ERROR>>;
 }

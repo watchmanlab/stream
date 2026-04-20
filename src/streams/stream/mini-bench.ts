@@ -15,7 +15,7 @@ function benchTransform() {
 
     .pipe(
       map((v) => {
-        // if (v === 4) return Stream.err("kechmahaja" as const);
+        // if (v === 4) return Stream.genericError("kechmahaja" as const);
         return v;
       }),
     );
@@ -25,8 +25,8 @@ function benchTransform() {
   mapped.listen((v) => {
     if (v === MAX) console.log("hot", performance.now() - now);
   });
-  // mapped.error.listen((err) => {
-  //   console.log(err);
+  // mapped.error.listen((genericError) => {
+  //   console.log(genericError);
   // });
 
   //   (async () => {

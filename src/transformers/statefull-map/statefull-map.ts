@@ -41,7 +41,7 @@ class StatefulMap<
 
           self.setState(newState, value);
 
-          if (Stream.isErr(mapped)) {
+          if (Stream.isGenericError(mapped)) {
             yield Stream.sourceErr({
               value,
               error: mapped.value,
@@ -131,6 +131,6 @@ export namespace statefulMap {
     state: STATE,
     value: CLEAN_VALUE,
   ) =>
-    | [MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]
-    | Promise<[MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]>;
+    | [MAPPED | Stream.Error<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]
+    | Promise<[MAPPED | Stream.Error<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]>;
 }

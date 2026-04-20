@@ -17,5 +17,5 @@ export namespace each {
   export type Name = typeof NAME;
   export type Callback<CLEAN_VALUE, ERROR> = (
     value: CLEAN_VALUE,
-  ) => void | Stream.Err<ERROR> | Promise<void | Stream.Err<ERROR>>;
+  ) => void | Stream.Error<ERROR> | Promise<void | Stream.Error<ERROR>>;
 }
