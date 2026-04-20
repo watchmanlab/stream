@@ -4,49 +4,53 @@ import { Stream } from "./stream";
 function benchTransform() {
   const stream = new Stream<number>();
   const mapped = stream
-    .pipe(
-      "map1",
-      map((v) => v),
-    )
-    .pipe(
-      "map2",
-      map((v) => v),
-    )
-
-    .pipe(
-      map((v) => {
-        // if (v === 4) return Stream.genericError("kechmahaja" as const);
-        return v;
-      }),
-    );
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v));
 
   const now = performance.now();
   const MAX = 1_000_000;
   mapped.listen((v) => {
-    if (v === MAX) console.log("hot", performance.now() - now);
+    if (v === MAX) console.log("hot x 10", performance.now() - now);
   });
-  // mapped.error.listen((genericError) => {
-  //   console.log(genericError);
-  // });
 
-  //   (async () => {
-  //     for await (const v of mapped) {
-  //       if (v === MAX) console.log("cold", performance.now() - now);
-  //     }
-  //   })();
+  // (async () => {
+  //   for await (const v of mapped) {
+  //     if (v === MAX) console.log("cold x 10", performance.now() - now);
+  //   }
+  // })();
   for (let i = 1; i <= MAX; i++) {
     stream.push(i);
   }
 }
 function benchStreamCore() {
+  const MAX = 1_000_000;
+  const now = performance.now();
   const stream = new Stream<number>();
-  //   stream.listen(console.log);
-  (async () => {
-    for await (const value of stream) {
-      console.log(value);
-    }
-  })();
-  stream.push(1, 2, 3);
+  stream.valueDropped.listen((value) => {
+    if (value === MAX) console.log("hot dropped", performance.now() - now);
+  });
+  using abort = stream.listen((value) => {
+    if (value === MAX) console.log("hot", performance.now() - now);
+    return value * 10;
+  });
+
+  // (async () => {
+  //   for await (const value of stream) {
+  //     if (value === MAX) console.log("cold", performance.now() - now);
+  //   }
+  // })();
+
+  for (let i = 1; i <= MAX; i++) {
+    stream.push(i);
+  }
 }
 
 benchTransform();

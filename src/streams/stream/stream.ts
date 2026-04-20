@@ -3,101 +3,62 @@ const NAME = "stream";
 export class Stream<VALUE = void, NAME extends string = Stream.Name> implements AsyncIterable<VALUE, void>, Disposable {
   protected listeners: Stream.Listener<VALUE>[] = [];
   private lifecycles: {
-    beforeListenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}BeforeListenerAdded`>;
-    afterListenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}AfterListenerAdded`>;
-    afterFirstListenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}AfterFirstListenerAdded`>;
-    beforeListenerRemoved?: Stream<Stream.Listener<VALUE>, `${NAME}BeforeListenerRemoved`>;
-    afterListenerRemoved?: Stream<Stream.Listener<VALUE>, `${NAME}AfterListenerRemoved`>;
-    afterLastListenerRemoved?: Stream<Stream.Listener<VALUE>, `${NAME}AfterLastListenerRemoved`>;
-    beforePush?: Stream<VALUE, `${NAME}BeforePush`>;
-    afterPush?: Stream<{ value: VALUE; results: any[] }, `${NAME}AfterPush`>;
+    listenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}ListenerAdded`>;
+    firstListenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}FirstListenerAdded`>;
+    listenerRemoved?: Stream<Stream.Listener<VALUE>, `${NAME}ListenerRemoved`>;
+    lastListenerRemoved?: Stream<Stream.Listener<VALUE>, `${NAME}LastListenerRemoved`>;
     valueDropped?: Stream<VALUE, `${NAME}ValueDropped`>;
-    beforeTerminate?: Stream<VALUE[], `${NAME}BeforeTerminate`>;
-    afterTerminate?: Stream<VALUE[], `${NAME}AfterTerminate`>;
+    terminated?: Stream<void, `${NAME}Terminated`>;
   } = {};
 
   constructor(public readonly name = NAME as NAME) {}
   get listenersCount() {
     return this.listeners.length;
   }
-  get beforeListenerAdded() {
-    if (!this.lifecycles.beforeListenerAdded)
-      this.lifecycles.beforeListenerAdded = new Stream(`${this.name}BeforeListenerAdded`);
-    return this.lifecycles.beforeListenerAdded;
+
+  get listenerAdded() {
+    if (!this.lifecycles.listenerAdded) this.lifecycles.listenerAdded = new Stream(`${this.name}ListenerAdded`);
+    return this.lifecycles.listenerAdded;
   }
-  get afterListenerAdded() {
-    if (!this.lifecycles.afterListenerAdded)
-      this.lifecycles.afterListenerAdded = new Stream(`${this.name}AfterListenerAdded`);
-    return this.lifecycles.afterListenerAdded;
+  get firstListenerAdded() {
+    if (!this.lifecycles.firstListenerAdded)
+      this.lifecycles.firstListenerAdded = new Stream(`${this.name}FirstListenerAdded`);
+    return this.lifecycles.firstListenerAdded;
   }
-  get afterFirstListenerAdded() {
-    if (!this.lifecycles.afterFirstListenerAdded)
-      this.lifecycles.afterFirstListenerAdded = new Stream(`${this.name}AfterFirstListenerAdded`);
-    return this.lifecycles.afterFirstListenerAdded;
+  get listenerRemoved() {
+    if (!this.lifecycles.listenerRemoved) this.lifecycles.listenerRemoved = new Stream(`${this.name}ListenerRemoved`);
+    return this.lifecycles.listenerRemoved;
   }
-  get beforeListenerRemoved() {
-    if (!this.lifecycles.beforeListenerRemoved)
-      this.lifecycles.beforeListenerRemoved = new Stream(`${this.name}BeforeListenerRemoved`);
-    return this.lifecycles.beforeListenerRemoved;
-  }
-  get afterListenerRemoved() {
-    if (!this.lifecycles.afterListenerRemoved)
-      this.lifecycles.afterListenerRemoved = new Stream(`${this.name}AfterListenerRemoved`);
-    return this.lifecycles.afterListenerRemoved;
-  }
-  get afterLastListenerRemoved() {
-    if (!this.lifecycles.afterLastListenerRemoved)
-      this.lifecycles.afterLastListenerRemoved = new Stream(`${this.name}AfterLastListenerRemoved`);
-    return this.lifecycles.afterLastListenerRemoved;
-  }
-  get beforePush() {
-    if (!this.lifecycles.beforePush) this.lifecycles.beforePush = new Stream(`${this.name}BeforePush`);
-    return this.lifecycles.beforePush;
-  }
-  get afterPush() {
-    if (!this.lifecycles.afterPush) this.lifecycles.afterPush = new Stream(`${this.name}AfterPush`);
-    return this.lifecycles.afterPush;
+  get lastListenerRemoved() {
+    if (!this.lifecycles.lastListenerRemoved)
+      this.lifecycles.lastListenerRemoved = new Stream(`${this.name}LastListenerRemoved`);
+    return this.lifecycles.lastListenerRemoved;
   }
   get valueDropped() {
     if (!this.lifecycles.valueDropped) this.lifecycles.valueDropped = new Stream(`${this.name}ValueDropped`);
     return this.lifecycles.valueDropped;
   }
-  get beforeTerminate() {
-    if (!this.lifecycles.beforeTerminate) this.lifecycles.beforeTerminate = new Stream(`${this.name}BeforeTerminate`);
-    return this.lifecycles.beforeTerminate;
-  }
-  get afterTerminate() {
-    if (!this.lifecycles.afterTerminate) this.lifecycles.afterTerminate = new Stream(`${this.name}AfterTerminate`);
-    return this.lifecycles.afterTerminate;
+  get terminated() {
+    if (!this.lifecycles.terminated) this.lifecycles.terminated = new Stream(`${this.name}Terminated`);
+    return this.lifecycles.terminated;
   }
 
   terminate() {
-    this.lifecycles.beforeListenerAdded?.terminate();
-    delete this.lifecycles.beforeListenerAdded;
-    this.lifecycles.afterListenerAdded?.terminate();
-    delete this.lifecycles.afterListenerAdded;
-    this.lifecycles.afterFirstListenerAdded?.terminate();
-    delete this.lifecycles.afterFirstListenerAdded;
-    this.lifecycles.beforeListenerRemoved?.terminate();
-    delete this.lifecycles.beforeListenerRemoved;
-    this.lifecycles.afterListenerRemoved?.terminate();
-    delete this.lifecycles.afterListenerRemoved;
-    this.lifecycles.afterLastListenerRemoved?.terminate();
-    delete this.lifecycles.afterLastListenerRemoved;
-    this.lifecycles.beforePush?.terminate();
-    delete this.lifecycles.beforePush;
-    this.lifecycles.afterPush?.terminate();
-    delete this.lifecycles.afterPush;
+    this.lifecycles.listenerAdded?.terminate();
+    delete this.lifecycles.listenerAdded;
+    this.lifecycles.firstListenerAdded?.terminate();
+    delete this.lifecycles.firstListenerAdded;
+    this.lifecycles.listenerRemoved?.terminate();
+    delete this.lifecycles.listenerRemoved;
+    this.lifecycles.lastListenerRemoved?.terminate();
+    delete this.lifecycles.lastListenerRemoved;
     this.lifecycles.valueDropped?.terminate();
     delete this.lifecycles.valueDropped;
 
-    this.lifecycles.beforeTerminate?.push();
-    this.lifecycles.beforeTerminate?.terminate();
-    delete this.lifecycles.beforeTerminate;
     this.listeners.length = 0;
-    this.lifecycles.afterTerminate?.push();
-    this.lifecycles.afterTerminate?.terminate();
-    delete this.lifecycles.afterTerminate;
+    this.lifecycles.terminated?.push();
+    this.lifecycles.terminated?.terminate();
+    delete this.lifecycles.terminated;
   }
   async *[Symbol.asyncIterator]() {
     const queue: VALUE[] = [];
@@ -125,61 +86,46 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
   [Symbol.dispose]() {
     this.terminate();
   }
-  push(...values: VALUE[]) {
-    const listeners = this.listeners;
-    const listenersLenght = this.listeners.length;
-    const valuesLength = values.length;
 
-    for (let i = 0; i < valuesLength; i++) {
-      const value = values[i];
-      this.lifecycles.beforePush?.push(value);
-      if (!listenersLenght) {
-        this.lifecycles.valueDropped?.push(value);
-      } else if (this.lifecycles.afterPush) {
-        const valueResults = { value, results: [] as any[] };
-        for (let j = 0; j < listenersLenght; j++) {
-          valueResults.results.push(listeners[j](value));
-        }
-        this.lifecycles.afterPush.push(valueResults);
-      } else {
-        for (let j = 0; j < listenersLenght; j++) {
-          listeners[j](value);
-        }
-      }
+  push(value: VALUE) {
+    const listeners = this.listeners;
+    const length = this.listeners.length;
+    if (!length) {
+      this.lifecycles.valueDropped?.push(value);
+      return;
+    }
+    for (let i = 0; i < length; i++) {
+      listeners[i](value);
     }
   }
 
   listen(fn: Stream.Listener<VALUE>, signal?: Stream.AnyStream): Stream.Abort {
-    signal?.listenOnce(abort);
+    const abort = () => {
+      const index = this.listeners?.indexOf(fn) ?? -1;
+      if (index === -1) return;
 
-    this.lifecycles.beforeListenerAdded?.push(fn);
+      this.listeners.splice(index, 1);
+
+      this.lifecycles.listenerRemoved?.push(fn);
+
+      if (!this.listeners.length) {
+        this.lifecycles.lastListenerRemoved?.push(fn);
+      }
+    };
+
+    abort[Symbol.dispose] = abort;
+
+    signal?.listenOnce(abort);
 
     this.listeners.push(fn);
 
-    this.lifecycles.afterListenerAdded?.push(fn);
+    this.lifecycles.listenerAdded?.push(fn);
 
-    if (this.listeners.length !== 1) return abort;
-
-    this.lifecycles.afterFirstListenerAdded?.push(fn);
-
-    const self = this;
+    if (this.listeners.length === 1) {
+      this.lifecycles.firstListenerAdded?.push(fn);
+    }
 
     return abort;
-    function abort() {
-      if (!self.listeners.length) return;
-
-      const index = self.listeners?.indexOf(fn) ?? -1;
-      if (index === -1) return;
-
-      self.listeners.splice(index, 1);
-
-      self.lifecycles.afterListenerRemoved?.push(fn);
-
-      if (!self.listeners.length) {
-        self.listeners.length = 0;
-        self.lifecycles.afterLastListenerRemoved?.push(fn);
-      }
-    }
   }
   listenOnce(fn: Stream.Listener<VALUE>, signal?: Stream.AnyStream): void {
     const abort = this.listen((value) => {
@@ -205,16 +151,11 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
   }
 }
 
-export class Consumer<VALUE> {
-  constructor(private fn: Stream.Listener<VALUE>) {
-    //
-  }
-}
-
 export namespace Stream {
   export type Name = typeof NAME;
-  export type Abort = () => void;
+  export type Abort = { (): void } & Disposable;
   export type Listener<VALUE> = (value: VALUE) => any;
+  export type AsyncListener<VALUE> = (value: VALUE) => Promise<any>;
   export type AnyStream = Stream<any, any>;
   export type AnyTransformer = Transformer<AnyStream, AnyStream>;
   export type AnyError = Error<any>;

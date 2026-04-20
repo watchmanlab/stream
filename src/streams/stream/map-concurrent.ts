@@ -1,25 +1,24 @@
 import { Stream } from "./stream";
 
-const NAME = "map";
+const NAME = "mapConcurrent";
 
-class Map<
+class MapConcurrent<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
   ERROR = never,
-  NAME extends string = map.Name,
+  NAME extends string = mapConcurrent.Name,
 > extends Stream<MAPPED, NAME> {
   private _error?: Stream<{ value: VALUE; error: ERROR }, `${NAME}Error`>;
 
-  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
+  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: mapConcurrent.Mapper<VALUE, MAPPED, ERROR>) {
     super(name);
 
-    const signal = new Stream();
-
-    this.afterFirstListenerAdded.listen(() => {
-      inputStream.listen((value) => {
+    let abort: Stream.Abort;
+    this.firstListenerAdded.listen(() => {
+      abort = inputStream.listen(async (value) => {
         try {
-          const result = mapper(value);
+          const result = await mapper(value);
 
           if (result instanceof Stream.Error) {
             const sourceError = new Stream.TransformError(value, result.value, this);
@@ -27,19 +26,18 @@ class Map<
             this._error?.push(sourceError);
           } else {
             this.push(result);
-            // await Promise.all(this.push(result));
           }
         } catch (error: any) {
           if (!this._error?.listenersCount) throw error;
           this._error?.push(error);
         }
-      }, signal);
+      });
     });
-    this.afterLastListenerRemoved.listen(() => {
-      signal.push();
+    this.lastListenerRemoved.listen(() => {
+      abort();
     });
-    this.afterTerminate.listen(() => {
-      signal.push();
+    this.terminated.listen(() => {
+      abort();
     });
   }
 
@@ -49,19 +47,19 @@ class Map<
   }
 }
 
-export function map<
+export function mapConcurrent<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
   ERROR = never,
-  NAME extends string = map.Name,
+  NAME extends string = mapConcurrent.Name,
 >(
-  mapper: map.Mapper<VALUE, MAPPED, ERROR>,
-): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>> {
-  return (inputStream, name) => Stream.transformer(new Map(name, inputStream, mapper), inputStream);
+  mapper: mapConcurrent.Mapper<VALUE, MAPPED, ERROR>,
+): Stream.Transform<INPUT_STREAM, NAME, MapConcurrent<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>> {
+  return (inputStream, name) => Stream.transformer(new MapConcurrent(name, inputStream, mapper), inputStream);
 }
 
-export namespace map {
+export namespace mapConcurrent {
   export type Name = typeof NAME;
-  export type Mapper<VALUE, MAPPED, ERROR> = (value: VALUE) => MAPPED | Stream.Error<ERROR>;
+  export type Mapper<VALUE, MAPPED, ERROR> = (value: VALUE) => Promise<MAPPED | Stream.Error<ERROR>>;
 }
