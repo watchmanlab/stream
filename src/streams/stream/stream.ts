@@ -2,6 +2,7 @@ const NAME = "stream";
 
 export class Stream<VALUE = void, NAME extends string = Stream.Name> implements AsyncIterable<VALUE, void>, Disposable {
   protected listeners: Stream.Listener<VALUE>[] = [];
+
   private lifecycles: {
     listenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}ListenerAdded`>;
     firstListenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}FirstListenerAdded`>;
@@ -9,13 +10,17 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     lastListenerRemoved?: Stream<Stream.Listener<VALUE>, `${NAME}LastListenerRemoved`>;
     valueDropped?: Stream<VALUE, `${NAME}ValueDropped`>;
     terminated?: Stream<void, `${NAME}Terminated`>;
+    cleared?: Stream<void, `${NAME}Cleared`>;
+    isTerminated?: true;
   } = {};
 
   constructor(public readonly name = NAME as NAME) {}
   get listenersCount() {
     return this.listeners.length;
   }
-
+  get isTerminated() {
+    return this.lifecycles.isTerminated === true;
+  }
   get listenerAdded() {
     if (!this.lifecycles.listenerAdded) this.lifecycles.listenerAdded = new Stream(`${this.name}ListenerAdded`);
     return this.lifecycles.listenerAdded;
@@ -44,23 +49,17 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
   }
 
   terminate() {
-    this.lifecycles.listenerAdded?.terminate();
-    delete this.lifecycles.listenerAdded;
-    this.lifecycles.firstListenerAdded?.terminate();
-    delete this.lifecycles.firstListenerAdded;
-    this.lifecycles.listenerRemoved?.terminate();
-    delete this.lifecycles.listenerRemoved;
-    this.lifecycles.lastListenerRemoved?.terminate();
-    delete this.lifecycles.lastListenerRemoved;
-    this.lifecycles.valueDropped?.terminate();
-    delete this.lifecycles.valueDropped;
+    if (this.lifecycles.isTerminated) return;
 
-    if (this.listeners.length) {
-      this.listeners.length = 0;
-    }
+    this.listeners.length = 0;
     this.lifecycles.terminated?.push();
-    this.lifecycles.terminated?.terminate();
-    delete this.lifecycles.terminated;
+    Object.values(this.lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.terminate());
+    this.lifecycles = { isTerminated: true };
+  }
+  clear() {
+    this.listeners.length = 0;
+    this.lifecycles.cleared?.push();
+    Object.values(this.lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.clear());
   }
   async *[Symbol.asyncIterator]() {
     const queue: VALUE[] = [];
@@ -102,6 +101,8 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
   }
 
   listen(fn: Stream.Listener<VALUE>, abortSignal?: Stream.AnyStream): Stream.Abort {
+    if (this.lifecycles.isTerminated) throw new Error(`stream ${this.name} is terminated`);
+
     abortSignal?.listenOnce(abort);
 
     this.listeners.push(fn);

@@ -10,10 +10,14 @@ export function map<
 >(mapper: map.Mapper<VALUE, MAPPED>): Stream.Transform<INPUT_STREAM, NAME, Stream<MAPPED, NAME>> {
   return (inputStream, name) => {
     const mapped = new Stream<MAPPED, NAME>(name ?? (NAME as NAME));
-    inputStream.listen((value) => {
+
+    const abort = inputStream.listen((value) => {
       if (!mapped.listenersCount) return;
       mapped.push(mapper(value));
     });
+
+    mapped.terminated.listenOnce(abort);
+
     return Stream.transformer(mapped, inputStream);
   };
 }

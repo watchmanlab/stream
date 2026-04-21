@@ -36,6 +36,7 @@ function benchTransform() {
       stream.push(i);
     }
   }
+
   console.log("listenersCount", mapped.listenersCount);
   console.log("firstListenerAdded-listenersCount", mapped.firstListenerAdded.listenersCount);
   console.log("lastListenerRemoved-listenersCount", mapped.lastListenerRemoved.listenersCount);

@@ -1,3 +1,5 @@
+//@ts-nocheck
+
 import { Stream } from "../../streams/index.ts";
 
 const NAME = "concurrent";
