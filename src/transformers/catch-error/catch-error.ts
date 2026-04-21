@@ -121,7 +121,7 @@ export function catchError<
 export namespace catchError {
   export type Name = typeof NAME;
   export type Callback<CLEAN_VALUE, SOURCE_ERR, ERROR> = (
-    error: [SOURCE_ERR] extends [never] ? Stream.TransformError<unknown, unknown, Stream<unknown, string>> : SOURCE_ERR,
+    error: [SOURCE_ERR] extends [never] ? Stream.SourceError<unknown, unknown, Stream<unknown, string>> : SOURCE_ERR,
   ) =>
     | NoInfer<CLEAN_VALUE>
     | void

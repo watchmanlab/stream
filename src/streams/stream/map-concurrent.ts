@@ -9,38 +9,42 @@ class MapConcurrent<
   ERROR = never,
   NAME extends string = mapConcurrent.Name,
 > extends Stream<MAPPED, NAME> {
+  private _options: Required<mapConcurrent.Options>;
   private _error?: Stream<{ value: VALUE; error: ERROR }, `${NAME}Error`>;
 
-  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: mapConcurrent.Mapper<VALUE, MAPPED, ERROR>) {
+  constructor(
+    name = NAME as NAME,
+    inputStream: INPUT_STREAM,
+    mapper: mapConcurrent.Mapper<VALUE, MAPPED, ERROR>,
+    options: Required<mapConcurrent.Options> = { limit: Infinity, ordered: false },
+  ) {
     super(name);
+    this._options = options;
 
-    let abort: Stream.Abort;
-    this.firstListenerAdded.listen(() => {
-      abort = inputStream.listen(async (value) => {
-        try {
-          const result = await mapper(value);
+    inputStream.listen(async (value) => {
+      if (!this.listenersCount) return;
+      try {
+        const result = await mapper(value);
 
-          if (result instanceof Stream.Error) {
-            const sourceError = new Stream.TransformError(value, result.value, this);
-            if (!this._error?.listenersCount) throw sourceError;
-            this._error?.push(sourceError);
-          } else {
-            this.push(result);
-          }
-        } catch (error: any) {
-          if (!this._error?.listenersCount) throw error;
-          this._error?.push(error);
+        if (result instanceof Stream.Error) {
+          const sourceError = new Stream.SourceError(value, result.value, this);
+          if (!this._error?.listenersCount) throw sourceError;
+          this._error?.push(sourceError);
+        } else {
+          this.push(result);
         }
-      });
-    });
-    this.lastListenerRemoved.listen(() => {
-      abort();
-    });
-    this.terminated.listen(() => {
-      abort();
+      } catch (error: any) {
+        if (!this._error?.listenersCount) throw error;
+        this._error?.push(error);
+      }
     });
   }
-
+  get options() {
+    return this._options;
+  }
+  set options(options: mapConcurrent.Options) {
+    this._options = { ...this._options, ...options };
+  }
   get error() {
     if (!this._error) this._error = new Stream(`${this.name}Error`);
     return this._error;
@@ -62,4 +66,8 @@ export function mapConcurrent<
 export namespace mapConcurrent {
   export type Name = typeof NAME;
   export type Mapper<VALUE, MAPPED, ERROR> = (value: VALUE) => Promise<MAPPED | Stream.Error<ERROR>>;
+  export type Options = {
+    limit?: number;
+    ordered?: boolean;
+  };
 }

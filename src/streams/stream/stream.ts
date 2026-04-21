@@ -55,7 +55,9 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     this.lifecycles.valueDropped?.terminate();
     delete this.lifecycles.valueDropped;
 
-    this.listeners.length = 0;
+    if (this.listeners.length) {
+      this.listeners.length = 0;
+    }
     this.lifecycles.terminated?.push();
     this.lifecycles.terminated?.terminate();
     delete this.lifecycles.terminated;
@@ -99,39 +101,37 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     }
   }
 
-  listen(fn: Stream.Listener<VALUE>, signal?: Stream.AnyStream): Stream.Abort {
-    const abort = () => {
-      const index = this.listeners?.indexOf(fn) ?? -1;
-      if (index === -1) return;
-
-      this.listeners.splice(index, 1);
-
-      this.lifecycles.listenerRemoved?.push(fn);
-
-      if (!this.listeners.length) {
-        this.lifecycles.lastListenerRemoved?.push(fn);
-      }
-    };
-
-    abort[Symbol.dispose] = abort;
-
-    signal?.listenOnce(abort);
+  listen(fn: Stream.Listener<VALUE>, abortSignal?: Stream.AnyStream): Stream.Abort {
+    abortSignal?.listenOnce(abort);
 
     this.listeners.push(fn);
 
     this.lifecycles.listenerAdded?.push(fn);
 
-    if (this.listeners.length === 1) {
-      this.lifecycles.firstListenerAdded?.push(fn);
-    }
+    if (this.listeners.length === 1) this.lifecycles.firstListenerAdded?.push(fn);
+
+    abort[Symbol.dispose] = abort;
+
+    const self = this;
 
     return abort;
+
+    function abort() {
+      const index = self.listeners?.indexOf(fn) ?? -1;
+      if (index === -1) return;
+
+      self.listeners.splice(index, 1);
+
+      self.lifecycles.listenerRemoved?.push(fn);
+
+      if (!self.listeners.length) self.lifecycles.lastListenerRemoved?.push(fn);
+    }
   }
-  listenOnce(fn: Stream.Listener<VALUE>, signal?: Stream.AnyStream): void {
+  listenOnce(fn: Stream.Listener<VALUE>, abortSignal?: Stream.AnyStream): void {
     const abort = this.listen((value) => {
       fn(value);
       abort();
-    }, signal);
+    }, abortSignal);
   }
   next(): Promise<VALUE> {
     return new Promise<VALUE>((resolve) => this.listenOnce(resolve));
@@ -155,6 +155,11 @@ export namespace Stream {
   export type Name = typeof NAME;
   export type Abort = { (): void } & Disposable;
   export type Listener<VALUE> = (value: VALUE) => any;
+  export type ListenOptions<VALUE> = {
+    startSignal?: Stream.AnyStream;
+    stopSignal?: Stream.AnyStream;
+    buffer?: Stream<VALUE, any>;
+  };
   export type AsyncListener<VALUE> = (value: VALUE) => Promise<any>;
   export type AnyStream = Stream<any, any>;
   export type AnyTransformer = Transformer<AnyStream, AnyStream>;
@@ -181,7 +186,7 @@ export namespace Stream {
       },
     }) as never;
   }
-  export class TransformError<VALUE, ERROR, SOURCE extends AnyStream> {
+  export class SourceError<VALUE, ERROR, SOURCE extends AnyStream> {
     constructor(
       public readonly value: VALUE,
       public readonly error: ERROR,
