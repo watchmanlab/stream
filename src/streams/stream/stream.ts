@@ -118,7 +118,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
     return abort;
 
     function abort() {
-      const index = self.listeners?.indexOf(fn) ?? -1;
+      const index = self.listeners.indexOf(fn);
       if (index === -1) return;
 
       self.listeners.splice(index, 1);
