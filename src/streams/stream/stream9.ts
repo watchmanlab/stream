@@ -14,7 +14,7 @@ export class Stream<VALUE> implements Iterable<Stream.Consumer<VALUE>>, AsyncIte
     let resolve: (value: VALUE) => void;
     let promise = new Promise<VALUE>((r) => (resolve = r));
 
-    const { done, next } = this.listen((value) => {
+    const { abort, ready } = this.listen((value) => {
       resolve?.(value);
     });
 
@@ -22,11 +22,11 @@ export class Stream<VALUE> implements Iterable<Stream.Consumer<VALUE>>, AsyncIte
       while (true) {
         const value = await promise;
         promise = new Promise<VALUE>((r) => (resolve = r));
-        next();
+        ready();
         yield value;
       }
     } finally {
-      done();
+      abort();
     }
   }
 
@@ -36,32 +36,32 @@ export class Stream<VALUE> implements Iterable<Stream.Consumer<VALUE>>, AsyncIte
 
     for (let i = 0; i < length; i++) {
       const consumer = consumers[i];
-      if (!consumer.processing) {
-        consumer.processing = true;
-        consumer.fn(value, consumer.next, consumer.done);
+      if (consumer.isReady) {
+        consumer.isReady = false;
+        consumer.fn(value, consumer);
       } else {
         consumer.buffer.push(value);
       }
     }
   }
 
-  listen(fn: (value: VALUE, next: () => void, done: () => void) => void) {
+  listen(fn: Stream.Fn<VALUE>): Stream.Consumer<VALUE> {
     const buffer: VALUE[] = [];
-    const consumer: Stream.Consumer<VALUE> = { next, buffer, processing: false, done, fn };
+    const consumer: Stream.Consumer<VALUE> = { ready, buffer, isReady: true, abort, fn };
     const consumers = this.consumers;
 
     consumers.push(consumer);
 
-    return { next, done };
-    function next() {
-      consumer.processing = false;
+    return consumer;
+    function ready() {
+      consumer.isReady = true;
       const value = buffer.shift();
       if (!value) return;
 
-      consumer.processing = true;
-      fn(value, next, done);
+      consumer.isReady = false;
+      fn(value, consumer);
     }
-    function done() {
+    function abort() {
       buffer.length = 0;
 
       const index = consumers.indexOf(consumer);
@@ -75,26 +75,26 @@ export class Stream<VALUE> implements Iterable<Stream.Consumer<VALUE>>, AsyncIte
 export namespace Stream {
   export type Abort = () => void;
   export type Next = () => void;
-  export type Fn<VALUE> = (value: VALUE, next: Next, done: Abort) => void;
-  export type Consumer<VALUE> = { next: Next; buffer: VALUE[]; processing: boolean; done: Abort; fn: Fn<VALUE> };
+  export type Fn<VALUE> = (value: VALUE, consumer: Consumer<VALUE>) => void;
+  export type Consumer<VALUE> = { ready: Next; buffer: VALUE[]; isReady: boolean; abort: Abort; fn: Fn<VALUE> };
 }
 
 function simpleTest() {
   const stream = new Stream<number>();
-  // stream.listen(async (value, next, done) => {
-  //   // next();
-  //   await new Promise((r) => setTimeout(r, Math.random() * 200));
+  stream.listen(async (value, { ready, abort }) => {
+    await new Promise((r) => setTimeout(r, Math.random() * 200));
+    ready();
 
-  //   console.log("listener", value, [...stream][0]);
-  // });
+    console.log("listener", value);
+  });
 
-  (async () => {
-    for await (const value of stream) {
-      console.log("generator", value);
-    }
+  // (async () => {
+  //   for await (const value of stream) {
+  //     console.log("generator", value);
+  //   }
 
-    console.log("done");
-  })();
+  //   console.log("abort");
+  // })();
 
   (async () => {
     stream.push(1);
@@ -104,19 +104,28 @@ function simpleTest() {
 }
 function newStreamBench() {
   const MAX = 1_000_000;
+  const now = performance.now();
 
   const stream = new Stream<number>();
-  stream.listen((value, next, done) => {
+  stream.listen((value, { ready, abort }) => {
     // await new Promise((r) => setTimeout(r, Math.random() * 200));
     if (value === MAX) {
       console.log("new stream", Math.round(performance.now() - now));
-      done();
+      abort();
       return;
     }
-    next();
+    ready();
   });
+  // (async () => {
+  //   for await (const value of stream) {
+  //     if (value === MAX) {
+  //       console.log("new stream gen", Math.round(performance.now() - now));
 
-  const now = performance.now();
+  //       return;
+  //     }
+  //   }
+  // })();
+
   for (let i = 1; i <= MAX; i++) {
     stream.push(i);
   }
@@ -138,5 +147,5 @@ function oldStreamBench() {
 }
 
 simpleTest();
-// newStreamBench()
+// newStreamBench();
 // oldStreamBench()
