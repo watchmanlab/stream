@@ -11,12 +11,12 @@ export function map<
   return (inputStream, name) => {
     const mapped = new Stream<MAPPED, NAME>(name ?? (NAME as NAME));
 
-    const abort = inputStream.listen((value) => {
-      if (!mapped.listenersCount) return;
+    const consumer = inputStream.listen((value) => {
+      if (!mapped.consumersCount) return;
       mapped.push(mapper(value));
     });
 
-    mapped.terminated.listenOnce(abort);
+    mapped.terminated.listenOnce(consumer.abort);
 
     return Stream.transformer(mapped, inputStream);
   };

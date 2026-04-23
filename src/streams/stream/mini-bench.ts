@@ -37,9 +37,9 @@ function benchTransform() {
     }
   }
 
-  console.log("listenersCount", mapped.listenersCount);
-  console.log("firstListenerAdded-listenersCount", mapped.firstListenerAdded.listenersCount);
-  console.log("lastListenerRemoved-listenersCount", mapped.lastListenerRemoved.listenersCount);
+  console.log("listenersCount", mapped.consumersCount);
+  console.log("firstListenerAdded-listenersCount", mapped.firstConsumerAdded.consumersCount);
+  console.log("lastListenerRemoved-listenersCount", mapped.lastConsumerRemoved.consumersCount);
 }
 function benchStreamCore() {
   const MAX = 1_000_000;

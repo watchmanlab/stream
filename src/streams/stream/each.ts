@@ -1,4 +1,4 @@
-import { Stream } from "./stream";
+import { Stream } from "./stream0";
 
 const NAME = "map";
 

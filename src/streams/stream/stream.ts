@@ -1,13 +1,13 @@
+import { Stream as OldStream } from "./stream0";
+
 const NAME = "stream";
-
-export class Stream<VALUE = void, NAME extends string = Stream.Name> implements AsyncIterable<VALUE, void>, Disposable {
-  protected listeners: Stream.Listener<VALUE>[] = [];
-
-  private lifecycles: {
-    listenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}ListenerAdded`>;
-    firstListenerAdded?: Stream<Stream.Listener<VALUE>, `${NAME}FirstListenerAdded`>;
-    listenerRemoved?: Stream<Stream.Listener<VALUE>, `${NAME}ListenerRemoved`>;
-    lastListenerRemoved?: Stream<Stream.Listener<VALUE>, `${NAME}LastListenerRemoved`>;
+export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
+  private _consumers: Stream.Consumer<VALUE>[] = [];
+  private _lifecycles: {
+    consumerAdded?: Stream<Stream.Consumer<VALUE>, `${NAME}ConsumerAdded`>;
+    firstConsumerAdded?: Stream<Stream.Consumer<VALUE>, `${NAME}FirstConsumerAdded`>;
+    consumerRemoved?: Stream<Stream.Consumer<VALUE>, `${NAME}ConsumerRemoved`>;
+    lastConsumerRemoved?: Stream<Stream.Consumer<VALUE>, `${NAME}LastConsumerRemoved`>;
     valueDropped?: Stream<VALUE, `${NAME}ValueDropped`>;
     terminated?: Stream<void, `${NAME}Terminated`>;
     cleared?: Stream<void, `${NAME}Cleared`>;
@@ -15,127 +15,150 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
   } = {};
 
   constructor(public readonly name = NAME as NAME) {}
-  get listenersCount() {
-    return this.listeners.length;
+
+  get consumerAdded() {
+    if (!this._lifecycles.consumerAdded) this._lifecycles.consumerAdded = new Stream(`${this.name}ConsumerAdded`);
+    return this._lifecycles.consumerAdded;
   }
-  get isTerminated() {
-    return this.lifecycles.isTerminated === true;
+  get firstConsumerAdded() {
+    if (!this._lifecycles.firstConsumerAdded)
+      this._lifecycles.firstConsumerAdded = new Stream(`${this.name}FirstConsumerAdded`);
+    return this._lifecycles.firstConsumerAdded;
   }
-  get listenerAdded() {
-    if (!this.lifecycles.listenerAdded) this.lifecycles.listenerAdded = new Stream(`${this.name}ListenerAdded`);
-    return this.lifecycles.listenerAdded;
+  get consumerRemoved() {
+    if (!this._lifecycles.consumerRemoved) this._lifecycles.consumerRemoved = new Stream(`${this.name}ConsumerRemoved`);
+    return this._lifecycles.consumerRemoved;
   }
-  get firstListenerAdded() {
-    if (!this.lifecycles.firstListenerAdded)
-      this.lifecycles.firstListenerAdded = new Stream(`${this.name}FirstListenerAdded`);
-    return this.lifecycles.firstListenerAdded;
-  }
-  get listenerRemoved() {
-    if (!this.lifecycles.listenerRemoved) this.lifecycles.listenerRemoved = new Stream(`${this.name}ListenerRemoved`);
-    return this.lifecycles.listenerRemoved;
-  }
-  get lastListenerRemoved() {
-    if (!this.lifecycles.lastListenerRemoved)
-      this.lifecycles.lastListenerRemoved = new Stream(`${this.name}LastListenerRemoved`);
-    return this.lifecycles.lastListenerRemoved;
+  get lastConsumerRemoved() {
+    if (!this._lifecycles.lastConsumerRemoved)
+      this._lifecycles.lastConsumerRemoved = new Stream(`${this.name}LastConsumerRemoved`);
+    return this._lifecycles.lastConsumerRemoved;
   }
   get valueDropped() {
-    if (!this.lifecycles.valueDropped) this.lifecycles.valueDropped = new Stream(`${this.name}ValueDropped`);
-    return this.lifecycles.valueDropped;
+    if (!this._lifecycles.valueDropped) this._lifecycles.valueDropped = new Stream(`${this.name}ValueDropped`);
+    return this._lifecycles.valueDropped;
   }
   get terminated() {
-    if (!this.lifecycles.terminated) this.lifecycles.terminated = new Stream(`${this.name}Terminated`);
-    return this.lifecycles.terminated;
+    if (!this._lifecycles.terminated) this._lifecycles.terminated = new Stream(`${this.name}Terminated`);
+    return this._lifecycles.terminated;
+  }
+  get cleared() {
+    if (!this._lifecycles.cleared) this._lifecycles.cleared = new Stream(`${this.name}Cleared`);
+    return this._lifecycles.cleared;
+  }
+  get isTerminated() {
+    return (this._lifecycles.isTerminated = true);
+  }
+  get consumersCount() {
+    return this._consumers.length;
+  }
+  get consumers() {
+    return this._consumers.values();
   }
 
-  terminate() {
-    if (this.lifecycles.isTerminated) return;
-
-    this.listeners.length = 0;
-    this.lifecycles.terminated?.push();
-    Object.values(this.lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.terminate());
-    this.lifecycles = { isTerminated: true };
-  }
-  clear() {
-    this.listeners.length = 0;
-    this.lifecycles.cleared?.push();
-    Object.values(this.lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.clear());
+  [Symbol.dispose]() {
+    this.terminate();
   }
   async *[Symbol.asyncIterator]() {
-    const queue: VALUE[] = [];
-    let resolve: Function = Function();
+    let resolve: (value: VALUE) => void;
+    let promise = new Promise<VALUE>((r) => (resolve = r));
 
-    const abort = this.listen((value) => {
-      queue.push(value);
-      resolve();
+    const { abort, ready } = this.listen((value) => {
+      resolve?.(value);
     });
 
     try {
       while (true) {
-        if (queue.length) {
-          yield queue.shift()!;
-        } else {
-          await new Promise<void>((r) => (resolve = r));
-        }
+        const value = await promise;
+        promise = new Promise<VALUE>((r) => (resolve = r));
+        ready();
+        yield value;
       }
     } finally {
       abort();
-      resolve();
-      queue.length = 0;
     }
   }
-  [Symbol.dispose]() {
-    this.terminate();
-  }
-
   push(value: VALUE) {
-    const listeners = this.listeners;
-    const length = this.listeners.length;
+    const consumers = this._consumers;
+    const length = consumers.length;
     if (!length) {
-      this.lifecycles.valueDropped?.push(value);
+      this._lifecycles.valueDropped?.push(value);
       return;
     }
     for (let i = 0; i < length; i++) {
-      listeners[i](value);
+      const consumer = consumers[i];
+      if (consumer.isReady) {
+        consumer.isReady = false;
+        consumer.fn(value, consumer);
+      } else {
+        consumer.buffer.push(value);
+      }
     }
   }
 
-  listen(fn: Stream.Listener<VALUE>, abortSignal?: Stream.AnyStream): Stream.Abort {
-    if (this.lifecycles.isTerminated) throw new Error(`stream ${this.name} is terminated`);
-
+  listen(fn: Stream.Fn<VALUE>, abortSignal?: Stream.AnyStream): Stream.Consumer<VALUE> {
+    if (this._lifecycles.isTerminated) throw new Error(`stream ${this.name} is terminated`);
     abortSignal?.listenOnce(abort);
 
-    this.listeners.push(fn);
+    const buffer: VALUE[] = [];
+    const consumer: Stream.Consumer<VALUE> = {
+      ready,
+      buffer,
+      isReady: true,
+      abort,
+      fn,
+      [Symbol.dispose]: abort,
+    };
+    const consumers = this._consumers;
+    const lifecycles = this._lifecycles;
 
-    this.lifecycles.listenerAdded?.push(fn);
+    consumers.push(consumer);
 
-    if (this.listeners.length === 1) this.lifecycles.firstListenerAdded?.push(fn);
+    lifecycles.consumerAdded?.push(consumer);
 
-    abort[Symbol.dispose] = abort;
+    if (this._consumers.length === 1) lifecycles.firstConsumerAdded?.push(consumer);
 
-    const self = this;
+    return consumer;
+    function ready() {
+      consumer.isReady = true;
+      const value = buffer.shift();
+      if (!value) return;
 
-    return abort;
-
+      consumer.isReady = false;
+      fn(value, consumer);
+    }
     function abort() {
-      const index = self.listeners.indexOf(fn);
+      buffer.length = 0;
+
+      const index = consumers.indexOf(consumer);
       if (index === -1) return;
 
-      self.listeners.splice(index, 1);
+      consumers.splice(index, 1);
 
-      self.lifecycles.listenerRemoved?.push(fn);
+      lifecycles.consumerRemoved?.push(consumer);
 
-      if (!self.listeners.length) self.lifecycles.lastListenerRemoved?.push(fn);
+      if (!consumers.length) lifecycles.lastConsumerRemoved?.push(consumer);
     }
   }
-  listenOnce(fn: Stream.Listener<VALUE>, abortSignal?: Stream.AnyStream): void {
-    const abort = this.listen((value) => {
-      fn(value);
-      abort();
-    }, abortSignal);
+  listenOnce(fn: Stream.Fn<VALUE>): Stream.Consumer<VALUE> {
+    return this.listen((value, consumer) => {
+      fn(value, consumer);
+      consumer.abort();
+    });
   }
-  next(): Promise<VALUE> {
-    return new Promise<VALUE>((resolve) => this.listenOnce(resolve));
+  nextOrThrow(abortSignal?: Stream.AnyStream): Promise<VALUE> {
+    return new Promise<VALUE>((resolve, reject) => {
+      this.listenOnce(resolve);
+      this.terminated.listenOnce(reject);
+      abortSignal?.listenOnce(reject);
+    });
+  }
+  next(abortSignal?: Stream.AnyStream): Promise<VALUE | Stream.Empty> {
+    return new Promise<VALUE | Stream.Empty>((resolve) => {
+      this.listenOnce((value) => resolve(value));
+      this.terminated.listenOnce(() => resolve(Stream.EMPTY));
+      abortSignal?.listenOnce(() => resolve(Stream.EMPTY));
+    });
   }
   pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
@@ -150,18 +173,35 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
   ): Stream.Transformer<OUTPUT_STREAM, this> {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
+
+  terminate() {
+    if (this._lifecycles.isTerminated) return;
+
+    this._consumers.length = 0;
+    this._lifecycles.terminated?.push();
+    Object.values(this._lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.terminate());
+    this._lifecycles = { isTerminated: true };
+  }
+  clear() {
+    this._consumers.length = 0;
+    this._lifecycles.cleared?.push();
+    Object.values(this._lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.clear());
+  }
 }
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type Abort = { (): void } & Disposable;
-  export type Listener<VALUE> = (value: VALUE) => any;
-  export type ListenOptions<VALUE> = {
-    startSignal?: Stream.AnyStream;
-    stopSignal?: Stream.AnyStream;
-    buffer?: Stream<VALUE, any>;
-  };
-  export type AsyncListener<VALUE> = (value: VALUE) => Promise<any>;
+  export type Abort = () => void;
+  export type Ready = () => void;
+  export type Fn<VALUE> = (value: VALUE, consumer: Consumer<VALUE>) => void;
+  export type Consumer<VALUE> = {
+    ready: Ready;
+    buffer: VALUE[];
+    isReady: boolean;
+    abort: Abort;
+    fn: Fn<VALUE>;
+  } & Disposable;
+
   export type AnyStream = Stream<any, any>;
   export type AnyTransformer = Transformer<AnyStream, AnyStream>;
   export type AnyError = Error<any>;
@@ -200,4 +240,77 @@ export namespace Stream {
   export class Error<ERROR> {
     constructor(public readonly value: ERROR) {}
   }
+  export const EMPTY = Symbol("$EMPTY#");
+  export type Empty = typeof EMPTY;
 }
+
+function simpleTest() {
+  const stream = new Stream<number>();
+  stream.listen(async (value, { ready, abort }) => {
+    await new Promise((r) => setTimeout(r, Math.random() * 200));
+    ready();
+
+    console.log("listener", value);
+  });
+
+  // (async () => {
+  //   for await (const value of stream) {
+  //     console.log("generator", value);
+  //   }
+
+  //   console.log("abort");
+  // })();
+
+  (async () => {
+    stream.push(1);
+    stream.push(2);
+    stream.push(3);
+  })();
+}
+function newStreamBench() {
+  const MAX = 1_000_000;
+  const now = performance.now();
+
+  const stream = new Stream<number>();
+  stream.listen((value, { ready, abort }) => {
+    // await new Promise((r) => setTimeout(r, Math.random() * 200));
+    if (value === MAX) {
+      console.log("new stream", Math.round(performance.now() - now));
+      abort();
+      return;
+    }
+    ready();
+  });
+  // (async () => {
+  //   for await (const value of stream) {
+  //     if (value === MAX) {
+  //       console.log("new stream gen", Math.round(performance.now() - now));
+
+  //       return;
+  //     }
+  //   }
+  // })();
+
+  for (let i = 1; i <= MAX; i++) {
+    stream.push(i);
+  }
+}
+function oldStreamBench() {
+  const MAX = 1_000_000;
+
+  const stream = new OldStream<number>();
+
+  stream.listen((value) => {
+    // await new Promise((r) => setTimeout(r, Math.random() * 200));
+    if (value === MAX) console.log("old stream", Math.round(performance.now() - now));
+  });
+
+  const now = performance.now();
+  for (let i = 1; i <= MAX; i++) {
+    stream.push(i);
+  }
+}
+
+simpleTest();
+// newStreamBench();
+// oldStreamBench()
