@@ -1,4 +1,4 @@
-import { Stream } from "./stream9";
+import { Stream } from "./stream";
 
 const NAME = "map";
 
@@ -14,11 +14,11 @@ export function map<
     (async () => {
       while (true) {
         if (mapped.isTerminated) break;
-        await mapped.firstConsumerAdded.next();
-        const { abort } = inputStream.listen((value) => {
+        await mapped.firstListenerAdded.next();
+        const abort = inputStream.listen((value) => {
           mapped.push(mapper(value));
         });
-        await mapped.lastConsumerRemoved.next();
+        await mapped.lastListenerRemoved.next();
         abort();
       }
     })();

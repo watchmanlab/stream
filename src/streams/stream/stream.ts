@@ -1,6 +1,7 @@
 const NAME = "stream";
 export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
   private _listeners: Stream.listener<VALUE>[] = [];
+  private _firstListener: Stream.listener<VALUE> = () => {};
   private _lifecycles: {
     listenerAdded?: Stream<Stream.listener<VALUE>, `${NAME}ListenerAdded`>;
     firstListenerAdded?: Stream<Stream.listener<VALUE>, `${NAME}FirstListenerAdded`>;
@@ -272,6 +273,8 @@ function newStreamBench() {
     let result = value + 10;
     if (result === 40010) {
       result = 444;
+    } else {
+      result = 555;
     }
     if (value === MAX) {
       console.log("new stream", Math.round(performance.now() - now));
@@ -293,5 +296,5 @@ function newStreamBench() {
   }
 }
 
-simpleTest();
-newStreamBench();
+// simpleTest();
+// newStreamBench();
