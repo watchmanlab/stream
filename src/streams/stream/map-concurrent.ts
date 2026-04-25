@@ -1,4 +1,4 @@
-import { Stream } from "./stream0";
+import { Stream } from "./stream";
 
 const NAME = "mapConcurrent";
 

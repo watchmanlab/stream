@@ -1,5 +1,5 @@
 import { map } from "./map";
-import { Stream } from "./stream";
+import { Stream } from "./stream9";
 
 function benchTransform() {
   const stream = new Stream<number>();
