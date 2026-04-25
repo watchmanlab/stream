@@ -1,5 +1,3 @@
-import { NamedDeclaration } from "typescript";
-
 const NAME = "stream";
 export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
   private _listeners: Stream.listener<VALUE>[] = [];
@@ -49,7 +47,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
   get isTerminated() {
     return (this._lifecycles.isTerminated = true);
   }
-  get consumersCount() {
+  get listenersCount() {
     return this._listeners.length;
   }
   get listeners() {
@@ -62,8 +60,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
 
   async *[Symbol.asyncIterator]() {
     let resolve: () => void;
-
-    const buffer: VALUE[] = [];
 
     let head: { value: VALUE; next?: typeof head } | undefined;
     let tail: typeof head;
@@ -89,44 +85,31 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
         }
       }
     } finally {
-      buffer.length = 0;
-
+      head = tail = undefined;
       abort();
     }
   }
 
-  // async *[Symbol.asyncIterator]() {
-  //   let resolve: () => void;
-  //   const buffer: VALUE[] = [];
-
-  //   const abort = this.listen((value) => {
-  //     buffer.push(value);
-  //     resolve?.();
-  //   });
-
-  //   try {
-  //     while (true) {
-  //       if (buffer.length) {
-  //         yield buffer.shift()!;
-  //       } else {
-  //         await new Promise<void>((r) => (resolve = r));
-  //       }
-  //     }
-  //   } finally {
-  //     buffer.length = 0;
-  //     abort();
-  //   }
-  // }
-
   push(value: VALUE) {
     const listeners = this._listeners;
     const length = listeners.length;
-    if (!length) {
-      this._lifecycles.valueDropped?.push(value);
-      return;
-    }
-    for (let i = 0; i < length; i++) {
-      listeners[i](value);
+
+    switch (length) {
+      case 0:
+        this._lifecycles.valueDropped?.push(value);
+        return;
+      case 1:
+        listeners[0](value);
+        return;
+      case 2:
+        listeners[0](value);
+        listeners[1](value);
+        return;
+
+      default:
+        for (let i = 0; i < length; i++) {
+          listeners[i](value);
+        }
     }
   }
 
@@ -198,12 +181,14 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     if (this._lifecycles.isTerminated) return;
 
     this._listeners.length = 0;
+
     this._lifecycles.terminated?.push();
     Object.values(this._lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.terminate());
     this._lifecycles = { isTerminated: true };
   }
   clear() {
     this._listeners.length = 0;
+
     this._lifecycles.cleared?.push();
     Object.values(this._lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.clear());
   }
@@ -279,25 +264,29 @@ function simpleTest() {
   stream.push(3);
 }
 function newStreamBench() {
-  const MAX = 10_000_000;
+  const MAX = 300_000_000;
   const now = performance.now();
 
   const stream = new Stream<number>();
-  // stream.listen((value) => {
-  //   if (value === MAX) {
-  //     console.log("new stream", Math.round(performance.now() - now));
-  //     return;
-  //   }
-  // });
-  (async () => {
-    for await (const value of stream) {
-      if (value === MAX) {
-        console.log("new stream gen", Math.round(performance.now() - now));
-
-        return;
-      }
+  stream.listen((value) => {
+    let result = value + 10;
+    if (result === 40010) {
+      result = 444;
     }
-  })();
+    if (value === MAX) {
+      console.log("new stream", Math.round(performance.now() - now));
+      return;
+    }
+  });
+  // (async () => {
+  //   for await (const value of stream) {
+  //     if (value === MAX) {
+  //       console.log("new stream gen", Math.round(performance.now() - now));
+
+  //       return;
+  //     }
+  //   }
+  // })();
 
   for (let i = 1; i <= MAX; i++) {
     stream.push(i);
