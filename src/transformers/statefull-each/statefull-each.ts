@@ -38,7 +38,7 @@ export class StatefulEach<
 
           self.setState(newState, value);
 
-          if (Stream.isErr<ERROR>(result)) {
+          if (Stream.isGenericError<ERROR>(result)) {
             yield Stream.sourceErr({
               value: value,
               error: result.value,
@@ -141,6 +141,6 @@ export namespace statefulEach {
     state: STATE,
     value: CLEAN_VALUE,
   ) =>
-    | [undefined | null | Stream.Err<ERROR> | Stream.Control, Partial<STATE>]
-    | Promise<[undefined | null | Stream.Err<ERROR> | Stream.Control, Partial<STATE>]>;
+    | [undefined | null | Stream.Error<ERROR> | Stream.Control, Partial<STATE>]
+    | Promise<[undefined | null | Stream.Error<ERROR> | Stream.Control, Partial<STATE>]>;
 }

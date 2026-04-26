@@ -1,178 +1,224 @@
-const NAME = "root";
-export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE> {
-  protected _consumers = new Map<VALUE[], { resolve: () => void; ready: Promise<void> }>();
-  protected _source?: Stream.Source<VALUE>;
-  protected _sourceGenerator?: AsyncGenerator<VALUE, void, unknown>;
-  protected _name = NAME as NAME;
-  constructor();
-  constructor(name: NAME);
-  constructor(source: Stream.Source<VALUE>);
-  constructor(name: NAME, source: Stream.Source<VALUE>);
-  constructor(sourceOrName?: Stream.Source<VALUE> | NAME, source?: Stream.Source<VALUE>) {
-    if (typeof sourceOrName === "string" || sourceOrName instanceof String) {
-      this._name = (sourceOrName as NAME) ?? NAME;
-      this._source = source;
-    } else {
-      this._source = sourceOrName;
-    }
-  }
-  get name() {
-    return this._name;
-  }
-  push(value: VALUE, ...values: VALUE[]): Stream.PushResult {
-    const readyPromises = new Array<Promise<void>>();
+const NAME = "stream";
+export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
+  private _listeners: Stream.listener<VALUE>[] = [];
 
-    for (const [queue, { resolve, ready }] of this._consumers) {
-      queue.push(value, ...values);
-      resolve();
-      readyPromises.push(ready);
-    }
+  private _lifecycles: {
+    listenerAdded?: Stream<Stream.listener<VALUE>, `${NAME}ListenerAdded`>;
+    firstListenerAdded?: Stream<Stream.listener<VALUE>, `${NAME}FirstListenerAdded`>;
+    listenerRemoved?: Stream<Stream.listener<VALUE>, `${NAME}ListenerRemoved`>;
+    lastListenerRemoved?: Stream<Stream.listener<VALUE>, `${NAME}LastListenerRemoved`>;
+    valueDropped?: Stream<VALUE, `${NAME}ValueDropped`>;
+    terminated?: Stream<void, `${NAME}Terminated`>;
+    cleared?: Stream<void, `${NAME}Cleared`>;
+    isTerminated?: true;
+  } = {};
 
-    return {
-      get awaitBroadcast() {
-        return new Promise<void>((r) => setTimeout(r, 0));
-      },
-      get awaitAllConsumers() {
-        return Promise.all(readyPromises);
-      },
-      get awaitAnyConsumer() {
-        return Promise.any(readyPromises);
-      },
-      then: (resolve?: () => void, reject?: () => void) => Promise.resolve().then(resolve, reject),
-    };
+  constructor(public readonly name = NAME as NAME) {}
+
+  get listenerAdded() {
+    if (!this._lifecycles.listenerAdded) this._lifecycles.listenerAdded = new Stream(`${this.name}ListenerAdded`);
+    return this._lifecycles.listenerAdded;
   }
-  protected _requestingNext = false;
-  protected _requestNext() {
-    if (!this._requestingNext && this._sourceGenerator) {
-      this._requestingNext = true;
-      this._sourceGenerator.next().then((result) => {
-        this._requestingNext = false;
-        if (result.done) {
-          this.push(Stream.TERMINATE as VALUE);
-          return;
-        }
-        this.push(result.value);
-      });
-    }
+  get firstListenerAdded() {
+    if (!this._lifecycles.firstListenerAdded)
+      this._lifecycles.firstListenerAdded = new Stream(`${this.name}FirstListenerAdded`);
+    return this._lifecycles.firstListenerAdded;
   }
-  protected _onConsumerJoin?: (queue: VALUE[]) => void;
-  protected _onConsumerLeft?: () => void;
+  get listenerRemoved() {
+    if (!this._lifecycles.listenerRemoved) this._lifecycles.listenerRemoved = new Stream(`${this.name}ListenerRemoved`);
+    return this._lifecycles.listenerRemoved;
+  }
+  get lastListenerRemoved() {
+    if (!this._lifecycles.lastListenerRemoved)
+      this._lifecycles.lastListenerRemoved = new Stream(`${this.name}LastListenerRemoved`);
+    return this._lifecycles.lastListenerRemoved;
+  }
+  get valueDropped() {
+    if (!this._lifecycles.valueDropped) this._lifecycles.valueDropped = new Stream(`${this.name}ValueDropped`);
+    return this._lifecycles.valueDropped;
+  }
+  get terminated() {
+    if (!this._lifecycles.terminated) this._lifecycles.terminated = new Stream(`${this.name}Terminated`);
+    return this._lifecycles.terminated;
+  }
+  get cleared() {
+    if (!this._lifecycles.cleared) this._lifecycles.cleared = new Stream(`${this.name}Cleared`);
+    return this._lifecycles.cleared;
+  }
+  get isTerminated() {
+    return this._lifecycles.isTerminated === true;
+  }
+  get listenersCount() {
+    return this._listeners.length;
+  }
+  get listeners() {
+    return this._listeners.values();
+  }
+
+  [Symbol.dispose]() {
+    this.terminate();
+  }
+
   async *[Symbol.asyncIterator]() {
-    if (this._consumers.size === 0 && this._source) {
-      this._sourceGenerator = Stream.generator(this._source);
-    }
+    let resolve: () => void;
 
-    const queue: VALUE[] = [];
-    this._consumers.set(queue, { resolve() {}, ready: Promise.resolve() });
-    this._onConsumerJoin?.(queue);
-
-    let ready: () => void;
+    let head: { value: VALUE; next?: typeof head } | undefined;
+    let tail: typeof head;
+    const abort = this.listen((value) => {
+      const node = { value };
+      if (!head) {
+        head = tail = node;
+      } else {
+        tail!.next = node;
+        tail = node;
+      }
+      resolve?.();
+    });
 
     try {
       while (true) {
-        if (queue.length) {
-          const value = queue.shift()!;
-          if (value === Stream.TERMINATE) {
-            break;
-          } else if (value === Stream.SKIP) {
-            continue;
-          }
-
-          yield value;
+        if (head) {
+          yield head.value;
+          head = head.next;
+          if (!head) tail = undefined;
         } else {
-          ready!?.();
-          this._requestNext();
-
-          await new Promise<void>((resolve) => {
-            this._consumers.set(queue, {
-              resolve,
-              ready: new Promise<void>((r) => (ready = r)),
-            });
-          });
+          await new Promise<void>((r) => (resolve = r));
         }
       }
     } finally {
-      this._consumers.get(queue)?.resolve();
-      this._consumers.delete(queue);
-
-      queue.length = 0;
-
-      if (this._consumers.size === 0) {
-        await this._sourceGenerator?.return?.();
-        this._sourceGenerator = undefined;
-      }
-      this._onConsumerLeft?.();
-
-      return;
+      head = tail = undefined;
+      abort();
     }
   }
-  next(): Promise<IteratorResult<Awaited<VALUE>, void>> {
-    return this[Symbol.asyncIterator]().next();
-  }
-  pipe<OUTPUT_STREAM extends Stream.AnyStream>(transform: Stream.Transform<this, OUTPUT_STREAM>): OUTPUT_STREAM {
-    return transform(this);
+
+  push(value: VALUE) {
+    const listeners = this._listeners;
+    const length = listeners.length;
+
+    switch (length) {
+      case 0:
+        this._lifecycles.valueDropped?.push(value);
+        return;
+      case 1:
+        listeners[0](value);
+        return;
+      case 2:
+        listeners[0](value);
+        listeners[1](value);
+        return;
+
+      default:
+        for (let i = 0; i < length; i++) {
+          listeners[i](value);
+        }
+    }
   }
 
-  static pipe<INPUT_STREAM extends Stream.AnyStream, OUTPUT_STREAM extends Stream.AnyStream>(
-    inputStream: INPUT_STREAM,
-    transform: Stream.Transform<INPUT_STREAM, OUTPUT_STREAM>,
-  ): OUTPUT_STREAM {
-    return transform(inputStream);
+  listen(listener: Stream.listener<VALUE>, options?: Stream.ListenOptions): Stream.Abort {
+    if (this._lifecycles.isTerminated) throw new Error(`stream ${this.name} is terminated`);
+    const { abortSignal } = options ?? {};
+
+    abortSignal?.listenOnce(abort);
+
+    const listeners = this._listeners;
+    const lifecycles = this._lifecycles;
+
+    listeners.push(listener);
+
+    lifecycles.listenerAdded?.push(listener);
+
+    if (this._listeners.length === 1) lifecycles.firstListenerAdded?.push(listener);
+
+    return abort;
+
+    function abort() {
+      const index = listeners.indexOf(listener);
+      if (index === -1) return;
+
+      listeners.splice(index, 1);
+
+      lifecycles.listenerRemoved?.push(listener);
+
+      if (!listeners.length) lifecycles.lastListenerRemoved?.push(listener);
+    }
   }
-  static generator<VALUE>(source: Stream.Source<VALUE>): AsyncGenerator<VALUE, void, unknown> {
-    return (async function* () {
-      if (!source) return;
-      if (Symbol.asyncIterator in source || Symbol.iterator in source) {
-        yield* source;
-      } else if (typeof source === "function") {
-        yield* source();
-      }
-    })();
+  listenOnce(listener: Stream.listener<VALUE>, options?: Stream.ListenOptions): Stream.Abort {
+    const abort = this.listen((value) => {
+      listener(value);
+      abort();
+    }, options);
+
+    return abort;
+  }
+  nextOrThrow(abortSignal?: Stream.AnyStream): Promise<VALUE> {
+    return new Promise<VALUE>((resolve, reject) => {
+      this.listenOnce(resolve);
+      this.terminated.listenOnce(reject);
+      abortSignal?.listenOnce(reject);
+    });
+  }
+  next(abortSignal?: Stream.AnyStream): Promise<VALUE | Stream.Empty> {
+    return new Promise<VALUE | Stream.Empty>((resolve) => {
+      this.listenOnce((value) => resolve(value));
+      this.terminated.listenOnce(() => resolve(Stream.EMPTY));
+      abortSignal?.listenOnce(() => resolve(Stream.EMPTY));
+    });
+  }
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>>(
+    transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
+  ): Stream.Transformer<OUTPUT_STREAM, this>;
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>>(
+    name: OUTPUT_NAME,
+    transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
+  ): Stream.Transformer<OUTPUT_STREAM, this>;
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>>(
+    nameOrTransform: OUTPUT_NAME | Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
+    transform?: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
+  ): Stream.Transformer<OUTPUT_STREAM, this> {
+    return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
+  }
+
+  terminate() {
+    if (this._lifecycles.isTerminated) return;
+
+    this._listeners.length = 0;
+
+    this._lifecycles.terminated?.push();
+    Object.values(this._lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.terminate());
+    this._lifecycles = { isTerminated: true };
+  }
+  clear() {
+    this._listeners.length = 0;
+
+    this._lifecycles.cleared?.push();
+    Object.values(this._lifecycles).forEach((lifecycle) => lifecycle instanceof Stream && lifecycle.clear());
   }
 }
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type AnyStream = Stream<any, any>;
-  export type AnySource = Source<any>;
-  export type AnySourceErr = SourceErr<any, any, AnyStream>;
-  export type AnyTraversable = Traversable<AnyStream, AnyStream>;
-  export type ExtractValue<T> =
-    T extends Source<infer VALUE> ? VALUE : T extends SourceErr<infer VALUE, any, any> ? VALUE : T;
-  export type ExtractName<T extends AnyStream | AnySourceErr> =
-    T extends Stream<any, infer NAME> ? NAME : T extends AnySourceErr ? ExtractName<ExtractSourceErrStream<T>> : never;
-  export type ExtractSentinel<T> = Extract<ExtractValue<T>, Sentinel>;
-  export type ExtractCleanValue<T> = Exclude<ExtractValue<T>, Sentinel>;
-  export type ExtractError<T extends Err<any> | AnySourceErr> =
-    T extends Err<infer ERROR> ? ERROR : T extends SourceErr<any, infer ERROR, any> ? ERROR : never;
-  export type ExtractSourceErr<T> = Extract<ExtractValue<T>, AnySourceErr>;
-  export type ExcludeSourceErr<T> = Exclude<ExtractValue<T>, AnySourceErr>;
-  export type ExtractSourceErrStream<T extends AnySourceErr> =
-    T extends SourceErr<any, any, infer SOURCE> ? SOURCE : never;
-  export type MaybeSourceErr<CLEAN_VALUE, ERROR, SOURCE extends AnyStream> = [ERROR] extends [never]
-    ? never
-    : SourceErr<CLEAN_VALUE, ERROR, SOURCE>;
-  export type GeneratorFunction<VALUE> = () => AsyncGenerator<VALUE, void, unknown> | Generator<VALUE, void, unknown>;
-  export type Source<VALUE> =
-    | GeneratorFunction<VALUE>
-    | AsyncIterable<VALUE, void, unknown>
-    | Exclude<Iterable<VALUE, void, unknown>, string | String>;
-  export type PushResult = {
-    readonly awaitBroadcast: Promise<void>;
-    readonly awaitAllConsumers: Promise<void[]>;
-    readonly awaitAnyConsumer: Promise<void>;
-    then: (resolve?: (() => void) | undefined, reject?: (() => void) | undefined) => Promise<void>;
-  };
+  export type listener<VALUE> = (value: VALUE) => void;
+  export type Abort = () => void;
 
-  export type Transform<INPUT_STREAM extends AnyStream, OUTPUT_STREAM extends AnyStream> = (
-    inputStream: INPUT_STREAM,
-  ) => OUTPUT_STREAM;
-  export type Traversable<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream> = OUTPUT_STREAM &
+  export type ListenOptions = { abortSignal?: AnyStream };
+  export type AnyStream = Stream<any, any>;
+  export type AnyTransformer = Transformer<AnyStream, AnyStream>;
+  export type AnyError = Error<any>;
+  export type ExtractValue<T extends AnyStream> = T extends Stream<infer VALUE, any> ? VALUE : never;
+  export type ExtractName<T extends AnyStream> = T extends Stream<any, infer NAME> ? NAME : never;
+  export type ExtractError<T extends AnyError> = T extends Error<infer ERROR> ? ERROR : never;
+
+  export type Transform<
+    INPUT_STREAM extends AnyStream,
+    OUTPUT_NAME extends string,
+    OUTPUT_STREAM extends Stream<any, OUTPUT_NAME>,
+  > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => Transformer<OUTPUT_STREAM, INPUT_STREAM>;
+  export type Transformer<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream> = OUTPUT_STREAM &
     Record<ExtractName<INPUT_STREAM> | (`$${string}` & {}), INPUT_STREAM>;
-  export function traversable<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream>(
+  export function transformer<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream>(
     outputStream: OUTPUT_STREAM,
     inputStream: INPUT_STREAM,
-  ): Traversable<OUTPUT_STREAM, INPUT_STREAM> {
+  ): Transformer<OUTPUT_STREAM, INPUT_STREAM> {
     return new Proxy(outputStream, {
       get(target, p, receiver) {
         if (p in target) return Reflect.get(target, p, receiver);
@@ -180,63 +226,75 @@ export namespace Stream {
       },
     }) as never;
   }
-  export abstract class Sentinel {
-    private readonly __sentinel = Symbol("*__sentinel#");
-  }
-  export function isSentinel<T extends Sentinel>(object: unknown): object is T {
-    return object instanceof Sentinel;
-  }
-  export class SourceErr<VALUE, ERROR, SOURCE extends AnyStream> extends Stream.Sentinel {
+  export class SourceError<VALUE, ERROR, SOURCE extends AnyStream> {
     constructor(
       public readonly value: VALUE,
       public readonly error: ERROR,
       public readonly source: SOURCE,
-    ) {
-      super();
-    }
+    ) {}
     get sourceName(): SOURCE["name"] {
       return this.source.name;
     }
   }
-  export class Err<ERROR> {
+  export class Error<ERROR> {
     constructor(public readonly value: ERROR) {}
   }
-  export function err<ERROR>(value: ERROR): Err<ERROR> {
-    return new Err(value);
-  }
-  export function sourceErr<VALUE, ERROR, SOURCE extends AnyStream>({
-    value,
-    error,
-    source,
-  }: {
-    value: VALUE;
-    error: ERROR;
-    source: SOURCE;
-  }) {
-    return new SourceErr(value, error, source);
-  }
-  export function isErr<ERROR>(object: unknown): object is Err<ERROR> {
-    return object instanceof Err;
-  }
-  export function isSourceErr<VALUE, ERROR, SOURCE extends AnyStream>(
-    object: unknown,
-  ): object is SourceErr<VALUE, ERROR, SOURCE> {
-    return object instanceof SourceErr;
-  }
-  // export const EMPTY = Symbol("*EMPTY#");
-  // export type Empty = typeof EMPTY;
-  export const TERMINATE = Symbol("*TEMINATE#");
-  export type Terminate = typeof TERMINATE;
-  export function isTerminate(object: unknown): object is Terminate {
-    return object === TERMINATE;
-  }
-  export const SKIP = Symbol("*SKIP#");
-  export type Skip = typeof SKIP;
-  export function isSkip(object: unknown): object is Skip {
-    return object === SKIP;
-  }
-  export type Control = Terminate | Skip;
-  export function isControl(object: unknown): object is Control {
-    return object === SKIP || object === TERMINATE;
+  export const EMPTY = Symbol("$EMPTY#");
+  export type Empty = typeof EMPTY;
+}
+
+function simpleTest() {
+  const stream = new Stream<number>();
+
+  // const abort = stream.listen(async (value) => {
+  //   await new Promise((r) => setTimeout(r, Math.random() * 200));
+
+  //   console.log("listener", value);
+  // });
+
+  (async () => {
+    for await (const value of stream) {
+      console.log("generator", value);
+    }
+
+    console.log("abort");
+  })();
+
+  stream.push(1);
+  stream.push(2);
+  stream.push(3);
+}
+function newStreamBench() {
+  const MAX = 300_000_000;
+  const now = performance.now();
+
+  const stream = new Stream<number>();
+  stream.listen((value) => {
+    let result = value + 10;
+    if (result === 40010) {
+      result = 444;
+    } else {
+      result = 555;
+    }
+    if (value === MAX) {
+      console.log("new stream", Math.round(performance.now() - now));
+      return;
+    }
+  });
+  // (async () => {
+  //   for await (const value of stream) {
+  //     if (value === MAX) {
+  //       console.log("new stream gen", Math.round(performance.now() - now));
+
+  //       return;
+  //     }
+  //   }
+  // })();
+
+  for (let i = 1; i <= MAX; i++) {
+    stream.push(i);
   }
 }
+
+// simpleTest();
+// newStreamBench();

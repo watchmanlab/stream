@@ -32,7 +32,7 @@ class Filter<
           const maybePromise = predicate(value);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr(result)) {
+          if (Stream.isGenericError(result)) {
             yield Stream.sourceErr({
               value,
               error: result.value,
@@ -136,8 +136,8 @@ export namespace filter {
     | boolean
     | Stream.Terminate
     | Stream.Skip
-    | Stream.Err<ERROR>
-    | Promise<boolean | Stream.Terminate | Stream.Skip | Stream.Err<ERROR>>;
+    | Stream.Error<ERROR>
+    | Promise<boolean | Stream.Terminate | Stream.Skip | Stream.Error<ERROR>>;
 
   export type Event<CLEAN_VALUE> = {
     type: "filtered";

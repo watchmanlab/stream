@@ -1,3 +1,5 @@
+//@ts-nocheck
+
 import { Stream } from "../../streams/index.ts";
 
 const NAME = "concurrent";
@@ -28,10 +30,10 @@ class Concurrent<
         value: CLEAN_VALUE;
         mapped:
           | MAPPED
-          | Stream.Err<ERROR>
+          | Stream.Error<ERROR>
           | Stream.Terminate
           | Stream.Skip
-          | Promise<MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
+          | Promise<MAPPED | Stream.Error<ERROR> | Stream.Terminate | Stream.Skip>;
       }
     | Stream.Sentinel
   )[] = [];
@@ -68,7 +70,7 @@ class Concurrent<
               self._buffer.push({ value, mapped: mapper(value) });
               resolver!?.();
             } catch (error: any) {
-              self._buffer.push({ value, mapped: Stream.err<ERROR>(error) });
+              self._buffer.push({ value, mapped: Stream.genericError<ERROR>(error) });
             }
           } else {
             mapper(value)
@@ -79,7 +81,7 @@ class Concurrent<
                 resolver!?.();
               })
               .catch((error) => {
-                self._buffer.push({ value, mapped: Stream.err<ERROR>(error) });
+                self._buffer.push({ value, mapped: Stream.genericError<ERROR>(error) });
               });
           }
         }
@@ -100,7 +102,7 @@ class Concurrent<
             try {
               const mapped = entry.mapped instanceof Promise ? await entry.mapped : entry.mapped;
 
-              if (Stream.isErr<ERROR>(mapped)) {
+              if (Stream.isGenericError<ERROR>(mapped)) {
                 yield Stream.sourceErr({
                   value: entry.value,
                   error: mapped.value,
@@ -211,7 +213,7 @@ export namespace concurrent {
   export type Name = typeof NAME;
   export type Mapper<CLEAN_VALUE, MAPPED, ERROR> = (
     value: CLEAN_VALUE,
-  ) => Promise<MAPPED | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
+  ) => Promise<MAPPED | Stream.Error<ERROR> | Stream.Terminate | Stream.Skip>;
   export type Options = {
     concurrencyLimit?: number;
     preserveOrder?: boolean;

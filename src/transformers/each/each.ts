@@ -28,7 +28,7 @@ class Each<
           const maybePromise = callback(value);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
 
-          if (Stream.isErr(result)) {
+          if (Stream.isGenericError(result)) {
             yield Stream.sourceErr({
               value,
               error: result.value,
@@ -91,8 +91,8 @@ export namespace each {
     value: CLEAN_VALUE,
   ) =>
     | void
-    | Stream.Err<ERROR>
+    | Stream.Error<ERROR>
     | Stream.Terminate
     | Stream.Skip
-    | Promise<void | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip>;
+    | Promise<void | Stream.Error<ERROR> | Stream.Terminate | Stream.Skip>;
 }

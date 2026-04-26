@@ -39,7 +39,7 @@ class StatefulFilter<
 
           self.setState(newState, value);
 
-          if (Stream.isErr(ok)) {
+          if (Stream.isGenericError(ok)) {
             yield Stream.sourceErr({
               value: value,
               error: ok.value,
@@ -144,6 +144,6 @@ export namespace statefulFilter {
     state: STATE,
     value: CLEAN_VALUE,
   ) =>
-    | [boolean | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]
-    | Promise<[boolean | Stream.Err<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]>;
+    | [boolean | Stream.Error<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]
+    | Promise<[boolean | Stream.Error<ERROR> | Stream.Terminate | Stream.Skip, Partial<STATE>]>;
 }
