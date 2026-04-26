@@ -14,7 +14,7 @@ class TryMap<
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: tryMap.Mapper<VALUE, MAPPED, ERROR>) {
     super(name);
 
-    const signal = new Stream();
+    const signal = new Stream<void>();
 
     this.firstListenerAdded.listen(() => {
       inputStream.listen((value) => {

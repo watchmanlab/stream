@@ -1,4 +1,4 @@
-import { Stream } from "./stream";
+import { Stream } from "./stream9";
 
 const NAME = "map";
 
@@ -9,21 +9,14 @@ export function map<
   NAME extends string = map.Name,
 >(mapper: map.Mapper<VALUE, MAPPED>): Stream.Transform<INPUT_STREAM, NAME, Stream<MAPPED, NAME>> {
   return (inputStream, name) => {
-    const mapped = new Stream<MAPPED, NAME>(name ?? (NAME as NAME));
-
-    (async () => {
-      while (true) {
-        if (mapped.isTerminated) break;
-        await mapped.firstListenerAdded.next();
-        const abort = inputStream.listen((value) => {
-          mapped.push(mapper(value));
-        });
-        await mapped.lastListenerRemoved.next();
-        abort();
-      }
-    })();
-
-    return Stream.transformer(mapped, inputStream);
+    return Stream.transformer(
+      new Stream<MAPPED, NAME>(name ?? (NAME as NAME), async function* () {
+        for await (const value of inputStream) {
+          yield mapper(value);
+        }
+      }),
+      inputStream,
+    );
   };
 }
 

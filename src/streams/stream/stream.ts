@@ -1,7 +1,7 @@
 const NAME = "stream";
 export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
   private _listeners: Stream.listener<VALUE>[] = [];
-  private _firstListener: Stream.listener<VALUE> = () => {};
+
   private _lifecycles: {
     listenerAdded?: Stream<Stream.listener<VALUE>, `${NAME}ListenerAdded`>;
     firstListenerAdded?: Stream<Stream.listener<VALUE>, `${NAME}FirstListenerAdded`>;
@@ -46,7 +46,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncIt
     return this._lifecycles.cleared;
   }
   get isTerminated() {
-    return (this._lifecycles.isTerminated = true);
+    return this._lifecycles.isTerminated === true;
   }
   get listenersCount() {
     return this._listeners.length;

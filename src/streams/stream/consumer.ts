@@ -1,40 +1,33 @@
-import { Stream } from "./stream";
+import { Stream } from "./stream9";
 
 const NAME = "consumer";
 export class Consumer<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  NAME extends string = consumer.Name,
-> extends Stream<VALUE, NAME> {
-  readonly transformer: Stream.Transformer<this, INPUT_STREAM>;
-  private _fn: consumer.Fn<VALUE, Stream.Transformer<this, INPUT_STREAM>>;
+> implements Disposable {
+  private _fn: Consumer.Fn<VALUE, this>;
   private _buffer: VALUE[];
   private _isReady: boolean;
-  private _options: typeof consumer.defaultOptions;
 
   constructor(
-    name = NAME as NAME,
     inputStream: INPUT_STREAM,
-    fn: consumer.Fn<VALUE, Stream.Transformer<Consumer<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>>,
-    options?: consumer.Options,
+    fn: Consumer.Fn<VALUE, Consumer<INPUT_STREAM, VALUE>>,
+    options: { isReady: boolean } = { isReady: true },
   ) {
-    super(name);
-    this._options = { ...consumer.defaultOptions, ...options };
-
-    this.transformer = Stream.transformer(this, inputStream);
     this._fn = fn;
     this._buffer = [];
-    this._isReady = this._options.isReady;
+    this._isReady = options.isReady;
 
     inputStream.listen((value) => {
       if (this._isReady) {
         this._isReady = false;
-        this._fn(value, this.transformer);
+        this._fn(value, this);
       } else {
         this._buffer.push(value);
       }
     });
   }
+
   get isReady() {
     return this._isReady;
   }
@@ -44,54 +37,69 @@ export class Consumer<
   get fn() {
     return this._fn;
   }
+  private calls = 0;
   ready = () => {
-    if (this._isReady) return;
-    this._isReady = true;
     const value = this._buffer.shift();
-    if (!value) return;
+    if (!value) {
+      this._isReady = true;
+      return;
+    }
 
     this._isReady = false;
-    this._fn(value, this.transformer);
+
+    if (this.calls > 100) {
+      this.calls = 0;
+      queueMicrotask(() => {
+        this._fn(value, this);
+      });
+    } else {
+      this.calls++;
+      this._fn(value, this);
+    }
   };
   abort = () => {};
-  override [Symbol.dispose]() {
-    super[Symbol.dispose]();
+  [Symbol.dispose]() {
     this.abort();
   }
 }
 
-export function consumer<
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  NAME extends string = consumer.Name,
->(
-  fn: consumer.Fn<VALUE, Stream.Transformer<Consumer<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>>,
-  options?: consumer.Options,
-): Stream.Transform<INPUT_STREAM, NAME, Stream.Transformer<Consumer<INPUT_STREAM, VALUE, NAME>, INPUT_STREAM>> {
-  return (inputStream, name) => new Consumer(name, inputStream, fn, options).transformer;
-}
-
-export namespace consumer {
+export namespace Consumer {
   export type Name = typeof NAME;
-  export type Fn<VALUE, SELF extends Consumer<any, any, any>> = (value: VALUE, consumer: SELF) => void;
-  export type Options = { isReady?: boolean };
-  export const defaultOptions: Required<Options> = { isReady: true };
+  export type Fn<VALUE, SELF extends Consumer<any, any>> = (value: VALUE, self: SELF) => void;
 }
 
 function simpleTest() {
   const stream = new Stream<number>();
 
-  const { ready } = stream.pipe(
-    consumer(async (value, { ready, buffer }) => {
-      // ready();
-      await new Promise((r) => setTimeout(r, Math.random() * 200));
-      console.log(value, buffer);
-    }),
-  );
+  const { ready } = new Consumer(stream, async (value, { ready, buffer }) => {
+    ready();
+    await new Promise((r) => setTimeout(r, Math.random() * 200));
+    console.log(value);
+  });
 
   stream.push(1);
   stream.push(2);
   stream.push(3);
 }
+function bench() {
+  const MAX = 10_000_000;
+  const start = performance.now();
+  const stream = new Stream<number>();
 
-simpleTest();
+  const { ready } = new Consumer(
+    stream,
+    (value, { ready, buffer }) => {
+      // await new Promise((r) => setTimeout(r));
+      if (value === MAX) console.log("consumer", value.toExponential(), Math.round(performance.now() - start));
+      ready();
+    },
+    { isReady: false },
+  );
+
+  for (let i = 1; i <= MAX; i++) {
+    stream.push(i);
+  }
+  ready();
+}
+// simpleTest();
+bench();
