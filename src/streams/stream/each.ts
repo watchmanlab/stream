@@ -1,38 +1,38 @@
 import { Stream } from "./stream";
 
-const NAME = "map";
+const NAME = "each";
 
-class Map<
+class Each<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  MAPPED = VALUE,
-  NAME extends string = map.Name,
-> extends Stream<MAPPED, NAME> {
-  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED>) {
-    super(name);
-
-    inputStream.listen(
-      (value) => {
-        const result = mapper(value);
-        this.push(result);
-      },
-      { startSignal: this.firstListenerAdded, stopSignal: this.lastListenerRemoved },
-    );
+  ERROR = unknown,
+  NAME extends string = each.Name,
+> extends Stream<VALUE, ERROR, NAME> {
+  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, callback: each.Callback<VALUE, ERROR>) {
+    super(name, async function* () {
+      for await (const value of inputStream) {
+        const maybePromise = callback(value);
+        const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
+        yield result?.value ?? value;
+      }
+    });
   }
 }
 
-export function map<
+export function each<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  MAPPED = VALUE,
-  ERROR = never,
-  NAME extends string = map.Name,
->(mapper: map.Mapper<VALUE, MAPPED>): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, NAME>> {
-  return (inputStream, name) => Stream.transformer(new Map(name, inputStream, mapper), inputStream);
+  ERROR = unknown,
+  NAME extends string = each.Name,
+>(
+  callback: each.Callback<VALUE, ERROR>,
+): Stream.Transform<INPUT_STREAM, NAME, Stream.Transformer<Each<INPUT_STREAM, VALUE, ERROR, NAME>, INPUT_STREAM>> {
+  return (inputStream, name) => Stream.transformer(new Each(name, inputStream, callback), inputStream);
 }
 
-export namespace map {
+export namespace each {
   export type Name = typeof NAME;
-
-  export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;
+  export type Callback<VALUE, ERROR> = (
+    value: VALUE,
+  ) => void | Stream.Error<ERROR> | Promise<void | Stream.Error<ERROR>>;
 }

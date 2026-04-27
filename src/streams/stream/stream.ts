@@ -1,4 +1,4 @@
-const NAME = "stream";
+const NAME = "root";
 
 export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   implements AsyncIterable<VALUE>, Disposable
