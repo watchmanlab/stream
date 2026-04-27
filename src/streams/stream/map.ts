@@ -1,4 +1,4 @@
-import { Stream } from "./stream9";
+import { Stream } from "./stream";
 
 const NAME = "map";
 
@@ -22,5 +22,5 @@ export function map<
 
 export namespace map {
   export type Name = typeof NAME;
-  export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;
+  export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED | Promise<MAPPED>;
 }
