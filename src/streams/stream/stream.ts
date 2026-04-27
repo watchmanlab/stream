@@ -3,10 +3,9 @@ const NAME = "stream";
 export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   implements AsyncIterable<VALUE>, Disposable
 {
-  private consumers: Stream.Consumer<VALUE>[] = [];
-
-  readonly name: NAME;
+  private _consumers: Stream.Consumer<VALUE>[] = [];
   private _source?: Source<VALUE, ERROR, NAME, this>;
+  readonly name: NAME;
   constructor();
   constructor(name: NAME);
   constructor(sourceData: Stream.SourceData<VALUE, ERROR>);
@@ -42,18 +41,19 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       }
       resolve?.();
     };
-    this.consumers.push(consumer);
+    this._consumers.push(consumer);
 
     try {
       while (true) {
         if (head) {
+          if (head.value === Stream.TERMINATE) break;
           yield head.value;
           head = head.next;
           if (!head) tail = undefined;
         } else {
           await new Promise<void>((r) => {
             resolve = r;
-            this.source?.requestNext();
+            if (this._source?.idle) this._source?.requestNext();
           });
         }
       }
@@ -61,21 +61,26 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       head = tail = undefined;
       resolve?.();
       resolve = undefined;
-      const index = this.consumers.indexOf(consumer);
+
+      if (!this._consumers.length) return;
+      const index = this._consumers.indexOf(consumer);
       if (index === -1) return;
-      this.consumers.splice(index, 1);
+      this._consumers.splice(index, 1);
     }
   }
   [Symbol.dispose]() {
-    this.clear();
+    this.terminate();
   }
   push(value: VALUE) {
-    const consumers = this.consumers;
-    const length = consumers.length;
+    const _consumers = this._consumers;
+    const length = _consumers.length;
 
     for (let i = 0; i < length; i++) {
-      consumers[i](value);
+      _consumers[i](value);
     }
+  }
+  next() {
+    return this[Symbol.asyncIterator]().next();
   }
   pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream<any, any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
@@ -90,18 +95,16 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   ): Stream.Transformer<OUTPUT_STREAM, this> {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-  terminate() {
-    this.clear();
-    this.source?.terminate();
-  }
-  clear() {
-    this.consumers.length = 0;
+  terminate(terminateSource = true) {
+    this._consumers.length = 0;
+    this.push(Stream.TERMINATE as never);
+    if (terminateSource) this.source?.terminate();
   }
 }
 
 class Source<VALUE, ERROR, NAME extends string, STREAM extends Stream<VALUE, ERROR, NAME>> {
-  private iterator: Iterator<VALUE | Stream.Error<ERROR>> | AsyncIterator<VALUE | Stream.Error<ERROR>>;
-  private requesting = false;
+  private _iterator: Iterator<VALUE | Stream.Error<ERROR>> | AsyncIterator<VALUE | Stream.Error<ERROR>>;
+  private _idle = true;
   private _error?: Stream<Stream.SourceError<ERROR, STREAM>, never, `${NAME}Error`>;
 
   constructor(
@@ -110,10 +113,13 @@ class Source<VALUE, ERROR, NAME extends string, STREAM extends Stream<VALUE, ERR
     private onDone: () => void,
   ) {
     if (typeof source === "function") {
-      this.iterator = source();
+      this._iterator = source();
     } else {
-      this.iterator = (source as any)[Symbol.asyncIterator]?.() ?? (source as any)[Symbol.iterator]();
+      this._iterator = (source as any)[Symbol.asyncIterator]?.() ?? (source as any)[Symbol.iterator]();
     }
+  }
+  get idle() {
+    return this._idle;
   }
   get error() {
     if (!this._error) this._error = new Stream(`${this.stream.name}Error`);
@@ -122,6 +128,7 @@ class Source<VALUE, ERROR, NAME extends string, STREAM extends Stream<VALUE, ERR
   private async asyncResult(resultPromise: Promise<IteratorResult<VALUE | Stream.Error<ERROR>, any>>) {
     try {
       const result = await resultPromise;
+      this._idle = true;
       if (result.done) {
         this.onDone();
       } else if (result.value instanceof Stream.Error) {
@@ -130,9 +137,8 @@ class Source<VALUE, ERROR, NAME extends string, STREAM extends Stream<VALUE, ERR
       } else {
         this.stream.push(result.value);
       }
-
-      this.requesting = false;
     } catch (error: any) {
+      this._idle = true;
       if (error instanceof Stream.Error) {
         if (!this._error) throw error.value;
         this._error?.push(new Stream.SourceError(error.value, this.stream));
@@ -143,6 +149,7 @@ class Source<VALUE, ERROR, NAME extends string, STREAM extends Stream<VALUE, ERR
     }
   }
   private syncResult(result: IteratorResult<VALUE | Stream.Error<ERROR>, any>) {
+    this._idle = true;
     if (result.done) {
       this.onDone();
     } else if (result.value instanceof Stream.Error) {
@@ -151,20 +158,17 @@ class Source<VALUE, ERROR, NAME extends string, STREAM extends Stream<VALUE, ERR
     } else {
       this.stream.push(result.value);
     }
-
-    this.requesting = false;
   }
   requestNext() {
-    if (this.requesting) return;
-
-    this.requesting = true;
+    this._idle = false;
 
     let result:
       | IteratorResult<VALUE | Stream.Error<ERROR>, any>
       | Promise<IteratorResult<VALUE | Stream.Error<ERROR>, any>>;
     try {
-      result = this.iterator.next();
+      result = this._iterator.next();
     } catch (error: any) {
+      this._idle = true;
       if (error instanceof Stream.Error) {
         if (!this._error) throw error.value;
         this._error?.push(new Stream.SourceError(error.value, this.stream));
@@ -181,7 +185,7 @@ class Source<VALUE, ERROR, NAME extends string, STREAM extends Stream<VALUE, ERR
     }
   }
   terminate() {
-    this.iterator.return?.();
+    this._iterator.return?.();
     this.onDone();
   }
 }
@@ -237,22 +241,35 @@ export namespace Stream {
       super(error, source);
     }
   }
-  export class Error<ERROR> {
+  export class Error<const ERROR> {
     constructor(public readonly value: ERROR) {}
   }
-  export const EMPTY = Symbol("$EMPTY#");
-  export type Empty = typeof EMPTY;
+
+  export const TERMINATE = Symbol("$TERMINATE#");
+  export type Terminate = typeof TERMINATE;
 }
 
 function simpleTest() {
-  const stream = new Stream([1, 2, 3]);
+  const stream = new Stream(async function* () {
+    await new Promise((r) => setTimeout(r, 10));
+    yield 1;
+    await new Promise((r) => setTimeout(r, 10));
+    yield 2;
+    await new Promise((r) => setTimeout(r, 10));
+    yield 3;
+  });
 
   (async () => {
     for await (const value of stream) {
-      console.log(value);
+      console.log("c1", value);
+      if (value == 2) break;
     }
-
-    console.log("abort");
+  })();
+  (async () => {
+    for await (const value of stream) {
+      console.log("c2", value);
+      if (value == 2) break;
+    }
   })();
 
   // stream.push(44);
@@ -286,20 +303,3 @@ function newStreamBench() {
 
 // simpleTest();
 newStreamBench();
-
-// async function* test(i: number) {
-//   if (i == 1) throw "kechmahaja";
-//   await new Promise((r) => setTimeout(r, 10));
-//   yield 1;
-//   await new Promise((r) => setTimeout(r, 10));
-//   if (i == 2) throw new Error("kechmahaja2222");
-//   yield 2;
-// }
-
-// const gen = test(2);
-// const p1 = gen.next();
-// const p2 = gen.next();
-// try {
-//   await p1;
-//   await p2;
-// } catch (error) {}
