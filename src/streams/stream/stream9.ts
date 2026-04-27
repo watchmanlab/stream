@@ -117,7 +117,7 @@ class SourceConsumer<VALUE> {
   }
   requestNext() {
     if (this.requesting) return;
-
+    //
     this.requesting = true;
 
     const result = this.iterator.next();
