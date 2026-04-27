@@ -302,4 +302,4 @@ function newStreamBench() {
 }
 
 // simpleTest();
-newStreamBench();
+// newStreamBench();

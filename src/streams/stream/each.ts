@@ -13,7 +13,7 @@ class Each<
       for await (const value of inputStream) {
         const maybePromise = callback(value);
         const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
-        yield result?.value ?? value;
+        yield result ? result : value;
       }
     });
   }

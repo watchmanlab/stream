@@ -22,7 +22,13 @@ export function map<
   MAPPED = VALUE,
   ERROR = unknown,
   NAME extends string = map.Name,
->(mapper: map.Mapper<VALUE, MAPPED, ERROR>): Stream.Transform<INPUT_STREAM, NAME, Stream<MAPPED, ERROR, NAME>> {
+>(
+  mapper: map.Mapper<VALUE, MAPPED, ERROR>,
+): Stream.Transform<
+  INPUT_STREAM,
+  NAME,
+  Stream.Transformer<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
+> {
   return (inputStream, name) => {
     return Stream.transformer(new Map(name, inputStream, mapper), inputStream);
   };
