@@ -14,7 +14,7 @@ export abstract class Transformer<
   constructor(
     name: NAME,
     protected readonly inputStream: INPUT_STREAM,
-    fn?: () => AsyncGenerator<VALUE>,
+    fn?: () => AsyncGenerator<VALUE | Stream.Error<ERROR>>,
   ) {
     super(name, fn!);
   }

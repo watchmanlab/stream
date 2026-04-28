@@ -82,17 +82,17 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   next() {
     return this[Symbol.asyncIterator]().next();
   }
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream<any, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream.Transformer<this, any, any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
-  ): Stream.Transformer<OUTPUT_STREAM, this>;
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream<any, any, OUTPUT_NAME>>(
+  ): OUTPUT_STREAM;
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream.Transformer<this, any, any, OUTPUT_NAME>>(
     name: OUTPUT_NAME,
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
-  ): Stream.Transformer<OUTPUT_STREAM, this>;
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream<any, any, OUTPUT_NAME>>(
+  ): OUTPUT_STREAM;
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream.Transformer<this, any, any, OUTPUT_NAME>>(
     nameOrTransform: OUTPUT_NAME | Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
     transform?: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
-  ): Stream.Transformer<OUTPUT_STREAM, this> {
+  ): OUTPUT_STREAM {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
   terminate(terminateSource = true) {
@@ -194,7 +194,7 @@ export namespace Stream {
   export type Name = typeof NAME;
   export type Consumer<VALUE> = (value: VALUE) => void;
   export type AnyStream = Stream<any, any, any>;
-  export type AnyTransformer = Transformer<AnyStream, AnyStream>;
+  export type AnyTransformer = Transformer<AnyStream, any, any, any>;
   export type AnyError = Error<any>;
   export type ExtractValue<T extends AnyStream> = T extends Stream<infer VALUE, any, any> ? VALUE : never;
   export type ExtractName<T extends AnyStream> = T extends Stream<any, any, infer NAME> ? NAME : never;
@@ -208,21 +208,53 @@ export namespace Stream {
   export type Transform<
     INPUT_STREAM extends AnyStream,
     OUTPUT_NAME extends string,
-    OUTPUT_STREAM extends Stream<any, any, OUTPUT_NAME>,
-  > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => Transformer<OUTPUT_STREAM, INPUT_STREAM>;
-  export type Transformer<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream> = OUTPUT_STREAM &
-    Record<ExtractName<INPUT_STREAM> | (`$${string}` & {}), INPUT_STREAM>;
-  export function transformer<OUTPUT_STREAM extends AnyStream, INPUT_STREAM extends AnyStream>(
-    outputStream: OUTPUT_STREAM,
-    inputStream: INPUT_STREAM,
-  ): Transformer<OUTPUT_STREAM, INPUT_STREAM> {
-    return new Proxy(outputStream, {
-      get(target, p, receiver) {
-        if (p in target) return Reflect.get(target, p, receiver);
-        return inputStream;
-      },
-    }) as never;
+    OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, any, OUTPUT_NAME>,
+  > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
+  // type ExtractTraversal<T extends Stream.AnyStream, ACC extends Stream.AnyStream[] = []> =
+  //   T extends Transformer<infer INPUT_STREAM, any, any, any>
+  //     ? ExtractTraversal<INPUT_STREAM, [INPUT_STREAM, ...ACC]>
+  //     : ACC[number] | T;
+
+  export type ExtractInputStream<T extends AnyStream> =
+    T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
+  export type Traversable<T extends AnyStream> =
+    T extends Transformer<infer INPUT_STREAM, any, any, any>
+      ? Omit<T, "traversal"> & Record<ExtractName<INPUT_STREAM> | (`$${string}` & {}), Traversable<INPUT_STREAM>>
+      : T;
+  export abstract class Transformer<
+    INPUT_STREAM extends Stream.AnyStream,
+    VALUE,
+    ERROR,
+    NAME extends string,
+  > extends Stream<VALUE, ERROR, NAME> {
+    constructor(
+      name: NAME,
+      protected readonly inputStream: INPUT_STREAM,
+      fn?: () => AsyncGenerator<VALUE | Stream.Error<ERROR>>,
+    ) {
+      super(name, fn!);
+
+      return new Proxy(this, {
+        get(target, p, receiver) {
+          if (p in target) return Reflect.get(target, p, receiver);
+          return inputStream;
+        },
+      });
+    }
+
+    get traversal(): Record<ExtractName<INPUT_STREAM> | (`$${string}` & {}), Traversable<INPUT_STREAM>> {
+      const self = this;
+      return new Proxy(
+        {},
+        {
+          get() {
+            return self.inputStream;
+          },
+        },
+      ) as never;
+    }
   }
+
   export class SourceError<ERROR, SOURCE extends AnyStream> {
     constructor(
       public readonly error: ERROR,

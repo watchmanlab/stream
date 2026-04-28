@@ -7,9 +7,9 @@ class Map<
   MAPPED = VALUE,
   ERROR = unknown,
   NAME extends string = map.Name,
-> extends Stream<MAPPED, ERROR, NAME> {
+> extends Stream.Transformer<INPUT_STREAM, MAPPED, ERROR, NAME> {
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
-    super(name, async function* () {
+    super(name, inputStream, async function* () {
       for await (const value of inputStream) {
         yield mapper(value);
       }
@@ -24,13 +24,9 @@ export function map<
   NAME extends string = map.Name,
 >(
   mapper: map.Mapper<VALUE, MAPPED, ERROR>,
-): Stream.Transform<
-  INPUT_STREAM,
-  NAME,
-  Stream.Transformer<Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>, INPUT_STREAM>
-> {
+): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>> {
   return (inputStream, name) => {
-    return Stream.transformer(new Map(name, inputStream, mapper), inputStream);
+    return new Map(name, inputStream, mapper);
   };
 }
 
@@ -49,4 +45,10 @@ const stream = new Stream([1, 2, 3])
   .pipe(
     "map2",
     map((v) => v),
+  )
+  .pipe(
+    "map3",
+    map((v) => v),
   );
+
+const v = stream.traversal.map2;
