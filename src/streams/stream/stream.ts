@@ -1,8 +1,6 @@
 const NAME = "root";
 
-export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
-  implements AsyncIterable<VALUE>, Disposable
-{
+export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
   private _consumers: Stream.Consumer<VALUE>[] = [];
   private _source?: Source<VALUE, ERROR, NAME, this>;
   readonly name: NAME;
@@ -196,12 +194,18 @@ export namespace Stream {
   export type AnyStream = Stream<any, any, any>;
   export type AnyTransformer = Transformer<AnyStream, any, any, any>;
   export type AnyError = Error<any>;
-  export type ExtractValue<T extends AnyStream> = T extends Stream<infer VALUE, any, any> ? VALUE : never;
-  export type ExtractName<T extends AnyStream> = T extends Stream<any, any, infer NAME> ? NAME : never;
-  export type ExtractError<T extends AnyError | AnyStream> =
-    T extends Error<infer ERROR> ? ERROR : T extends Stream<any, infer ERROR, any> ? ERROR : never;
-  export type ExtractInputStream<T extends AnyStream> =
-    T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
+  export type ExtractValue<T extends AnyStream | AnyTransformer> =
+    T extends Stream<infer VALUE, any, any> ? VALUE : T extends Transformer<any, infer VALUE, any, any> ? VALUE : never;
+  export type ExtractName<T extends AnyStream | AnyTransformer> =
+    T extends Stream<any, any, infer NAME> ? NAME : T extends Transformer<any, any, any, infer NAME> ? NAME : never;
+  export type ExtractError<T extends AnyError | AnyStream | AnyTransformer> =
+    T extends Error<infer ERROR>
+      ? ERROR
+      : T extends Stream<any, infer ERROR, any>
+        ? ERROR
+        : T extends Transformer<any, any, infer ERROR, any>
+          ? ERROR
+          : never;
   export type SourceData<VALUE, ERROR> =
     | (() => AsyncGenerator<VALUE | Error<ERROR>> | Generator<VALUE | Error<ERROR>>)
     | AsyncIterable<VALUE | Error<ERROR>>
@@ -213,6 +217,8 @@ export namespace Stream {
     OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, any, OUTPUT_NAME>,
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
 
+  export type ExtractInputStream<T extends AnyStream> =
+    T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
   export type Traversable<T extends AnyStream> =
     ExtractInputStream<T> extends never
       ? T
@@ -227,9 +233,9 @@ export namespace Stream {
     constructor(
       name: NAME,
       protected readonly inputStream: INPUT_STREAM,
-      fn?: () => AsyncGenerator<VALUE | Stream.Error<ERROR>>,
+      sourceData: SourceData<VALUE, ERROR>,
     ) {
-      super(name, fn!);
+      super(name, sourceData);
 
       return new Proxy(this, {
         get(target, p, receiver) {
@@ -308,7 +314,7 @@ function newStreamBench() {
   const MAX = 1_000_000;
   const now = performance.now();
 
-  const stream = new Stream<number>();
+  const stream = new Stream<number, never>();
 
   (async () => {
     for await (const value of stream) {

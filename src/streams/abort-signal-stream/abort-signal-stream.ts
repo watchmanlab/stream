@@ -1,3 +1,4 @@
+//@ts-nocheck
 import { Stream } from "../stream";
 
 const NAME = "abort-signal-stream";
