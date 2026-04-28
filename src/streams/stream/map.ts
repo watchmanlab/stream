@@ -36,7 +36,7 @@ export namespace map {
     value: VALUE,
   ) => MAPPED | Stream.Error<ERROR> | Promise<MAPPED | Stream.Error<ERROR>>;
 }
-
+//
 const stream = new Stream([1, 2, 3])
   .pipe(
     "map1",
@@ -49,6 +49,20 @@ const stream = new Stream([1, 2, 3])
   .pipe(
     "map3",
     map((v) => v),
+  )
+  .pipe(
+    "map4",
+    map((v) => v),
+  )
+  .pipe(
+    "map5",
+    map((v) => v),
+  )
+  .pipe(
+    "map6",
+    map((v) => v),
   );
 
-const v = stream.traversal.map2;
+const v = stream.traversal.map5.map4.map3.map2.map1.root.name;
+
+console.log(v);

@@ -200,6 +200,8 @@ export namespace Stream {
   export type ExtractName<T extends AnyStream> = T extends Stream<any, any, infer NAME> ? NAME : never;
   export type ExtractError<T extends AnyError | AnyStream> =
     T extends Error<infer ERROR> ? ERROR : T extends Stream<any, infer ERROR, any> ? ERROR : never;
+  export type ExtractInputStream<T extends AnyStream> =
+    T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
   export type SourceData<VALUE, ERROR> =
     | (() => AsyncGenerator<VALUE | Error<ERROR>> | Generator<VALUE | Error<ERROR>>)
     | AsyncIterable<VALUE | Error<ERROR>>
@@ -210,17 +212,12 @@ export namespace Stream {
     OUTPUT_NAME extends string,
     OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, any, OUTPUT_NAME>,
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
-  // type ExtractTraversal<T extends Stream.AnyStream, ACC extends Stream.AnyStream[] = []> =
-  //   T extends Transformer<infer INPUT_STREAM, any, any, any>
-  //     ? ExtractTraversal<INPUT_STREAM, [INPUT_STREAM, ...ACC]>
-  //     : ACC[number] | T;
 
-  export type ExtractInputStream<T extends AnyStream> =
-    T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
   export type Traversable<T extends AnyStream> =
-    T extends Transformer<infer INPUT_STREAM, any, any, any>
-      ? Omit<T, "traversal"> & Record<ExtractName<INPUT_STREAM> | (`$${string}` & {}), Traversable<INPUT_STREAM>>
-      : T;
+    ExtractInputStream<T> extends never
+      ? T
+      : Omit<T, "traversal"> &
+          Record<ExtractName<ExtractInputStream<T>> | (`$${string}` & {}), Traversable<ExtractInputStream<T>>>;
   export abstract class Transformer<
     INPUT_STREAM extends Stream.AnyStream,
     VALUE,
