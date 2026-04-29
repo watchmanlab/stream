@@ -1,4 +1,4 @@
-import { Stream } from "./stream";
+import { Stream } from "../../stream";
 
 type ExtractTraversal<T extends Stream.AnyStream, ACC extends Stream.AnyStream[] = []> =
   T extends Transformer<infer INPUT_STREAM, any, any, any>
