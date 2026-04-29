@@ -233,9 +233,14 @@ export namespace Stream {
     constructor(
       name: NAME,
       protected readonly inputStream: INPUT_STREAM,
-      sourceData: SourceData<VALUE, ERROR>,
+      fn: () => AsyncGenerator<VALUE | Error<ERROR>>,
     ) {
-      super(name, sourceData);
+      super(name, async function* () {
+        for await (const value of fn()) {
+          if (value) {
+          }
+        }
+      });
 
       return new Proxy(this, {
         get(target, p, receiver) {

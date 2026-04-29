@@ -58,40 +58,6 @@ const stream = new Stream([1, 2, 3])
   .pipe(
     "map5",
     map((v) => v),
-  )
-  .pipe(
-    "map6",
-    map((v) => v),
-  )
-  .pipe(
-    "map7",
-    map((v) => v),
-  )
-  .pipe(
-    "map8",
-    map((v) => v),
-  )
-  .pipe(
-    "map9",
-    map((v) => v),
-  )
-  .pipe(
-    "map10",
-    map((v) => v),
-  )
-  .pipe(
-    "map11",
-    map((v) => v),
-  )
-  .pipe(
-    "map12",
-    map((v) => v),
-  )
-  .pipe(
-    "map13",
-    map((v) => v),
   );
-
-const v = stream.traversal.map12.map11.map10.map9.map8.map7.map6.map5.map4.map3.map2.map1.root.name;
-
+const v = stream.traversal.map4.map3.map2.map1.root.name;
 console.log(v);
