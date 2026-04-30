@@ -44,8 +44,8 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
   [Symbol.dispose]() {
     this.terminate();
   }
-  push(value: VALUE) {
-    this._consumers.push(value);
+  push<const T extends VALUE>(value: T) {
+    return this._consumers.push(value);
   }
   next() {
     return this[Symbol.asyncIterator]().next();
@@ -130,10 +130,12 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
     private options: Consumer.Options<VALUE> = {},
   ) {}
 
-  push(value: VALUE) {
+  push<T extends VALUE>(value: T) {
     if (this.queue.size > 0) this._queued?.push(value);
     this.queue.enqueue(value);
     this._resolve?.();
+
+    return new Consumer.PushProgress(this.name, value, this);
   }
   async *[Symbol.asyncIterator]() {
     try {
@@ -176,11 +178,76 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
     return this._dropped;
   }
 }
-namespace Consumer {
+export namespace Consumer {
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
     onTerminate?: () => void;
   };
+
+  export class PushProgress<const VALUE, NAME extends string> {
+    private _queued?: Stream<Awaited<VALUE>, never, `${NAME}Queued`>;
+    private _processing?: Stream<Awaited<VALUE>, never, `${NAME}Processing`>;
+    private _processed?: Stream<Awaited<VALUE>, never, `${NAME}Processed`>;
+    private _dropped?: Stream<Awaited<VALUE>, never, `${NAME}Dropped`>;
+    constructor(
+      public readonly name: NAME,
+      private value: VALUE,
+      private consumer: Consumer<VALUE, NAME>,
+    ) {}
+
+    get queued() {
+      const [consumer, searchValue] = [this.consumer, this.value];
+      if (!this._queued)
+        this._queued = new Stream(`${this.name}Queued`, async function* () {
+          for await (const value of consumer.queued) {
+            if (value === searchValue) {
+              yield searchValue;
+              break;
+            }
+          }
+        });
+      return this._queued;
+    }
+    get processing() {
+      const [consumer, searchValue] = [this.consumer, this.value];
+      if (!this._processing)
+        this._processing = new Stream(`${this.name}Processing`, async function* () {
+          for await (const value of consumer.processing) {
+            if (value === searchValue) {
+              yield searchValue;
+              break;
+            }
+          }
+        });
+      return this._processing;
+    }
+    get processed() {
+      const [consumer, searchValue] = [this.consumer, this.value];
+      if (!this._processed)
+        this._processed = new Stream(`${this.name}Processed`, async function* () {
+          for await (const value of consumer.processed) {
+            if (value === searchValue) {
+              yield searchValue;
+              break;
+            }
+          }
+        });
+      return this._processed;
+    }
+    get dropped() {
+      const [consumer, searchValue] = [this.consumer, this.value];
+      if (!this._dropped)
+        this._dropped = new Stream(`${this.name}Dropped`, async function* () {
+          for await (const value of consumer.dropped) {
+            if (value.includes(searchValue)) {
+              yield searchValue;
+              break;
+            }
+          }
+        });
+      return this._dropped;
+    }
+  }
 }
 interface Consumers<VALUE, NAME extends string> {
   [index: number]: Consumer<VALUE, any>;
@@ -213,13 +280,14 @@ class Consumers<VALUE, NAME extends string> implements Iterable<Consumer<VALUE, 
     });
   }
 
-  push(value: VALUE) {
+  push<const T extends VALUE>(value: T) {
     const consumers = this._list;
     const length = consumers.length;
-
+    const progresses: Consumer.PushProgress<T, NAME>[] = [];
     for (let i = 0; i < length; i++) {
-      consumers[i].push(value);
+      progresses.push(consumers[i].push(value) as Consumer.PushProgress<T, NAME>);
     }
+    return progresses;
   }
 
   create<NAME extends string>(name: NAME, queue?: Queue<VALUE>): Consumer<VALUE, NAME> {
@@ -244,7 +312,7 @@ class Consumers<VALUE, NAME extends string> implements Iterable<Consumer<VALUE, 
   }
   clear() {
     this._list.length = 0;
-    this._cleared?.push();
+    this._cleared?.push(undefined);
   }
   [Symbol.iterator]() {
     return this._list[Symbol.iterator]();
@@ -504,5 +572,5 @@ function newStreamBench() {
   }
 }
 
-// simpleTest();
+simpleTest();
 newStreamBench();

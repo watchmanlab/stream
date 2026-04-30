@@ -85,6 +85,9 @@ const stream = new Stream([1, 2, 3])
 const map1 = stream.traversal.map4.map3.map2.map1.consumers;
 
 (async () => {
+  const progress = stream.push("hello");
+  (await progress[0].dropped.next()).value;
+  //                                   ^?
   // if (!map1.source) return;
   // for await (const error of map1.source.error) {
   //   console.log(error);
