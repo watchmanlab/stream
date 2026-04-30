@@ -1,8 +1,8 @@
 const NAME = "root";
 
 export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
-  private _consumers: Consumers<VALUE, NAME>;
-  private _source?: Source<VALUE, ERROR, NAME>;
+  private _consumers: Consumers<VALUE, `${NAME}Consumers`>;
+  private _source?: Source<VALUE, ERROR, `${NAME}Source`>;
   readonly name: NAME;
   constructor();
   constructor(name: NAME);
@@ -22,14 +22,14 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
     }
 
     if (sourceData)
-      this._source = new Source({
-        name: this.name,
+      this._source = new Source(
+        `${this.name}Source`,
         sourceData,
-        onNext: (value) => this.push(value),
-        onDone: () => (this._source = undefined),
-      });
+        (value) => this.push(value),
+        () => (this._source = undefined),
+      );
 
-    this._consumers = new Consumers(this.name);
+    this._consumers = new Consumers(`${this.name}Consumers`, { source: this._source });
   }
   get consumers() {
     return this._consumers;
@@ -37,55 +37,15 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
   get source() {
     return this._source;
   }
+
   async *[Symbol.asyncIterator]() {
-    let resolve: (() => void) | undefined;
-
-    let head: { value: VALUE; next?: typeof head } | undefined;
-    let tail: typeof head;
-
-    const consumer = this._consumers.add((value: VALUE) => {
-      const node = { value };
-      if (!head) {
-        head = tail = node;
-      } else {
-        tail!.next = node;
-        tail = node;
-      }
-      resolve?.();
-    });
-
-    try {
-      while (true) {
-        if (head) {
-          if (head.value === Stream.TERMINATE) break;
-          yield head.value;
-          head = head.next;
-          if (!head) tail = undefined;
-        } else {
-          await new Promise<void>((r) => {
-            resolve = r;
-            if (this._source?.idle) this._source?.requestNext();
-          });
-        }
-      }
-    } finally {
-      head = tail = undefined;
-      resolve?.();
-      resolve = undefined;
-
-      this._consumers.remove(consumer);
-    }
+    yield* this._consumers.create("");
   }
   [Symbol.dispose]() {
     this.terminate();
   }
   push(value: VALUE) {
-    const consumers = this._consumers;
-    const length = consumers.count;
-
-    for (let i = 0; i < length; i++) {
-      consumers[i](value);
-    }
+    this._consumers.push(value);
   }
   next() {
     return this[Symbol.asyncIterator]().next();
@@ -110,11 +70,15 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
   }
 }
 
-class Queue<VALUE> implements Iterable<VALUE> {
+export class Queue<VALUE> implements Iterable<VALUE> {
   private _head?: Queue.Node<VALUE>;
   private _tail?: Queue.Node<VALUE>;
   private _size = 0;
-
+  constructor(...values: VALUE[]) {
+    for (const value of values) {
+      this.enqueue(value);
+    }
+  }
   get size() {
     return this._size;
   }
@@ -128,13 +92,17 @@ class Queue<VALUE> implements Iterable<VALUE> {
       this._tail = node;
     }
   }
-  dequeue(): VALUE | undefined {
-    if (!this._head) return;
+  dequeue(): VALUE | Queue.Empty {
+    if (!this._head) return Queue.EMPTY;
     this._size--;
     const value = this._head.value;
     this._head = this._head.next;
 
     return value;
+  }
+  clear() {
+    this._head = this._tail = undefined;
+    this._size = 0;
   }
   *[Symbol.iterator]() {
     let current = this._head;
@@ -146,30 +114,88 @@ class Queue<VALUE> implements Iterable<VALUE> {
 }
 export namespace Queue {
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
+  export const EMPTY = Symbol("$EMPTY#");
+  export type Empty = typeof EMPTY;
+}
+export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE> {
+  private _queued?: Stream<VALUE, never, `${NAME}Queued`>;
+  private _processing?: Stream<VALUE, never, `${NAME}Processing`>;
+  private _processed?: Stream<VALUE, never, `${NAME}Processed`>;
+  private _dropped?: Stream<VALUE[], never, `${NAME}Dropped`>;
+
+  private _resolve?: () => void;
+  constructor(
+    public readonly name: NAME,
+    public readonly queue: Queue<VALUE>,
+    private options: Consumer.Options<VALUE> = {},
+  ) {}
+
+  push(value: VALUE) {
+    if (this.queue.size > 0) this._queued?.push(value);
+    this.queue.enqueue(value);
+    this._resolve?.();
+  }
+  async *[Symbol.asyncIterator]() {
+    try {
+      while (true) {
+        const value = this.queue.dequeue();
+        if (value !== Queue.EMPTY) {
+          this._processing?.push(value);
+          yield value;
+          this._processed?.push(value);
+        } else {
+          await new Promise<void>((r) => {
+            this._resolve = r;
+            if (this.options?.source?.idle) this.options.source.requestNext();
+          });
+        }
+      }
+    } finally {
+      this._dropped?.push([...this.queue]);
+      this.queue.clear();
+      this._resolve?.();
+      this._resolve = undefined;
+
+      this.options?.onTerminate?.();
+    }
+  }
+  get queued() {
+    if (!this._queued) this._queued = new Stream(`${this.name}Queued`);
+    return this._queued;
+  }
+  get processing() {
+    if (!this._processing) this._processing = new Stream(`${this.name}Processing`);
+    return this._processing;
+  }
+  get processed() {
+    if (!this._processed) this._processed = new Stream(`${this.name}Processed`);
+    return this._processed;
+  }
+  get dropped() {
+    if (!this._dropped) this._dropped = new Stream(`${this.name}Dropped`);
+    return this._dropped;
+  }
+}
+namespace Consumer {
+  export type Options<VALUE> = {
+    source?: Source<VALUE, any, any>;
+    onTerminate?: () => void;
+  };
 }
 interface Consumers<VALUE, NAME extends string> {
-  [index: number]: Stream.Consumer<VALUE>;
+  [index: number]: Consumer<VALUE, any>;
 }
 
-class Consumer<VALUE> {
-  private _queue = new Queue<VALUE>();
+class Consumers<VALUE, NAME extends string> implements Iterable<Consumer<VALUE, NAME>> {
+  private _list: Consumer<VALUE, any>[] = [];
+  private _added?: Stream<Consumer<VALUE, any>, never, `${NAME}Added`>;
+  private _removed?: Stream<Consumer<VALUE, any>, never, `${NAME}Removed`>;
+  private _cleared?: Stream<void, never, `${NAME}Cleared`>;
 
-  constructor(public readonly fn: (value: VALUE) => void) {}
-  push(value: VALUE) {
-
-    ,,,,,,,,,,
-  }
-  get queue() {
-    return this._queue;
-  }
-}
-class Consumers<VALUE, NAME extends string> implements Iterable<Stream.Consumer<VALUE>> {
-  private _list: Stream.Consumer<VALUE>[] = [];
-  private _added?: Stream<Stream.Consumer<VALUE>, never, `${NAME}ConsumerAdded`>;
-  private _removed?: Stream<Stream.Consumer<VALUE>, never, `${NAME}ConsumerRemoved`>;
-  private _cleared?: Stream<void, never, `${NAME}ConsumersCleared`>;
-
-  constructor(private name: NAME) {
+  constructor(
+    public readonly name: NAME,
+    private options: Consumers.Options<VALUE> = {},
+  ) {
     return new Proxy(this, {
       get(target, prop: any, receiver) {
         if (!isNaN(prop)) {
@@ -186,12 +212,30 @@ class Consumers<VALUE, NAME extends string> implements Iterable<Stream.Consumer<
       },
     });
   }
-  add(consumer: Stream.Consumer<VALUE>): Stream.Consumer<VALUE> {
+
+  push(value: VALUE) {
+    const consumers = this._list;
+    const length = consumers.length;
+
+    for (let i = 0; i < length; i++) {
+      consumers[i].push(value);
+    }
+  }
+
+  create<NAME extends string>(name: NAME, queue?: Queue<VALUE>): Consumer<VALUE, NAME> {
+    const consumer = new Consumer<VALUE, NAME>(name, queue ?? new Queue(), {
+      source: this.options?.source,
+      onTerminate: () => {
+        this.remove(consumer);
+      },
+    });
+
     this._list.push(consumer);
     this._added?.push(consumer);
     return consumer;
   }
-  remove(consumer: Stream.Consumer<VALUE>): void {
+
+  remove(consumer: Consumer<VALUE, any>): void {
     if (!this._list.length) return;
     const index = this._list.indexOf(consumer);
     if (index === -1) return;
@@ -211,22 +255,27 @@ class Consumers<VALUE, NAME extends string> implements Iterable<Stream.Consumer<
   }
   get added() {
     if (!this._added) {
-      this._added = new Stream(`${this.name}ConsumerAdded`);
+      this._added = new Stream(`${this.name}Added`);
     }
     return this._added;
   }
   get removed() {
     if (!this._removed) {
-      this._removed = new Stream(`${this.name}ConsumerRemoved`);
+      this._removed = new Stream(`${this.name}Removed`);
     }
     return this._removed;
   }
   get cleared() {
     if (!this._cleared) {
-      this._cleared = new Stream(`${this.name}ConsumersCleared`);
+      this._cleared = new Stream(`${this.name}Cleared`);
     }
     return this._cleared;
   }
+}
+export namespace Consumers {
+  export type Options<VALUE> = {
+    source?: Source<VALUE, any, any>;
+  };
 }
 class Source<VALUE, ERROR, NAME extends string> {
   private _iterator: Iterator<VALUE | Stream.Error<ERROR>> | AsyncIterator<VALUE | Stream.Error<ERROR>>;
@@ -234,25 +283,22 @@ class Source<VALUE, ERROR, NAME extends string> {
   private _error?: Stream<ERROR, never, `${NAME}Error`>;
 
   constructor(
-    private options: {
-      name: NAME;
-      sourceData: Stream.SourceData<VALUE, ERROR>;
-      onNext: (value: VALUE) => void;
-      onDone: () => void;
-    },
+    public readonly name: NAME,
+    sourceData: Stream.SourceData<VALUE, ERROR>,
+    private onNext: (value: VALUE) => void,
+    private onDone: () => void,
   ) {
-    if (typeof options.sourceData === "function") {
-      this._iterator = options.sourceData();
+    if (typeof sourceData === "function") {
+      this._iterator = sourceData();
     } else {
-      this._iterator =
-        (options.sourceData as any)[Symbol.asyncIterator]?.() ?? (options.sourceData as any)[Symbol.iterator]();
+      this._iterator = (sourceData as any)[Symbol.asyncIterator]?.() ?? (sourceData as any)[Symbol.iterator]();
     }
   }
   get idle() {
     return this._idle;
   }
   get error() {
-    if (!this._error) this._error = new Stream(`${this.options.name}Error`);
+    if (!this._error) this._error = new Stream(`${this.name}Error`);
     return this._error;
   }
   private async asyncResult(resultPromise: Promise<IteratorResult<VALUE | Stream.Error<ERROR>, any>>) {
@@ -260,12 +306,12 @@ class Source<VALUE, ERROR, NAME extends string> {
       const result = await resultPromise;
       this._idle = true;
       if (result.done) {
-        this.options.onDone();
+        this.onDone();
       } else if (result.value instanceof Stream.Error) {
         if (!this._error) throw result.value;
         this._error?.push(result.value.data);
       } else {
-        this.options.onNext(result.value);
+        this.onNext(result.value);
       }
     } catch (error: any) {
       this._idle = true;
@@ -281,12 +327,12 @@ class Source<VALUE, ERROR, NAME extends string> {
   private syncResult(result: IteratorResult<VALUE | Stream.Error<ERROR>, any>) {
     this._idle = true;
     if (result.done) {
-      this.options.onDone();
+      this.onDone();
     } else if (result.value instanceof Stream.Error) {
       if (!this._error) throw result.value;
       this._error?.push(result.value.data);
     } else {
-      this.options.onNext(result.value);
+      this.onNext(result.value);
     }
   }
   requestNext() {
@@ -316,7 +362,7 @@ class Source<VALUE, ERROR, NAME extends string> {
   }
   terminate() {
     this._iterator.return?.();
-    (this, this.options.onDone());
+    (this, this.onDone());
   }
 }
 
@@ -325,7 +371,6 @@ export namespace Stream {
   export type AnyStream = Stream<any, any, any>;
   export type AnyTransformer = Transformer<AnyStream, any, any, any>;
   export type AnyError = Error<any>;
-  export type AnyConsumer = Consumer<any>;
   export type ExtractValue<T extends AnyStream | AnyTransformer> =
     T extends Stream<infer VALUE, any, any> ? VALUE : T extends Transformer<any, infer VALUE, any, any> ? VALUE : never;
 
@@ -337,7 +382,7 @@ export namespace Stream {
         : T extends Transformer<any, any, infer ERROR, any>
           ? ERROR
           : never;
-  export type Consumer<VALUE> = (value: VALUE) => void;
+
   export type SourceData<VALUE, ERROR> =
     | (() => AsyncGenerator<VALUE | Error<ERROR>> | Generator<VALUE | Error<ERROR>>)
     | AsyncIterable<VALUE | Error<ERROR>>
@@ -459,5 +504,5 @@ function newStreamBench() {
   }
 }
 
-simpleTest();
-// newStreamBench();
+// simpleTest();
+newStreamBench();
