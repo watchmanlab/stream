@@ -2,7 +2,7 @@ import { Queue } from "./queue";
 import { Source } from "./source";
 import { Stream } from "./stream";
 
-export class Consumer<VALUE, NAME extends string> {
+export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE>, Disposable {
   private _valueQueued?: Stream<VALUE, never, `${NAME}ValueQueued`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
@@ -17,6 +17,23 @@ export class Consumer<VALUE, NAME extends string> {
     private options: Consumer.Options<VALUE> = {},
   ) {}
 
+  [Symbol.asyncIterator]() {
+    return {
+      next: async () => {
+        const result = this.next();
+        const value = result instanceof Promise ? await result : result;
+
+        return { value: value as VALUE, done: value === Consumer.TERMINATED };
+      },
+      return: async () => {
+        this.terminate();
+        return { value: Consumer.TERMINATED as VALUE, done: true };
+      },
+    };
+  }
+  [Symbol.dispose]() {
+    this.terminate();
+  }
   push<T extends VALUE>(value: T) {
     if (this._resolve) {
       this._resolve(value);
@@ -29,12 +46,11 @@ export class Consumer<VALUE, NAME extends string> {
     return new Consumer.PushProgress(this.name, value, this);
   }
   private _currentValue: VALUE | Queue.Empty = Queue.EMPTY;
-  pull() {
+  next() {
     if (this._currentValue !== Queue.EMPTY) {
       this._valueProcessed?.push(this._currentValue);
       this._currentValue = Queue.EMPTY;
     }
-
     if (this._isTerminated) return Consumer.TERMINATED;
 
     const value = this.queue.dequeue();
@@ -43,6 +59,7 @@ export class Consumer<VALUE, NAME extends string> {
       this._currentValue = value;
       return value;
     } else {
+      this._resolve?.(Consumer.TERMINATED);
       return new Promise<VALUE | Consumer.Terminated>((r) => {
         this._resolve = r;
         if (this.options?.source?.idle) this.options.source.requestNext();

@@ -5,8 +5,8 @@ import { Source } from "./source";
 const NAME = "root";
 
 export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
-  private _consumers: Consumers<VALUE, `${NAME}Consumers`>;
-  private _source?: Source<VALUE, ERROR, `${NAME}Source`>;
+  private _consumers: Consumers<VALUE, NAME>;
+  private _source?: Source<VALUE, ERROR, NAME>;
   readonly name: NAME;
   constructor();
   constructor(name: NAME);
@@ -27,13 +27,13 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
 
     if (sourceData)
       this._source = new Source(
-        `${this.name}Source`,
+        this.name,
         sourceData,
         (value) => this.push(value),
         () => (this._source = undefined),
       );
 
-    this._consumers = new Consumers(`${this.name}Consumers`, { source: this._source });
+    this._consumers = new Consumers(this.name, { source: this._source });
   }
   get consumers() {
     return this._consumers;
@@ -42,18 +42,8 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
     return this._source;
   }
 
-  async *[Symbol.asyncIterator]() {
-    const consumer = this._consumers.create("");
-    consumer;
-    try {
-      while (true) {
-        const value = await consumer.pull();
-        if (value === Consumer.TERMINATED) break;
-        yield value;
-      }
-    } finally {
-      consumer.terminate();
-    }
+  [Symbol.asyncIterator]() {
+    return this._consumers.create(`${this._consumers.count}`)[Symbol.asyncIterator]();
   }
   [Symbol.dispose]() {
     this.terminate();
@@ -188,7 +178,7 @@ function simpleTest() {
   stream.push(55);
 }
 function newStreamBench() {
-  const MAX = 3_500_000;
+  const MAX = 1_000_000;
   const now = performance.now();
 
   const stream = new Stream<number, never>();
@@ -213,5 +203,25 @@ function newStreamBench() {
   }
 }
 
-simpleTest();
+// simpleTest();
 newStreamBench();
+
+function loadbalancing() {
+  const consumer = new Stream([1, 2, 3]).consumers.create("dd");
+  setTimeout(() => {
+    consumer.terminate();
+  }, 100);
+  (async () => {
+    for await (const value of consumer) {
+      console.log("c1", value);
+    }
+    console.log("done");
+  })();
+  (async () => {
+    for await (const value of consumer) {
+      console.log("c2", value);
+    }
+    console.log("done");
+  })();
+}
+// loadbalancing();

@@ -7,9 +7,9 @@ export interface Consumers<VALUE, NAME extends string> {
 }
 export class Consumers<VALUE, NAME extends string> implements Iterable<Consumer<VALUE, NAME>> {
   private _list: Consumer<VALUE, any>[] = [];
-  private _created?: Stream<Consumer<VALUE, any>, never, `${NAME}Created`>;
-  private _removed?: Stream<Consumer<VALUE, any>, never, `${NAME}Removed`>;
-  private _cleared?: Stream<void, never, `${NAME}Cleared`>;
+  private _created?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerCreated`>;
+  private _removed?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerRemoved`>;
+  private _cleared?: Stream<void, never, `${NAME}ListCleared`>;
 
   constructor(
     public readonly name: NAME,
@@ -72,19 +72,19 @@ export class Consumers<VALUE, NAME extends string> implements Iterable<Consumer<
   }
   get created() {
     if (!this._created) {
-      this._created = new Stream(`${this.name}Created`);
+      this._created = new Stream(`${this.name}ConsumerCreated`);
     }
     return this._created;
   }
   get removed() {
     if (!this._removed) {
-      this._removed = new Stream(`${this.name}Removed`);
+      this._removed = new Stream(`${this.name}ConsumerRemoved`);
     }
     return this._removed;
   }
   get cleared() {
     if (!this._cleared) {
-      this._cleared = new Stream(`${this.name}Cleared`);
+      this._cleared = new Stream(`${this.name}ListCleared`);
     }
     return this._cleared;
   }
