@@ -1,4 +1,4 @@
-import { Stream } from "../../stream";
+import { Stream } from "../../stream/stream";
 
 const NAME = "consumer";
 export class Consumer<
