@@ -3,6 +3,8 @@ import { Source } from "./source";
 import { Stream } from "./stream";
 
 export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE>, Disposable {
+  private _resolve?: (value: VALUE | Consumer.Terminated) => void;
+  private _queue: Queue<VALUE, NAME>;
   private _valueQueued?: Stream<VALUE, never, `${NAME}ValueQueued`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
@@ -10,12 +12,16 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
   private _terminated?: Stream<undefined, never, `${NAME}Terminated`>;
   private _isTerminated = false;
 
-  private _resolve?: (value: VALUE | Consumer.Terminated) => void;
   constructor(
     public readonly name: NAME,
-    public readonly queue: Queue<VALUE>,
-    private options: Consumer.Options<VALUE> = {},
-  ) {}
+    private options: Consumer.Options<VALUE, NAME> = {},
+  ) {
+    this._queue = options.queue ?? new Queue(this.name);
+  }
+
+  get queue() {
+    return this._queue;
+  }
 
   [Symbol.asyncIterator]() {
     return {
@@ -39,7 +45,7 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
       this._resolve(value);
       this._resolve = undefined;
     } else {
-      this.queue.enqueue(value);
+      this._queue.enqueue(value);
       this._valueQueued?.push(value);
     }
 
@@ -53,13 +59,13 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
     }
     if (this._isTerminated) return Consumer.TERMINATED;
 
-    const value = this.queue.dequeue();
+    const value = this._queue.dequeue();
     if (value !== Queue.EMPTY) {
       this._valueProcessing?.push(value);
       this._currentValue = value;
       return value;
     } else {
-      this._resolve?.(Consumer.TERMINATED);
+      // this._resolve?.(Consumer.TERMINATED);
       return new Promise<VALUE | Consumer.Terminated>((r) => {
         this._resolve = r;
         if (this.options?.source?.idle) this.options.source.requestNext();
@@ -74,21 +80,21 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
     for (const value of this.queue) {
       this._valueDropped?.push(value);
     }
-    this.queue.clear();
-
-    this.options?.onTerminate?.();
-    this._terminated?.push(undefined);
+    this._queue.clear();
 
     this._valueQueued?.terminate();
     this._valueProcessing?.terminate();
     this._valueProcessed?.terminate();
     this._valueDropped?.terminate();
-    this._terminated?.terminate();
     this._valueQueued = undefined;
     this._valueProcessing = undefined;
     this._valueProcessed = undefined;
     this._valueDropped = undefined;
+
+    this._terminated?.push(undefined);
+    this._terminated?.terminate();
     this._terminated = undefined;
+    this.options?.onTerminate?.();
   }
   get valueQueued() {
     if (!this._valueQueued) this._valueQueued = new Stream(`${this.name}ValueQueued`);
@@ -108,7 +114,8 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
   }
 }
 export namespace Consumer {
-  export type Options<VALUE> = {
+  export type Options<VALUE, NAME extends string> = {
+    queue?: Queue<VALUE, NAME>;
     source?: Source<VALUE, any, any>;
     onTerminate?: () => void;
   };

@@ -2,73 +2,55 @@ import { Consumer } from "./consumer";
 import { Queue } from "./queue";
 import { Source } from "./source";
 import { Stream } from "./stream";
-export interface Consumers<VALUE, NAME extends string> {
-  [index: number]: Consumer<VALUE, any>;
-}
+
 export class Consumers<VALUE, NAME extends string> implements Iterable<Consumer<VALUE, NAME>> {
-  private _list: Consumer<VALUE, any>[] = [];
+  private _list = new Map<string, Consumer<VALUE, any>>();
   private _created?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerCreated`>;
   private _removed?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerRemoved`>;
-  private _cleared?: Stream<void, never, `${NAME}ListCleared`>;
+  private _terminated?: Stream<void, never, `${NAME}ListTerminated`>;
 
   constructor(
     public readonly name: NAME,
     private options: Consumers.Options<VALUE> = {},
-  ) {
-    return new Proxy(this, {
-      get(target, prop: any, receiver) {
-        if (!isNaN(prop)) {
-          return target._list[prop];
-        }
-        return Reflect.get(target, prop, receiver);
-      },
-      set(target, prop: any, value) {
-        if (!isNaN(prop)) {
-          target._list[prop] = value;
-          return true;
-        }
-        return Reflect.set(target, prop, value);
-      },
-    });
-  }
+  ) {}
   push<const T extends VALUE>(value: T) {
     const consumers = this._list;
-    const length = consumers.length;
+
     const progresses: Consumer.PushProgress<T, NAME>[] = [];
-    for (let i = 0; i < length; i++) {
-      progresses.push(consumers[i].push(value) as never);
+
+    for (const consumer of consumers.values()) {
+      progresses.push(consumer.push(value) as never);
     }
     return progresses;
   }
-  create<NAME extends string>(name: NAME, queue?: Queue<VALUE>): Consumer<VALUE, NAME> {
-    const consumer = new Consumer<VALUE, NAME>(name, queue ?? new Queue(), {
+  getConsumer<NAME extends string>(name: NAME, queue?: Queue<VALUE, NAME>): Consumer<VALUE, NAME> {
+    let consumer = this._list.get(name);
+    if (consumer) return consumer;
+
+    consumer = new Consumer<VALUE, NAME>(name, {
+      queue,
       source: this.options?.source,
       onTerminate: () => {
-        this.remove(consumer);
+        this._list.delete(name);
+        this._removed?.push(consumer!);
       },
     });
-
-    this._list.push(consumer);
+    this._list.set(name, consumer);
     this._created?.push(consumer);
     return consumer;
   }
-  remove(consumer: Consumer<VALUE, any>): void {
-    if (!this._list.length) return;
-    const index = this._list.indexOf(consumer);
-    if (index === -1) return;
-    this._list.splice(index, 1);
-    this._removed?.push(consumer);
+
+  terminate() {
+    for (const consumer of this._list.values()) {
+      consumer.terminate();
+    }
+    this._terminated?.push(undefined);
   }
-  clear() {
-    this._list.length = 0;
-    this._cleared?.push(undefined);
-  }
-  terminate() {}
   [Symbol.iterator]() {
-    return this._list[Symbol.iterator]();
+    return this._list.values();
   }
   get count() {
-    return this._list.length;
+    return this._list.size;
   }
   get created() {
     if (!this._created) {
@@ -82,11 +64,11 @@ export class Consumers<VALUE, NAME extends string> implements Iterable<Consumer<
     }
     return this._removed;
   }
-  get cleared() {
-    if (!this._cleared) {
-      this._cleared = new Stream(`${this.name}ListCleared`);
+  get terminated() {
+    if (!this._terminated) {
+      this._terminated = new Stream(`${this.name}ListTerminated`);
     }
-    return this._cleared;
+    return this._terminated;
   }
 }
 export namespace Consumers {

@@ -1,4 +1,3 @@
-import { Consumer } from "./consumer";
 import { Consumers } from "./consumers";
 import { Source } from "./source";
 
@@ -43,7 +42,7 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
   }
 
   [Symbol.asyncIterator]() {
-    return this._consumers.create(`${this._consumers.count}`)[Symbol.asyncIterator]();
+    return this._consumers.getConsumer(`${this._consumers.count}`)[Symbol.asyncIterator]();
   }
   [Symbol.dispose]() {
     this.terminate();
@@ -68,8 +67,7 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
   terminate(terminateSource = true) {
-    this._consumers.clear();
-    this.push(Stream.TERMINATE as never);
+    this._consumers.terminate();
     if (terminateSource) this._source?.terminate();
   }
 }
@@ -147,8 +145,8 @@ export namespace Stream {
     }
   }
 
-  export const TERMINATE = Symbol("$TERMINATE#");
-  export type Terminate = typeof TERMINATE;
+  export const TERMINATED = Symbol.for("$TERMINATED#");
+  export type Terminated = typeof TERMINATED;
 }
 
 function simpleTest() {
@@ -204,10 +202,10 @@ function newStreamBench() {
 }
 
 // simpleTest();
-newStreamBench();
+// newStreamBench();
 
 function loadbalancing() {
-  const consumer = new Stream([1, 2, 3]).consumers.create("dd");
+  const consumer = new Stream([1, 2, 3]).consumers.getConsumer("dd");
   setTimeout(() => {
     consumer.terminate();
   }, 100);
@@ -224,4 +222,4 @@ function loadbalancing() {
     console.log("done");
   })();
 }
-// loadbalancing();
+loadbalancing();
