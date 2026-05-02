@@ -3,21 +3,20 @@ import { Source } from "./source";
 import { Stream } from "./stream";
 
 export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterator<VALUE>, Disposable {
-  private _queue: Queue<VALUE, NAME>;
+  private _queue: Queue<VALUE, `${NAME}Queue`>;
+  private _pendings: Queue<(value: VALUE | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueQueued?: Stream<VALUE, never, `${NAME}ValueQueued`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
   private _valueDropped?: Stream<VALUE, never, `${NAME}ValueDropped`>;
   private _terminated?: Stream<undefined, never, `${NAME}Terminated`>;
   private _isTerminated = false;
-
-  private _pendings: Queue<(value: VALUE | Queue.Empty) => void, `${NAME}Pending`>;
   constructor(
     public readonly name: NAME,
-    private options: Consumer.Options<VALUE, NAME> = {},
+    private options: Consumer.Options<VALUE> = {},
   ) {
-    this._queue = options.queue ?? new Queue(this.name);
-    this._pendings = new Queue(`${this.name}Pending`, this._queue.options);
+    this._queue = new Queue(`${this.name}Queue`, options.queueOptions);
+    this._pendings = new Queue(`${this.name}Pending`, options.pendingsOptions);
   }
 
   [Symbol.asyncIterator]() {
@@ -29,9 +28,9 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   }
 
   push<T extends VALUE>(value: T) {
-    const waiter = this._pendings.dequeue();
-    if (waiter !== Queue.EMPTY) {
-      waiter(value);
+    const pending = this._pendings.dequeue();
+    if (pending !== Queue.EMPTY) {
+      pending(value);
     } else {
       this._queue.enqueue(value);
       this._valueQueued?.push(value);
@@ -111,10 +110,11 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   }
 }
 export namespace Consumer {
-  export type Options<VALUE, NAME extends string> = {
-    queue?: Queue<VALUE, NAME>;
+  export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
     onTerminate?: () => void;
+    queueOptions?: Queue.Options;
+    pendingsOptions?: Queue.Options;
   };
 
   export class PushProgress<const VALUE, NAME extends string> {

@@ -5,8 +5,8 @@ import { Source } from "./source";
 const NAME = "root";
 
 export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
-  private _consumers: Consumers<VALUE, NAME>;
-  private _source?: Source<VALUE, ERROR, NAME>;
+  private _consumers: Consumers<VALUE, `${NAME}Consumers`>;
+  private _source?: Source<VALUE, ERROR, `${NAME}Source`>;
   readonly name: NAME;
   constructor();
   constructor(name: NAME);
@@ -27,13 +27,13 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
 
     if (sourceData)
       this._source = new Source(
-        this.name,
+        `${this.name}Source`,
         sourceData,
         (value) => this.push(value),
         () => (this._source = undefined),
       );
 
-    this._consumers = new Consumers(this.name, { source: this._source });
+    this._consumers = new Consumers(`${this.name}Consumers`, { source: this._source });
   }
   get consumers() {
     return this._consumers;
@@ -43,7 +43,7 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
   }
 
   [Symbol.asyncIterator]() {
-    return this._consumers.getConsumer(`${this._consumers.count}`);
+    return this._consumers.getConsumer();
   }
   [Symbol.dispose]() {
     this.terminate();
@@ -176,7 +176,7 @@ function simpleTest() {
   stream.push(44);
   stream.push(55);
 }
-function newStreamBench() {
+function bench() {
   const MAX = 1_000_000;
   const now = performance.now();
 
@@ -201,29 +201,30 @@ function newStreamBench() {
     stream.push(i);
   }
 }
-
-// simpleTest();
-newStreamBench();
-
-function loadbalancing() {
-  const queue = new Queue<number, "shared">("shared");
-  const stream = new Stream([1, 2, 3]);
-  const consumer1 = stream.consumers.getConsumer("c1", queue);
+function consumerTest() {
+  const consumer = new Stream([1, 2, 3]).consumers.getConsumer();
 
   (async () => {
-    for await (const value of consumer1) {
+    for await (const value of consumer) {
       // await new Promise((r) => setTimeout(r, 100));
       console.log("c1", value);
-      // if (value === 1) break;
+      if (value === 1) break;
     }
     console.log("c1 done");
   })();
-  const consumer2 = stream.consumers.getConsumer("c2", queue);
+
   (async () => {
-    for await (const value of consumer2) {
+    for await (const value of consumer) {
       console.log("c2", value);
     }
     console.log("c2 done");
   })();
+
+  // stream.push(1)
+  // stream.push(2)
+  // stream.push(3)
 }
-loadbalancing();
+
+// simpleTest();
+bench();
+consumerTest();

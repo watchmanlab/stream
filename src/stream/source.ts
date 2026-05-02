@@ -95,7 +95,11 @@ export namespace Source {
   }
   export type AnyError = Error<any>;
   export type SourceData<VALUE, ERROR> =
-    | (() => AsyncGenerator<VALUE | Error<ERROR>> | Generator<VALUE | Error<ERROR>>)
+    | (() =>
+        | AsyncGenerator<VALUE | Error<ERROR>>
+        | Generator<VALUE | Error<ERROR>>
+        | AsyncIterator<VALUE | Error<ERROR>>
+        | Iterator<VALUE | Error<ERROR>>)
     | AsyncIterable<VALUE | Error<ERROR>>
     | Exclude<Iterable<VALUE | Error<ERROR>>, string>;
 }

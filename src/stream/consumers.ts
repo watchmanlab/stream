@@ -1,5 +1,4 @@
 import { Consumer } from "./consumer";
-import { Queue } from "./queue";
 import { Source } from "./source";
 import { Stream } from "./stream";
 
@@ -23,12 +22,23 @@ export class Consumers<VALUE, NAME extends string> implements Iterable<Consumer<
     }
     return progresses;
   }
-  getConsumer<NAME extends string>(name: NAME, queue?: Queue<VALUE, NAME>): Consumer<VALUE, NAME> {
+
+  hasConsumer(name: string): boolean {
+    return this._list.has(name);
+  }
+  getConsumer<NAME extends string>(name?: NAME): Consumer<VALUE, NAME> {
+    if (!name) {
+      while (true) {
+        const array = new Uint32Array(1);
+        globalThis.crypto.getRandomValues(array);
+        name = `c${(array[0] % 900000) + 100000}` as NAME;
+        if (!this._list.has(name)) break;
+      }
+    }
     let consumer = this._list.get(name);
     if (consumer) return consumer;
 
     consumer = new Consumer<VALUE, NAME>(name, {
-      queue,
       source: this.options?.source,
       onTerminate: () => {
         this._list.delete(name);
@@ -42,7 +52,7 @@ export class Consumers<VALUE, NAME extends string> implements Iterable<Consumer<
 
   terminate() {
     for (const consumer of this._list.values()) {
-      consumer.terminate();
+      consumer.return();
     }
     this._terminated?.push(undefined);
   }
