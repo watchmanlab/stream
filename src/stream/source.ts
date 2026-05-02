@@ -101,5 +101,7 @@ export namespace Source {
         | AsyncIterator<VALUE | Error<ERROR>>
         | Iterator<VALUE | Error<ERROR>>)
     | AsyncIterable<VALUE | Error<ERROR>>
-    | Exclude<Iterable<VALUE | Error<ERROR>>, string>;
+    | Exclude<Iterable<VALUE | Error<ERROR>>, string>
+    | AsyncIterator<VALUE | Error<ERROR>>
+    | Iterator<VALUE | Error<ERROR>>;
 }

@@ -226,5 +226,26 @@ function consumerTest() {
 }
 
 // simpleTest();
-bench();
-consumerTest();
+// bench();
+// consumerTest();
+
+async function* test() {
+  yield 1;
+  yield 2;
+  yield 3;
+  yield 4;
+}
+
+const gen = test();
+
+(async () => {
+  for await (const v of gen) {
+    console.log("c1", v);
+    if (v === 1) break;
+  }
+})();
+(async () => {
+  for await (const v of gen) {
+    console.log("c2", v);
+  }
+})();

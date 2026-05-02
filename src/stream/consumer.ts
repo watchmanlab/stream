@@ -5,10 +5,8 @@ import { Stream } from "./stream";
 export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterator<VALUE>, Disposable {
   private _queue: Queue<VALUE, `${NAME}Queue`>;
   private _pendings: Queue<(value: VALUE | Queue.Empty) => void, `${NAME}Pending`>;
-  private _valueQueued?: Stream<VALUE, never, `${NAME}ValueQueued`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
-  private _valueDropped?: Stream<VALUE, never, `${NAME}ValueDropped`>;
   private _terminated?: Stream<undefined, never, `${NAME}Terminated`>;
   private _isTerminated = false;
   constructor(
@@ -33,7 +31,6 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
       pending(value);
     } else {
       this._queue.enqueue(value);
-      this._valueQueued?.push(value);
     }
 
     return new Consumer.PushProgress(this.name, value, this);
@@ -61,24 +58,16 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   }
   async return(): Promise<IteratorResult<VALUE, any>> {
     this._isTerminated = true;
+
     for (const waiter of this._pendings) {
       waiter(Queue.EMPTY);
     }
-    this._pendings.clear();
-
-    for (const value of this._queue) {
-      this._valueDropped?.push(value);
-    }
     this._queue.clear();
 
-    this._valueQueued?.terminate();
     this._valueProcessing?.terminate();
     this._valueProcessed?.terminate();
-    this._valueDropped?.terminate();
-    this._valueQueued = undefined;
     this._valueProcessing = undefined;
     this._valueProcessed = undefined;
-    this._valueDropped = undefined;
 
     this._terminated?.push(undefined);
     this._terminated?.terminate();
@@ -86,15 +75,12 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
     this.options?.onTerminate?.();
     return { value: Queue.EMPTY as never, done: true };
   }
+
   get queue() {
     return this._queue;
   }
   get pending() {
     return this._pendings;
-  }
-  get valueQueued() {
-    if (!this._valueQueued) this._valueQueued = new Stream(`${this.name}ValueQueued`);
-    return this._valueQueued;
   }
   get valueProcessing() {
     if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.name}ValueProcessing`);
@@ -103,10 +89,6 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   get valueProcessed() {
     if (!this._valueProcessed) this._valueProcessed = new Stream(`${this.name}ValueProcessed`);
     return this._valueProcessed;
-  }
-  get valueDropped() {
-    if (!this._valueDropped) this._valueDropped = new Stream(`${this.name}ValueDropped`);
-    return this._valueDropped;
   }
 }
 export namespace Consumer {
@@ -132,7 +114,7 @@ export namespace Consumer {
       const [consumer, searchValue] = [this.consumer, this.value];
       if (!this._queued)
         this._queued = new Stream(`${this.name}Queued`, async function* () {
-          for await (const value of consumer.valueQueued) {
+          for await (const value of consumer.queue.valueQueued) {
             if (value === searchValue) {
               yield searchValue;
               break;
@@ -171,7 +153,7 @@ export namespace Consumer {
       const [consumer, searchValue] = [this.consumer, this.value];
       if (!this._dropped)
         this._dropped = new Stream(`${this.name}Dropped`, async function* () {
-          for await (const value of consumer.valueDropped) {
+          for await (const value of consumer.queue.valueDropped) {
             if (value === searchValue) {
               yield searchValue;
               break;
