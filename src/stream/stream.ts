@@ -1,4 +1,5 @@
 import { Consumers } from "./consumers";
+import { Queue } from "./queue";
 import { Source } from "./source";
 
 const NAME = "root";
@@ -42,7 +43,7 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
   }
 
   [Symbol.asyncIterator]() {
-    return this._consumers.getConsumer(`${this._consumers.count}`)[Symbol.asyncIterator]();
+    return this._consumers.getConsumer(`${this._consumers.count}`);
   }
   [Symbol.dispose]() {
     this.terminate();
@@ -202,24 +203,27 @@ function newStreamBench() {
 }
 
 // simpleTest();
-// newStreamBench();
+newStreamBench();
 
 function loadbalancing() {
-  const consumer = new Stream([1, 2, 3]).consumers.getConsumer("dd");
-  setTimeout(() => {
-    consumer.terminate();
-  }, 100);
+  const queue = new Queue<number, "shared">("shared");
+  const stream = new Stream([1, 2, 3]);
+  const consumer1 = stream.consumers.getConsumer("c1", queue);
+
   (async () => {
-    for await (const value of consumer) {
+    for await (const value of consumer1) {
+      // await new Promise((r) => setTimeout(r, 100));
       console.log("c1", value);
+      // if (value === 1) break;
     }
-    console.log("done");
+    console.log("c1 done");
   })();
+  const consumer2 = stream.consumers.getConsumer("c2", queue);
   (async () => {
-    for await (const value of consumer) {
+    for await (const value of consumer2) {
       console.log("c2", value);
     }
-    console.log("done");
+    console.log("c2 done");
   })();
 }
 loadbalancing();

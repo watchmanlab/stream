@@ -2,8 +2,7 @@ import { Queue } from "./queue";
 import { Source } from "./source";
 import { Stream } from "./stream";
 
-export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE>, Disposable {
-  private _resolve?: (value: VALUE | Consumer.Terminated) => void;
+export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterator<VALUE>, Disposable {
   private _queue: Queue<VALUE, NAME>;
   private _valueQueued?: Stream<VALUE, never, `${NAME}ValueQueued`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
@@ -12,38 +11,27 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
   private _terminated?: Stream<undefined, never, `${NAME}Terminated`>;
   private _isTerminated = false;
 
+  private _pendings: Queue<(value: VALUE | Queue.Empty) => void, `${NAME}Pending`>;
   constructor(
     public readonly name: NAME,
     private options: Consumer.Options<VALUE, NAME> = {},
   ) {
     this._queue = options.queue ?? new Queue(this.name);
-  }
-
-  get queue() {
-    return this._queue;
+    this._pendings = new Queue(`${this.name}Pending`, this._queue.options);
   }
 
   [Symbol.asyncIterator]() {
-    return {
-      next: async () => {
-        const result = this.next();
-        const value = result instanceof Promise ? await result : result;
+    return this;
+  }
 
-        return { value: value as VALUE, done: value === Consumer.TERMINATED };
-      },
-      return: async () => {
-        this.terminate();
-        return { value: Consumer.TERMINATED as VALUE, done: true };
-      },
-    };
-  }
   [Symbol.dispose]() {
-    this.terminate();
+    this.return();
   }
+
   push<T extends VALUE>(value: T) {
-    if (this._resolve) {
-      this._resolve(value);
-      this._resolve = undefined;
+    const waiter = this._pendings.dequeue();
+    if (waiter !== Queue.EMPTY) {
+      waiter(value);
     } else {
       this._queue.enqueue(value);
       this._valueQueued?.push(value);
@@ -52,32 +40,34 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
     return new Consumer.PushProgress(this.name, value, this);
   }
   private _currentValue: VALUE | Queue.Empty = Queue.EMPTY;
-  next() {
+  async next(): Promise<IteratorResult<VALUE, any>> {
     if (this._currentValue !== Queue.EMPTY) {
       this._valueProcessed?.push(this._currentValue);
       this._currentValue = Queue.EMPTY;
     }
-    if (this._isTerminated) return Consumer.TERMINATED;
+    if (this._isTerminated) return { value: Queue.EMPTY as never, done: true };
 
     const value = this._queue.dequeue();
     if (value !== Queue.EMPTY) {
       this._valueProcessing?.push(value);
       this._currentValue = value;
-      return value;
+      return { value };
     } else {
-      // this._resolve?.(Consumer.TERMINATED);
-      return new Promise<VALUE | Consumer.Terminated>((r) => {
-        this._resolve = r;
+      const value = await new Promise<VALUE | Queue.Empty>((r) => {
+        this._pendings.enqueue(r);
         if (this.options?.source?.idle) this.options.source.requestNext();
       });
+      return { value: value as never, done: value === Queue.EMPTY };
     }
   }
-
-  terminate() {
+  async return(): Promise<IteratorResult<VALUE, any>> {
     this._isTerminated = true;
-    this._resolve?.(Consumer.TERMINATED);
-    this._resolve = undefined;
-    for (const value of this.queue) {
+    for (const waiter of this._pendings) {
+      waiter(Queue.EMPTY);
+    }
+    this._pendings.clear();
+
+    for (const value of this._queue) {
       this._valueDropped?.push(value);
     }
     this._queue.clear();
@@ -95,6 +85,13 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterable<VALUE
     this._terminated?.terminate();
     this._terminated = undefined;
     this.options?.onTerminate?.();
+    return { value: Queue.EMPTY as never, done: true };
+  }
+  get queue() {
+    return this._queue;
+  }
+  get pending() {
+    return this._pendings;
   }
   get valueQueued() {
     if (!this._valueQueued) this._valueQueued = new Stream(`${this.name}ValueQueued`);
@@ -184,7 +181,4 @@ export namespace Consumer {
       return this._dropped;
     }
   }
-
-  export const TERMINATED = Symbol.for("$TERMINATED#");
-  export type Terminated = typeof TERMINATED;
 }

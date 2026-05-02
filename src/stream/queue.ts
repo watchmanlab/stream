@@ -68,7 +68,7 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE> {
           self._head = self._head.next;
           return { value };
         } else {
-          return { value: Queue.EMPTY as never, done: true };
+          return { value: Queue.EMPTY as VALUE, done: true };
         }
       },
     };
