@@ -65,8 +65,8 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
     this._queue.clear();
 
     this._valueProcessing?.terminate();
-    this._valueProcessed?.terminate();
     this._valueProcessing = undefined;
+    this._valueProcessed?.terminate();
     this._valueProcessed = undefined;
 
     this._terminated?.push(undefined);
@@ -85,6 +85,10 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   get valueProcessing() {
     if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.name}ValueProcessing`);
     return this._valueProcessing;
+  }
+  get terminated() {
+    if (!this._terminated) this._terminated = new Stream(`${this.name}Terminated`);
+    return this._terminated;
   }
   get valueProcessed() {
     if (!this._valueProcessed) this._valueProcessed = new Stream(`${this.name}ValueProcessed`);

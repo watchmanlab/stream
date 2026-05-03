@@ -1,11 +1,11 @@
-import { Consumers } from "./consumers";
+import { Dispatcher } from "./dispatcher";
 import { Queue } from "./queue";
 import { Source } from "./source";
 
 const NAME = "root";
 
 export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
-  private _consumers: Consumers<VALUE, `${NAME}Consumers`>;
+  private _dispatcher: Dispatcher<VALUE, `${NAME}Dispatcher`>;
   private _source?: Source<VALUE, ERROR, `${NAME}Source`>;
   readonly name: NAME;
   constructor();
@@ -33,23 +33,23 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
         () => (this._source = undefined),
       );
 
-    this._consumers = new Consumers(`${this.name}Consumers`, { source: this._source });
+    this._dispatcher = new Dispatcher(`${this.name}Dispatcher`, { source: this._source });
   }
-  get consumers() {
-    return this._consumers;
+  get dispatcher() {
+    return this._dispatcher;
   }
   get source() {
     return this._source;
   }
 
   [Symbol.asyncIterator]() {
-    return this._consumers.getConsumer();
+    return this._dispatcher.getConsumer();
   }
   [Symbol.dispose]() {
     this.terminate();
   }
   push<const T extends VALUE>(value: T) {
-    return this._consumers.push(value);
+    return this._dispatcher.dispatch(value);
   }
   next() {
     return this[Symbol.asyncIterator]().next();
@@ -68,7 +68,7 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
   terminate(terminateSource = true) {
-    this._consumers.terminate();
+    this._dispatcher.terminate();
     if (terminateSource) this._source?.terminate();
   }
 }
@@ -202,22 +202,18 @@ function bench() {
   }
 }
 function consumerTest() {
-  const consumer = new Stream([1, 2, 3]).consumers.getConsumer();
+  const stream = new Stream([1, 2, 3]);
+  const consumer = stream.dispatcher.getConsumer();
+  console.log(consumer.name);
 
   (async () => {
     for await (const value of consumer) {
       // await new Promise((r) => setTimeout(r, 100));
       console.log("c1", value);
-      if (value === 1) break;
+      // if (value === 1) break;
     }
+    console.log("dispatcher count", stream.dispatcher.consumersCount);
     console.log("c1 done");
-  })();
-
-  (async () => {
-    for await (const value of consumer) {
-      console.log("c2", value);
-    }
-    console.log("c2 done");
   })();
 
   // stream.push(1)
@@ -226,26 +222,5 @@ function consumerTest() {
 }
 
 // simpleTest();
-// bench();
-// consumerTest();
-
-async function* test() {
-  yield 1;
-  yield 2;
-  yield 3;
-  yield 4;
-}
-
-const gen = test();
-
-(async () => {
-  for await (const v of gen) {
-    console.log("c1", v);
-    if (v === 1) break;
-  }
-})();
-(async () => {
-  for await (const v of gen) {
-    console.log("c2", v);
-  }
-})();
+bench();
+consumerTest();
