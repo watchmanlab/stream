@@ -1,6 +1,6 @@
 import { Stream } from "./stream";
 
-export class Source<VALUE, ERROR, NAME extends string> {
+export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposable, Disposable {
   private _iterator: Iterator<VALUE | Source.Error<ERROR>> | AsyncIterator<VALUE | Source.Error<ERROR>>;
   private _idle = true;
   private _error?: Stream<ERROR, never, `${NAME}Error`>;
@@ -17,13 +17,13 @@ export class Source<VALUE, ERROR, NAME extends string> {
       this._iterator = (sourceData as any)[Symbol.asyncIterator]?.() ?? (sourceData as any)[Symbol.iterator]();
     }
   }
-  get idle() {
-    return this._idle;
+  async [Symbol.asyncDispose]() {
+    await this.terminate();
   }
-  get error() {
-    if (!this._error) this._error = new Stream(`${this.name}Error`);
-    return this._error;
+  [Symbol.dispose]() {
+    this.terminate();
   }
+
   private async asyncResult(resultPromise: Promise<IteratorResult<VALUE | Source.Error<ERROR>, any>>) {
     try {
       const result = await resultPromise;
@@ -83,9 +83,16 @@ export class Source<VALUE, ERROR, NAME extends string> {
       this.syncResult(result);
     }
   }
-  terminate() {
-    this._iterator.return?.();
+  async terminate() {
+    await this._iterator.return?.();
     this.onDone();
+  }
+  get idle() {
+    return this._idle;
+  }
+  get error() {
+    if (!this._error) this._error = new Stream(`${this.name}Error`);
+    return this._error;
   }
 }
 

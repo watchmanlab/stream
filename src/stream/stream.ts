@@ -4,7 +4,9 @@ import { Source } from "./source";
 
 const NAME = "root";
 
-export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements AsyncIterable<VALUE>, Disposable {
+export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
+  implements AsyncIterable<VALUE>, AsyncDisposable, Disposable
+{
   private _dispatcher: Dispatcher<VALUE, `${NAME}Dispatcher`>;
   private _source?: Source<VALUE, ERROR, `${NAME}Source`>;
   readonly name: NAME;
@@ -35,15 +37,12 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
 
     this._dispatcher = new Dispatcher(`${this.name}Dispatcher`, { source: this._source });
   }
-  get dispatcher() {
-    return this._dispatcher;
-  }
-  get source() {
-    return this._source;
-  }
 
   [Symbol.asyncIterator]() {
     return this._dispatcher.getConsumer();
+  }
+  async [Symbol.asyncDispose]() {
+    await this.terminate();
   }
   [Symbol.dispose]() {
     this.terminate();
@@ -67,9 +66,14 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
   ): OUTPUT_STREAM {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-  terminate(terminateSource = true) {
-    this._dispatcher.clear();
-    if (terminateSource) this._source?.terminate();
+  async terminate() {
+    await Promise.all([this._dispatcher.clear(), this._source?.terminate()]);
+  }
+  get dispatcher() {
+    return this._dispatcher;
+  }
+  get source() {
+    return this._source;
   }
 }
 
@@ -202,12 +206,15 @@ function bench() {
   }
 }
 function consumerTest() {
-  const consumer1 = new Consumer<number, "c1">("c1");
-  const consumer2 = new Consumer<number, "c2">("c2");
-
-  const stream1 = new Stream("mystream", [1, 2, 3]);
-  stream1.dispatcher.attachConsumer(consumer1);
-  stream1.dispatcher.attachConsumer(consumer2);
+  const stream1 = new Stream("mystream", async function* () {
+    let i = 0;
+    while (i < 5) {
+      await new Promise((r) => setTimeout(r, Math.random() * 300));
+      yield i++;
+    }
+  });
+  const consumer1 = stream1.dispatcher.getConsumer("c1");
+  const consumer2 = stream1.dispatcher.getConsumer("c2");
 
   (async () => {
     for await (const value of consumer1) {
@@ -222,8 +229,8 @@ function consumerTest() {
     console.log(consumer2.name, " done");
   })();
 
-  stream1.push(1);
-  stream1.push(2);
+  // stream1.push(1);
+  // stream1.push(2);
   // stream.push(3)
 }
 

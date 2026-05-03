@@ -2,7 +2,9 @@ import { Consumer } from "./consumer";
 import { Source } from "./source";
 import { Stream } from "./stream";
 
-export class Dispatcher<VALUE, NAME extends string> implements Iterable<Consumer<VALUE, NAME>> {
+export class Dispatcher<VALUE, NAME extends string>
+  implements Iterable<Consumer<VALUE, NAME>>, AsyncDisposable, Disposable
+{
   private _consumers = new Map<string, Consumer<VALUE, any>>();
   private _consumerAttached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerAttached`>;
   private _consumerDetached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerDetached`>;
@@ -12,6 +14,15 @@ export class Dispatcher<VALUE, NAME extends string> implements Iterable<Consumer
     public readonly name: NAME,
     private options: Dispatcher.Options<VALUE> = {},
   ) {}
+  [Symbol.iterator]() {
+    return this._consumers.values();
+  }
+  async [Symbol.asyncDispose]() {
+    await this.clear();
+  }
+  [Symbol.dispose]() {
+    this.clear();
+  }
   dispatch<const T extends VALUE>(value: T): Consumer.PushProgress<T, string>[] {
     const consumers = this._consumers;
 
@@ -38,7 +49,8 @@ export class Dispatcher<VALUE, NAME extends string> implements Iterable<Consumer
     consumer = new Consumer<VALUE, NAME>(name, {
       source: this.options?.source,
       onTerminate: () => {
-        this.detachConsumer(consumer!);
+        this._consumers.delete(name);
+        this._consumerDetached?.push(consumer!);
       },
     });
 
@@ -46,34 +58,16 @@ export class Dispatcher<VALUE, NAME extends string> implements Iterable<Consumer
     this._consumerAttached?.push(consumer);
     return consumer;
   }
-  attachConsumer<CONSUMER extends Consumer<VALUE, any>>(consumer: CONSUMER): boolean {
-    const found = this._consumers.get(consumer.name);
-    if (found === consumer) return true;
 
-    if (found) return false;
-
-    this._consumers.set(consumer.name, consumer);
-    consumer.terminated.next().then(() => {
-      this.detachConsumer(consumer);
-    });
-    return true;
-  }
-  detachConsumer(consumer: Consumer<VALUE, any>): boolean {
-    if (this._consumers.delete(consumer.name)) {
-      this._consumerDetached?.push(consumer!);
-      return true;
-    }
-    return false;
-  }
-  clear() {
+  async clear() {
+    const promises = [];
     for (const consumer of this) {
-      consumer.return();
+      promises.push(consumer.return());
     }
+    await Promise.all(promises);
     this._cleared?.push(undefined);
   }
-  [Symbol.iterator]() {
-    return this._consumers.values();
-  }
+
   get consumersCount() {
     return this._consumers.size;
   }

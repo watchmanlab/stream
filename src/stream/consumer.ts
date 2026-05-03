@@ -2,7 +2,7 @@ import { Queue } from "./queue";
 import { Source } from "./source";
 import { Stream } from "./stream";
 
-export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterator<VALUE>, Disposable {
+export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterator<VALUE>, AsyncDisposable, Disposable {
   private _queue: Queue<VALUE, `${NAME}Queue`>;
   private _pendings: Queue<(value: VALUE | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
@@ -20,11 +20,12 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   [Symbol.asyncIterator]() {
     return this;
   }
-
+  async [Symbol.asyncDispose]() {
+    await this.return();
+  }
   [Symbol.dispose]() {
     this.return();
   }
-
   push<T extends VALUE>(value: T) {
     const pending = this._pendings.dequeue();
     if (pending !== Queue.EMPTY) {
@@ -59,19 +60,19 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   async return(): Promise<IteratorResult<VALUE, any>> {
     this._isTerminated = true;
 
-    for (const waiter of this._pendings) {
-      waiter(Queue.EMPTY);
+    for (const pending of this._pendings) {
+      pending(Queue.EMPTY);
     }
-    this._queue.clear();
 
-    this._valueProcessing?.terminate();
+    await Promise.all([this._queue.clear(), this._valueProcessing?.terminate(), this._valueProcessed?.terminate()]);
+
     this._valueProcessing = undefined;
-    this._valueProcessed?.terminate();
     this._valueProcessed = undefined;
 
     this._terminated?.push(undefined);
-    this._terminated?.terminate();
+    await this._terminated?.terminate();
     this._terminated = undefined;
+
     this.options?.onTerminate?.();
     return { value: Queue.EMPTY as never, done: true };
   }
@@ -86,13 +87,13 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
     if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.name}ValueProcessing`);
     return this._valueProcessing;
   }
-  get terminated() {
-    if (!this._terminated) this._terminated = new Stream(`${this.name}Terminated`);
-    return this._terminated;
-  }
   get valueProcessed() {
     if (!this._valueProcessed) this._valueProcessed = new Stream(`${this.name}ValueProcessed`);
     return this._valueProcessed;
+  }
+  get terminated() {
+    if (!this._terminated) this._terminated = new Stream(`${this.name}Terminated`);
+    return this._terminated;
   }
 }
 export namespace Consumer {
