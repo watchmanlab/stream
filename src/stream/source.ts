@@ -85,7 +85,7 @@ export class Source<VALUE, ERROR, NAME extends string> {
   }
   terminate() {
     this._iterator.return?.();
-    (this, this.onDone());
+    this.onDone();
   }
 }
 

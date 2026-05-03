@@ -1,5 +1,5 @@
+import { Consumer } from "./consumer";
 import { Dispatcher } from "./dispatcher";
-import { Queue } from "./queue";
 import { Source } from "./source";
 
 const NAME = "root";
@@ -68,7 +68,7 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name> implements 
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
   terminate(terminateSource = true) {
-    this._dispatcher.terminate();
+    this._dispatcher.clear();
     if (terminateSource) this._source?.terminate();
   }
 }
@@ -202,22 +202,28 @@ function bench() {
   }
 }
 function consumerTest() {
-  const stream = new Stream([1, 2, 3]);
-  const consumer = stream.dispatcher.getConsumer();
-  console.log(consumer.name);
+  const consumer1 = new Consumer<number, "c1">("c1");
+  const consumer2 = new Consumer<number, "c2">("c2");
+
+  const stream1 = new Stream("mystream", [1, 2, 3]);
+  stream1.dispatcher.attachConsumer(consumer1);
+  stream1.dispatcher.attachConsumer(consumer2);
 
   (async () => {
-    for await (const value of consumer) {
-      // await new Promise((r) => setTimeout(r, 100));
-      console.log("c1", value);
-      // if (value === 1) break;
+    for await (const value of consumer1) {
+      console.log(consumer1.name, value);
     }
-    console.log("dispatcher count", stream.dispatcher.consumersCount);
-    console.log("c1 done");
+    console.log(consumer1.name, " done");
+  })();
+  (async () => {
+    for await (const value of consumer2) {
+      console.log(consumer2.name, value);
+    }
+    console.log(consumer2.name, " done");
   })();
 
-  // stream.push(1)
-  // stream.push(2)
+  stream1.push(1);
+  stream1.push(2);
   // stream.push(3)
 }
 

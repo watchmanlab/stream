@@ -4,32 +4,31 @@ import { Stream } from "./stream";
 
 export class Dispatcher<VALUE, NAME extends string> implements Iterable<Consumer<VALUE, NAME>> {
   private _consumers = new Map<string, Consumer<VALUE, any>>();
-  private _consumerCreated?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerCreated`>;
-  private _consumerDeleted?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerDeleted`>;
-  private _terminated?: Stream<void, never, `${NAME}Terminated`>;
+  private _consumerAttached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerAttached`>;
+  private _consumerDetached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerDetached`>;
+  private _cleared?: Stream<void, never, `${NAME}Cleared`>;
 
   constructor(
     public readonly name: NAME,
     private options: Dispatcher.Options<VALUE> = {},
   ) {}
-  dispatch<const T extends VALUE>(value: T) {
+  dispatch<const T extends VALUE>(value: T): Consumer.PushProgress<T, string>[] {
     const consumers = this._consumers;
 
-    const progresses: Consumer.PushProgress<T, NAME>[] = [];
+    const progresses: Consumer.PushProgress<T, string>[] = [];
 
     for (const consumer of consumers.values()) {
       progresses.push(consumer.push(value) as never);
     }
     return progresses;
   }
-
   hasConsumer(name: string): boolean {
     return this._consumers.has(name);
   }
-  getConsumer<NAME extends string>(name?: NAME): Consumer<VALUE, NAME> {
+  getConsumer<NAME extends string = string>(name?: NAME): Consumer<VALUE, NAME> {
     if (!name) {
       while (true) {
-        name = `c${(globalThis.crypto.getRandomValues(new Uint32Array(1))[0] % 900000) + 100000}` as NAME;
+        name = `consumer${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}` as NAME;
         if (!this._consumers.has(name)) break;
       }
     }
@@ -39,33 +38,38 @@ export class Dispatcher<VALUE, NAME extends string> implements Iterable<Consumer
     consumer = new Consumer<VALUE, NAME>(name, {
       source: this.options?.source,
       onTerminate: () => {
-        this.deleteConsumer(consumer!);
+        this.detachConsumer(consumer!);
       },
     });
 
     this._consumers.set(name, consumer);
-    this._consumerCreated?.push(consumer);
+    this._consumerAttached?.push(consumer);
     return consumer;
   }
-  addConsumer<CONSUMER extends Consumer<VALUE, any>>(consumer: CONSUMER): CONSUMER {
+  attachConsumer<CONSUMER extends Consumer<VALUE, any>>(consumer: CONSUMER): boolean {
+    const found = this._consumers.get(consumer.name);
+    if (found === consumer) return true;
+
+    if (found) return false;
+
     this._consumers.set(consumer.name, consumer);
     consumer.terminated.next().then(() => {
-      this.deleteConsumer(consumer);
+      this.detachConsumer(consumer);
     });
-    return consumer;
+    return true;
   }
-  deleteConsumer(consumer: Consumer<VALUE, any>): boolean {
+  detachConsumer(consumer: Consumer<VALUE, any>): boolean {
     if (this._consumers.delete(consumer.name)) {
-      this._consumerDeleted?.push(consumer!);
+      this._consumerDetached?.push(consumer!);
       return true;
     }
     return false;
   }
-  terminate() {
+  clear() {
     for (const consumer of this) {
       consumer.return();
     }
-    this._terminated?.push(undefined);
+    this._cleared?.push(undefined);
   }
   [Symbol.iterator]() {
     return this._consumers.values();
@@ -73,23 +77,23 @@ export class Dispatcher<VALUE, NAME extends string> implements Iterable<Consumer
   get consumersCount() {
     return this._consumers.size;
   }
-  get consumerCreated() {
-    if (!this._consumerCreated) {
-      this._consumerCreated = new Stream(`${this.name}ConsumerCreated`);
+  get consumerAttached() {
+    if (!this._consumerAttached) {
+      this._consumerAttached = new Stream(`${this.name}ConsumerAttached`);
     }
-    return this._consumerCreated;
+    return this._consumerAttached;
   }
-  get consumerDeleted() {
-    if (!this._consumerDeleted) {
-      this._consumerDeleted = new Stream(`${this.name}ConsumerDeleted`);
+  get consumerDetached() {
+    if (!this._consumerDetached) {
+      this._consumerDetached = new Stream(`${this.name}ConsumerDetached`);
     }
-    return this._consumerDeleted;
+    return this._consumerDetached;
   }
-  get terminated() {
-    if (!this._terminated) {
-      this._terminated = new Stream(`${this.name}Terminated`);
+  get cleared() {
+    if (!this._cleared) {
+      this._cleared = new Stream(`${this.name}Cleared`);
     }
-    return this._terminated;
+    return this._cleared;
   }
 }
 export namespace Dispatcher {

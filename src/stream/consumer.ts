@@ -79,7 +79,7 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   get queue() {
     return this._queue;
   }
-  get pending() {
+  get pendings() {
     return this._pendings;
   }
   get valueProcessing() {
