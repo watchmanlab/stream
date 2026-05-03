@@ -8,7 +8,8 @@ export class Dispatcher<VALUE, NAME extends string>
   private _consumers = new Map<string, Consumer<VALUE, any>>();
   private _consumerAttached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerAttached`>;
   private _consumerDetached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerDetached`>;
-  private _cleared?: Stream<void, never, `${NAME}Cleared`>;
+  private _cleared?: Stream<undefined, never, `${NAME}Cleared`>;
+  private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
 
   constructor(
     public readonly name: NAME,
@@ -18,10 +19,10 @@ export class Dispatcher<VALUE, NAME extends string>
     return this._consumers.values();
   }
   async [Symbol.asyncDispose]() {
-    await this.clear();
+    await this.dispose();
   }
   [Symbol.dispose]() {
-    this.clear();
+    this.dispose();
   }
   dispatch<const T extends VALUE>(value: T): Consumer.PushProgress<T, string>[] {
     const consumers = this._consumers;
@@ -64,8 +65,22 @@ export class Dispatcher<VALUE, NAME extends string>
     for (const consumer of this) {
       promises.push(consumer.return());
     }
+
     await Promise.all(promises);
     this._cleared?.push(undefined);
+  }
+  async dispose() {
+    await Promise.all([
+      this.clear(),
+      this._consumerAttached?.dispose(),
+      this._consumerDetached?.dispose(),
+      this._cleared?.dispose(),
+    ]);
+    this._consumerAttached = this._consumerDetached = this._cleared = undefined;
+
+    this._disposed?.push(undefined);
+    await this._disposed?.dispose();
+    this._disposed = undefined;
   }
 
   get consumersCount() {
@@ -88,6 +103,12 @@ export class Dispatcher<VALUE, NAME extends string>
       this._cleared = new Stream(`${this.name}Cleared`);
     }
     return this._cleared;
+  }
+  get disposed() {
+    if (!this._disposed) {
+      this._disposed = new Stream(`${this.name}Disposed`);
+    }
+    return this._disposed;
   }
 }
 export namespace Dispatcher {

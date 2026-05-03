@@ -18,10 +18,10 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
     }
   }
   async [Symbol.asyncDispose]() {
-    await this.terminate();
+    await this.dispose();
   }
   [Symbol.dispose]() {
-    this.terminate();
+    this.dispose();
   }
 
   private async asyncResult(resultPromise: Promise<IteratorResult<VALUE | Source.Error<ERROR>, any>>) {
@@ -83,7 +83,7 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
       this.syncResult(result);
     }
   }
-  async terminate() {
+  async dispose() {
     await this._iterator.return?.();
     this.onDone();
   }

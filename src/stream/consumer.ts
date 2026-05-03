@@ -7,8 +7,8 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   private _pendings: Queue<(value: VALUE | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
-  private _terminated?: Stream<undefined, never, `${NAME}Terminated`>;
-  private _isTerminated = false;
+  private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
+
   constructor(
     public readonly name: NAME,
     private options: Consumer.Options<VALUE> = {},
@@ -21,10 +21,10 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
     return this;
   }
   async [Symbol.asyncDispose]() {
-    await this.return();
+    await this.dispose();
   }
   [Symbol.dispose]() {
-    this.return();
+    this.dispose();
   }
   push<T extends VALUE>(value: T) {
     const pending = this._pendings.dequeue();
@@ -42,7 +42,6 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
       this._valueProcessed?.push(this._currentValue);
       this._currentValue = Queue.EMPTY;
     }
-    if (this._isTerminated) return { value: Queue.EMPTY as never, done: true };
 
     const value = this._queue.dequeue();
     if (value !== Queue.EMPTY) {
@@ -58,23 +57,28 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
     }
   }
   async return(): Promise<IteratorResult<VALUE, any>> {
-    this._isTerminated = true;
-
     for (const pending of this._pendings) {
       pending(Queue.EMPTY);
     }
 
-    await Promise.all([this._queue.clear(), this._valueProcessing?.terminate(), this._valueProcessed?.terminate()]);
+    await Promise.all([
+      this._pendings.dispose(),
+      this._queue.dispose(),
+      this._valueProcessing?.dispose(),
+      this._valueProcessed?.dispose(),
+    ]);
 
-    this._valueProcessing = undefined;
-    this._valueProcessed = undefined;
+    this._valueProcessing = this._valueProcessed = undefined;
 
-    this._terminated?.push(undefined);
-    await this._terminated?.terminate();
-    this._terminated = undefined;
+    this._disposed?.push(undefined);
+    await this._disposed?.dispose();
+    this._disposed = undefined;
 
     this.options?.onTerminate?.();
     return { value: Queue.EMPTY as never, done: true };
+  }
+  async dispose() {
+    await this.return();
   }
 
   get queue() {
@@ -91,9 +95,9 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
     if (!this._valueProcessed) this._valueProcessed = new Stream(`${this.name}ValueProcessed`);
     return this._valueProcessed;
   }
-  get terminated() {
-    if (!this._terminated) this._terminated = new Stream(`${this.name}Terminated`);
-    return this._terminated;
+  get disposed() {
+    if (!this._disposed) this._disposed = new Stream(`${this.name}Disposed`);
+    return this._disposed;
   }
 }
 export namespace Consumer {

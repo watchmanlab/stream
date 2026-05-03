@@ -7,31 +7,23 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE> {
   private _options: Required<Queue.Options>;
   private _valueQueued?: Stream<VALUE, never, `${NAME}ValueQueued`>;
   private _valueDropped?: Stream<VALUE, never, `${NAME}ValueDropped`>;
+  private _cleared?: Stream<undefined, never, `${NAME}Cleared`>;
+  private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
+
   constructor(
     public readonly name: NAME,
     options?: Queue.Options,
   ) {
     this._options = { ...Queue.defaultOptions, ...options };
   }
-  get valueQueued() {
-    if (!this._valueQueued) this._valueQueued = new Stream(`${this.name}ValueQueued`);
-    return this._valueQueued;
-  }
-  get valueDropped() {
-    if (!this._valueDropped) this._valueDropped = new Stream(`${this.name}ValueDropped`);
-    return this._valueDropped;
-  }
-  get options() {
-    return this._options;
-  }
-  set options(options: Queue.Options) {
-    this._options = {
-      ...this._options,
-      ...Object.fromEntries(Object.entries(options).filter(([_, val]) => val != null)),
+  [Symbol.iterator]() {
+    const self = this;
+    return {
+      next: () => {
+        const value = self.dequeue();
+        return { value: value as VALUE, done: value === Queue.EMPTY };
+      },
     };
-  }
-  get size() {
-    return this._size;
   }
   enqueue(value: VALUE): Queue.EnqueueResult<VALUE> {
     if (this.size >= this._options.maxSize && this._options.dropStrategy === "newest") {
@@ -62,19 +54,50 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE> {
 
     return value;
   }
+
   clear() {
     for (const value of this) {
       this._valueDropped?.push(value);
     }
+    this._cleared?.push(undefined);
   }
-  [Symbol.iterator]() {
-    const self = this;
-    return {
-      next: () => {
-        const value = self.dequeue();
-        return { value: value as VALUE, done: value === Queue.EMPTY };
-      },
+  async dispose() {
+    this.clear();
+    await Promise.all([this._valueQueued?.dispose(), this._valueDropped?.dispose(), this._cleared?.dispose()]);
+    this._valueQueued = this._valueQueued = this._cleared = undefined;
+
+    this._disposed?.push(undefined);
+    await this._disposed?.dispose();
+    this._disposed = undefined;
+  }
+
+  get options() {
+    return this._options;
+  }
+  set options(options: Queue.Options) {
+    this._options = {
+      ...this._options,
+      ...Object.fromEntries(Object.entries(options).filter(([_, val]) => val != null)),
     };
+  }
+  get size() {
+    return this._size;
+  }
+  get valueQueued() {
+    if (!this._valueQueued) this._valueQueued = new Stream(`${this.name}ValueQueued`);
+    return this._valueQueued;
+  }
+  get valueDropped() {
+    if (!this._valueDropped) this._valueDropped = new Stream(`${this.name}ValueDropped`);
+    return this._valueDropped;
+  }
+  get cleared() {
+    if (!this._cleared) this._cleared = new Stream(`${this.name}Cleared`);
+    return this._cleared;
+  }
+  get disposed() {
+    if (!this._disposed) this._disposed = new Stream(`${this.name}Disposed`);
+    return this._disposed;
   }
 }
 export namespace Queue {

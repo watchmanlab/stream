@@ -1,4 +1,3 @@
-import { Consumer } from "./consumer";
 import { Dispatcher } from "./dispatcher";
 import { Source } from "./source";
 
@@ -42,10 +41,10 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
     return this._dispatcher.getConsumer();
   }
   async [Symbol.asyncDispose]() {
-    await this.terminate();
+    await this.dispose();
   }
   [Symbol.dispose]() {
-    this.terminate();
+    this.dispose();
   }
   push<const T extends VALUE>(value: T) {
     return this._dispatcher.dispatch(value);
@@ -66,8 +65,8 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
   ): OUTPUT_STREAM {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-  async terminate() {
-    await Promise.all([this._dispatcher.clear(), this._source?.terminate()]);
+  async dispose() {
+    await Promise.all([this._dispatcher.dispose(), this._source?.dispose()]);
   }
   get dispatcher() {
     return this._dispatcher;
