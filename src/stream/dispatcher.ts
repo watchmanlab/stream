@@ -1,4 +1,5 @@
 import { Consumer } from "./consumer";
+import { Queue } from "./queue";
 import { Source } from "./source";
 import { Stream } from "./stream";
 
@@ -47,7 +48,32 @@ export class Dispatcher<VALUE, NAME extends string = Dispatcher.Name>
   hasConsumer(name: string): boolean {
     return this._consumers.has(name);
   }
-  getConsumer<NAME extends string = string>(name?: NAME): Consumer<VALUE, NAME> {
+  getConsumer<
+    NAME extends string,
+    BUFFER extends Queue<VALUE, any>,
+    PENDINGS extends Queue<(value: VALUE | Queue.Empty) => void, any>,
+  >(name: NAME, options?: Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>>): Consumer<VALUE, NAME>;
+  getConsumer<BUFFER extends Queue<VALUE, any>, PENDINGS extends Queue<(value: VALUE | Queue.Empty) => void, any>>(
+    options?: Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>>,
+  ): Consumer<VALUE, string>;
+  getConsumer<
+    NAME extends string,
+    BUFFER extends Queue<VALUE, any>,
+    PENDINGS extends Queue<(value: VALUE | Queue.Empty) => void, any>,
+  >(
+    nameOrOptions?: NAME | Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>>,
+    _options?: Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>>,
+  ): Consumer<VALUE, NAME> {
+    let name: NAME | undefined;
+    let options: Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>> | undefined;
+
+    if (typeof nameOrOptions === "string") {
+      name = nameOrOptions;
+      options = _options;
+    } else {
+      _options = nameOrOptions;
+    }
+
     if (!name) {
       while (true) {
         name = `consumer${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}` as NAME;

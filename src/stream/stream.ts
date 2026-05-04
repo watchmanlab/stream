@@ -3,16 +3,15 @@ import { Source } from "./source";
 
 const NAME = "root";
 
-export class Stream<VALUE, NAME extends string = Stream.Name, SOURCE extends Source<VALUE, any, any> = never>
+export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
   implements AsyncIterable<VALUE>, AsyncDisposable, Disposable
 {
   private _dispatcher: Dispatcher<VALUE, `${NAME}Dispatcher`>;
   private _source?: Source<VALUE, ERROR, `${NAME}Source`>;
   readonly name: NAME;
-  constructor();
-  constructor(name: NAME);
-  constructor(sourceData: Source.SourceData<VALUE, ERROR>);
-  constructor(name: NAME, sourceData: Source.SourceData<VALUE, ERROR>);
+
+  constructor(name: NAME, sourceData?: Source.SourceData<VALUE, ERROR>);
+  constructor(sourceData?: Source.SourceData<VALUE, ERROR>);
   constructor(
     nameOrSourceData?: NAME | Source.SourceData<VALUE, ERROR>,
     _sourceData?: Source.SourceData<VALUE, ERROR>,
