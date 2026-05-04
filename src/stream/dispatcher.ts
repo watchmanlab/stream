@@ -37,10 +37,6 @@ export class Dispatcher<VALUE, NAME extends string>
     }
     return progresses;
   }
-  hasConsumer(name: string): boolean {
-    return this._consumers.has(name);
-  }
-
   getConsumer(options?: {
     bufferOptions: Queue.Options;
     pendingsOptions: Queue.Options;
@@ -65,7 +61,6 @@ export class Dispatcher<VALUE, NAME extends string>
     this._consumerAttached?.push(consumer);
     return consumer;
   }
-
   async clear() {
     const promises = [];
     for (const consumer of this) {
@@ -88,7 +83,6 @@ export class Dispatcher<VALUE, NAME extends string>
     await this._disposed?.dispose();
     this._disposed = undefined;
   }
-
   get consumersCount() {
     return this._consumers.size;
   }

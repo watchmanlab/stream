@@ -5,7 +5,7 @@ import { Stream } from "./stream";
 export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterator<VALUE>, AsyncDisposable, Disposable {
   readonly name: NAME;
   private _options?: Consumer.Options<VALUE>;
-  private _buffer: Queue<VALUE, `${NAME}Queue`>;
+  private _buffer: Queue<VALUE, `${NAME}Buffer`>;
   private _pendings: Queue<(value: VALUE | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
@@ -14,7 +14,7 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   constructor(name: NAME, options?: Consumer.Options<VALUE>) {
     this.name = name;
     this._options = options;
-    this._buffer = new Queue(`${this.name}Queue`, options?.bufferOptions);
+    this._buffer = new Queue(`${this.name}Buffer`, options?.bufferOptions);
     this._pendings = new Queue(`${this.name}Pending`, options?.pendingsOptions);
   }
 

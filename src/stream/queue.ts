@@ -1,7 +1,6 @@
 import { Stream } from "./stream";
 
-const NAME = "queue";
-export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<VALUE>, AsyncDisposable, Disposable {
+export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, AsyncDisposable, Disposable {
   readonly name: NAME;
   private _head?: Queue.Node<VALUE>;
   private _tail?: Queue.Node<VALUE>;
@@ -106,7 +105,6 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
   }
 }
 export namespace Queue {
-  export type Name = typeof NAME;
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
   export type DropStrategy = "newest" | "oldest";
   export type Options = {

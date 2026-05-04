@@ -1,5 +1,6 @@
 import { Dispatcher } from "./dispatcher";
 import { Source } from "./source";
+import { Transformer } from "./transformer";
 
 const NAME = "root";
 
@@ -7,8 +8,8 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
   implements AsyncIterable<VALUE>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
-  private _dispatcher: Dispatcher<VALUE, `${NAME}Dispatcher`>;
-  private _source?: Source<VALUE, ERROR, `${NAME}Source`>;
+  private _dispatcher: Dispatcher<VALUE, NAME>;
+  private _source?: Source<VALUE, ERROR, NAME>;
 
   constructor(name: NAME, sourceData?: Source.SourceData<VALUE, ERROR>);
   constructor(sourceData?: Source.SourceData<VALUE, ERROR>);
@@ -27,13 +28,13 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
 
     if (sourceData)
       this._source = new Source(
-        `${this.name}Source`,
+        this.name,
         sourceData,
         (value) => this.push(value),
         () => (this._source = undefined),
       );
 
-    this._dispatcher = new Dispatcher(`${this.name}Dispatcher`, { source: this._source });
+    this._dispatcher = new Dispatcher(this.name, { source: this._source });
   }
 
   [Symbol.asyncIterator]() {
@@ -48,17 +49,20 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
   push<const T extends VALUE>(value: T) {
     return this._dispatcher.dispatch(value);
   }
-  next() {
-    return this[Symbol.asyncIterator]().next();
+  async next() {
+    const consumer = this._dispatcher.getConsumer();
+    const result = await consumer.next();
+    await consumer.dispose();
+    return result;
   }
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream.Transformer<this, any, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream.Transformer<this, any, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
     name: OUTPUT_NAME,
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Stream.Transformer<this, any, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
     nameOrTransform: OUTPUT_NAME | Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
     transform?: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM {
@@ -78,65 +82,15 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
 export namespace Stream {
   export type Name = typeof NAME;
   export type AnyStream = Stream<any, any, any>;
-  export type AnyTransformer = Transformer<AnyStream, any, any, any>;
-
-  export type ExtractValue<T extends AnyStream | AnyTransformer> =
-    T extends Stream<infer VALUE, any, any> ? VALUE : T extends Transformer<any, infer VALUE, any, any> ? VALUE : never;
-
-  export type ExtractError<T extends Source.AnyError | AnyStream | AnyTransformer> =
-    T extends Source.Error<infer ERROR>
-      ? ERROR
-      : T extends Stream<any, infer ERROR, any>
-        ? ERROR
-        : T extends Transformer<any, any, infer ERROR, any>
-          ? ERROR
-          : never;
+  export type ExtractValue<T extends AnyStream> = T extends Stream<infer VALUE, any, any> ? VALUE : never;
+  export type ExtractError<T extends AnyStream> = T extends Stream<any, infer ERROR, any> ? ERROR : never;
+  export type ExtractName<T extends AnyStream> = T["name"];
 
   export type Transform<
     INPUT_STREAM extends AnyStream,
     OUTPUT_NAME extends string,
     OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, any, OUTPUT_NAME>,
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
-
-  export type ExtractInputStream<T extends AnyStream> =
-    T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
-  export type Traversable<T extends AnyStream> =
-    ExtractInputStream<T> extends never
-      ? T
-      : Omit<T, "traversal"> &
-          Record<ExtractInputStream<T>["name"] | (`$${string}` & {}), Traversable<ExtractInputStream<T>>>;
-  export abstract class Transformer<
-    INPUT_STREAM extends Stream.AnyStream,
-    VALUE,
-    ERROR extends { error: unknown; reason: ExtractValue<INPUT_STREAM> },
-    NAME extends string,
-  > extends Stream<VALUE, ERROR, NAME> {
-    constructor(
-      name: NAME,
-      protected readonly inputStream: INPUT_STREAM,
-      fn?: () => AsyncGenerator<VALUE | Source.Error<ERROR>>,
-    ) {
-      super(name, fn!);
-
-      return new Proxy(this, {
-        get(target, p, receiver) {
-          if (p in target) return Reflect.get(target, p, receiver);
-          return inputStream;
-        },
-      });
-    }
-    get traversal(): Record<INPUT_STREAM["name"] | (`$${string}` & {}), Traversable<INPUT_STREAM>> {
-      const self = this;
-      return new Proxy(
-        {},
-        {
-          get() {
-            return self.inputStream;
-          },
-        },
-      ) as never;
-    }
-  }
 
   export class SourceError<ERROR, SOURCE extends AnyStream> {
     constructor(
@@ -147,9 +101,6 @@ export namespace Stream {
       return this.source.name;
     }
   }
-
-  export const TERMINATED = Symbol.for("$TERMINATED#");
-  export type Terminated = typeof TERMINATED;
 }
 
 function simpleTest() {
@@ -204,19 +155,19 @@ function bench() {
   }
 }
 function consumerTest() {
-  const stream1 = new Stream(new String("hi"));
+  const stream1 = new Stream("clicks", new String("hi"));
   const consumer1 = stream1.dispatcher.getConsumer();
   const consumer2 = stream1.dispatcher.getConsumer();
 
   (async () => {
     for await (const value of consumer1) {
-      console.log(consumer1.name, value);
+      console.log(consumer1.buffer.name, value);
     }
     console.log(consumer1.name, " done");
   })();
   (async () => {
     for await (const value of consumer2) {
-      console.log(consumer2.name, value);
+      console.log(consumer2.buffer.name, value);
     }
     console.log(consumer2.name, " done");
   })();
