@@ -1,6 +1,8 @@
 import { Stream } from "./stream";
 
-export class Queue<VALUE, NAME extends string> implements Iterable<VALUE> {
+const NAME = "queue";
+export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<VALUE>, AsyncDisposable, Disposable {
+  readonly name: NAME;
   private _head?: Queue.Node<VALUE>;
   private _tail?: Queue.Node<VALUE>;
   private _size = 0;
@@ -10,11 +12,16 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE> {
   private _cleared?: Stream<undefined, never, `${NAME}Cleared`>;
   private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
 
-  constructor(
-    public readonly name: NAME,
-    options?: Queue.Options,
-  ) {
-    this._options = { ...Queue.defaultOptions, ...options };
+  constructor(name: NAME, options?: Queue.Options);
+  constructor(options?: Queue.Options);
+  constructor(nameOrOptions?: NAME | Queue.Options, options?: Queue.Options) {
+    if (typeof nameOrOptions === "string") {
+      this.name = nameOrOptions;
+      this._options = { ...Queue.defaultOptions, ...options };
+    } else {
+      this.name = NAME as NAME;
+      this._options = { ...Queue.defaultOptions, ...nameOrOptions };
+    }
   }
   [Symbol.iterator]() {
     const self = this;
@@ -24,6 +31,12 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE> {
         return { value: value as VALUE, done: value === Queue.EMPTY };
       },
     };
+  }
+  async [Symbol.asyncDispose]() {
+    await this.dispose();
+  }
+  [Symbol.dispose]() {
+    this.dispose();
   }
   enqueue(value: VALUE): Queue.EnqueueResult<VALUE> {
     if (this.size >= this._options.maxSize && this._options.dropStrategy === "newest") {
@@ -54,7 +67,6 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE> {
 
     return value;
   }
-
   clear() {
     for (const value of this) {
       this._valueDropped?.push(value);
@@ -101,6 +113,7 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE> {
   }
 }
 export namespace Queue {
+  export type Name = typeof NAME;
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
   export type DropStrategy = "newest" | "oldest";
   export type Options = {

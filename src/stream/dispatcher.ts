@@ -2,19 +2,29 @@ import { Consumer } from "./consumer";
 import { Source } from "./source";
 import { Stream } from "./stream";
 
-export class Dispatcher<VALUE, NAME extends string>
+const NAME = "dispatcher";
+export class Dispatcher<VALUE, NAME extends string = Dispatcher.Name>
   implements Iterable<Consumer<VALUE, NAME>>, AsyncDisposable, Disposable
 {
+  readonly name: NAME;
+  private _options?: Dispatcher.Options<VALUE>;
   private _consumers = new Map<string, Consumer<VALUE, any>>();
   private _consumerAttached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerAttached`>;
   private _consumerDetached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerDetached`>;
   private _cleared?: Stream<undefined, never, `${NAME}Cleared`>;
   private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
 
-  constructor(
-    public readonly name: NAME,
-    private options: Dispatcher.Options<VALUE> = {},
-  ) {}
+  constructor(name: NAME, options?: Dispatcher.Options<VALUE>);
+  constructor(options?: Dispatcher.Options<VALUE>);
+  constructor(nameOrOptions?: NAME | Dispatcher.Options<VALUE>, options?: Dispatcher.Options<VALUE>) {
+    if (typeof nameOrOptions === "string") {
+      this.name = nameOrOptions;
+      this._options = { ...options };
+    } else {
+      this.name = NAME as NAME;
+      this._options = { ...nameOrOptions };
+    }
+  }
   [Symbol.iterator]() {
     return this._consumers.values();
   }
@@ -48,7 +58,7 @@ export class Dispatcher<VALUE, NAME extends string>
     if (consumer) return consumer;
 
     consumer = new Consumer<VALUE, NAME>(name, {
-      source: this.options?.source,
+      source: this._options?.source,
       onTerminate: () => {
         this._consumers.delete(name);
         this._consumerDetached?.push(consumer!);
@@ -112,6 +122,7 @@ export class Dispatcher<VALUE, NAME extends string>
   }
 }
 export namespace Dispatcher {
+  export type Name = typeof NAME;
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
   };

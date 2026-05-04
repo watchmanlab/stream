@@ -3,7 +3,7 @@ import { Source } from "./source";
 
 const NAME = "root";
 
-export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
+export class Stream<VALUE, NAME extends string = Stream.Name, SOURCE extends Source<VALUE, any, any> = never>
   implements AsyncIterable<VALUE>, AsyncDisposable, Disposable
 {
   private _dispatcher: Dispatcher<VALUE, `${NAME}Dispatcher`>;
@@ -205,13 +205,7 @@ function bench() {
   }
 }
 function consumerTest() {
-  const stream1 = new Stream("mystream", async function* () {
-    let i = 0;
-    while (i < 5) {
-      await new Promise((r) => setTimeout(r, Math.random() * 300));
-      yield i++;
-    }
-  });
+  const stream1 = new Stream(new String("hi"));
   const consumer1 = stream1.dispatcher.getConsumer("c1");
   const consumer2 = stream1.dispatcher.getConsumer("c2");
 
