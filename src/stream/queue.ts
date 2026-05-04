@@ -12,16 +12,9 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
   private _cleared?: Stream<undefined, never, `${NAME}Cleared`>;
   private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
 
-  constructor(name: NAME, options?: Queue.Options);
-  constructor(options?: Queue.Options);
-  constructor(nameOrOptions?: NAME | Queue.Options, options?: Queue.Options) {
-    if (typeof nameOrOptions === "string") {
-      this.name = nameOrOptions;
-      this._options = { ...Queue.defaultOptions, ...options };
-    } else {
-      this.name = NAME as NAME;
-      this._options = { ...Queue.defaultOptions, ...nameOrOptions };
-    }
+  constructor(name: NAME, options?: Queue.Options) {
+    this.name = name;
+    this._options = { ...Queue.defaultOptions, ...options };
   }
   [Symbol.iterator]() {
     const self = this;

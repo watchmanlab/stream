@@ -1,16 +1,19 @@
 import { Stream } from "./stream";
 
 export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposable, Disposable {
+  readonly name: NAME;
   private _iterator: Iterator<VALUE | Source.Error<ERROR>> | AsyncIterator<VALUE | Source.Error<ERROR>>;
   private _idle = true;
   private _error?: Stream<ERROR, never, `${NAME}Error`>;
 
   constructor(
-    public readonly name: NAME,
+    name: NAME,
     sourceData: Source.SourceData<VALUE, ERROR>,
     private onNext: (value: VALUE) => void,
     private onDone: () => void,
   ) {
+    this.name = name;
+
     if (typeof sourceData === "function") {
       this._iterator = sourceData();
     } else {
@@ -23,7 +26,6 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
   [Symbol.dispose]() {
     this.dispose();
   }
-
   private async asyncResult(resultPromise: Promise<IteratorResult<VALUE | Source.Error<ERROR>, any>>) {
     try {
       const result = await resultPromise;
@@ -100,7 +102,18 @@ export namespace Source {
   export class Error<const ERROR> {
     constructor(public readonly data: ERROR) {}
   }
+  export type AnySource = Source<any, any, any>;
   export type AnyError = Error<any>;
+  export type AnySourceData = SourceData<any, any>;
+  export type ExtractError<T extends AnySourceData | AnyError | AnySource> =
+    T extends SourceData<any, infer ERROR>
+      ? ERROR
+      : T extends Error<infer ERROR>
+        ? ERROR
+        : T extends Source<any, infer ERROR, any>
+          ? ERROR
+          : never;
+
   export type SourceData<VALUE, ERROR> =
     | (() =>
         | AsyncGenerator<VALUE | Error<ERROR>>

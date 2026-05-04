@@ -2,43 +2,20 @@ import { Queue } from "./queue";
 import { Source } from "./source";
 import { Stream } from "./stream";
 
-const NAME = "consumer";
-export class Consumer<
-  VALUE,
-  NAME extends string = Consumer.Name,
-  BUFFER extends Queue<VALUE, any> = Queue<VALUE, `${NAME}Queue`>,
-  PENDINGS extends Queue<(value: VALUE | Queue.Empty) => void, any> = Queue<
-    (value: VALUE | Queue.Empty) => void,
-    `${NAME}Pending`
-  >,
-  SOURCE extends Source<VALUE, any, any> = Source<VALUE, any, `${NAME}Source`>,
->
-  implements AsyncIterableIterator<VALUE>, AsyncDisposable, Disposable
-{
+export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterator<VALUE>, AsyncDisposable, Disposable {
   readonly name: NAME;
-  private _options: Consumer.Options<VALUE, BUFFER, PENDINGS, SOURCE>;
-  private _buffer: BUFFER;
-  private _pendings: PENDINGS;
+  private _options?: Consumer.Options<VALUE>;
+  private _buffer: Queue<VALUE, `${NAME}Queue`>;
+  private _pendings: Queue<(value: VALUE | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
   private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
 
-  constructor(name: NAME, options?: Consumer.Options<VALUE, BUFFER, PENDINGS, SOURCE>);
-  constructor(options?: Consumer.Options<VALUE, BUFFER, PENDINGS, SOURCE>);
-  constructor(
-    nameOrOptions?: NAME | Consumer.Options<VALUE, BUFFER, PENDINGS, SOURCE>,
-    options?: Consumer.Options<VALUE, BUFFER, PENDINGS, SOURCE>,
-  ) {
-    if (typeof nameOrOptions === "string") {
-      this.name = nameOrOptions;
-      this._options = { ...options };
-    } else {
-      this.name = NAME as NAME;
-      this._options = { ...nameOrOptions };
-    }
-
-    this._buffer = this._options.buffer ?? (new Queue(`${this.name}Queue`) as BUFFER);
-    this._pendings = this._options.pendings ?? (new Queue(`${this.name}Pending`) as PENDINGS);
+  constructor(name: NAME, options?: Consumer.Options<VALUE>) {
+    this.name = name;
+    this._options = options;
+    this._buffer = new Queue(`${this.name}Queue`, options?.bufferOptions);
+    this._pendings = new Queue(`${this.name}Pending`, options?.pendingsOptions);
   }
 
   [Symbol.asyncIterator]() {
@@ -111,7 +88,7 @@ export class Consumer<
     return this._pendings;
   }
   get source() {
-    return this._options.source;
+    return this._options?.source;
   }
   get valueProcessing() {
     if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.name}ValueProcessing`);
@@ -127,17 +104,11 @@ export class Consumer<
   }
 }
 export namespace Consumer {
-  export type Name = typeof NAME;
-  export type Options<
-    VALUE,
-    BUFFER extends Queue<VALUE, any>,
-    PENDINGS extends Queue<(value: VALUE | Queue.Empty) => void, any>,
-    SOURCE extends Source<VALUE, any, any>,
-  > = {
-    source?: SOURCE;
+  export type Options<VALUE> = {
+    source?: Source<VALUE, any, any>;
     onTerminate?: () => void;
-    buffer?: BUFFER;
-    pendings?: PENDINGS;
+    bufferOptions?: Queue.Options;
+    pendingsOptions?: Queue.Options;
   };
 
   export class PushProgress<const VALUE, NAME extends string> {

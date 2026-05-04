@@ -6,9 +6,9 @@ const NAME = "root";
 export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
   implements AsyncIterable<VALUE>, AsyncDisposable, Disposable
 {
+  readonly name: NAME;
   private _dispatcher: Dispatcher<VALUE, `${NAME}Dispatcher`>;
   private _source?: Source<VALUE, ERROR, `${NAME}Source`>;
-  readonly name: NAME;
 
   constructor(name: NAME, sourceData?: Source.SourceData<VALUE, ERROR>);
   constructor(sourceData?: Source.SourceData<VALUE, ERROR>);
@@ -205,8 +205,8 @@ function bench() {
 }
 function consumerTest() {
   const stream1 = new Stream(new String("hi"));
-  const consumer1 = stream1.dispatcher.getConsumer("c1");
-  const consumer2 = stream1.dispatcher.getConsumer("c2");
+  const consumer1 = stream1.dispatcher.getConsumer();
+  const consumer2 = stream1.dispatcher.getConsumer();
 
   (async () => {
     for await (const value of consumer1) {

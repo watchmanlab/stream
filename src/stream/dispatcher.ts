@@ -3,8 +3,7 @@ import { Queue } from "./queue";
 import { Source } from "./source";
 import { Stream } from "./stream";
 
-const NAME = "dispatcher";
-export class Dispatcher<VALUE, NAME extends string = Dispatcher.Name>
+export class Dispatcher<VALUE, NAME extends string>
   implements Iterable<Consumer<VALUE, NAME>>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
@@ -15,16 +14,9 @@ export class Dispatcher<VALUE, NAME extends string = Dispatcher.Name>
   private _cleared?: Stream<undefined, never, `${NAME}Cleared`>;
   private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
 
-  constructor(name: NAME, options?: Dispatcher.Options<VALUE>);
-  constructor(options?: Dispatcher.Options<VALUE>);
-  constructor(nameOrOptions?: NAME | Dispatcher.Options<VALUE>, options?: Dispatcher.Options<VALUE>) {
-    if (typeof nameOrOptions === "string") {
-      this.name = nameOrOptions;
-      this._options = { ...options };
-    } else {
-      this.name = NAME as NAME;
-      this._options = { ...nameOrOptions };
-    }
+  constructor(name: NAME, options?: Dispatcher.Options<VALUE>) {
+    this.name = name;
+    this._options = { ...options };
   }
   [Symbol.iterator]() {
     return this._consumers.values();
@@ -48,47 +40,25 @@ export class Dispatcher<VALUE, NAME extends string = Dispatcher.Name>
   hasConsumer(name: string): boolean {
     return this._consumers.has(name);
   }
-  getConsumer<
-    NAME extends string,
-    BUFFER extends Queue<VALUE, any>,
-    PENDINGS extends Queue<(value: VALUE | Queue.Empty) => void, any>,
-  >(name: NAME, options?: Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>>): Consumer<VALUE, NAME>;
-  getConsumer<BUFFER extends Queue<VALUE, any>, PENDINGS extends Queue<(value: VALUE | Queue.Empty) => void, any>>(
-    options?: Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>>,
-  ): Consumer<VALUE, string>;
-  getConsumer<
-    NAME extends string,
-    BUFFER extends Queue<VALUE, any>,
-    PENDINGS extends Queue<(value: VALUE | Queue.Empty) => void, any>,
-  >(
-    nameOrOptions?: NAME | Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>>,
-    _options?: Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>>,
-  ): Consumer<VALUE, NAME> {
-    let name: NAME | undefined;
-    let options: Consumer.Options<VALUE, BUFFER, PENDINGS, Source<VALUE, any, any>> | undefined;
 
-    if (typeof nameOrOptions === "string") {
-      name = nameOrOptions;
-      options = _options;
-    } else {
-      _options = nameOrOptions;
+  getConsumer(options?: {
+    bufferOptions: Queue.Options;
+    pendingsOptions: Queue.Options;
+  }): Consumer<VALUE, `${NAME}Consumer${string}`> {
+    let name: `${NAME}Consumer${string}`;
+
+    while (true) {
+      name = `${this.name}Consumer${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}`;
+      if (!this._consumers.has(name)) break;
     }
 
-    if (!name) {
-      while (true) {
-        name = `consumer${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}` as NAME;
-        if (!this._consumers.has(name)) break;
-      }
-    }
-    let consumer = this._consumers.get(name);
-    if (consumer) return consumer;
-
-    consumer = new Consumer<VALUE, NAME>(name, {
+    const consumer = new Consumer(name, {
       source: this._options?.source,
       onTerminate: () => {
         this._consumers.delete(name);
-        this._consumerDetached?.push(consumer!);
+        this._consumerDetached?.push(consumer);
       },
+      ...options,
     });
 
     this._consumers.set(name, consumer);
@@ -148,7 +118,6 @@ export class Dispatcher<VALUE, NAME extends string = Dispatcher.Name>
   }
 }
 export namespace Dispatcher {
-  export type Name = typeof NAME;
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
   };
