@@ -104,6 +104,11 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   }
 }
 export namespace Consumer {
+  export type AnyOptions = Options<any>;
+  export type AnyPushProgress = PushProgress<any, any>;
+  export type ExtractValue<T extends AnyOptions | AnyPushProgress> =
+    T extends Options<infer VALUE> ? VALUE : T extends PushProgress<infer VALUE, any> ? VALUE : never;
+  export type ExtractName<T extends AnyPushProgress> = T["name"];
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
     onTerminate?: () => void;

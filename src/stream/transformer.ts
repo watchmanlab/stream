@@ -36,14 +36,13 @@ export abstract class Transformer<
 
 export namespace Transformer {
   export type AnyTransformer = Transformer<Stream.AnyStream, any, any, any>;
-  export type ExtractInputStream<T extends Stream.AnyStream> =
-    T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
   export type ExtractValue<T extends AnyTransformer> =
     T extends Transformer<any, infer VALUE, any, any> ? VALUE : never;
-  export type ExtractError<T extends AnyTransformer> =
-    T extends Transformer<any, any, infer ERROR, any> ? ERROR : never;
   export type ExtractName<T extends AnyTransformer> = T["name"];
-
+  export type ExtractError<T extends AnyTransformer> =
+    T extends Transformer<any, any, { error: infer ERROR; reason: any }, any> ? ERROR : never;
+  export type ExtractInputStream<T extends Stream.AnyStream | AnyTransformer> =
+    T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
   export type Traversable<T extends Stream.AnyStream> =
     ExtractInputStream<T> extends never
       ? T

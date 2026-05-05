@@ -99,20 +99,23 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
 }
 
 export namespace Source {
+  export type AnySource = Source<any, any, any>;
+  export type AnySourceData = SourceData<any, any>;
+  export type AnyError = Source.Error<any>;
+  export type ExtractValue<T extends AnySource | AnySourceData> =
+    T extends Source<infer VALUE, any, any> ? VALUE : T extends SourceData<infer VALUE, any> ? VALUE : never;
+  export type ExtractName<T extends AnySource> = T["name"];
+  export type ExtractError<T extends AnySource | AnySource | AnyError> =
+    T extends Source<any, infer ERROR, any>
+      ? ERROR
+      : T extends SourceData<any, infer ERROR>
+        ? ERROR
+        : T extends AnyError
+          ? T["data"]
+          : never;
   export class Error<const ERROR> {
     constructor(public readonly data: ERROR) {}
   }
-  export type AnySource = Source<any, any, any>;
-  export type AnyError = Error<any>;
-  export type AnySourceData = SourceData<any, any>;
-  export type ExtractError<T extends AnySourceData | AnyError | AnySource> =
-    T extends SourceData<any, infer ERROR>
-      ? ERROR
-      : T extends Error<infer ERROR>
-        ? ERROR
-        : T extends Source<any, infer ERROR, any>
-          ? ERROR
-          : never;
 
   export type SourceData<VALUE, ERROR> =
     | (() =>
@@ -122,4 +125,13 @@ export namespace Source {
         | Iterator<VALUE | Error<ERROR>>)
     | AsyncIterable<VALUE | Error<ERROR>>
     | Exclude<Iterable<VALUE | Error<ERROR>>, string>;
+  // export class SourceError<ERROR, SOURCE extends Stream.AnyStream> {
+  //   constructor(
+  //     public readonly error: ERROR,
+  //     public readonly source: SOURCE,
+  //   ) {}
+  //   get sourceName(): SOURCE["name"] {
+  //     return this.source.name;
+  //   }
+  // }
 }

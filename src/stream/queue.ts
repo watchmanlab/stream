@@ -74,7 +74,6 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, Async
     await this._disposed?.dispose();
     this._disposed = undefined;
   }
-
   get options() {
     return this._options;
   }
@@ -105,6 +104,11 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, Async
   }
 }
 export namespace Queue {
+  export type AnyQueue = Queue<any, any>;
+  export type AnyEnqueueResult = EnqueueResult<any>;
+  export type ExtractValue<T extends AnyQueue | AnyEnqueueResult> =
+    T extends Queue<infer VALUE, any> ? VALUE : T extends EnqueueResult<infer VALUE> ? VALUE : never;
+  export type ExtractName<T extends AnyQueue> = T["name"];
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
   export type DropStrategy = "newest" | "oldest";
   export type Options = {
