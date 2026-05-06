@@ -1,11 +1,11 @@
-import { Consumer } from "./consumer";
-import { Queue } from "./queue";
-import { Source } from "./source";
-import { Transformer } from "./transformer";
+import { Consumer } from "./consumer.ts";
+import { Queue } from "./queue.ts";
+import { Source } from "./source.ts";
+import { Transformer } from "./transformer.ts";
 
 const NAME = "root";
 
-export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
+export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   implements AsyncIterable<VALUE>, Iterable<Consumer<VALUE, NAME>>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
@@ -114,11 +114,11 @@ export class Stream<VALUE, ERROR, NAME extends string = Stream.Name>
       this._consumerDetached?.dispose(),
       this._cleared?.dispose(),
     ]);
-    this._consumerAttached = this._consumerDetached = this._cleared = undefined;
 
     this._disposed?.push(undefined);
     await this._disposed?.dispose();
-    this._disposed = undefined;
+
+    this._consumerAttached = this._consumerDetached = this._cleared = this._disposed = undefined;
   }
 
   get source() {
@@ -159,28 +159,24 @@ export namespace Stream {
   export type ExtractValue<T> =
     T extends Stream<infer VALUE, any, any>
       ? VALUE
-      : T extends Transformer<any, infer VALUE, any, any>
-        ? VALUE
-        : T extends Source<infer VALUE, any, any>
-          ? VALUE
-          : T extends Source.SourceData<infer VALUE, any>
-            ? VALUE
-            : never;
-  export type ExtractName<T extends AnyStream | Transformer.AnyTransformer | Source.AnySource> = T["name"];
-  export type ExtractError<
-    T extends AnyStream | Transformer.AnyTransformer | Source.AnyError | Source.AnySource | Source.AnySourceData,
-  > =
+      : Transformer.ExtractValue<T> extends never
+        ? Consumer.ExtractValue<T> extends never
+          ? Source.ExtractValue<T> extends never
+            ? Queue.ExtractValue<T> extends never
+              ? never
+              : Queue.ExtractValue<T>
+            : Source.ExtractValue<T>
+          : Consumer.ExtractValue<T>
+        : Transformer.ExtractValue<T>;
+  export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
+  export type ExtractError<T> =
     T extends Stream<any, infer ERROR, any>
       ? ERROR
-      : T extends Transformer<any, any, infer ERROR, any>
-        ? ERROR
-        : T extends Source.AnyError
-          ? T["data"]
-          : T extends Source<any, infer ERROR, any>
-            ? ERROR
-            : T extends Source.SourceData<any, infer ERROR>
-              ? ERROR
-              : never;
+      : Transformer.ExtractError<T> extends never
+        ? Source.ExtractError<T> extends never
+          ? never
+          : Source.ExtractError<T>
+        : Transformer.ExtractError<T>;
 
   export type Transform<
     INPUT_STREAM extends AnyStream,

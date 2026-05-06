@@ -1,4 +1,4 @@
-import { Stream } from "./stream";
+import { Stream } from "./stream.ts";
 
 export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposable, Disposable {
   readonly name: NAME;
@@ -86,7 +86,8 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
     }
   }
   async dispose() {
-    await this._iterator.return?.();
+    await Promise.all([this._iterator.return?.(), this._error?.dispose()]);
+    this._error = undefined;
     this.onDone();
   }
   get idle() {
@@ -102,10 +103,10 @@ export namespace Source {
   export type AnySource = Source<any, any, any>;
   export type AnySourceData = SourceData<any, any>;
   export type AnyError = Source.Error<any>;
-  export type ExtractValue<T extends AnySource | AnySourceData> =
+  export type ExtractValue<T> =
     T extends Source<infer VALUE, any, any> ? VALUE : T extends SourceData<infer VALUE, any> ? VALUE : never;
-  export type ExtractName<T extends AnySource> = T["name"];
-  export type ExtractError<T extends AnySource | AnySource | AnyError> =
+  export type ExtractName<T> = T extends AnySource ? T["name"] : never;
+  export type ExtractError<T> =
     T extends Source<any, infer ERROR, any>
       ? ERROR
       : T extends SourceData<any, infer ERROR>

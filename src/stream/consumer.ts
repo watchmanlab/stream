@@ -1,6 +1,6 @@
-import { Queue } from "./queue";
-import { Source } from "./source";
-import { Stream } from "./stream";
+import { Queue } from "./queue.ts";
+import { Source } from "./source.ts";
+import { Stream } from "./stream.ts";
 
 export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterator<VALUE>, AsyncDisposable, Disposable {
   readonly name: NAME;
@@ -38,7 +38,7 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
     return new Consumer.PushProgress(this.name, value, this);
   }
   private _currentValue: VALUE | Queue.Empty = Queue.EMPTY;
-  async next(): Promise<IteratorResult<VALUE, any>> {
+  async next(): Promise<IteratorResult<VALUE, Queue.Empty>> {
     if (this._currentValue !== Queue.EMPTY) {
       this._valueProcessed?.push(this._currentValue);
       this._currentValue = Queue.EMPTY;
@@ -57,7 +57,7 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
       return { value: value as never, done: value === Queue.EMPTY };
     }
   }
-  async return(): Promise<IteratorResult<VALUE, any>> {
+  async return(): Promise<IteratorReturnResult<Queue.Empty>> {
     for (const pending of this._pendings) {
       pending(Queue.EMPTY);
     }
@@ -69,11 +69,10 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
       this._valueProcessed?.dispose(),
     ]);
 
-    this._valueProcessing = this._valueProcessed = undefined;
-
     this._disposed?.push(undefined);
     await this._disposed?.dispose();
-    this._disposed = undefined;
+
+    this._valueProcessing = this._valueProcessed = this._disposed = undefined;
 
     this._options?.onTerminate?.();
     return { value: Queue.EMPTY as never, done: true };
@@ -106,9 +105,9 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
 export namespace Consumer {
   export type AnyOptions = Options<any>;
   export type AnyPushProgress = PushProgress<any, any>;
-  export type ExtractValue<T extends AnyOptions | AnyPushProgress> =
+  export type ExtractValue<T> =
     T extends Options<infer VALUE> ? VALUE : T extends PushProgress<infer VALUE, any> ? VALUE : never;
-  export type ExtractName<T extends AnyPushProgress> = T["name"];
+  export type ExtractName<T> = T extends AnyPushProgress ? T["name"] : never;
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
     onTerminate?: () => void;

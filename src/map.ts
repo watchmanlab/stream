@@ -1,4 +1,4 @@
-import { Stream } from "./stream/stream";
+import { Stream, Transformer, Source } from "./stream/index.ts";
 
 const NAME = "map";
 class Map<
@@ -7,23 +7,23 @@ class Map<
   MAPPED = VALUE,
   ERROR = unknown,
   NAME extends string = map.Name,
-> extends Stream.Transformer<INPUT_STREAM, MAPPED, { error: ERROR; reason: VALUE }, NAME> {
+> extends Transformer<INPUT_STREAM, MAPPED, { error: ERROR; reason: VALUE }, NAME> {
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
     super(name, inputStream, async function* () {
       for await (const value of inputStream) {
         try {
           const maybePromise = mapper(value);
           const result = maybePromise instanceof Promise ? await maybePromise : maybePromise;
-          if (result instanceof Stream.Error) {
-            yield new Stream.Error({ error: result.data, reason: value });
+          if (result instanceof Source.Error) {
+            yield new Source.Error({ error: result.data, reason: value });
           } else {
             yield result;
           }
         } catch (error: any) {
-          if (error instanceof Stream.Error) {
-            yield new Stream.Error({ error: error.data, reason: value });
+          if (error instanceof Source.Error) {
+            yield new Source.Error({ error: error.data, reason: value });
           } else {
-            yield new Stream.Error({ error, reason: value });
+            yield new Source.Error({ error, reason: value });
           }
         }
       }
@@ -48,7 +48,7 @@ export namespace map {
   export type Name = typeof NAME;
   export type Mapper<VALUE, MAPPED, ERROR> = (
     value: VALUE,
-  ) => MAPPED | Stream.Error<ERROR> | Promise<MAPPED | Stream.Error<ERROR>>;
+  ) => MAPPED | Source.Error<ERROR> | Promise<MAPPED | Source.Error<ERROR>>;
 }
 //
 
@@ -59,7 +59,7 @@ const stream = new Stream([1, 2, 3])
       if (v !== 2) {
         return v.toFixed();
       } else {
-        return new Stream.Error("kechma");
+        return new Source.Error("kechma");
       }
     }),
   )
@@ -82,12 +82,11 @@ const stream = new Stream([1, 2, 3])
 // const v = stream.traversal.map4.map3.map2.map1.source?.error.name;
 // console.log(v);
 
-const map1 = stream.traversal.map4.map3.map2.map1.consumers;
+const map1 = stream.traversal.map4.map3.map2.map1;
 
 (async () => {
   const progress = stream.push("hello");
-  (await progress[0].dropped.next()).value;
-  //                                   ^?
+
   // if (!map1.source) return;
   // for await (const error of map1.source.error) {
   //   console.log(error);

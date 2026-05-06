@@ -1,5 +1,5 @@
-import { Source } from "./source";
-import { Stream } from "./stream";
+import { Source } from "./source.ts";
+import { Stream } from "./stream.ts";
 
 export abstract class Transformer<
   INPUT_STREAM extends Stream.AnyStream,
@@ -36,13 +36,11 @@ export abstract class Transformer<
 
 export namespace Transformer {
   export type AnyTransformer = Transformer<Stream.AnyStream, any, any, any>;
-  export type ExtractValue<T extends AnyTransformer> =
-    T extends Transformer<any, infer VALUE, any, any> ? VALUE : never;
-  export type ExtractName<T extends AnyTransformer> = T["name"];
-  export type ExtractError<T extends AnyTransformer> =
+  export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any, any> ? VALUE : never;
+  export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;
+  export type ExtractError<T> =
     T extends Transformer<any, any, { error: infer ERROR; reason: any }, any> ? ERROR : never;
-  export type ExtractInputStream<T extends Stream.AnyStream | AnyTransformer> =
-    T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
+  export type ExtractInputStream<T> = T extends Transformer<infer INPUT_STREAM, any, any, any> ? INPUT_STREAM : never;
   export type Traversable<T extends Stream.AnyStream> =
     ExtractInputStream<T> extends never
       ? T
