@@ -270,5 +270,7 @@ function consumerTest() {
 }
 
 // simpleTest();
-bench();
-consumerTest();
+// bench(); 160ms
+// consumerTest();
+
+//generator function latency is 120ms

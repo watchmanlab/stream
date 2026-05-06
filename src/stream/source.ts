@@ -26,15 +26,22 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
   [Symbol.dispose]() {
     this.dispose();
   }
-  private async asyncResult(resultPromise: Promise<IteratorResult<VALUE | Source.Error<ERROR>, any>>) {
+
+  async requestNext() {
+    this._idle = false;
+
+    let result:
+      | IteratorResult<VALUE | Source.Error<ERROR>, any>
+      | Promise<IteratorResult<VALUE | Source.Error<ERROR>, any>>;
     try {
-      const result = await resultPromise;
+      result = this._iterator.next();
+      result = result instanceof Promise ? await result : result;
+
       this._idle = true;
       if (result.done) {
         this.onDone();
       } else if (result.value instanceof Source.Error) {
-        if (!this._error) throw result.value;
-        this._error?.push(result.value.data);
+        throw result.value;
       } else {
         this.onNext(result.value);
       }
@@ -47,42 +54,6 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
         if (!this._error) throw error;
         this._error?.push(error);
       }
-    }
-  }
-  private syncResult(result: IteratorResult<VALUE | Source.Error<ERROR>, any>) {
-    this._idle = true;
-    if (result.done) {
-      this.onDone();
-    } else if (result.value instanceof Source.Error) {
-      if (!this._error) throw result.value;
-      this._error?.push(result.value.data);
-    } else {
-      this.onNext(result.value);
-    }
-  }
-  requestNext() {
-    this._idle = false;
-
-    let result:
-      | IteratorResult<VALUE | Source.Error<ERROR>, any>
-      | Promise<IteratorResult<VALUE | Source.Error<ERROR>, any>>;
-    try {
-      result = this._iterator.next();
-    } catch (error: any) {
-      this._idle = true;
-      if (error instanceof Source.Error) {
-        if (!this._error) throw error.data;
-        this._error?.push(error.data);
-      } else {
-        if (!this._error) throw error;
-        this._error?.push(error);
-      }
-      return;
-    }
-    if (result instanceof Promise) {
-      this.asyncResult(result);
-    } else {
-      this.syncResult(result);
     }
   }
   async dispose() {
