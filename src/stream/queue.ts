@@ -1,6 +1,6 @@
 import { Stream } from "./stream.ts";
 
-export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, AsyncDisposable, Disposable {
+export class Queue<VALUE, NAME extends string> implements Iterable<Stream.Batch<VALUE>>, AsyncDisposable, Disposable {
   readonly name: NAME;
   private _head?: Queue.Node<VALUE>;
   private _tail?: Queue.Node<VALUE>;
@@ -20,7 +20,7 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, Async
     return {
       next: () => {
         const value = self.dequeue();
-        return { value: value as VALUE, done: value === Queue.EMPTY };
+        return { value: value as Stream.Batch<VALUE>, done: value === Queue.EMPTY };
       },
     };
   }
@@ -30,9 +30,9 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, Async
   [Symbol.dispose]() {
     this.dispose();
   }
-  enqueue(value: VALUE): Queue.EnqueueResult<VALUE> {
+  enqueue(value: Stream.Batch<VALUE>): Queue.EnqueueResult<VALUE> {
     if (this.size >= this._options.maxSize && this._options.dropStrategy === "newest") {
-      this._valueDropped?.push(value);
+      this._valueDropped?.pushMany(value);
       return { ok: false, dropped: value };
     }
     this._size++;
@@ -44,14 +44,14 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, Async
       this._tail = node;
     }
     if (this.size > this._options.maxSize && this._options.dropStrategy === "oldest") {
-      const dropped = this.dequeue() as VALUE;
-      this._valueDropped?.push(dropped);
+      const dropped = this.dequeue() as Stream.Batch<VALUE>;
+      this._valueDropped?.pushMany(dropped);
       return { ok: false, dropped };
     }
-    this._valueQueued?.push(value);
+    this._valueQueued?.pushMany(value);
     return { ok: true };
   }
-  dequeue(): VALUE | Queue.Empty {
+  dequeue(): Stream.Batch<VALUE> | Queue.Empty {
     if (!this._head) return Queue.EMPTY;
     this._size--;
     const value = this._head.value;
@@ -61,7 +61,7 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, Async
   }
   clear() {
     for (const value of this) {
-      this._valueDropped?.push(value);
+      this._valueDropped?.pushMany(value);
     }
     this._cleared?.push(undefined);
   }
@@ -116,7 +116,7 @@ export namespace Queue {
           ? T["value"]
           : never;
   export type ExtractName<T> = T extends AnyQueue ? T["name"] : never;
-  export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
+  export type Node<VALUE> = { value: Stream.Batch<VALUE>; next?: Node<VALUE> } | undefined;
   export type DropStrategy = "newest" | "oldest";
   export type Options = {
     maxSize?: number;
@@ -126,7 +126,7 @@ export namespace Queue {
     maxSize: Number.MAX_SAFE_INTEGER,
     dropStrategy: "newest",
   };
-  export type EnqueueResult<VALUE> = { ok: true; dropped?: never } | { ok: false; dropped: VALUE };
+  export type EnqueueResult<VALUE> = { ok: true; dropped?: never } | { ok: false; dropped: Stream.Batch<VALUE> };
   export const EMPTY = Symbol("$EMPTY#");
   export type Empty = typeof EMPTY;
 }

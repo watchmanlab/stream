@@ -16,8 +16,16 @@ class Map<
         next: async () => {
           const iteratorResult = await consumer.next();
           if (iteratorResult.done) return iteratorResult;
-          const value = mapper(iteratorResult.value);
-          return { value: value instanceof Promise ? await value : value };
+          const results: (MAPPED | Source.Error<ERROR>)[] = [];
+          for (let i = 0; i < iteratorResult.value.length; i++) {
+            try {
+              let result = mapper(iteratorResult.value[i]);
+              results.push(result instanceof Promise ? await result : result);
+            } catch (error: any) {
+              results.push(error);
+            }
+          }
+          return { value: results as Stream.Batch<MAPPED | Source.Error<ERROR>> };
         },
         return: () => {
           return consumer.return();
@@ -52,16 +60,21 @@ function bench() {
   const start = performance.now();
 
   const stream = new Stream<number>();
-  const mapped = stream.pipe(
-    map((v) => {
-      if (v === 4) return new Source.Error("kechmahaja " + v);
-      return v.toFixed();
-    }),
-  );
-  mapped.source?.error.next().then((res) => console.log(res.value));
+  const mapped = stream
+    .pipe(
+      map((v) => {
+        if (v === 4) return new Source.Error("kechmahaja " + v);
+        return v;
+      }),
+    )
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v));
+
+  mapped.traversal.map.map.map.source?.error.next().then((res) => console.log(res.value));
   (async () => {
     for await (const value of mapped) {
-      if (value === MAX.toFixed()) console.log("iter ", Math.round(performance.now() - start));
+      console.log("iter ", value.pop(), Math.round(performance.now() - start));
     }
   })();
 

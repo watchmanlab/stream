@@ -6,7 +6,7 @@ import { Transformer } from "./transformer.ts";
 const NAME = "root";
 
 export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
-  implements AsyncIterable<VALUE>, Iterable<Consumer<VALUE, NAME>>, AsyncDisposable, Disposable
+  implements AsyncIterable<Stream.Batch<VALUE>>, Iterable<Consumer<VALUE, NAME>>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
   private _source?: Source<VALUE, ERROR, NAME>;
@@ -28,7 +28,11 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       this._source = new Source(
         this.name,
         sourceData,
-        (value) => this.push(value),
+        (values) => {
+          if (values.length) {
+            this.pushMany(values as Stream.Batch<VALUE>);
+          }
+        },
         () => (this._source = undefined),
       );
   }
@@ -44,16 +48,26 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   [Symbol.dispose]() {
     this.dispose();
   }
+  private _batch: VALUE[] = [];
+  private _batchScheduled = false;
 
-  push<const T extends VALUE>(value: T): Consumer.PushProgress<T, string>[] {
-    const consumers = this._consumers;
+  push(value: VALUE) {
+    this._batch.push(value);
 
-    const progresses: Consumer.PushProgress<T, string>[] = [];
-
-    for (const consumer of consumers.values()) {
-      progresses.push(consumer.push(value) as never);
+    if (!this._batchScheduled) {
+      this._batchScheduled = true;
+      queueMicrotask(() => {
+        const batch = this._batch;
+        this._batch = [];
+        this._batchScheduled = false;
+        this.pushMany(batch as Stream.Batch<VALUE>);
+      });
     }
-    return progresses;
+  }
+  pushMany(values: Stream.Batch<VALUE>) {
+    for (const consumer of this._consumers.values()) {
+      consumer.push(values);
+    }
   }
   getConsumer(options?: {
     bufferOptions?: Queue.Options;
@@ -156,6 +170,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
 
 export namespace Stream {
   export type Name = typeof NAME;
+  export type Batch<VALUE> = [value: VALUE, ...values: VALUE[]];
   export type AnyStream = Stream<any, any, any>;
   export type ExtractValue<T> =
     T extends Stream<infer VALUE, any, any>
@@ -186,50 +201,44 @@ export namespace Stream {
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
 }
 
-function simpleTest() {
-  const stream = new Stream<number, never>(async function* () {
-    // await new Promise((r) => setTimeout(r, 10));
-    // yield 1 as number;
-    // await new Promise((r) => setTimeout(r, 10));
-    // yield 2;
-    // await new Promise((r) => setTimeout(r, 10));
-    // yield 3;
-  });
+// function simpleTest() {
+//   const stream = new Stream<number, never>(async function* () {
+//     // await new Promise((r) => setTimeout(r, 10));
+//     // yield 1 as number;
+//     // await new Promise((r) => setTimeout(r, 10));
+//     // yield 2;
+//     // await new Promise((r) => setTimeout(r, 10));
+//     // yield 3;
+//   });
 
-  (async () => {
-    for await (const value of stream) {
-      console.log("c1", value);
-      if (value == 2) break;
-    }
-  })();
-  (async () => {
-    for await (const value of stream) {
-      console.log("c2", value);
-      if (value == 2) break;
-    }
-  })();
+//   (async () => {
+//     for await (const value of stream) {
+//       console.log("c1", value);
+//       if (value == 2) break;
+//     }
+//   })();
+//   (async () => {
+//     for await (const value of stream) {
+//       console.log("c2", value);
+//       if (value == 2) break;
+//     }
+//   })();
 
-  stream.push(44);
-  stream.push(55);
-}
+//   stream.push(44);
+//   stream.push(55);
+// }
 function bench() {
   const MAX = 1_000_000;
   const now = performance.now();
 
   const stream = new Stream<number, never>();
   (async () => {
-    for await (const value of stream) {
-      let result = value + 10;
-      if (result === 40010) {
-        result = 444;
-      } else {
-        result = 555;
+    for await (const items of stream) {
+      for (const item of items) {
+        item;
+        item - 3;
       }
-
-      if (value === MAX) {
-        console.log("bench", Math.round(performance.now() - now));
-        return;
-      }
+      console.log("bench", items.pop(), Math.round(performance.now() - now));
     }
   })();
 
@@ -237,41 +246,41 @@ function bench() {
     stream.push(i);
   }
 }
-function consumerTest() {
-  const stream1 = new Stream("clicks", () => {
-    let i = 0;
-    return {
-      next: async () => {
-        return { value: i++, done: i > 2 };
-      },
-    };
-  });
+// function consumerTest() {
+//   const stream1 = new Stream("clicks", () => {
+//     let i = 0;
+//     return {
+//       next: async () => {
+//         return { value: [i++], done: i > 2 };
+//       },
+//     };
+//   });
 
-  const consumer1 = stream1.getConsumer();
-  const consumer2 = stream1.getConsumer();
+//   const consumer1 = stream1.getConsumer();
+//   const consumer2 = stream1.getConsumer();
 
-  (async () => {
-    for await (const value of consumer1) {
-      await new Promise((r) => setTimeout(r, 300));
+//   (async () => {
+//     for await (const value of consumer1) {
+//       await new Promise((r) => setTimeout(r, 300));
 
-      console.log(consumer1.name, value);
-    }
-    console.log(consumer1.name, " done");
-  })();
-  (async () => {
-    for await (const value of consumer2) {
-      console.log(consumer2.name, value);
-    }
-    console.log(consumer2.name, " done");
-  })();
+//       console.log(consumer1.name, value);
+//     }
+//     console.log(consumer1.name, " done");
+//   })();
+//   (async () => {
+//     for await (const value of consumer2) {
+//       console.log(consumer2.name, value);
+//     }
+//     console.log(consumer2.name, " done");
+//   })();
 
-  // stream1.push(1);
-  // stream1.push(2);
-  // stream.push(3)
-}
+//   // stream1.push(1);
+//   // stream1.push(2);
+//   // stream.push(3)
+// }
 
 // simpleTest();
-// bench(); 160ms
+// bench(); //160ms
 // consumerTest();
 
 //generator function latency is 120ms

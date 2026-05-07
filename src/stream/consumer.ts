@@ -2,11 +2,13 @@ import { Queue } from "./queue.ts";
 import { Source } from "./source.ts";
 import { Stream } from "./stream.ts";
 
-export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterator<VALUE>, AsyncDisposable, Disposable {
+export class Consumer<VALUE, NAME extends string>
+  implements AsyncIterableIterator<Stream.Batch<VALUE>>, AsyncDisposable, Disposable
+{
   readonly name: NAME;
   private _options?: Consumer.Options<VALUE>;
   private _buffer: Queue<VALUE, `${NAME}Buffer`>;
-  private _pendings: Queue<(value: VALUE | Queue.Empty) => void, `${NAME}Pending`>;
+  private _pendings: Queue<(value: Stream.Batch<VALUE> | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
   private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
@@ -27,39 +29,40 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
   [Symbol.dispose]() {
     this.dispose();
   }
-  push<T extends VALUE>(value: T) {
+  push(batch: Stream.Batch<VALUE>) {
     const pending = this._pendings.dequeue();
     if (pending !== Queue.EMPTY) {
-      pending(value);
+      pending[0](batch);
     } else {
-      this._buffer.enqueue(value);
+      this._buffer.enqueue(batch);
     }
 
-    return new Consumer.PushProgress(this.name, value, this);
+    return new Consumer.PushProgress(this.name, batch, this);
   }
-  private _currentValue: VALUE | Queue.Empty = Queue.EMPTY;
-  async next(): Promise<IteratorResult<VALUE, Queue.Empty>> {
+  private _currentValue: Stream.Batch<VALUE> | Queue.Empty = Queue.EMPTY;
+  async next(): Promise<IteratorResult<Stream.Batch<VALUE>, Queue.Empty>> {
     if (this._currentValue !== Queue.EMPTY) {
-      this._valueProcessed?.push(this._currentValue);
+      this._valueProcessed?.pushMany(this._currentValue);
       this._currentValue = Queue.EMPTY;
     }
 
     const value = this._buffer.dequeue();
     if (value !== Queue.EMPTY) {
-      this._valueProcessing?.push(value);
+      this._valueProcessing?.pushMany(value);
       this._currentValue = value;
+      console.log("ddd");
 
       return { value };
     } else {
-      const value = await new Promise<VALUE | Queue.Empty>((r) => {
-        this._pendings.enqueue(r);
+      const value = await new Promise<Stream.Batch<VALUE> | Queue.Empty>((r) => {
+        this._pendings.enqueue([r]);
         if (this._options?.source?.idle) this._options.source.requestNext();
       });
       return { value: value as never, done: value === Queue.EMPTY };
     }
   }
   async return(): Promise<IteratorReturnResult<Queue.Empty>> {
-    for (const pending of this._pendings) {
+    for (const [pending] of this._pendings) {
       pending(Queue.EMPTY);
     }
 

@@ -2,14 +2,16 @@ import { Stream } from "./stream.ts";
 
 export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposable, Disposable {
   readonly name: NAME;
-  private _iterator: Iterator<VALUE | Source.Error<ERROR>> | AsyncIterator<VALUE | Source.Error<ERROR>>;
+  private _iterator:
+    | Iterator<Stream.Batch<VALUE | Source.Error<ERROR>>>
+    | AsyncIterator<Stream.Batch<VALUE | Source.Error<ERROR>>>;
   private _idle = true;
   private _error?: Stream<ERROR, never, `${NAME}Error`>;
 
   constructor(
     name: NAME,
     sourceData: Source.SourceData<VALUE, ERROR>,
-    private onNext: (value: VALUE) => void,
+    private onNext: (value: VALUE[]) => void,
     private onDone: () => void,
   ) {
     this.name = name;
@@ -31,8 +33,8 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
     this._idle = false;
 
     let result:
-      | IteratorResult<VALUE | Source.Error<ERROR>, any>
-      | Promise<IteratorResult<VALUE | Source.Error<ERROR>, any>>;
+      | IteratorResult<(VALUE | Source.Error<ERROR>)[], any>
+      | Promise<IteratorResult<(VALUE | Source.Error<ERROR>)[], any>>;
     try {
       result = this._iterator.next();
 
@@ -41,10 +43,19 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
       this._idle = true;
       if (result.done) {
         this.onDone();
-      } else if (result.value instanceof Source.Error) {
-        throw result.value;
       } else {
-        this.onNext(result.value);
+        let batch: VALUE[] = [];
+        for (let i = 0; i < result.value.length; i++) {
+          const value = result.value[i];
+          if (value instanceof Source.Error) {
+            if (!this._error) throw value.data;
+            this._error?.push(value.data);
+          } else {
+            batch.push(value);
+          }
+        }
+
+        this.onNext(batch);
       }
     } catch (error: any) {
       this._idle = true;
@@ -93,12 +104,12 @@ export namespace Source {
 
   export type SourceData<VALUE, ERROR> =
     | (() =>
-        | AsyncGenerator<VALUE | Error<ERROR>>
-        | Generator<VALUE | Error<ERROR>>
-        | AsyncIterator<VALUE | Error<ERROR>>
-        | Iterator<VALUE | Error<ERROR>>)
-    | AsyncIterable<VALUE | Error<ERROR>>
-    | Exclude<Iterable<VALUE | Error<ERROR>>, string>;
+        | AsyncGenerator<Stream.Batch<VALUE | Error<ERROR>>>
+        | Generator<Stream.Batch<VALUE | Error<ERROR>>>
+        | AsyncIterator<Stream.Batch<VALUE | Error<ERROR>>>
+        | Iterator<Stream.Batch<VALUE | Error<ERROR>>>)
+    | AsyncIterable<Stream.Batch<VALUE | Error<ERROR>>>
+    | Exclude<Iterable<Stream.Batch<VALUE | Error<ERROR>>>, string>;
   // export class SourceError<ERROR, SOURCE extends Stream.AnyStream> {
   //   constructor(
   //     public readonly error: ERROR,
