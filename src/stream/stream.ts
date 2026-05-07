@@ -44,6 +44,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   [Symbol.dispose]() {
     this.dispose();
   }
+
   push<const T extends VALUE>(value: T): Consumer.PushProgress<T, string>[] {
     const consumers = this._consumers;
 

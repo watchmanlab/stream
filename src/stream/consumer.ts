@@ -48,6 +48,7 @@ export class Consumer<VALUE, NAME extends string> implements AsyncIterableIterat
     if (value !== Queue.EMPTY) {
       this._valueProcessing?.push(value);
       this._currentValue = value;
+
       return { value };
     } else {
       const value = await new Promise<VALUE | Queue.Empty>((r) => {

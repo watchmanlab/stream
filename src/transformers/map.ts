@@ -1,11 +1,11 @@
-import { Stream, Transformer, Source, Queue } from "../stream/index.ts";
+import { Stream, Transformer, Source } from "../stream/index.ts";
 
 const NAME = "map";
 class Map<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
-  ERROR extends { error: unknown; reason: unknown } = { error: unknown; reason: unknown },
+  ERROR = unknown,
   NAME extends string = map.Name,
 > extends Transformer<INPUT_STREAM, MAPPED, ERROR, NAME> {
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
@@ -15,13 +15,12 @@ class Map<
       return {
         next: async () => {
           const iteratorResult = await consumer.next();
-          if (iteratorResult.done) return { value: Queue.EMPTY, done: true };
+          if (iteratorResult.done) return iteratorResult;
           const value = mapper(iteratorResult.value);
           return { value: value instanceof Promise ? await value : value };
         },
-        return: async () => {
-          await consumer.return();
-          return { value: Queue.EMPTY as never, done: true };
+        return: () => {
+          return consumer.return();
         },
       };
     });
@@ -31,7 +30,7 @@ export function map<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
-  ERROR extends { error: unknown; reason: unknown } = { error: unknown; reason: unknown },
+  ERROR = unknown,
   NAME extends string = map.Name,
 >(
   mapper: map.Mapper<VALUE, MAPPED, ERROR>,
@@ -43,7 +42,7 @@ export function map<
 
 export namespace map {
   export type Name = typeof NAME;
-  export type Mapper<VALUE, MAPPED, ERROR extends { error: unknown; reason: unknown }> = (
+  export type Mapper<VALUE, MAPPED, ERROR> = (
     value: VALUE,
   ) => MAPPED | Source.Error<ERROR> | Promise<MAPPED | Source.Error<ERROR>>;
 }
@@ -53,15 +52,16 @@ function bench() {
   const start = performance.now();
 
   const stream = new Stream<number>();
-  const mapped = stream
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v));
-
+  const mapped = stream.pipe(
+    map((v) => {
+      if (v === 4) return new Source.Error("kechmahaja " + v);
+      return v.toFixed();
+    }),
+  );
+  mapped.source?.error.next().then((res) => console.log(res.value));
   (async () => {
     for await (const value of mapped) {
-      if (value === MAX) console.log("iter ", Math.round(performance.now() - start));
+      if (value === MAX.toFixed()) console.log("iter ", Math.round(performance.now() - start));
     }
   })();
 
@@ -71,12 +71,3 @@ function bench() {
 }
 
 bench();
-
-// (async () => {
-// const progress = stream.traversal.root.push();
-// if (!map1.source) return;
-// for await (const error of map1.source.error) {
-//   console.log(error);
-//   error.source;
-// }
-// })();

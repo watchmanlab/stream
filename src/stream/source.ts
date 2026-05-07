@@ -35,6 +35,7 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
       | Promise<IteratorResult<VALUE | Source.Error<ERROR>, any>>;
     try {
       result = this._iterator.next();
+
       result = result instanceof Promise ? await result : result;
 
       this._idle = true;
@@ -54,6 +55,7 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
         if (!this._error) throw error;
         this._error?.push(error);
       }
+      this.requestNext();
     }
   }
   async dispose() {

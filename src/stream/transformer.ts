@@ -4,7 +4,7 @@ import { Stream } from "./stream.ts";
 export abstract class Transformer<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE,
-  ERROR extends { error: unknown; reason: unknown },
+  ERROR,
   NAME extends string,
 > extends Stream<VALUE, ERROR, NAME> {
   constructor(
