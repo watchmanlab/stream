@@ -6,7 +6,7 @@ export class Consumer<
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
 > implements Disposable {
   private _fn: Consumer.Fn<VALUE, this>;
-  private _buffer: VALUE[];
+  private _buffer: Stream.Batch<VALUE>;
   private _isReady: boolean;
 
   constructor(

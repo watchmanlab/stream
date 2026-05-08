@@ -11,7 +11,7 @@ export class Consumer<VALUE, NAME extends string>
   private _pendings: Queue<(value: Stream.Batch<VALUE> | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
-  private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
+  private _disposed?: Stream<void, never, `${NAME}Disposed`>;
 
   constructor(name: NAME, options?: Consumer.Options<VALUE>) {
     this.name = name;
@@ -29,36 +29,42 @@ export class Consumer<VALUE, NAME extends string>
   [Symbol.dispose]() {
     this.dispose();
   }
-  push(batch: Stream.Batch<VALUE>) {
+  push(batch: Stream.Batch<VALUE>): Consumer.PushResult<VALUE, NAME> {
     const pending = this._pendings.dequeue();
     if (pending !== Queue.EMPTY) {
       pending[0](batch);
     } else {
       this._buffer.enqueue(batch);
     }
-
-    return new Consumer.PushProgress(this.name, batch, this);
+    const self = this;
+    return {
+      getProgresses(value: VALUE) {
+        return new Consumer.Progress(self.name, value, self);
+      },
+    };
   }
-  private _currentValue: Stream.Batch<VALUE> | Queue.Empty = Queue.EMPTY;
+  getProgress(value: VALUE) {
+    return new Consumer.Progress(this.name, value, this);
+  }
+  private _currentBatch: Stream.Batch<VALUE> | Queue.Empty = Queue.EMPTY;
   async next(): Promise<IteratorResult<Stream.Batch<VALUE>, Queue.Empty>> {
-    if (this._currentValue !== Queue.EMPTY) {
-      this._valueProcessed?.pushMany(this._currentValue);
-      this._currentValue = Queue.EMPTY;
+    if (this._currentBatch !== Queue.EMPTY) {
+      this._valueProcessed?.pushMany(this._currentBatch);
+      this._currentBatch = Queue.EMPTY;
     }
 
-    const value = this._buffer.dequeue();
-    if (value !== Queue.EMPTY) {
-      this._valueProcessing?.pushMany(value);
-      this._currentValue = value;
-      console.log("ddd");
+    const batch = this._buffer.dequeue();
+    if (batch !== Queue.EMPTY) {
+      this._valueProcessing?.pushMany(batch);
+      this._currentBatch = batch;
 
-      return { value };
+      return { value: batch };
     } else {
-      const value = await new Promise<Stream.Batch<VALUE> | Queue.Empty>((r) => {
+      const batch = await new Promise<Stream.Batch<VALUE> | Queue.Empty>((r) => {
         this._pendings.enqueue([r]);
         if (this._options?.source?.idle) this._options.source.requestNext();
       });
-      return { value: value as never, done: value === Queue.EMPTY };
+      return { value: batch as never, done: batch === Queue.EMPTY };
     }
   }
   async return(): Promise<IteratorReturnResult<Queue.Empty>> {
@@ -73,7 +79,7 @@ export class Consumer<VALUE, NAME extends string>
       this._valueProcessed?.dispose(),
     ]);
 
-    this._disposed?.push(undefined);
+    this._disposed?.push();
     await this._disposed?.dispose();
 
     this._valueProcessing = this._valueProcessed = this._disposed = undefined;
@@ -108,9 +114,9 @@ export class Consumer<VALUE, NAME extends string>
 }
 export namespace Consumer {
   export type AnyOptions = Options<any>;
-  export type AnyPushProgress = PushProgress<any, any>;
-  export type ExtractValue<T> =
-    T extends Options<infer VALUE> ? VALUE : T extends PushProgress<infer VALUE, any> ? VALUE : never;
+  export type AnyPushProgress = Progress<any, any>;
+  export type PushResult<VALUE, NAME extends string> = { getProgresses: (value: VALUE) => Progress<VALUE, NAME> };
+  export type ExtractValue<T> = T extends Options<infer VALUE> | Progress<infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyPushProgress ? T["name"] : never;
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
@@ -119,11 +125,11 @@ export namespace Consumer {
     pendingsOptions?: Queue.Options;
   };
 
-  export class PushProgress<const VALUE, NAME extends string> {
-    private _queued?: Stream<Awaited<VALUE>, never, `${NAME}Queued`>;
-    private _processing?: Stream<Awaited<VALUE>, never, `${NAME}Processing`>;
-    private _processed?: Stream<Awaited<VALUE>, never, `${NAME}Processed`>;
-    private _dropped?: Stream<Awaited<VALUE>, never, `${NAME}Dropped`>;
+  export class Progress<const VALUE, NAME extends string> {
+    private _queued?: Stream<VALUE, never, `${NAME}Queued`>;
+    private _processing?: Stream<VALUE, never, `${NAME}Processing`>;
+    private _processed?: Stream<VALUE, never, `${NAME}Processed`>;
+    private _dropped?: Stream<VALUE, never, `${NAME}Dropped`>;
     constructor(
       public readonly name: NAME,
       private value: VALUE,
@@ -134,9 +140,9 @@ export namespace Consumer {
       const [consumer, searchValue] = [this.consumer, this.value];
       if (!this._queued)
         this._queued = new Stream(`${this.name}Queued`, async function* () {
-          for await (const value of consumer.buffer.valueQueued) {
-            if (value === searchValue) {
-              yield searchValue;
+          for await (const batch of consumer.buffer.valueQueued) {
+            if (batch.includes(searchValue)) {
+              yield [searchValue];
               break;
             }
           }
@@ -147,9 +153,9 @@ export namespace Consumer {
       const [consumer, searchValue] = [this.consumer, this.value];
       if (!this._processing)
         this._processing = new Stream(`${this.name}Processing`, async function* () {
-          for await (const value of consumer.valueProcessing) {
-            if (value === searchValue) {
-              yield searchValue;
+          for await (const batch of consumer.valueProcessing) {
+            if (batch.includes(searchValue)) {
+              yield [searchValue];
               break;
             }
           }
@@ -160,9 +166,9 @@ export namespace Consumer {
       const [consumer, searchValue] = [this.consumer, this.value];
       if (!this._processed)
         this._processed = new Stream(`${this.name}Processed`, async function* () {
-          for await (const value of consumer.valueProcessed) {
-            if (value === searchValue) {
-              yield searchValue;
+          for await (const batch of consumer.valueProcessed) {
+            if (batch.includes(searchValue)) {
+              yield [searchValue];
               break;
             }
           }
@@ -173,9 +179,9 @@ export namespace Consumer {
       const [consumer, searchValue] = [this.consumer, this.value];
       if (!this._dropped)
         this._dropped = new Stream(`${this.name}Dropped`, async function* () {
-          for await (const value of consumer.buffer.valueDropped) {
-            if (value === searchValue) {
-              yield searchValue;
+          for await (const batch of consumer.buffer.valueDropped) {
+            if (batch.includes(searchValue)) {
+              yield [searchValue];
               break;
             }
           }

@@ -9,28 +9,20 @@ class Map<
   NAME extends string = map.Name,
 > extends Transformer<INPUT_STREAM, MAPPED, ERROR, NAME> {
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
-    super(name, inputStream, () => {
-      const consumer = inputStream.getConsumer();
+    super(name, inputStream, async function* () {
+      for await (const batch of inputStream) {
+        const results: Stream.Batch<MAPPED | Source.Error<ERROR>> = [];
 
-      return {
-        next: async () => {
-          const iteratorResult = await consumer.next();
-          if (iteratorResult.done) return iteratorResult;
-          const results: (MAPPED | Source.Error<ERROR>)[] = [];
-          for (let i = 0; i < iteratorResult.value.length; i++) {
-            try {
-              let result = mapper(iteratorResult.value[i]);
-              results.push(result instanceof Promise ? await result : result);
-            } catch (error: any) {
-              results.push(error);
-            }
+        for (let i = 0, length = batch.length; i < length; i++) {
+          try {
+            let result = mapper(batch[i]);
+            results.push(result instanceof Promise ? await result : result);
+          } catch (error: any) {
+            results.push(error);
           }
-          return { value: results as Stream.Batch<MAPPED | Source.Error<ERROR>> };
-        },
-        return: () => {
-          return consumer.return();
-        },
-      };
+        }
+        yield results;
+      }
     });
   }
 }
@@ -83,4 +75,4 @@ function bench() {
   }
 }
 
-bench();
+bench(); //128ms

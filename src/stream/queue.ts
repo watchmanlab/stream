@@ -8,8 +8,8 @@ export class Queue<VALUE, NAME extends string> implements Iterable<Stream.Batch<
   private _options: Required<Queue.Options>;
   private _valueQueued?: Stream<VALUE, never, `${NAME}ValueQueued`>;
   private _valueDropped?: Stream<VALUE, never, `${NAME}ValueDropped`>;
-  private _cleared?: Stream<undefined, never, `${NAME}Cleared`>;
-  private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
+  private _cleared?: Stream<void, never, `${NAME}Cleared`>;
+  private _disposed?: Stream<void, never, `${NAME}Disposed`>;
 
   constructor(name: NAME, options?: Queue.Options) {
     this.name = name;
@@ -63,13 +63,13 @@ export class Queue<VALUE, NAME extends string> implements Iterable<Stream.Batch<
     for (const value of this) {
       this._valueDropped?.pushMany(value);
     }
-    this._cleared?.push(undefined);
+    this._cleared?.push();
   }
   async dispose() {
     this.clear();
     await Promise.all([this._valueQueued?.dispose(), this._valueDropped?.dispose(), this._cleared?.dispose()]);
 
-    this._disposed?.push(undefined);
+    this._disposed?.push();
     await this._disposed?.dispose();
 
     this._valueQueued = this._valueDropped = this._cleared = this._disposed = undefined;
@@ -107,14 +107,11 @@ export namespace Queue {
   export type AnyQueue = Queue<any, any>;
   export type AnyNode = Exclude<Node<any>, undefined>;
   export type AnyEnqueueResult = EnqueueResult<any>;
-  export type ExtractValue<T> =
-    T extends Queue<infer VALUE, any>
-      ? VALUE
-      : T extends EnqueueResult<infer VALUE>
-        ? VALUE
-        : T extends AnyNode
-          ? T["value"]
-          : never;
+  export type ExtractValue<T> = T extends Queue<infer VALUE, any> | EnqueueResult<infer VALUE>
+    ? VALUE
+    : T extends AnyNode
+      ? T["value"]
+      : never;
   export type ExtractName<T> = T extends AnyQueue ? T["name"] : never;
   export type Node<VALUE> = { value: Stream.Batch<VALUE>; next?: Node<VALUE> } | undefined;
   export type DropStrategy = "newest" | "oldest";

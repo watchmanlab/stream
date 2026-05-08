@@ -6,15 +6,19 @@ import { Transformer } from "./transformer.ts";
 const NAME = "root";
 
 export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
-  implements AsyncIterable<Stream.Batch<VALUE>>, Iterable<Consumer<VALUE, NAME>>, AsyncDisposable, Disposable
+  implements
+    AsyncIterable<Stream.Batch<VALUE>>,
+    Iterable<Consumer<VALUE, Stream.ConsumerName<NAME>>>,
+    AsyncDisposable,
+    Disposable
 {
   readonly name: NAME;
   private _source?: Source<VALUE, ERROR, NAME>;
   private _consumers = new Map<string, Consumer<VALUE, any>>();
-  private _consumerAttached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerAttached`>;
-  private _consumerDetached?: Stream<Consumer<VALUE, any>, never, `${NAME}ConsumerDetached`>;
-  private _cleared?: Stream<undefined, never, `${NAME}Cleared`>;
-  private _disposed?: Stream<undefined, never, `${NAME}Disposed`>;
+  private _consumerAttached?: Stream<Consumer<VALUE, string>, never, `${NAME}ConsumerAttached`>;
+  private _consumerDetached?: Stream<Consumer<VALUE, string>, never, `${NAME}ConsumerDetached`>;
+  private _cleared?: Stream<void, never, `${NAME}Cleared`>;
+  private _disposed?: Stream<void, never, `${NAME}Disposed`>;
   constructor(name: NAME, sourceData?: Source.SourceData<VALUE, ERROR>);
   constructor(sourceData?: Source.SourceData<VALUE, ERROR>);
   constructor(nameOrSourceData?: NAME | Source.SourceData<VALUE, ERROR>, sourceData?: Source.SourceData<VALUE, ERROR>) {
@@ -28,11 +32,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       this._source = new Source(
         this.name,
         sourceData,
-        (values) => {
-          if (values.length) {
-            this.pushMany(values as Stream.Batch<VALUE>);
-          }
-        },
+        (values) => this.pushMany(values),
         () => (this._source = undefined),
       );
   }
@@ -48,7 +48,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   [Symbol.dispose]() {
     this.dispose();
   }
-  private _batch: VALUE[] = [];
+  private _batch: Stream.Batch<VALUE> = [];
   private _batchScheduled = false;
 
   push(value: VALUE) {
@@ -60,20 +60,24 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
         const batch = this._batch;
         this._batch = [];
         this._batchScheduled = false;
-        this.pushMany(batch as Stream.Batch<VALUE>);
+        this.pushMany(batch);
       });
     }
   }
   pushMany(values: Stream.Batch<VALUE>) {
+    const pushesResults: Consumer.PushResult<VALUE, any>[] = [];
+    if (!values.length) return pushesResults;
     for (const consumer of this._consumers.values()) {
-      consumer.push(values);
+      const pushResult = consumer.push(values);
+      pushesResults.push(pushResult);
     }
+    return pushesResults;
   }
   getConsumer(options?: {
     bufferOptions?: Queue.Options;
     pendingsOptions?: Queue.Options;
-  }): Consumer<VALUE, `${NAME}Consumer${string}`> {
-    let name: `${NAME}Consumer${string}`;
+  }): Consumer<VALUE, Stream.ConsumerName<NAME>> {
+    let name: Stream.ConsumerName<NAME>;
 
     while (true) {
       name = `${this.name}Consumer${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}`;
@@ -99,7 +103,6 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     await consumer.dispose();
     return result;
   }
-
   pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
@@ -120,7 +123,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     }
 
     await Promise.all(promises);
-    this._cleared?.push(undefined);
+    this._cleared?.push();
   }
   async dispose() {
     await Promise.all([
@@ -130,12 +133,11 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       this._cleared?.dispose(),
     ]);
 
-    this._disposed?.push(undefined);
+    this._disposed?.push();
     await this._disposed?.dispose();
 
     this._consumerAttached = this._consumerDetached = this._cleared = this._disposed = undefined;
   }
-
   get source() {
     return this._source;
   }
@@ -170,20 +172,21 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type Batch<VALUE> = [value: VALUE, ...values: VALUE[]];
+  export type Batch<VALUE> = VALUE[];
+  export type ConsumerName<NAME extends string> = `${NAME}Consumer${string}`;
   export type AnyStream = Stream<any, any, any>;
-  export type ExtractValue<T> =
-    T extends Stream<infer VALUE, any, any>
-      ? VALUE
-      : Transformer.ExtractValue<T> extends never
-        ? Consumer.ExtractValue<T> extends never
-          ? Source.ExtractValue<T> extends never
-            ? Queue.ExtractValue<T> extends never
-              ? never
-              : Queue.ExtractValue<T>
-            : Source.ExtractValue<T>
-          : Consumer.ExtractValue<T>
-        : Transformer.ExtractValue<T>;
+  export type ExtractValue<T> = T extends Stream<infer VALUE, any, any> | Batch<infer VALUE>
+    ? VALUE
+    : Transformer.ExtractValue<T> extends never
+      ? Consumer.ExtractValue<T> extends never
+        ? Source.ExtractValue<T> extends never
+          ? Queue.ExtractValue<T> extends never
+            ? never
+            : Queue.ExtractValue<T>
+          : Source.ExtractValue<T>
+        : Consumer.ExtractValue<T>
+      : Transformer.ExtractValue<T>;
+
   export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
   export type ExtractError<T> =
     T extends Stream<any, infer ERROR, any>
@@ -280,7 +283,7 @@ function bench() {
 // }
 
 // simpleTest();
-// bench(); //160ms
+// bench(); //22ms
 // consumerTest();
 
 //generator function latency is 120ms

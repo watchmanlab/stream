@@ -11,7 +11,7 @@ class MapConcurrent<
 > extends Stream<MAPPED, NAME> {
   private _options: Required<mapConcurrent.Options>;
   private _error?: Stream<{ value: VALUE; error: ERROR }, `${NAME}Error`>;
-  private _buffer: VALUE[] = [];
+  private _buffer: Stream.Batch<VALUE> = [];
   private _queue: (MAPPED | Promise<MAPPED>)[] = [];
   private _resolve: Function = Function;
   private _concurrencyLimitReached?: Stream<void, `${NAME}ConcurrencyLimitReached`>;

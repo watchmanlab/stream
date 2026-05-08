@@ -11,7 +11,7 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
   constructor(
     name: NAME,
     sourceData: Source.SourceData<VALUE, ERROR>,
-    private onNext: (value: VALUE[]) => void,
+    private onNext: (value: Stream.Batch<VALUE>) => void,
     private onDone: () => void,
   ) {
     this.name = name;
@@ -33,8 +33,8 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
     this._idle = false;
 
     let result:
-      | IteratorResult<(VALUE | Source.Error<ERROR>)[], any>
-      | Promise<IteratorResult<(VALUE | Source.Error<ERROR>)[], any>>;
+      | IteratorResult<Stream.Batch<VALUE | Source.Error<ERROR>>, any>
+      | Promise<IteratorResult<Stream.Batch<VALUE | Source.Error<ERROR>>, any>>;
     try {
       result = this._iterator.next();
 
@@ -44,7 +44,7 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
       if (result.done) {
         this.onDone();
       } else {
-        let batch: VALUE[] = [];
+        let batch: Stream.Batch<VALUE> = [];
         for (let i = 0; i < result.value.length; i++) {
           const value = result.value[i];
           if (value instanceof Source.Error) {
@@ -87,17 +87,13 @@ export namespace Source {
   export type AnySource = Source<any, any, any>;
   export type AnySourceData = SourceData<any, any>;
   export type AnyError = Source.Error<any>;
-  export type ExtractValue<T> =
-    T extends Source<infer VALUE, any, any> ? VALUE : T extends SourceData<infer VALUE, any> ? VALUE : never;
+  export type ExtractValue<T> = T extends Source<infer VALUE, any, any> | SourceData<infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnySource ? T["name"] : never;
-  export type ExtractError<T> =
-    T extends Source<any, infer ERROR, any>
-      ? ERROR
-      : T extends SourceData<any, infer ERROR>
-        ? ERROR
-        : T extends AnyError
-          ? T["data"]
-          : never;
+  export type ExtractError<T> = T extends Source<any, infer ERROR, any> | SourceData<any, infer ERROR>
+    ? ERROR
+    : T extends AnyError
+      ? T["data"]
+      : never;
   export class Error<const ERROR> {
     constructor(public readonly data: ERROR) {}
   }
