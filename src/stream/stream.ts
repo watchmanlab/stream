@@ -32,7 +32,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       this._source = new Source(
         this.name,
         sourceData,
-        (values) => this.pushMany(values),
+        (values) => this.batch(values),
         () => (this._source = undefined),
       );
   }
@@ -60,23 +60,20 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
         const batch = this._batch;
         this._batch = [];
         this._batchScheduled = false;
-        this.pushMany(batch);
+        this.batch(batch);
       });
     }
     return this;
   }
-  pushMany(values: Stream.Batch<VALUE>): this {
-    if (!values.length) return this;
+  batch(batch: Stream.Batch<VALUE>): this {
+    if (!batch.length) return this;
     for (const consumer of this) {
-      consumer.push(values);
+      consumer.batch(batch);
     }
     return this;
   }
 
-  getConsumer(options?: {
-    bufferOptions?: Queue.Options;
-    pendingsOptions?: Queue.Options;
-  }): Consumer<VALUE, Stream.ConsumerName<NAME>> {
+  getConsumer(): Consumer<VALUE, Stream.ConsumerName<NAME>> {
     let name: Stream.ConsumerName<NAME>;
 
     while (true) {
@@ -90,7 +87,6 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
         this._consumers.delete(name);
         this._consumerDetached?.push(consumer);
       },
-      ...options,
     });
 
     this._consumers.set(name, consumer);
@@ -235,6 +231,8 @@ function bench() {
   const now = performance.now();
 
   const stream = new Stream<number, never>();
+
+  const c = stream[Symbol.asyncIterator]();
   (async () => {
     for await (const items of stream) {
       for (const item of items) {

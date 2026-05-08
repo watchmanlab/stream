@@ -1,26 +1,24 @@
 import { Stream } from "./stream.ts";
 
-export class Queue<VALUE, NAME extends string> implements Iterable<Stream.Batch<VALUE>>, AsyncDisposable, Disposable {
+export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, AsyncDisposable, Disposable {
   readonly name: NAME;
   private _head?: Queue.Node<VALUE>;
   private _tail?: Queue.Node<VALUE>;
   private _size = 0;
-  private _options: Required<Queue.Options>;
-  private _valueQueued?: Stream<VALUE, never, `${NAME}ValueQueued`>;
-  private _valueDropped?: Stream<VALUE, never, `${NAME}ValueDropped`>;
+  private _valueEnqueued?: Stream<VALUE, never, `${NAME}ValueEnqueued`>;
+  private _valueDequeued?: Stream<VALUE, never, `${NAME}ValueDequeued`>;
   private _cleared?: Stream<void, never, `${NAME}Cleared`>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
 
-  constructor(name: NAME, options?: Queue.Options) {
+  constructor(name: NAME) {
     this.name = name;
-    this._options = { ...Queue.defaultOptions, ...options };
   }
   [Symbol.iterator]() {
     const self = this;
     return {
       next: () => {
         const value = self.dequeue();
-        return { value: value as Stream.Batch<VALUE>, done: value === Queue.EMPTY };
+        return { value: value as VALUE, done: value === Queue.EMPTY };
       },
     };
   }
@@ -30,11 +28,7 @@ export class Queue<VALUE, NAME extends string> implements Iterable<Stream.Batch<
   [Symbol.dispose]() {
     this.dispose();
   }
-  enqueue(value: Stream.Batch<VALUE>): Queue.EnqueueResult<VALUE> {
-    if (this.size >= this._options.maxSize && this._options.dropStrategy === "newest") {
-      this._valueDropped?.pushMany(value);
-      return { ok: false, dropped: value };
-    }
+  enqueue(value: VALUE) {
     this._size++;
     const node = { value };
     if (!this._head) {
@@ -43,56 +37,43 @@ export class Queue<VALUE, NAME extends string> implements Iterable<Stream.Batch<
       this._tail!.next = node;
       this._tail = node;
     }
-    if (this.size > this._options.maxSize && this._options.dropStrategy === "oldest") {
-      const dropped = this.dequeue() as Stream.Batch<VALUE>;
-      this._valueDropped?.pushMany(dropped);
-      return { ok: false, dropped };
-    }
-    this._valueQueued?.pushMany(value);
-    return { ok: true };
+    this._valueEnqueued?.push(value);
   }
-  dequeue(): Stream.Batch<VALUE> | Queue.Empty {
+  dequeue(): VALUE | Queue.Empty {
     if (!this._head) return Queue.EMPTY;
+
     this._size--;
     const value = this._head.value;
     this._head = this._head.next;
 
+    this._valueDequeued?.push(value);
     return value;
   }
   clear() {
-    for (const value of this) {
-      this._valueDropped?.pushMany(value);
-    }
+    this._head = this._tail = undefined;
     this._cleared?.push();
   }
   async dispose() {
     this.clear();
-    await Promise.all([this._valueQueued?.dispose(), this._valueDropped?.dispose(), this._cleared?.dispose()]);
+    await Promise.all([this._valueEnqueued?.dispose(), this._valueDequeued?.dispose(), this._cleared?.dispose()]);
 
     this._disposed?.push();
     await this._disposed?.dispose();
 
-    this._valueQueued = this._valueDropped = this._cleared = this._disposed = undefined;
+    this._valueEnqueued = this._valueDequeued = this._cleared = this._disposed = undefined;
   }
-  get options() {
-    return this._options;
-  }
-  set options(options: Queue.Options) {
-    this._options = {
-      ...this._options,
-      ...Object.fromEntries(Object.entries(options).filter(([_, val]) => val != null)),
-    };
-  }
+
   get size() {
     return this._size;
   }
-  get valueQueued() {
-    if (!this._valueQueued) this._valueQueued = new Stream(`${this.name}ValueQueued`);
-    return this._valueQueued;
+
+  get valueEnqueued() {
+    if (!this._valueEnqueued) this._valueEnqueued = new Stream(`${this.name}ValueEnqueued`);
+    return this._valueEnqueued;
   }
-  get valueDropped() {
-    if (!this._valueDropped) this._valueDropped = new Stream(`${this.name}ValueDropped`);
-    return this._valueDropped;
+  get valueDequeued() {
+    if (!this._valueDequeued) this._valueDequeued = new Stream(`${this.name}ValueDequeued`);
+    return this._valueDequeued;
   }
   get cleared() {
     if (!this._cleared) this._cleared = new Stream(`${this.name}Cleared`);
@@ -106,24 +87,12 @@ export class Queue<VALUE, NAME extends string> implements Iterable<Stream.Batch<
 export namespace Queue {
   export type AnyQueue = Queue<any, any>;
   export type AnyNode = Exclude<Node<any>, undefined>;
-  export type AnyEnqueueResult = EnqueueResult<any>;
-  export type ExtractValue<T> = T extends Queue<infer VALUE, any> | EnqueueResult<infer VALUE>
-    ? VALUE
-    : T extends AnyNode
-      ? T["value"]
-      : never;
+
+  export type ExtractValue<T> = T extends Queue<infer VALUE, any> ? VALUE : T extends AnyNode ? T["value"] : never;
   export type ExtractName<T> = T extends AnyQueue ? T["name"] : never;
-  export type Node<VALUE> = { value: Stream.Batch<VALUE>; next?: Node<VALUE> } | undefined;
+  export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
   export type DropStrategy = "newest" | "oldest";
-  export type Options = {
-    maxSize?: number;
-    dropStrategy?: DropStrategy;
-  };
-  export const defaultOptions: Required<Options> = {
-    maxSize: Number.MAX_SAFE_INTEGER,
-    dropStrategy: "newest",
-  };
-  export type EnqueueResult<VALUE> = { ok: true; dropped?: never } | { ok: false; dropped: Stream.Batch<VALUE> };
+
   export const EMPTY = Symbol("$EMPTY#");
   export type Empty = typeof EMPTY;
 }

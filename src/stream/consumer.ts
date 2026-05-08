@@ -7,7 +7,7 @@ export class Consumer<VALUE, NAME extends string>
 {
   readonly name: NAME;
   private _options?: Consumer.Options<VALUE>;
-  private _buffer: Queue<VALUE, `${NAME}Buffer`>;
+  private _buffer: Queue<Stream.Batch<VALUE>, `${NAME}Buffer`>;
   private _pendings: Queue<(value: Stream.Batch<VALUE> | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
@@ -16,8 +16,8 @@ export class Consumer<VALUE, NAME extends string>
   constructor(name: NAME, options?: Consumer.Options<VALUE>) {
     this.name = name;
     this._options = options;
-    this._buffer = new Queue(`${this.name}Buffer`, options?.bufferOptions);
-    this._pendings = new Queue(`${this.name}Pending`, options?.pendingsOptions);
+    this._buffer = new Queue(`${this.name}Buffer`);
+    this._pendings = new Queue(`${this.name}Pending`);
   }
 
   [Symbol.asyncIterator]() {
@@ -29,10 +29,10 @@ export class Consumer<VALUE, NAME extends string>
   [Symbol.dispose]() {
     this.dispose();
   }
-  push(batch: Stream.Batch<VALUE>): this {
+  batch(batch: Stream.Batch<VALUE>): this {
     const pending = this._pendings.dequeue();
     if (pending !== Queue.EMPTY) {
-      pending[0](batch);
+      pending(batch);
     } else {
       this._buffer.enqueue(batch);
     }
@@ -43,26 +43,26 @@ export class Consumer<VALUE, NAME extends string>
   private _currentBatch: Stream.Batch<VALUE> | Queue.Empty = Queue.EMPTY;
   async next(): Promise<IteratorResult<Stream.Batch<VALUE>, Queue.Empty>> {
     if (this._currentBatch !== Queue.EMPTY) {
-      this._valueProcessed?.pushMany(this._currentBatch);
+      this._valueProcessed?.batch(this._currentBatch);
       this._currentBatch = Queue.EMPTY;
     }
 
     const batch = this._buffer.dequeue();
     if (batch !== Queue.EMPTY) {
-      this._valueProcessing?.pushMany(batch);
+      this._valueProcessing?.batch(batch);
       this._currentBatch = batch;
 
       return { value: batch };
     } else {
       const batch = await new Promise<Stream.Batch<VALUE> | Queue.Empty>((r) => {
-        this._pendings.enqueue([r]);
+        this._pendings.enqueue(r);
         if (this._options?.source?.idle) this._options.source.requestNext();
       });
       return { value: batch as never, done: batch === Queue.EMPTY };
     }
   }
   async return(): Promise<IteratorReturnResult<Queue.Empty>> {
-    for (const [pending] of this._pendings) {
+    for (const pending of this._pendings) {
       pending(Queue.EMPTY);
     }
 
@@ -114,7 +114,5 @@ export namespace Consumer {
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
     onTerminate?: () => void;
-    bufferOptions?: Queue.Options;
-    pendingsOptions?: Queue.Options;
   };
 }

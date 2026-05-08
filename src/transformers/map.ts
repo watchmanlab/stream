@@ -11,17 +11,26 @@ class Map<
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
     super(name, inputStream, async function* () {
       for await (const batch of inputStream) {
-        const results: Stream.Batch<MAPPED | Source.Error<ERROR>> = [];
+        const values: Stream.Batch<MAPPED> = [];
+        const errors: Stream.Batch<ERROR> = [];
 
         for (let i = 0, length = batch.length; i < length; i++) {
           try {
             let result = mapper(batch[i]);
-            results.push(result instanceof Promise ? await result : result);
+            result = result instanceof Promise ? await result : result;
+
+            if (result instanceof Source.Error) throw result;
+
+            values.push(result);
           } catch (error: any) {
-            results.push(error);
+            if (error instanceof Source.Error) {
+              errors.push(error.data);
+            } else {
+              errors.push(error);
+            }
           }
         }
-        yield results;
+        yield { values, errors };
       }
     });
   }
