@@ -29,23 +29,17 @@ export class Consumer<VALUE, NAME extends string>
   [Symbol.dispose]() {
     this.dispose();
   }
-  push(batch: Stream.Batch<VALUE>): Consumer.PushResult<VALUE, NAME> {
+  push(batch: Stream.Batch<VALUE>): this {
     const pending = this._pendings.dequeue();
     if (pending !== Queue.EMPTY) {
       pending[0](batch);
     } else {
       this._buffer.enqueue(batch);
     }
-    const self = this;
-    return {
-      getProgresses(value: VALUE) {
-        return new Consumer.Progress(self.name, value, self);
-      },
-    };
+
+    return this;
   }
-  getProgress(value: VALUE) {
-    return new Consumer.Progress(this.name, value, this);
-  }
+
   private _currentBatch: Stream.Batch<VALUE> | Queue.Empty = Queue.EMPTY;
   async next(): Promise<IteratorResult<Stream.Batch<VALUE>, Queue.Empty>> {
     if (this._currentBatch !== Queue.EMPTY) {
@@ -114,79 +108,13 @@ export class Consumer<VALUE, NAME extends string>
 }
 export namespace Consumer {
   export type AnyOptions = Options<any>;
-  export type AnyPushProgress = Progress<any, any>;
-  export type PushResult<VALUE, NAME extends string> = { getProgresses: (value: VALUE) => Progress<VALUE, NAME> };
-  export type ExtractValue<T> = T extends Options<infer VALUE> | Progress<infer VALUE, any> ? VALUE : never;
-  export type ExtractName<T> = T extends AnyPushProgress ? T["name"] : never;
+
+  export type ExtractValue<T> = T extends Options<infer VALUE> ? VALUE : never;
+
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
     onTerminate?: () => void;
     bufferOptions?: Queue.Options;
     pendingsOptions?: Queue.Options;
   };
-
-  export class Progress<const VALUE, NAME extends string> {
-    private _queued?: Stream<VALUE, never, `${NAME}Queued`>;
-    private _processing?: Stream<VALUE, never, `${NAME}Processing`>;
-    private _processed?: Stream<VALUE, never, `${NAME}Processed`>;
-    private _dropped?: Stream<VALUE, never, `${NAME}Dropped`>;
-    constructor(
-      public readonly name: NAME,
-      private value: VALUE,
-      private consumer: Consumer<VALUE, NAME>,
-    ) {}
-
-    get queued() {
-      const [consumer, searchValue] = [this.consumer, this.value];
-      if (!this._queued)
-        this._queued = new Stream(`${this.name}Queued`, async function* () {
-          for await (const batch of consumer.buffer.valueQueued) {
-            if (batch.includes(searchValue)) {
-              yield [searchValue];
-              break;
-            }
-          }
-        });
-      return this._queued;
-    }
-    get processing() {
-      const [consumer, searchValue] = [this.consumer, this.value];
-      if (!this._processing)
-        this._processing = new Stream(`${this.name}Processing`, async function* () {
-          for await (const batch of consumer.valueProcessing) {
-            if (batch.includes(searchValue)) {
-              yield [searchValue];
-              break;
-            }
-          }
-        });
-      return this._processing;
-    }
-    get processed() {
-      const [consumer, searchValue] = [this.consumer, this.value];
-      if (!this._processed)
-        this._processed = new Stream(`${this.name}Processed`, async function* () {
-          for await (const batch of consumer.valueProcessed) {
-            if (batch.includes(searchValue)) {
-              yield [searchValue];
-              break;
-            }
-          }
-        });
-      return this._processed;
-    }
-    get dropped() {
-      const [consumer, searchValue] = [this.consumer, this.value];
-      if (!this._dropped)
-        this._dropped = new Stream(`${this.name}Dropped`, async function* () {
-          for await (const batch of consumer.buffer.valueDropped) {
-            if (batch.includes(searchValue)) {
-              yield [searchValue];
-              break;
-            }
-          }
-        });
-      return this._dropped;
-    }
-  }
 }

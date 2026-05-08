@@ -36,10 +36,10 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
         () => (this._source = undefined),
       );
   }
-  [Symbol.asyncIterator]() {
+  [Symbol.asyncIterator](): Consumer<VALUE, Stream.ConsumerName<NAME>> {
     return this.getConsumer();
   }
-  [Symbol.iterator]() {
+  [Symbol.iterator](): MapIterator<Consumer<VALUE, Stream.ConsumerName<NAME>>> {
     return this._consumers.values();
   }
   async [Symbol.asyncDispose]() {
@@ -51,7 +51,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   private _batch: Stream.Batch<VALUE> = [];
   private _batchScheduled = false;
 
-  push(value: VALUE) {
+  push(value: VALUE): this {
     this._batch.push(value);
 
     if (!this._batchScheduled) {
@@ -63,16 +63,16 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
         this.pushMany(batch);
       });
     }
+    return this;
   }
-  pushMany(values: Stream.Batch<VALUE>) {
-    const pushesResults: Consumer.PushResult<VALUE, any>[] = [];
-    if (!values.length) return pushesResults;
-    for (const consumer of this._consumers.values()) {
-      const pushResult = consumer.push(values);
-      pushesResults.push(pushResult);
+  pushMany(values: Stream.Batch<VALUE>): this {
+    if (!values.length) return this;
+    for (const consumer of this) {
+      consumer.push(values);
     }
-    return pushesResults;
+    return this;
   }
+
   getConsumer(options?: {
     bufferOptions?: Queue.Options;
     pendingsOptions?: Queue.Options;
