@@ -1,5 +1,6 @@
 import { Consumer, Source, Stream, Transformer } from "../core/index.ts";
 import { each } from "./each.ts";
+import { effect } from "./effect.ts";
 import { map } from "./map.ts";
 
 const NAME = "pump";
@@ -143,7 +144,7 @@ function bench() {
       }),
     )
     .pipe(
-      each((value) => {
+      effect((value) => {
         if (value.value === MAX) {
           console.log("each ", value.value, Math.round(performance.now() - start));
         }
@@ -151,7 +152,7 @@ function bench() {
     )
     .pipe(pump());
 
-  mapped.traversal.each.map.source?.error.pipe(pump());
+  mapped.traversal.effect.map.source?.error.pipe(pump());
 
   for (let i = 1; i <= MAX; i++) {
     stream.push(i);

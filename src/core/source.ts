@@ -11,7 +11,6 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
     sourceData: Source.SourceData<VALUE>,
     private onNext: (value: Stream.Batch<VALUE>) => void,
     private onDone: () => void,
-    // private getStream:()=>
   ) {
     this.name = name;
 
@@ -28,7 +27,7 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
     this.dispose();
   }
   throw(error: ERROR) {
-    if (!this._error || this._error.consumersCount === 0)
+    if (!this._error?.consumersCount)
       Promise.reject(
         `Unhandled error in "${this.name}": ${error}
 
@@ -60,6 +59,7 @@ Consume ${this.name}.source.error to handle this.
     }
   }
   async dispose() {
+    this._idle = false;
     await Promise.all([this._iterator.return?.(), this._error?.dispose()]);
     this._error = undefined;
     this.onDone();

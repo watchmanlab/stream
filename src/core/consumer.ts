@@ -6,16 +6,20 @@ export class Consumer<VALUE, NAME extends string>
   implements AsyncIterableIterator<Stream.Batch<VALUE>>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
-  private _options?: Consumer.Options<VALUE>;
+  private _source?: Source<VALUE, any, any>;
   private _buffer: Queue<Stream.Batch<VALUE>, `${NAME}Buffer`>;
   private _pendings: Queue<(value: Stream.Batch<VALUE> | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
 
-  constructor(name: NAME, options?: Consumer.Options<VALUE>) {
+  constructor(
+    name: NAME,
+    source: Source<VALUE, any, any> | undefined = undefined,
+    private onTerminate: () => void,
+  ) {
     this.name = name;
-    this._options = options;
+    this._source = source;
     this._buffer = new Queue(`${this.name}Buffer`);
     this._pendings = new Queue(`${this.name}Pending`);
   }
@@ -56,7 +60,7 @@ export class Consumer<VALUE, NAME extends string>
     } else {
       const batch = await new Promise<Stream.Batch<VALUE> | Queue.Empty>((r) => {
         this._pendings.enqueue(r);
-        if (this._options?.source?.idle) this._options.source.requestNext();
+        if (this._source?.idle) this._source.requestNext();
       });
       return { value: batch as never, done: batch === Queue.EMPTY };
     }
@@ -76,9 +80,9 @@ export class Consumer<VALUE, NAME extends string>
     this._disposed?.push();
     await this._disposed?.dispose();
 
-    this._valueProcessing = this._valueProcessed = this._disposed = undefined;
+    this._source = this._valueProcessing = this._valueProcessed = this._disposed = undefined;
 
-    this._options?.onTerminate?.();
+    this.onTerminate();
     return { value: Queue.EMPTY as never, done: true };
   }
   async dispose() {
@@ -91,7 +95,7 @@ export class Consumer<VALUE, NAME extends string>
     return this._pendings;
   }
   get source() {
-    return this._options?.source;
+    return this._source;
   }
   get valueProcessing() {
     if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.name}ValueProcessing`);

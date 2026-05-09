@@ -80,12 +80,9 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       if (!this._consumers.has(name)) break;
     }
 
-    const consumer = new Consumer(name, {
-      source: this._source,
-      onTerminate: () => {
-        this._consumers.delete(name);
-        this._consumerDetached?.push(consumer);
-      },
+    const consumer = new Consumer(name, this._source, () => {
+      this._consumers.delete(name);
+      this._consumerDetached?.push(consumer);
     });
 
     this._consumers.set(name, consumer);
