@@ -19,9 +19,9 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   private _consumerDetached?: Stream<Consumer<VALUE, string>, never, `${NAME}ConsumerDetached`>;
   private _cleared?: Stream<void, never, `${NAME}Cleared`>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
-  constructor(name: NAME, sourceData?: Source.SourceData<VALUE, ERROR>);
-  constructor(sourceData?: Source.SourceData<VALUE, ERROR>);
-  constructor(nameOrSourceData?: NAME | Source.SourceData<VALUE, ERROR>, sourceData?: Source.SourceData<VALUE, ERROR>) {
+  constructor(name: NAME, sourceData?: Source.SourceData<VALUE>);
+  constructor(sourceData?: Source.SourceData<VALUE>);
+  constructor(nameOrSourceData?: NAME | Source.SourceData<VALUE>, sourceData?: Source.SourceData<VALUE>) {
     if (typeof nameOrSourceData === "string") {
       this.name = nameOrSourceData;
     } else {
@@ -72,7 +72,6 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     }
     return this;
   }
-
   getConsumer(): Consumer<VALUE, Stream.ConsumerName<NAME>> {
     let name: Stream.ConsumerName<NAME>;
 

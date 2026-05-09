@@ -12,7 +12,6 @@ class Map<
     super(name, inputStream, async function* () {
       for await (const batch of inputStream) {
         const values: Stream.Batch<MAPPED> = [];
-        const errors: Stream.Batch<ERROR> = [];
 
         for (let i = 0, length = batch.length; i < length; i++) {
           try {
@@ -20,18 +19,19 @@ class Map<
             result = result instanceof Promise ? await result : result;
 
             if (result instanceof Source.Error) {
-              errors.push(result.data);
+              self.source?.throw(result.data);
               continue;
             }
 
             values.push(result);
           } catch (error: any) {
-            errors.push(error);
+            self.source?.throw(error);
           }
         }
-        yield { values, errors };
+        yield values;
       }
     });
+    const self = this;
   }
 }
 export function map<
@@ -54,41 +54,3 @@ export namespace map {
     value: VALUE,
   ) => MAPPED | Source.Error<ERROR> | Promise<MAPPED | Source.Error<ERROR>>;
 }
-
-function bench() {
-  const MAX = 1_000_000;
-  const start = performance.now();
-
-  const stream = new Stream<number>();
-  const mapped = stream
-    .pipe(
-      map((v) => {
-        if (v === 4) new Source.Error("kechmahaja " + v);
-        return v;
-      }),
-    )
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v));
-
-  (async () => {
-    for await (const error of mapped.traversal.map.map.map.source!.error) {
-      console.log(error);
-    }
-  })();
-
-  (async () => {
-    for await (const value of mapped) {
-      console.log("iter ", value.pop(), Math.round(performance.now() - start));
-    }
-  })();
-
-  for (let i = 1; i <= MAX; i++) {
-    stream.push(i);
-  }
-  setTimeout(() => {
-    stream.push(0);
-  });
-}
-
-bench(); //128ms

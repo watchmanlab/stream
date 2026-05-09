@@ -10,23 +10,22 @@ export class Each<
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, callback: each.Callback<VALUE, ERROR>) {
     super(name, inputStream, async function* () {
       for await (const batch of inputStream) {
-        const errors: Stream.Batch<ERROR> = [];
-
         for (let i = 0, length = batch.length; i < length; i++) {
           try {
             let result = callback(batch[i]);
 
             result = result instanceof Promise ? await result : result;
 
-            if (result instanceof Source.Error) errors.push(result.data);
+            if (result instanceof Source.Error) self.source?.throw(result.data);
           } catch (error: any) {
-            errors.push(error);
+            self.source?.throw(error);
           }
         }
 
-        yield { values: batch, errors };
+        yield batch;
       }
     });
+    const self = this;
   }
 }
 

@@ -2,17 +2,16 @@ import { Stream } from "./stream.ts";
 
 export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposable, Disposable {
   readonly name: NAME;
-  private _iterator:
-    | Iterator<Source.SourceDataResult<VALUE, ERROR>>
-    | AsyncIterator<Source.SourceDataResult<VALUE, ERROR>>;
+  private _iterator: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>>;
   private _idle = true;
   private _error?: Stream<ERROR, never, `${NAME}Error`>;
 
   constructor(
     name: NAME,
-    sourceData: Source.SourceData<VALUE, ERROR>,
+    sourceData: Source.SourceData<VALUE>,
     private onNext: (value: Stream.Batch<VALUE>) => void,
     private onDone: () => void,
+    // private getStream:()=>
   ) {
     this.name = name;
 
@@ -28,13 +27,20 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
   [Symbol.dispose]() {
     this.dispose();
   }
+  throw(error: ERROR) {
+    if (!this._error || this._error.consumersCount === 0)
+      Promise.reject(
+        `Unhandled error in "${this.name}": ${error}
 
+Consume ${this.name}.source.error to handle this.
+`,
+      );
+    this._error?.push(error);
+  }
   async requestNext() {
     this._idle = false;
 
-    let result:
-      | IteratorResult<Source.SourceDataResult<VALUE, ERROR>, any>
-      | Promise<IteratorResult<Source.SourceDataResult<VALUE, ERROR>, any>>;
+    let result: IteratorResult<Stream.Batch<VALUE>, any> | Promise<IteratorResult<Stream.Batch<VALUE>, any>>;
     try {
       result = this._iterator.next();
 
@@ -44,18 +50,7 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
       if (result.done) {
         this.onDone();
       } else {
-        const { values, errors } = result.value;
-
-        if (errors.length) {
-          if (!this._error) throw errors;
-          this._error?.batch(errors);
-        }
-
-        if (values.length) {
-          this.onNext(values);
-        } else {
-          this.requestNext();
-        }
+        this.onNext(result.value);
       }
     } catch (error: any) {
       this._idle = true;
@@ -80,35 +75,22 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
 
 export namespace Source {
   export type AnySource = Source<any, any, any>;
-  export type AnySourceData = SourceData<any, any>;
+  export type AnySourceData = SourceData<any>;
   export type AnyError = Source.Error<any>;
-  export type ExtractValue<T> = T extends Source<infer VALUE, any, any> | SourceData<infer VALUE, any> ? VALUE : never;
+  export type ExtractValue<T> = T extends Source<infer VALUE, any, any> | SourceData<infer VALUE> ? VALUE : never;
   export type ExtractName<T> = T extends AnySource ? T["name"] : never;
-  export type ExtractError<T> = T extends Source<any, infer ERROR, any> | SourceData<any, infer ERROR>
-    ? ERROR
-    : T extends AnyError
-      ? T["data"]
-      : never;
+  export type ExtractError<T> =
+    T extends Source<any, infer ERROR, any> ? ERROR : T extends AnyError ? T["data"] : never;
   export class Error<const ERROR> {
     constructor(public readonly data: ERROR) {}
   }
-  export type SourceDataResult<VALUE, ERROR> = { values: Stream.Batch<VALUE>; errors: Stream.Batch<ERROR> };
 
-  export type SourceData<VALUE, ERROR> =
+  export type SourceData<VALUE> =
     | (() =>
-        | AsyncGenerator<SourceDataResult<VALUE, ERROR>>
-        | Generator<SourceDataResult<VALUE, ERROR>>
-        | AsyncIterator<SourceDataResult<VALUE, ERROR>>
-        | Iterator<SourceDataResult<VALUE, ERROR>>)
-    | AsyncIterable<SourceDataResult<VALUE, ERROR>>
-    | Exclude<Iterable<SourceDataResult<VALUE, ERROR>>, string>;
-  // export class SourceError<ERROR, SOURCE extends Stream.AnyStream> {
-  //   constructor(
-  //     public readonly error: ERROR,
-  //     public readonly source: SOURCE,
-  //   ) {}
-  //   get sourceName(): SOURCE["name"] {
-  //     return this.source.name;
-  //   }
-  // }
+        | AsyncGenerator<Stream.Batch<VALUE>>
+        | Generator<Stream.Batch<VALUE>>
+        | AsyncIterator<Stream.Batch<VALUE>>
+        | Iterator<Stream.Batch<VALUE>>)
+    | AsyncIterable<Stream.Batch<VALUE>>
+    | Exclude<Iterable<Stream.Batch<VALUE>>, string>;
 }
