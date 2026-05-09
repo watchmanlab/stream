@@ -1,7 +1,7 @@
 import { Stream } from "../../../streams/index.ts";
 import { effect } from "../effect/effect.ts";
 import { Map } from "../../map.ts";
-import { pump } from "../pump/pump.ts";
+import { pump } from "../../pump.ts";
 
 const NAME = "pluck";
 
