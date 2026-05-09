@@ -1,4 +1,4 @@
-import { Stream, Transformer, Source } from "../stream/index.ts";
+import { Stream, Transformer, Source } from "../core/index.ts";
 
 const NAME = "map";
 class Map<
@@ -19,15 +19,14 @@ class Map<
             let result = mapper(batch[i]);
             result = result instanceof Promise ? await result : result;
 
-            if (result instanceof Source.Error) throw result;
+            if (result instanceof Source.Error) {
+              errors.push(result.data);
+              continue;
+            }
 
             values.push(result);
           } catch (error: any) {
-            if (error instanceof Source.Error) {
-              errors.push(error.data);
-            } else {
-              errors.push(error);
-            }
+            errors.push(error);
           }
         }
         yield { values, errors };
@@ -64,7 +63,7 @@ function bench() {
   const mapped = stream
     .pipe(
       map((v) => {
-        if (v === 4) return new Source.Error("kechmahaja " + v);
+        if (v === 4) new Source.Error("kechmahaja " + v);
         return v;
       }),
     )
@@ -72,7 +71,12 @@ function bench() {
     .pipe(map((v) => v))
     .pipe(map((v) => v));
 
-  mapped.traversal.map.map.map.source?.error.next().then((res) => console.log(res.value));
+  (async () => {
+    for await (const error of mapped.traversal.map.map.map.source!.error) {
+      console.log(error);
+    }
+  })();
+
   (async () => {
     for await (const value of mapped) {
       console.log("iter ", value.pop(), Math.round(performance.now() - start));
@@ -82,6 +86,9 @@ function bench() {
   for (let i = 1; i <= MAX; i++) {
     stream.push(i);
   }
+  setTimeout(() => {
+    stream.push(0);
+  });
 }
 
 bench(); //128ms
