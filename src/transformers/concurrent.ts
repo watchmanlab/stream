@@ -1,4 +1,4 @@
-import { Channel, Queue, Source, Stream, Transformer } from "../core/index.ts";
+import { Channel, Queue, Stream, Transformer } from "../core/index.ts";
 
 const NAME = "concurrent";
 
@@ -61,7 +61,7 @@ class Concurrent<
                 self._buffer.push({ value, mapped: mapper(value) });
                 resolver!?.();
               } catch (error: any) {
-                self._buffer.push({ value, mapped: new Source.Error(error) });
+                self._buffer.push({ value, mapped: new Stream.Error(error) });
               }
             } else {
               mapper(value)
@@ -72,7 +72,7 @@ class Concurrent<
                   resolver!?.();
                 })
                 .catch((error) => {
-                  self._buffer.push({ value, mapped: new Source.Error(error) });
+                  self._buffer.push({ value, mapped: new Stream.Error(error) });
                 });
             }
           }

@@ -1,4 +1,4 @@
-import { Source, Stream, Transformer } from "../core";
+import { Stream, Transformer } from "../core";
 
 const NAME = "effect";
 export class Effect<
@@ -18,16 +18,16 @@ export class Effect<
               if (result instanceof Promise) {
                 result
                   .then((res) => {
-                    if (res instanceof Source.Error) self.source?.throw(res.data);
+                    if (res instanceof Stream.Error) self.throw(res.data);
                   })
                   .catch((error) => {
-                    self.source?.throw(error);
+                    self.throw(error);
                   });
-              } else if (result instanceof Source.Error) {
-                self.source?.throw(result.data);
+              } else if (result instanceof Stream.Error) {
+                self.throw(result.data);
               }
             } catch (error: any) {
-              self.source?.throw(error);
+              self.throw(error);
             }
           }
         })();
@@ -53,5 +53,5 @@ export namespace effect {
   export type Name = typeof NAME;
   export type Callback<VALUE, ERROR> = (
     value: VALUE,
-  ) => void | Source.Error<ERROR> | Promise<void | Source.Error<ERROR>>;
+  ) => void | Stream.Error<ERROR> | Promise<void | Stream.Error<ERROR>>;
 }

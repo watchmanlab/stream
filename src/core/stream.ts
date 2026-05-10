@@ -1,6 +1,4 @@
 import { Channel } from "./channel.ts";
-import { Queue } from "./queue.ts";
-import { Source } from "./source.ts";
 import { Transformer } from "./transformer.ts";
 
 const NAME = "root";
@@ -13,30 +11,29 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     Disposable
 {
   readonly name: NAME;
-  private _source?: Source<Stream.Batch<VALUE>, ERROR, NAME>;
+  private _source?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>>;
+  private _sourceIdle = true;
+  private _error?: Stream<ERROR, never, `${NAME}Error`>;
   private _channels = new Map<string, Channel<Stream.Batch<VALUE>, any>>();
   private _channelAttached?: Stream<Channel<Stream.Batch<VALUE>, string>, never, `${NAME}ChannelAttached`>;
   private _channelDetached?: Stream<Channel<Stream.Batch<VALUE>, string>, never, `${NAME}ChannelDetached`>;
   private _cleared?: Stream<void, never, `${NAME}Cleared`>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
-  constructor(name: NAME, sourceData?: Source.SourceData<Stream.Batch<VALUE>>);
-  constructor(sourceData?: Source.SourceData<Stream.Batch<VALUE>>);
-  constructor(
-    nameOrSourceData?: NAME | Source.SourceData<Stream.Batch<VALUE>>,
-    sourceData?: Source.SourceData<Stream.Batch<VALUE>>,
-  ) {
-    if (typeof nameOrSourceData === "string") {
-      this.name = nameOrSourceData;
+  constructor(name: NAME, source?: Stream.Source<Stream.Batch<VALUE>>);
+  constructor(source?: Stream.Source<Stream.Batch<VALUE>>);
+  constructor(nameOrSource?: NAME | Stream.Source<Stream.Batch<VALUE>>, source?: Stream.Source<Stream.Batch<VALUE>>) {
+    if (typeof nameOrSource === "string") {
+      this.name = nameOrSource;
     } else {
       this.name = NAME as NAME;
-      sourceData = nameOrSourceData;
+      source = nameOrSource;
     }
-    if (sourceData)
-      this._source = new Source(this.name, {
-        sourceData,
-        onNext: (values) => this.batch(values),
-        onDone: () => (this._source = undefined),
-      });
+    if (source)
+      if (typeof source === "function") {
+        this._source = source();
+      } else {
+        this._source = (source as any)[Symbol.asyncIterator]?.() ?? (source as any)[Symbol.iterator]();
+      }
   }
   [Symbol.asyncIterator](): Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>> {
     return this.getChannel();
@@ -84,7 +81,9 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     }
 
     const channel = new Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>>(name, {
-      source: this._source,
+      requestNext: () => {
+        this.requestNext();
+      },
       onDone: () => {
         this._channels.delete(name);
         this._channelDetached?.push(channel);
@@ -94,6 +93,41 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     this._channels.set(name, channel);
     this._channelAttached?.push(channel);
     return channel;
+  }
+
+  throw(error: ERROR) {
+    if (!this._error?.consumersCount)
+      Promise.reject(
+        `Unhandled error in "${this.name}": ${error}
+
+Consume ${this.name}.source.error to handle this.
+`,
+      );
+    this._error?.push(error);
+  }
+  async requestNext() {
+    if (!this._source) return;
+
+    this._sourceIdle = false;
+
+    let result: IteratorResult<Stream.Batch<VALUE>, any> | Promise<IteratorResult<Stream.Batch<VALUE>, any>>;
+    try {
+      result = this._source.next();
+
+      result = result instanceof Promise ? await result : result;
+
+      this._sourceIdle = true;
+      if (result.done) {
+        this._source = undefined;
+      } else {
+        this.batch(result.value);
+      }
+    } catch (error: any) {
+      this._sourceIdle = true;
+      if (!this._error) throw error;
+      this._error?.push(error);
+      this.requestNext();
+    }
   }
 
   pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
@@ -121,7 +155,8 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   async dispose() {
     await Promise.all([
       this.clear(),
-      this._source?.dispose(),
+      this._source?.return?.(),
+      this._error?.dispose(),
       this._channelAttached?.dispose(),
       this._channelDetached?.dispose(),
       this._cleared?.dispose(),
@@ -130,11 +165,15 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     this._disposed?.push();
     await this._disposed?.dispose();
 
-    this._source = this._channelAttached = this._channelDetached = this._cleared = this._disposed = undefined;
+    this._source =
+      this._error =
+      this._channelAttached =
+      this._channelDetached =
+      this._cleared =
+      this._disposed =
+        undefined;
   }
-  get source() {
-    return this._source;
-  }
+
   get consumersCount() {
     return this._channels.size;
   }
@@ -162,6 +201,10 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     }
     return this._disposed;
   }
+  get error() {
+    if (!this._error) this._error = new Stream(`${this.name}Error`);
+    return this._error;
+  }
 }
 
 export namespace Stream {
@@ -169,28 +212,28 @@ export namespace Stream {
   export type Batch<VALUE> = VALUE[];
   export type ChannelName<NAME extends string> = `${NAME}Channel${string}`;
   export type AnyStream = Stream<any, any, any>;
-  export type ExtractValue<T> = T extends Stream<infer VALUE, any, any> | Batch<infer VALUE>
-    ? VALUE
-    : Transformer.ExtractValue<T> extends never
-      ? Channel.ExtractValue<T> extends never
-        ? Source.ExtractValue<T> extends never
-          ? Queue.ExtractValue<T> extends never
-            ? never
-            : Queue.ExtractValue<T>
-          : Source.ExtractValue<T>
-        : Channel.ExtractValue<T>
-      : Transformer.ExtractValue<T>;
+  export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
+    T extends Stream<infer VALUE, any, any>
+      ? VALUE
+      : Transformer.ExtractValue<T> extends never
+        ? never
+        : Transformer.ExtractValue<T>;
 
   export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
   export type ExtractError<T> =
     T extends Stream<any, infer ERROR, any>
       ? ERROR
       : Transformer.ExtractError<T> extends never
-        ? Source.ExtractError<T> extends never
-          ? never
-          : Source.ExtractError<T>
+        ? never
         : Transformer.ExtractError<T>;
 
+  export type Source<VALUE> =
+    | (() => AsyncGenerator<VALUE> | Generator<VALUE> | AsyncIterator<VALUE> | Iterator<VALUE>)
+    | AsyncIterable<VALUE>
+    | Iterable<VALUE>;
+  export class Error<const ERROR> {
+    constructor(public readonly data: ERROR) {}
+  }
   export type Transform<
     INPUT_STREAM extends AnyStream,
     OUTPUT_NAME extends string,
@@ -198,32 +241,32 @@ export namespace Stream {
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
 }
 
-// function simpleTest() {
-//   const stream = new Stream<number, never>(async function* () {
-//     // await new Promise((r) => setTimeout(r, 10));
-//     // yield 1 as number;
-//     // await new Promise((r) => setTimeout(r, 10));
-//     // yield 2;
-//     // await new Promise((r) => setTimeout(r, 10));
-//     // yield 3;
-//   });
+function simpleTest() {
+  const stream = new Stream<number, never>(async function* () {
+    await new Promise((r) => setTimeout(r, 10));
+    yield [1];
+    await new Promise((r) => setTimeout(r, 10));
+    yield [2];
+    await new Promise((r) => setTimeout(r, 10));
+    yield [3];
+  });
 
-//   (async () => {
-//     for await (const value of stream) {
-//       console.log("c1", value);
-//       if (value == 2) break;
-//     }
-//   })();
-//   (async () => {
-//     for await (const value of stream) {
-//       console.log("c2", value);
-//       if (value == 2) break;
-//     }
-//   })();
+  (async () => {
+    for await (const value of stream) {
+      console.log("c1", value);
+      if (value[0] == 2) break;
+    }
+  })();
+  (async () => {
+    for await (const value of stream) {
+      console.log("c2", value);
+      if (value[0] == 2) break;
+    }
+  })();
 
-//   stream.push(44);
-//   stream.push(55);
-// }
+  stream.push(44);
+  stream.push(55);
+}
 function bench() {
   const MAX = 1_000_000;
   const now = performance.now();
@@ -245,41 +288,6 @@ function bench() {
     stream.push(i);
   }
 }
-// function consumerTest() {
-//   const stream1 = new Stream("clicks", () => {
-//     let i = 0;
-//     return {
-//       next: async () => {
-//         return { value: [i++], done: i > 2 };
-//       },
-//     };
-//   });
 
-//   const consumer1 = stream1.getChannel();
-//   const consumer2 = stream1.getChannel();
-
-//   (async () => {
-//     for await (const value of consumer1) {
-//       await new Promise((r) => setTimeout(r, 300));
-
-//       console.log(consumer1.name, value);
-//     }
-//     console.log(consumer1.name, " done");
-//   })();
-//   (async () => {
-//     for await (const value of consumer2) {
-//       console.log(consumer2.name, value);
-//     }
-//     console.log(consumer2.name, " done");
-//   })();
-
-//   // stream1.push(1);
-//   // stream1.push(2);
-//   // stream.push(3)
-// }
-
-// simpleTest();
+simpleTest();
 // bench(); //22ms
-// consumerTest();
-
-//generator function latency is 120ms

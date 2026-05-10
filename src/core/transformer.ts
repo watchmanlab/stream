@@ -1,4 +1,3 @@
-import { Source } from "./source.ts";
 import { Stream } from "./stream.ts";
 
 export abstract class Transformer<
@@ -10,7 +9,7 @@ export abstract class Transformer<
   constructor(
     name: NAME,
     protected readonly inputStream: INPUT_STREAM,
-    sourceData?: Source.SourceData<Stream.Batch<VALUE>>,
+    sourceData?: Stream.Source<Stream.Batch<VALUE>>,
   ) {
     super(name, sourceData);
 

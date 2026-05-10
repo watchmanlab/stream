@@ -1,5 +1,4 @@
 import { Queue } from "./queue.ts";
-import { Source } from "./source.ts";
 import { Stream } from "./stream.ts";
 
 const NAME = "channel";
@@ -15,14 +14,13 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
 
   constructor(
     name = NAME as NAME,
-    private options?: Channel.Options<VALUE>,
+    private options?: Channel.Options,
   ) {
     this.name = name;
 
     this._buffer = new Queue(`${this.name}Buffer`);
     this._pendings = [];
   }
-
   [Symbol.asyncIterator]() {
     return this;
   }
@@ -32,7 +30,6 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
   [Symbol.dispose]() {
     this.return();
   }
-
   push(value: VALUE): this {
     if (this._pendings.length) {
       for (let i = 0, pendings = this._pendings, length = pendings.length; i < length; i++) {
@@ -58,18 +55,15 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
       this._valueProcessing?.push(value);
       this._currentValue = value;
 
-      this.options?.onNext?.(value);
       return { value };
     } else {
       const value = await new Promise<VALUE | Queue.Empty>((r) => {
         this._pendings.push(r);
-        //TODO: channel does not need source it need only requestNext
-        if (this.options?.source?.idle) this.options.source.requestNext();
+        this.options?.requestNext?.();
       });
 
       if (value === Queue.EMPTY) return { value: Queue.EMPTY as never, done: true };
 
-      this.options?.onNext?.(value);
       return { value };
     }
   }
@@ -94,9 +88,6 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
   get pendings() {
     return this._pendings;
   }
-  get source() {
-    return this.options?.source;
-  }
   get valueProcessing() {
     if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.name}ValueProcessing`);
     return this._valueProcessing;
@@ -112,13 +103,9 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
 }
 export namespace Channel {
   export type Name = typeof NAME;
-  export type AnyOptions = Options<any>;
 
-  export type ExtractValue<T> = T extends Options<infer VALUE> ? VALUE : never;
-
-  export type Options<VALUE> = {
-    source?: Source<VALUE, any, any>;
-    onNext?: (value: VALUE) => void;
+  export type Options = {
+    requestNext?: () => void;
     onDone?: () => void;
   };
 }
