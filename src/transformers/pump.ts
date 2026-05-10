@@ -14,7 +14,7 @@ class Pump<
   private _options: pump.Options;
   private _started?: Stream<void, never, `${NAME}Started`>;
   private _stoped?: Stream<void, never, `${NAME}Stoped`>;
-  private _optionsChanged?: Stream<this, never, `${NAME}OptionsChanged`>;
+  private _optionsChanged?: Stream<{ old: pump.Options; new: pump.Options }, never, `${NAME}OptionsChanged`>;
 
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, options?: pump.Options) {
     super(name, inputStream);
@@ -90,13 +90,14 @@ class Pump<
     return { ...this._options };
   }
   set options(options: pump.Options) {
+    const old = this.options;
     this._options = { ...this._options, ...options };
     if (this.isPumping) {
       if (options.stopSignal) this.stopOnSignal();
     } else {
       if (options.startSignal) this.startOnSignal();
     }
-    this._optionsChanged?.push(this);
+    this._optionsChanged?.push({ old, new: options });
   }
   get started() {
     if (!this._started) this._started = new Stream(`${this.name}Started`);

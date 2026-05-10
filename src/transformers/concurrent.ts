@@ -1,56 +1,171 @@
-import { Source, Stream, Transformer } from "../core";
+import { Source, Stream, Transformer } from "../core/index.ts";
 
 const NAME = "concurrent";
-export class Concurrent<
+
+class Concurrent<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  ERROR = unknown,
+  MAPPED = VALUE,
+  ERROR = never,
   NAME extends string = concurrent.Name,
-> extends Transformer<INPUT_STREAM, VALUE, ERROR, NAME> {
-  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, callback: concurrent.Callback<VALUE, ERROR>) {
+> extends Transformer<INPUT_STREAM, MAPPED, ERROR, NAME> {
+  protected _options: Required<concurrent.Options>;
+  protected _buffer: {
+    value: VALUE;
+    mapped: MAPPED | Source.Error<ERROR> | Promise<MAPPED | Source.Error<ERROR>>;
+  }[] = [];
+  protected _pending: number = 0;
+  protected _limitReached?: Stream<number, never, `${NAME}LimitReached`>;
+  private _optionsChanged?: Stream<
+    { old: concurrent.Options; new: concurrent.Options },
+    never,
+    `${NAME}OptionsChanged`
+  >;
+  constructor(
+    name = NAME as NAME,
+    inputStream: INPUT_STREAM,
+    mapper: concurrent.Mapper<VALUE, MAPPED, ERROR>,
+    options?: concurrent.Options,
+  ) {
     super(name, inputStream, async function* () {
-      for await (const batch of inputStream) {
-        const promises: ReturnType<typeof callback>[] = [];
-        for (let i = 0, length = batch.length; i < length; i++) {
-          try {
-            promises.push(callback(batch[i]));
-          } catch (error: any) {
-            self.source?.throw(error);
+      const output = new Stream<MAPPED>();
+
+      let resolver: () => void;
+      let limitResolver: () => void;
+      let aborted = false;
+      const consumer = inputStream.getConsumer();
+
+      (async () => {
+        for await (const batch of consumer) {
+          for (let i = 0, length = batch.length; i < length; i++) {
+            const value = batch[i];
+
+            if (aborted) break;
+            if (self._pending >= self._options.limit) {
+              self._limitReached?.push(self._options.limit);
+              await new Promise<void>((r) => (limitResolver = r));
+            }
+            self._pending++;
+
+            if (self._options.ordered) {
+              try {
+                self._buffer.push({ value, mapped: mapper(value) });
+                resolver!?.();
+              } catch (error: any) {
+                self._buffer.push({ value, mapped: new Source.Error(error) });
+              }
+            } else {
+              mapper(value)
+                .then((mapped) => {
+                  self._pending--;
+                  if (aborted) return;
+                  self._buffer.push({ value, mapped });
+                  resolver!?.();
+                })
+                .catch((error) => {
+                  self._buffer.push({ value, mapped: new Source.Error(error) });
+                });
+            }
           }
         }
+        if (self._options.onDispose === "abort") aborted = true;
+        resolver!?.();
+      })();
+      try {
+        //TODO:: i think we will use stream as output so the produced simply push to it
+        while (true) {
+          if (self._buffer.length && !aborted) {
+            const entry = self._buffer.shift()!;
 
-        const results = await Promise.allSettled(promises);
-        promises.length = 0;
-        for (let i = 0, length = results.length; i < length; i++) {
-          const result = results[i];
-          if (result.status === "rejected") {
-            self.source?.throw(result.reason);
-          } else if (result.value instanceof Source.Error) {
-            self.source?.throw(result.value.data);
+            if (entry.mapped instanceof Promise) self._pending--;
+
+            try {
+              const mapped = entry.mapped instanceof Promise ? await entry.mapped : entry.mapped;
+
+              if (mapped instanceof Source.Error) {
+                self.source?.throw(mapped.data);
+                continue;
+              }
+
+              yield [mapped];
+
+              limitResolver!?.();
+            } catch (error: any) {
+              self.source?.throw(error);
+            }
+          } else {
+            if (!aborted) await new Promise<void>((r) => (resolver = r));
           }
         }
-
-        yield batch;
+      } finally {
+        self._buffer.length = 0;
+        aborted = true;
+        limitResolver!?.();
+        resolver!?.();
+        await consumer.return();
       }
     });
     const self = this;
+    this._options = {
+      ...concurrent.defaultOptions,
+      ...Object.fromEntries(Object.entries(options ?? {}).filter(([_, val]) => val != null)),
+    };
+  }
+
+  override async dispose(): Promise<void> {
+    //TODO:
+    await super.dispose();
+  }
+  get options() {
+    return { ...this._options };
+  }
+  set options(options: concurrent.Options) {
+    const old = this.options;
+    this._options = {
+      ...this._options,
+      ...Object.fromEntries(Object.entries(options).filter(([_, val]) => val != null)),
+    };
+    this._optionsChanged?.push({ old, new: options });
+  }
+  get buffer() {
+    return [...this._buffer];
+  }
+  get pending() {
+    return this._pending;
+  }
+  get limitReached() {
+    if (!this._limitReached) this._limitReached = new Stream(`${this.name}LimitReached`);
+    return this._limitReached;
+  }
+  get optionsChanged() {
+    if (!this._optionsChanged) this._optionsChanged = new Stream(`${this.name}OptionsChanged`);
+    return this._optionsChanged;
   }
 }
-
 export function concurrent<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  ERROR = unknown,
+  MAPPED = VALUE,
+  ERROR = never,
   NAME extends string = concurrent.Name,
 >(
-  callback: concurrent.Callback<VALUE, ERROR>,
-): Stream.Transform<INPUT_STREAM, NAME, Concurrent<INPUT_STREAM, VALUE, ERROR, NAME>> {
-  return (inputStream, name) => new Concurrent(name, inputStream, callback);
+  mapper: concurrent.Mapper<VALUE, MAPPED, ERROR>,
+  options?: concurrent.Options,
+): Stream.Transform<INPUT_STREAM, NAME, Concurrent<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>> {
+  return (inputStream, name) => new Concurrent(name, inputStream, mapper, options);
 }
 
 export namespace concurrent {
   export type Name = typeof NAME;
-  export type Callback<VALUE, ERROR> = (
-    value: VALUE,
-  ) => void | Source.Error<ERROR> | Promise<void | Source.Error<ERROR>>;
+  export type Mapper<VALUE, MAPPED, ERROR> = (value: VALUE) => Promise<MAPPED | Source.Error<ERROR>>;
+  export type Options = {
+    limit?: number;
+    ordered?: boolean;
+    onDispose?: "drain" | "abort";
+  };
+  export const defaultOptions: Required<Options> = {
+    limit: 1000,
+    ordered: false,
+    onDispose: "drain",
+  };
 }

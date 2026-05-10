@@ -1,6 +1,7 @@
 import { Stream } from "./stream.ts";
 
-export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, AsyncDisposable, Disposable {
+const NAME = "queue";
+export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<VALUE>, AsyncDisposable, Disposable {
   readonly name: NAME;
   private _head?: Queue.Node<VALUE>;
   private _tail?: Queue.Node<VALUE>;
@@ -10,7 +11,7 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, Async
   private _cleared?: Stream<void, never, `${NAME}Cleared`>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
 
-  constructor(name: NAME) {
+  constructor(name = NAME as NAME) {
     this.name = name;
   }
   [Symbol.iterator]() {
@@ -85,6 +86,7 @@ export class Queue<VALUE, NAME extends string> implements Iterable<VALUE>, Async
   }
 }
 export namespace Queue {
+  export type Name = typeof NAME;
   export type AnyQueue = Queue<any, any>;
   export type AnyNode = Exclude<Node<any>, undefined>;
 
