@@ -4,11 +4,11 @@ import { Stream } from "./stream.ts";
 
 const NAME = "channel";
 export class Channel<VALUE, NAME extends string = Channel.Name>
-  implements AsyncIterableIterator<Stream.Batch<VALUE>>, AsyncDisposable, Disposable
+  implements AsyncIterableIterator<VALUE>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
-  private _buffer: Queue<Stream.Batch<VALUE>, `${NAME}Buffer`>;
-  private _pendings: Queue<(value: Stream.Batch<VALUE> | Queue.Empty) => void, `${NAME}Pending`>;
+  private _buffer: Queue<VALUE, `${NAME}Buffer`>;
+  private _pendings: ((value: VALUE | Queue.Empty) => void)[];
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
@@ -20,75 +20,74 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
     this.name = name;
 
     this._buffer = new Queue(`${this.name}Buffer`);
-    this._pendings = new Queue(`${this.name}Pending`);
+    this._pendings = [];
   }
 
   [Symbol.asyncIterator]() {
     return this;
   }
   async [Symbol.asyncDispose]() {
-    await this.dispose();
+    await this.return();
   }
   [Symbol.dispose]() {
-    this.dispose();
+    this.return();
   }
+
   push(value: VALUE): this {
-    return this.batch([value]);
-  }
-  batch(batch: Stream.Batch<VALUE>): this {
-    const pending = this._pendings.dequeue();
-    if (pending !== Queue.EMPTY) {
-      pending(batch);
+    if (this._pendings.length) {
+      for (let i = 0, pendings = this._pendings, length = pendings.length; i < length; i++) {
+        pendings[i](value);
+      }
+      this._pendings = [];
     } else {
-      this._buffer.enqueue(batch);
+      this._buffer.enqueue(value);
     }
 
     return this;
   }
 
-  private _currentBatch: Stream.Batch<VALUE> | Queue.Empty = Queue.EMPTY;
-  async next(): Promise<IteratorResult<Stream.Batch<VALUE>, Queue.Empty>> {
-    if (this._currentBatch !== Queue.EMPTY) {
-      this._valueProcessed?.batch(this._currentBatch);
-      this._currentBatch = Queue.EMPTY;
+  private _currentValue: VALUE | Queue.Empty = Queue.EMPTY;
+  async next(): Promise<IteratorResult<VALUE, Queue.Empty>> {
+    if (this._currentValue !== Queue.EMPTY) {
+      this._valueProcessed?.push(this._currentValue);
+      this._currentValue = Queue.EMPTY;
     }
 
-    const batch = this._buffer.dequeue();
-    if (batch !== Queue.EMPTY) {
-      this._valueProcessing?.batch(batch);
-      this._currentBatch = batch;
+    const value = this._buffer.dequeue();
+    if (value !== Queue.EMPTY) {
+      this._valueProcessing?.push(value);
+      this._currentValue = value;
 
-      return { value: batch };
+      this.options?.onNext?.(value);
+      return { value };
     } else {
-      const batch = await new Promise<Stream.Batch<VALUE> | Queue.Empty>((r) => {
-        this._pendings.enqueue(r);
+      const value = await new Promise<VALUE | Queue.Empty>((r) => {
+        this._pendings.push(r);
+        //TODO: channel does not need source it need only requestNext
         if (this.options?.source?.idle) this.options.source.requestNext();
       });
-      return { value: batch as never, done: batch === Queue.EMPTY };
+
+      if (value === Queue.EMPTY) return { value: Queue.EMPTY as never, done: true };
+
+      this.options?.onNext?.(value);
+      return { value };
     }
   }
   async return(): Promise<IteratorReturnResult<Queue.Empty>> {
-    for (const pending of this._pendings) {
-      pending(Queue.EMPTY);
+    if (this._pendings.length) {
+      this.push(Queue.EMPTY as VALUE);
     }
 
-    await Promise.all([
-      this._pendings.dispose(),
-      this._buffer.dispose(),
-      this._valueProcessing?.dispose(),
-      this._valueProcessed?.dispose(),
-    ]);
+    await Promise.all([this._buffer.dispose(), this._valueProcessing?.dispose(), this._valueProcessed?.dispose()]);
 
     this._disposed?.push();
     await this._disposed?.dispose();
 
-    this.options?.onDispose?.();
+    this.options?.onDone?.();
     this.options = this._valueProcessing = this._valueProcessed = this._disposed = undefined;
     return { value: Queue.EMPTY as never, done: true };
   }
-  async dispose() {
-    await this.return();
-  }
+
   get buffer() {
     return this._buffer;
   }
@@ -119,6 +118,7 @@ export namespace Channel {
 
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
-    onDispose?: () => void;
+    onNext?: (value: VALUE) => void;
+    onDone?: () => void;
   };
 }

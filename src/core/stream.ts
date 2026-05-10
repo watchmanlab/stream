@@ -8,20 +8,23 @@ const NAME = "root";
 export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   implements
     AsyncIterable<Stream.Batch<VALUE>>,
-    Iterable<Channel<VALUE, Stream.ChannelName<NAME>>>,
+    Iterable<Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>>>,
     AsyncDisposable,
     Disposable
 {
   readonly name: NAME;
-  private _source?: Source<VALUE, ERROR, NAME>;
-  private _channels = new Map<string, Channel<VALUE, any>>();
-  private _consumerAttached?: Stream<Channel<VALUE, string>, never, `${NAME}ConsumerAttached`>;
-  private _consumerDetached?: Stream<Channel<VALUE, string>, never, `${NAME}ConsumerDetached`>;
+  private _source?: Source<Stream.Batch<VALUE>, ERROR, NAME>;
+  private _channels = new Map<string, Channel<Stream.Batch<VALUE>, any>>();
+  private _channelAttached?: Stream<Channel<Stream.Batch<VALUE>, string>, never, `${NAME}ChannelAttached`>;
+  private _channelDetached?: Stream<Channel<Stream.Batch<VALUE>, string>, never, `${NAME}ChannelDetached`>;
   private _cleared?: Stream<void, never, `${NAME}Cleared`>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
-  constructor(name: NAME, sourceData?: Source.SourceData<VALUE>);
-  constructor(sourceData?: Source.SourceData<VALUE>);
-  constructor(nameOrSourceData?: NAME | Source.SourceData<VALUE>, sourceData?: Source.SourceData<VALUE>) {
+  constructor(name: NAME, sourceData?: Source.SourceData<Stream.Batch<VALUE>>);
+  constructor(sourceData?: Source.SourceData<Stream.Batch<VALUE>>);
+  constructor(
+    nameOrSourceData?: NAME | Source.SourceData<Stream.Batch<VALUE>>,
+    sourceData?: Source.SourceData<Stream.Batch<VALUE>>,
+  ) {
     if (typeof nameOrSourceData === "string") {
       this.name = nameOrSourceData;
     } else {
@@ -29,17 +32,16 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       sourceData = nameOrSourceData;
     }
     if (sourceData)
-      this._source = new Source(
-        this.name,
+      this._source = new Source(this.name, {
         sourceData,
-        (values) => this.batch(values),
-        () => (this._source = undefined),
-      );
+        onNext: (values) => this.batch(values),
+        onDone: () => (this._source = undefined),
+      });
   }
-  [Symbol.asyncIterator](): Channel<VALUE, Stream.ChannelName<NAME>> {
+  [Symbol.asyncIterator](): Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>> {
     return this.getChannel();
   }
-  [Symbol.iterator](): MapIterator<Channel<VALUE, Stream.ChannelName<NAME>>> {
+  [Symbol.iterator](): MapIterator<Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>>> {
     return this._channels.values();
   }
   async [Symbol.asyncDispose]() {
@@ -68,12 +70,12 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   batch(batch: Stream.Batch<VALUE>): this {
     if (!batch.length) return this;
     for (const channel of this) {
-      channel.batch(batch);
+      channel.push(batch);
     }
     return this;
   }
 
-  getChannel(): Channel<VALUE, Stream.ChannelName<NAME>> {
+  getChannel(): Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>> {
     let name: Stream.ChannelName<NAME>;
 
     while (true) {
@@ -81,16 +83,16 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       if (!this._channels.has(name)) break;
     }
 
-    const channel = new Channel(name, {
+    const channel = new Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>>(name, {
       source: this._source,
-      onDispose: () => {
+      onDone: () => {
         this._channels.delete(name);
-        this._consumerDetached?.push(channel);
+        this._channelDetached?.push(channel);
       },
     });
 
     this._channels.set(name, channel);
-    this._consumerAttached?.push(channel);
+    this._channelAttached?.push(channel);
     return channel;
   }
 
@@ -119,15 +121,16 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   async dispose() {
     await Promise.all([
       this.clear(),
-      this._consumerAttached?.dispose(),
-      this._consumerDetached?.dispose(),
+      this._source?.dispose(),
+      this._channelAttached?.dispose(),
+      this._channelDetached?.dispose(),
       this._cleared?.dispose(),
     ]);
 
     this._disposed?.push();
     await this._disposed?.dispose();
 
-    this._consumerAttached = this._consumerDetached = this._cleared = this._disposed = undefined;
+    this._source = this._channelAttached = this._channelDetached = this._cleared = this._disposed = undefined;
   }
   get source() {
     return this._source;
@@ -135,17 +138,17 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   get consumersCount() {
     return this._channels.size;
   }
-  get consumerAttached() {
-    if (!this._consumerAttached) {
-      this._consumerAttached = new Stream(`${this.name}ConsumerAttached`);
+  get channelAttached() {
+    if (!this._channelAttached) {
+      this._channelAttached = new Stream(`${this.name}ChannelAttached`);
     }
-    return this._consumerAttached;
+    return this._channelAttached;
   }
-  get consumerDetached() {
-    if (!this._consumerDetached) {
-      this._consumerDetached = new Stream(`${this.name}ConsumerDetached`);
+  get channelDetached() {
+    if (!this._channelDetached) {
+      this._channelDetached = new Stream(`${this.name}ChannelDetached`);
     }
-    return this._consumerDetached;
+    return this._channelDetached;
   }
   get cleared() {
     if (!this._cleared) {

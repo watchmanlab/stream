@@ -21,8 +21,11 @@ class Concurrent<
     options?: concurrent.Options,
   ) {
     super(name, inputStream, () => {
-      const output = new Stream<MAPPED>().getChannel();
-      const request = new Stream<void>();
+      const outputChannel = new Channel<Stream.Batch<VALUE>>();
+      const requestChannel = new Channel<void>();
+
+      requestChannel.next;
+
       const batch: MAPPED[] = [];
 
       let resolver: () => void;
@@ -32,7 +35,8 @@ class Concurrent<
 
       return {
         next: async () => {
-          return await output.next();
+          requestChannel.push();
+          return await outputChannel.next();
         },
         return: async () => {
           //

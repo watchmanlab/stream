@@ -10,7 +10,7 @@ class Pump<
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   NAME extends string = pump.Name,
 > extends Transformer<INPUT_STREAM, VALUE, any, NAME> {
-  private _channel?: Channel<VALUE, any>;
+  private _channel?: Channel<Stream.Batch<VALUE>, any>;
   private _options: pump.Options;
   private _started?: Stream<void, never, `${NAME}Started`>;
   private _stoped?: Stream<void, never, `${NAME}Stoped`>;
@@ -64,7 +64,7 @@ class Pump<
   async stop() {
     if (!this._channel) return;
 
-    await this._channel?.dispose();
+    await this._channel?.return();
     this._channel = undefined;
 
     this._stoped?.push();

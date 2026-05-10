@@ -10,7 +10,7 @@ export abstract class Transformer<
   constructor(
     name: NAME,
     protected readonly inputStream: INPUT_STREAM,
-    sourceData?: Source.SourceData<VALUE>,
+    sourceData?: Source.SourceData<Stream.Batch<VALUE>>,
   ) {
     super(name, sourceData);
 

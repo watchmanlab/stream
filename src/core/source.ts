@@ -1,24 +1,26 @@
 import { Stream } from "./stream.ts";
 
+//TODO: source need to be merged in the stream class
 const NAME = "source";
 export class Source<VALUE, ERROR, NAME extends string = Source.Name> implements AsyncDisposable, Disposable {
   readonly name: NAME;
-  private _iterator: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>>;
+  private _iterator: Iterator<VALUE> | AsyncIterator<VALUE>;
   private _idle = true;
+  private _onNext?: (value: VALUE) => void;
+  private _onDone?: () => void;
   private _error?: Stream<ERROR, never, `${NAME}Error`>;
 
-  constructor(
-    name = NAME as NAME,
-    sourceData: Source.SourceData<VALUE>,
-    private onNext: (value: Stream.Batch<VALUE>) => void,
-    private onDone: () => void,
-  ) {
+  constructor(name = NAME as NAME, requirements: Source.Requirements<VALUE>) {
     this.name = name;
+    this._onNext = requirements.onNext;
+    this._onDone = requirements.onDone;
 
-    if (typeof sourceData === "function") {
-      this._iterator = sourceData();
+    if (typeof requirements.sourceData === "function") {
+      this._iterator = requirements.sourceData();
     } else {
-      this._iterator = (sourceData as any)[Symbol.asyncIterator]?.() ?? (sourceData as any)[Symbol.iterator]();
+      this._iterator =
+        (requirements.sourceData as any)[Symbol.asyncIterator]?.() ??
+        (requirements.sourceData as any)[Symbol.iterator]();
     }
   }
   async [Symbol.asyncDispose]() {
@@ -40,7 +42,7 @@ Consume ${this.name}.source.error to handle this.
   async requestNext() {
     this._idle = false;
 
-    let result: IteratorResult<Stream.Batch<VALUE>, any> | Promise<IteratorResult<Stream.Batch<VALUE>, any>>;
+    let result: IteratorResult<VALUE, any> | Promise<IteratorResult<VALUE, any>>;
     try {
       result = this._iterator.next();
 
@@ -48,9 +50,9 @@ Consume ${this.name}.source.error to handle this.
 
       this._idle = true;
       if (result.done) {
-        this.onDone();
+        this._onDone?.();
       } else {
-        this.onNext(result.value);
+        this._onNext?.(result.value);
       }
     } catch (error: any) {
       this._idle = true;
@@ -61,9 +63,11 @@ Consume ${this.name}.source.error to handle this.
   }
   async dispose() {
     this._idle = false;
+
     await Promise.all([this._iterator.return?.(), this._error?.dispose()]);
-    this._error = undefined;
-    this.onDone();
+
+    this._onDone?.();
+    this._error = this._onDone = this._onNext = undefined;
   }
   get idle() {
     return this._idle;
@@ -76,6 +80,11 @@ Consume ${this.name}.source.error to handle this.
 
 export namespace Source {
   export type Name = typeof NAME;
+  export type Requirements<VALUE> = {
+    sourceData: Source.SourceData<VALUE>;
+    onNext: (value: VALUE) => void;
+    onDone: () => void;
+  };
   export type AnySource = Source<any, any, any>;
   export type AnySourceData = SourceData<any>;
   export type AnyError = Source.Error<any>;
@@ -88,11 +97,7 @@ export namespace Source {
   }
 
   export type SourceData<VALUE> =
-    | (() =>
-        | AsyncGenerator<Stream.Batch<VALUE>>
-        | Generator<Stream.Batch<VALUE>>
-        | AsyncIterator<Stream.Batch<VALUE>>
-        | Iterator<Stream.Batch<VALUE>>)
-    | AsyncIterable<Stream.Batch<VALUE>>
-    | Exclude<Iterable<Stream.Batch<VALUE>>, string>;
+    | (() => AsyncGenerator<VALUE> | Generator<VALUE> | AsyncIterator<VALUE> | Iterator<VALUE>)
+    | AsyncIterable<VALUE>
+    | Exclude<Iterable<VALUE>, string>;
 }
