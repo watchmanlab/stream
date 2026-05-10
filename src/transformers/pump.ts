@@ -1,4 +1,4 @@
-import { Consumer, Source, Stream, Transformer } from "../core/index.ts";
+import { Channel, Source, Stream, Transformer } from "../core/index.ts";
 import { each } from "./each.ts";
 import { effect } from "./effect.ts";
 import { map } from "./map.ts";
@@ -7,10 +7,10 @@ const NAME = "pump";
 
 class Pump<
   INPUT_STREAM extends Stream.AnyStream,
-  VALUE = Stream.ExtractValue<INPUT_STREAM>,
+  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   NAME extends string = pump.Name,
-> extends Transformer<INPUT_STREAM, VALUE, never, NAME> {
-  private _consumer?: Consumer<VALUE, any>;
+> extends Transformer<INPUT_STREAM, VALUE, any, NAME> {
+  private _channel?: Channel<VALUE, any>;
   private _options: pump.Options;
   private _started?: Stream<void, never, `${NAME}Started`>;
   private _stoped?: Stream<void, never, `${NAME}Stoped`>;
@@ -30,36 +30,42 @@ class Pump<
 
   private startOnSignal() {
     const signal = this._options.startSignal;
-    signal?.next().then(() => {
-      if (signal === this._options.startSignal) this.start();
-    });
+    signal
+      ?.getChannel()
+      .next()
+      .then(() => {
+        if (signal === this._options.startSignal) this.start();
+      });
   }
   private stopOnSignal() {
     const signal = this._options.stopSignal;
-    signal?.next().then(() => {
-      if (signal === this._options.stopSignal) this.stop();
-    });
+    signal
+      ?.getChannel()
+      .next()
+      .then(() => {
+        if (signal === this._options.stopSignal) this.stop();
+      });
   }
   start() {
-    if (this._consumer) return;
+    if (this._channel) return;
 
     this._started?.push();
 
     this.stopOnSignal();
 
     (async () => {
-      this._consumer = this.inputStream.getConsumer();
-      for await (const batch of this._consumer) {
+      this._channel = this.inputStream.getChannel();
+      for await (const batch of this._channel) {
         this.batch(batch);
       }
     })();
   }
 
   async stop() {
-    if (!this._consumer) return;
+    if (!this._channel) return;
 
-    await this._consumer?.dispose();
-    this._consumer = undefined;
+    await this._channel?.dispose();
+    this._channel = undefined;
 
     this._stoped?.push();
     this.startOnSignal();
@@ -84,7 +90,7 @@ class Pump<
     await super.dispose();
   }
   get isPumping() {
-    return this._consumer !== undefined;
+    return this._channel !== undefined;
   }
   get options() {
     return { ...this._options };
@@ -115,7 +121,7 @@ class Pump<
 
 export function pump<
   INPUT_STREAM extends Stream.AnyStream,
-  VALUE = Stream.ExtractValue<INPUT_STREAM>,
+  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   NAME extends string = pump.Name,
 >(options?: pump.Options): Stream.Transform<INPUT_STREAM, NAME, Pump<INPUT_STREAM, VALUE, NAME>> {
   return (inputStream, name) => new Pump(name, inputStream, options);

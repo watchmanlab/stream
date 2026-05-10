@@ -1,4 +1,4 @@
-import { Source, Stream, Transformer } from "../core/index.ts";
+import { Channel, Queue, Source, Stream, Transformer } from "../core/index.ts";
 
 const NAME = "concurrent";
 
@@ -9,34 +9,39 @@ class Concurrent<
   ERROR = never,
   NAME extends string = concurrent.Name,
 > extends Transformer<INPUT_STREAM, MAPPED, ERROR, NAME> {
-  protected _options: Required<concurrent.Options>;
-  protected _buffer: {
-    value: VALUE;
-    mapped: MAPPED | Source.Error<ERROR> | Promise<MAPPED | Source.Error<ERROR>>;
-  }[] = [];
-  protected _pending: number = 0;
-  protected _limitReached?: Stream<number, never, `${NAME}LimitReached`>;
-  private _optionsChanged?: Stream<
-    { old: concurrent.Options; new: concurrent.Options },
-    never,
-    `${NAME}OptionsChanged`
-  >;
+  private _options: Required<concurrent.Options>;
+  private _buffer: concurrent.BufferEntry<VALUE, MAPPED, ERROR>[] = [];
+  private _pending: number = 0;
+  private _limitReached?: Stream<number, never, `${NAME}LimitReached`>;
+  private _optionsChanged?: Stream<concurrent.OptionsChangedEvent, never, `${NAME}OptionsChanged`>;
   constructor(
     name = NAME as NAME,
     inputStream: INPUT_STREAM,
     mapper: concurrent.Mapper<VALUE, MAPPED, ERROR>,
     options?: concurrent.Options,
   ) {
-    super(name, inputStream, async function* () {
-      const output = new Stream<MAPPED>();
+    super(name, inputStream, () => {
+      const output = new Stream<MAPPED>().getChannel();
+      const request = new Stream<void>();
+      const batch: MAPPED[] = [];
 
       let resolver: () => void;
       let limitResolver: () => void;
       let aborted = false;
-      const consumer = inputStream.getConsumer();
+      const channel = inputStream.getChannel();
+
+      return {
+        next: async () => {
+          return await output.next();
+        },
+        return: async () => {
+          //
+          return { value: Queue.EMPTY as never, done: true };
+        },
+      };
 
       (async () => {
-        for await (const batch of consumer) {
+        for await (const batch of channel) {
           for (let i = 0, length = batch.length; i < length; i++) {
             const value = batch[i];
 
@@ -87,7 +92,7 @@ class Concurrent<
                 continue;
               }
 
-              yield [mapped];
+              yield[mapped];
 
               limitResolver!?.();
             } catch (error: any) {
@@ -102,7 +107,7 @@ class Concurrent<
         aborted = true;
         limitResolver!?.();
         resolver!?.();
-        await consumer.return();
+        await channel.return();
       }
     });
     const self = this;
@@ -168,4 +173,9 @@ export namespace concurrent {
     ordered: false,
     onDispose: "drain",
   };
+  export type BufferEntry<VALUE, MAPPED, ERROR> = {
+    value: VALUE;
+    mapped: MAPPED | Source.Error<ERROR> | Promise<MAPPED | Source.Error<ERROR>>;
+  };
+  export type OptionsChangedEvent = { old: Options; new: Options };
 }

@@ -2,11 +2,11 @@ import { Queue } from "./queue.ts";
 import { Source } from "./source.ts";
 import { Stream } from "./stream.ts";
 
-export class Consumer<VALUE, NAME extends string>
+const NAME = "channel";
+export class Channel<VALUE, NAME extends string = Channel.Name>
   implements AsyncIterableIterator<Stream.Batch<VALUE>>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
-  private _source?: Source<VALUE, any, any>;
   private _buffer: Queue<Stream.Batch<VALUE>, `${NAME}Buffer`>;
   private _pendings: Queue<(value: Stream.Batch<VALUE> | Queue.Empty) => void, `${NAME}Pending`>;
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
@@ -14,12 +14,11 @@ export class Consumer<VALUE, NAME extends string>
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
 
   constructor(
-    name: NAME,
-    source: Source<VALUE, any, any> | undefined = undefined,
-    private onTerminate: () => void,
+    name = NAME as NAME,
+    private options?: Channel.Options<VALUE>,
   ) {
     this.name = name;
-    this._source = source;
+
     this._buffer = new Queue(`${this.name}Buffer`);
     this._pendings = new Queue(`${this.name}Pending`);
   }
@@ -32,6 +31,9 @@ export class Consumer<VALUE, NAME extends string>
   }
   [Symbol.dispose]() {
     this.dispose();
+  }
+  push(value: VALUE): this {
+    return this.batch([value]);
   }
   batch(batch: Stream.Batch<VALUE>): this {
     const pending = this._pendings.dequeue();
@@ -60,7 +62,7 @@ export class Consumer<VALUE, NAME extends string>
     } else {
       const batch = await new Promise<Stream.Batch<VALUE> | Queue.Empty>((r) => {
         this._pendings.enqueue(r);
-        if (this._source?.idle) this._source.requestNext();
+        if (this.options?.source?.idle) this.options.source.requestNext();
       });
       return { value: batch as never, done: batch === Queue.EMPTY };
     }
@@ -80,9 +82,8 @@ export class Consumer<VALUE, NAME extends string>
     this._disposed?.push();
     await this._disposed?.dispose();
 
-    this._source = this._valueProcessing = this._valueProcessed = this._disposed = undefined;
-
-    this.onTerminate();
+    this.options?.onDispose?.();
+    this.options = this._valueProcessing = this._valueProcessed = this._disposed = undefined;
     return { value: Queue.EMPTY as never, done: true };
   }
   async dispose() {
@@ -95,7 +96,7 @@ export class Consumer<VALUE, NAME extends string>
     return this._pendings;
   }
   get source() {
-    return this._source;
+    return this.options?.source;
   }
   get valueProcessing() {
     if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.name}ValueProcessing`);
@@ -110,13 +111,14 @@ export class Consumer<VALUE, NAME extends string>
     return this._disposed;
   }
 }
-export namespace Consumer {
+export namespace Channel {
+  export type Name = typeof NAME;
   export type AnyOptions = Options<any>;
 
   export type ExtractValue<T> = T extends Options<infer VALUE> ? VALUE : never;
 
   export type Options<VALUE> = {
     source?: Source<VALUE, any, any>;
-    onTerminate?: () => void;
+    onDispose?: () => void;
   };
 }

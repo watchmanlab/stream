@@ -1,4 +1,4 @@
-import { Consumer } from "./consumer.ts";
+import { Channel } from "./channel.ts";
 import { Queue } from "./queue.ts";
 import { Source } from "./source.ts";
 import { Transformer } from "./transformer.ts";
@@ -8,15 +8,15 @@ const NAME = "root";
 export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   implements
     AsyncIterable<Stream.Batch<VALUE>>,
-    Iterable<Consumer<VALUE, Stream.ConsumerName<NAME>>>,
+    Iterable<Channel<VALUE, Stream.ChannelName<NAME>>>,
     AsyncDisposable,
     Disposable
 {
   readonly name: NAME;
   private _source?: Source<VALUE, ERROR, NAME>;
-  private _consumers = new Map<string, Consumer<VALUE, any>>();
-  private _consumerAttached?: Stream<Consumer<VALUE, string>, never, `${NAME}ConsumerAttached`>;
-  private _consumerDetached?: Stream<Consumer<VALUE, string>, never, `${NAME}ConsumerDetached`>;
+  private _channels = new Map<string, Channel<VALUE, any>>();
+  private _consumerAttached?: Stream<Channel<VALUE, string>, never, `${NAME}ConsumerAttached`>;
+  private _consumerDetached?: Stream<Channel<VALUE, string>, never, `${NAME}ConsumerDetached`>;
   private _cleared?: Stream<void, never, `${NAME}Cleared`>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
   constructor(name: NAME, sourceData?: Source.SourceData<VALUE>);
@@ -36,11 +36,11 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
         () => (this._source = undefined),
       );
   }
-  [Symbol.asyncIterator](): Consumer<VALUE, Stream.ConsumerName<NAME>> {
-    return this.getConsumer();
+  [Symbol.asyncIterator](): Channel<VALUE, Stream.ChannelName<NAME>> {
+    return this.getChannel();
   }
-  [Symbol.iterator](): MapIterator<Consumer<VALUE, Stream.ConsumerName<NAME>>> {
-    return this._consumers.values();
+  [Symbol.iterator](): MapIterator<Channel<VALUE, Stream.ChannelName<NAME>>> {
+    return this._channels.values();
   }
   async [Symbol.asyncDispose]() {
     await this.dispose();
@@ -67,34 +67,33 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   }
   batch(batch: Stream.Batch<VALUE>): this {
     if (!batch.length) return this;
-    for (const consumer of this) {
-      consumer.batch(batch);
+    for (const channel of this) {
+      channel.batch(batch);
     }
     return this;
   }
-  getConsumer(): Consumer<VALUE, Stream.ConsumerName<NAME>> {
-    let name: Stream.ConsumerName<NAME>;
+
+  getChannel(): Channel<VALUE, Stream.ChannelName<NAME>> {
+    let name: Stream.ChannelName<NAME>;
 
     while (true) {
-      name = `${this.name}Consumer${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}`;
-      if (!this._consumers.has(name)) break;
+      name = `${this.name}Channel${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}`;
+      if (!this._channels.has(name)) break;
     }
 
-    const consumer = new Consumer(name, this._source, () => {
-      this._consumers.delete(name);
-      this._consumerDetached?.push(consumer);
+    const channel = new Channel(name, {
+      source: this._source,
+      onDispose: () => {
+        this._channels.delete(name);
+        this._consumerDetached?.push(channel);
+      },
     });
 
-    this._consumers.set(name, consumer);
-    this._consumerAttached?.push(consumer);
-    return consumer;
+    this._channels.set(name, channel);
+    this._consumerAttached?.push(channel);
+    return channel;
   }
-  async next() {
-    const consumer = this.getConsumer();
-    const result = await consumer.next();
-    await consumer.dispose();
-    return result;
-  }
+
   pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
@@ -110,8 +109,8 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   }
   async clear() {
     const promises = [];
-    for (const consumer of this) {
-      promises.push(consumer.return());
+    for (const channel of this) {
+      promises.push(channel.return());
     }
 
     await Promise.all(promises);
@@ -134,7 +133,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     return this._source;
   }
   get consumersCount() {
-    return this._consumers.size;
+    return this._channels.size;
   }
   get consumerAttached() {
     if (!this._consumerAttached) {
@@ -165,18 +164,18 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
 export namespace Stream {
   export type Name = typeof NAME;
   export type Batch<VALUE> = VALUE[];
-  export type ConsumerName<NAME extends string> = `${NAME}Consumer${string}`;
+  export type ChannelName<NAME extends string> = `${NAME}Channel${string}`;
   export type AnyStream = Stream<any, any, any>;
   export type ExtractValue<T> = T extends Stream<infer VALUE, any, any> | Batch<infer VALUE>
     ? VALUE
     : Transformer.ExtractValue<T> extends never
-      ? Consumer.ExtractValue<T> extends never
+      ? Channel.ExtractValue<T> extends never
         ? Source.ExtractValue<T> extends never
           ? Queue.ExtractValue<T> extends never
             ? never
             : Queue.ExtractValue<T>
           : Source.ExtractValue<T>
-        : Consumer.ExtractValue<T>
+        : Channel.ExtractValue<T>
       : Transformer.ExtractValue<T>;
 
   export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
@@ -253,8 +252,8 @@ function bench() {
 //     };
 //   });
 
-//   const consumer1 = stream1.getConsumer();
-//   const consumer2 = stream1.getConsumer();
+//   const consumer1 = stream1.getChannel();
+//   const consumer2 = stream1.getChannel();
 
 //   (async () => {
 //     for await (const value of consumer1) {

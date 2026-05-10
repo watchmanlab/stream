@@ -7,15 +7,15 @@ export class Stats<VALUE, NAME extends string = stats.Name> extends Stream<VALUE
   constructor(source: Stream<VALUE, any>, name = NAME as NAME) {
     super(name, source);
 
-    this._onConsumerJoin = () => this._events?.push({ type: "consumer-joined", self: this });
-    this._onConsumerLeft = () => this._events?.push({ type: "consumer-left", self: this });
+    this._onConsumerJoin = () => this._events?.push({ type: "channel-joined", self: this });
+    this._onConsumerLeft = () => this._events?.push({ type: "channel-left", self: this });
   }
 
   get consumersCount() {
-    return this._consumers.size;
+    return this._channels.size;
   }
   get consumersPressure() {
-    return [...this._consumers.keys()].map((queue) => queue.length);
+    return [...this._channels.keys()].map((queue) => queue.length);
   }
   get events() {
     if (!this._events)
@@ -30,6 +30,6 @@ export namespace stats {
   export type Name = typeof NAME;
 
   export type Events<VALUE, NAME extends string> =
-    | { type: "consumer-joined"; self: Stats<VALUE, NAME> }
-    | { type: "consumer-left"; self: Stats<VALUE, NAME> };
+    | { type: "channel-joined"; self: Stats<VALUE, NAME> }
+    | { type: "channel-left"; self: Stats<VALUE, NAME> };
 }

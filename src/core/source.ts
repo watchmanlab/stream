@@ -1,13 +1,14 @@
 import { Stream } from "./stream.ts";
 
-export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposable, Disposable {
+const NAME = "source";
+export class Source<VALUE, ERROR, NAME extends string = Source.Name> implements AsyncDisposable, Disposable {
   readonly name: NAME;
   private _iterator: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>>;
   private _idle = true;
   private _error?: Stream<ERROR, never, `${NAME}Error`>;
 
   constructor(
-    name: NAME,
+    name = NAME as NAME,
     sourceData: Source.SourceData<VALUE>,
     private onNext: (value: Stream.Batch<VALUE>) => void,
     private onDone: () => void,
@@ -74,6 +75,7 @@ Consume ${this.name}.source.error to handle this.
 }
 
 export namespace Source {
+  export type Name = typeof NAME;
   export type AnySource = Source<any, any, any>;
   export type AnySourceData = SourceData<any>;
   export type AnyError = Source.Error<any>;

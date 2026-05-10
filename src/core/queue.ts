@@ -15,10 +15,9 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
     this.name = name;
   }
   [Symbol.iterator]() {
-    const self = this;
     return {
       next: () => {
-        const value = self.dequeue();
+        const value = this.dequeue();
         return { value: value as VALUE, done: value === Queue.EMPTY };
       },
     };
