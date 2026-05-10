@@ -12,9 +12,10 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
 {
   readonly name: NAME;
   private _source?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>>;
-  private _sourceIdle = true;
+  private _requestingNext = false;
   private _error?: Stream<ERROR, never, `${NAME}Error`>;
   private _channels = new Map<string, Channel<Stream.Batch<VALUE>, any>>();
+  //TODO: groupe all events in single _event
   private _channelAttached?: Stream<Channel<Stream.Batch<VALUE>, string>, never, `${NAME}ChannelAttached`>;
   private _channelDetached?: Stream<Channel<Stream.Batch<VALUE>, string>, never, `${NAME}ChannelDetached`>;
   private _cleared?: Stream<void, never, `${NAME}Cleared`>;
@@ -81,9 +82,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     }
 
     const channel = new Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>>(name, {
-      requestNext: () => {
-        this.requestNext();
-      },
+      onNext: () => this.requestNext(),
       onDone: () => {
         this._channels.delete(name);
         this._channelDetached?.push(channel);
@@ -96,7 +95,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   }
 
   throw(error: ERROR) {
-    if (!this._error?.consumersCount)
+    if (!this._error?.channelsCount)
       Promise.reject(
         `Unhandled error in "${this.name}": ${error}
 
@@ -106,9 +105,9 @@ Consume ${this.name}.source.error to handle this.
     this._error?.push(error);
   }
   async requestNext() {
-    if (!this._source) return;
+    if (!this._source || this._requestingNext) return;
 
-    this._sourceIdle = false;
+    this._requestingNext = true;
 
     let result: IteratorResult<Stream.Batch<VALUE>, any> | Promise<IteratorResult<Stream.Batch<VALUE>, any>>;
     try {
@@ -116,16 +115,15 @@ Consume ${this.name}.source.error to handle this.
 
       result = result instanceof Promise ? await result : result;
 
-      this._sourceIdle = true;
+      this._requestingNext = false;
       if (result.done) {
         this._source = undefined;
       } else {
         this.batch(result.value);
       }
     } catch (error: any) {
-      this._sourceIdle = true;
-      if (!this._error) throw error;
-      this._error?.push(error);
+      this._requestingNext = false;
+      this.throw(error);
       this.requestNext();
     }
   }
@@ -165,6 +163,8 @@ Consume ${this.name}.source.error to handle this.
     this._disposed?.push();
     await this._disposed?.dispose();
 
+    this._requestingNext = false;
+
     this._source =
       this._error =
       this._channelAttached =
@@ -174,7 +174,7 @@ Consume ${this.name}.source.error to handle this.
         undefined;
   }
 
-  get consumersCount() {
+  get channelsCount() {
     return this._channels.size;
   }
   get channelAttached() {
@@ -243,7 +243,7 @@ export namespace Stream {
 
 function simpleTest() {
   const stream = new Stream<number, never>(async function* () {
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 1000));
     yield [1];
     await new Promise((r) => setTimeout(r, 10));
     yield [2];

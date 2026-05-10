@@ -59,7 +59,7 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
     } else {
       const value = await new Promise<VALUE | Queue.Empty>((r) => {
         this._pendings.push(r);
-        this.options?.requestNext?.();
+        this.options?.onNext?.();
       });
 
       if (value === Queue.EMPTY) return { value: Queue.EMPTY as never, done: true };
@@ -105,7 +105,7 @@ export namespace Channel {
   export type Name = typeof NAME;
 
   export type Options = {
-    requestNext?: () => void;
+    onNext?: () => void;
     onDone?: () => void;
   };
 }
