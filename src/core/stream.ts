@@ -12,24 +12,22 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   private _channels: Channels<Stream.Batch<VALUE>, NAME>;
   private _source?: Source<VALUE, ERROR, NAME>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
-  constructor(name: NAME, source?: Source.DataGenerator<VALUE>);
-  constructor(source?: Source.DataGenerator<VALUE>);
-  constructor(nameOrSource?: NAME | Source.DataGenerator<VALUE>, source?: Source.DataGenerator<VALUE>) {
-    if (typeof nameOrSource === "string") {
-      this.name = nameOrSource;
+  constructor(name: NAME, dataGenerator?: Source.DataGenerator<VALUE>);
+  constructor(dataGenerator?: Source.DataGenerator<VALUE>);
+  constructor(nameOrDataGenerator?: NAME | Source.DataGenerator<VALUE>, dataGenerator?: Source.DataGenerator<VALUE>) {
+    if (typeof nameOrDataGenerator === "string") {
+      this.name = nameOrDataGenerator;
     } else {
       this.name = NAME as NAME;
-      source = nameOrSource;
+      dataGenerator = nameOrDataGenerator;
     }
-    if (source) this._source = new Source(this, source);
+    if (dataGenerator) this._source = new Source(this, dataGenerator);
 
     this._channels = new Channels(this);
   }
-
   [Symbol.asyncIterator](): Channel<Stream.Batch<VALUE>, Channels.ChannelName<NAME>> {
     return this._channels.get();
   }
-
   async [Symbol.asyncDispose]() {
     await this.dispose();
   }
@@ -38,7 +36,6 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   }
   private _batch: Stream.Batch<VALUE> = [];
   private _batchScheduled = false;
-
   push(value: VALUE): this {
     this._batch.push(value);
 
@@ -60,7 +57,6 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     }
     return this;
   }
-
   pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
@@ -125,7 +121,7 @@ export namespace Stream {
 
 function simpleTest() {
   const stream = new Stream<number, never>(async function* () {
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 10));
     yield [1];
     await new Promise((r) => setTimeout(r, 10));
     yield [2];
@@ -133,8 +129,11 @@ function simpleTest() {
     yield [3];
   });
 
+  const v = new Stream(stream);
+  //.   ^?
+
   (async () => {
-    for await (const value of stream) {
+    for await (const value of v) {
       console.log("c1", value);
       if (value[0] == 2) break;
     }
@@ -142,7 +141,7 @@ function simpleTest() {
 
   // stream.;
   (async () => {
-    for await (const value of stream) {
+    for await (const value of v) {
       console.log("c2", value);
       if (value[0] == 2) break;
     }

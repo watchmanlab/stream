@@ -36,7 +36,7 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
 
         this._requestingNext = false;
         if (result.done) {
-          //
+          await this.return();
         } else {
           this.stream.batch(result.value);
         }
