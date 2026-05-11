@@ -1,4 +1,4 @@
-import { Stream, Transformer } from "../core/index.ts";
+import { Source, Stream, Transformer } from "../core/index.ts";
 
 const NAME = "map";
 class Map<
@@ -18,14 +18,14 @@ class Map<
             let result = mapper(batch[i]);
             result = result instanceof Promise ? await result : result;
 
-            if (result instanceof Stream.Error) {
-              self.throw(result.data);
+            if (result instanceof Source.Error) {
+              self.source?.throw(result.data);
               continue;
             }
 
             values.push(result);
           } catch (error: any) {
-            self.throw(error);
+            self.source?.throw(error);
           }
         }
         yield values;
@@ -52,5 +52,5 @@ export namespace map {
   export type Name = typeof NAME;
   export type Mapper<VALUE, MAPPED, ERROR> = (
     value: VALUE,
-  ) => MAPPED | Stream.Error<ERROR> | Promise<MAPPED | Stream.Error<ERROR>>;
+  ) => MAPPED | Source.Error<ERROR> | Promise<MAPPED | Source.Error<ERROR>>;
 }

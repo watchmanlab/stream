@@ -1,4 +1,4 @@
-import { Channel, Stream, Transformer } from "../core/index.ts";
+import { Channel, Stream, Transformer, Source } from "../core/index.ts";
 import { each } from "./each.ts";
 import { effect } from "./effect.ts";
 import { map } from "./map.ts";
@@ -146,7 +146,7 @@ function bench() {
   const mapped = stream
     .pipe(
       map((v) => {
-        if (v === 4) return new Stream.Error("kechmahaja " + v);
+        if (v === 4) return new Source.Error("kechmahaja " + v);
         return { value: v, doubled: v * 2 };
       }),
     )
@@ -159,7 +159,7 @@ function bench() {
     )
     .pipe(pump());
 
-  mapped.traversal.effect.map.events.error.pipe(pump());
+  mapped.traversal.effect.map.source?.error.pipe(pump());
 
   for (let i = 1; i <= MAX; i++) {
     stream.push(i);

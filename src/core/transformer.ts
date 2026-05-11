@@ -1,3 +1,4 @@
+import { Source } from "./source.ts";
 import { Stream } from "./stream.ts";
 
 export abstract class Transformer<
@@ -9,9 +10,9 @@ export abstract class Transformer<
   constructor(
     name: NAME,
     protected readonly inputStream: INPUT_STREAM,
-    sourceData?: Stream.Source<Stream.Batch<VALUE>>,
+    dataGenerator?: Source.DataGenerator<VALUE>,
   ) {
-    super(name, sourceData);
+    super(name, dataGenerator);
 
     return new Proxy(this, {
       get(target, p, receiver) {

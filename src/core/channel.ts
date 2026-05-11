@@ -10,7 +10,7 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
   private _pendings: ((value: VALUE | Queue.Empty) => void)[];
   private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
-  private _disposed?: Stream<void, never, `${NAME}Disposed`>;
+  private _done?: Stream<void, never, `${NAME}Done`>;
 
   constructor(
     name = NAME as NAME,
@@ -74,11 +74,11 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
 
     await Promise.all([this._buffer.dispose(), this._valueProcessing?.dispose(), this._valueProcessed?.dispose()]);
 
-    this._disposed?.push();
-    await this._disposed?.dispose();
+    this._done?.push();
+    await this._done?.dispose();
 
     this.options?.onDone?.();
-    this.options = this._valueProcessing = this._valueProcessed = this._disposed = undefined;
+    this.options = this._valueProcessing = this._valueProcessed = this._done = undefined;
     return { value: Queue.EMPTY as never, done: true };
   }
 
@@ -96,9 +96,9 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
     if (!this._valueProcessed) this._valueProcessed = new Stream(`${this.name}ValueProcessed`);
     return this._valueProcessed;
   }
-  get disposed() {
-    if (!this._disposed) this._disposed = new Stream(`${this.name}Disposed`);
-    return this._disposed;
+  get done() {
+    if (!this._done) this._done = new Stream(`${this.name}Done`);
+    return this._done;
   }
 }
 export namespace Channel {

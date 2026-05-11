@@ -1,5 +1,6 @@
 import { Channel } from "./channel.ts";
 import { Channels } from "./channels.ts";
+import { Source } from "./source.ts";
 import { Transformer } from "./transformer.ts";
 
 const NAME = "root";
@@ -9,30 +10,23 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
 {
   readonly name: NAME;
   private _channels: Channels<Stream.Batch<VALUE>, NAME>;
-  private _source?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>>;
-  private _requestingNext = false;
-  private _error?: Stream<ERROR, never, `${NAME}Error`>;
+  private _source?: Source<VALUE, ERROR, NAME>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
-  constructor(name: NAME, source?: Stream.Source<Stream.Batch<VALUE>>);
-  constructor(source?: Stream.Source<Stream.Batch<VALUE>>);
-  constructor(nameOrSource?: NAME | Stream.Source<Stream.Batch<VALUE>>, source?: Stream.Source<Stream.Batch<VALUE>>) {
+  constructor(name: NAME, source?: Source.DataGenerator<VALUE>);
+  constructor(source?: Source.DataGenerator<VALUE>);
+  constructor(nameOrSource?: NAME | Source.DataGenerator<VALUE>, source?: Source.DataGenerator<VALUE>) {
     if (typeof nameOrSource === "string") {
       this.name = nameOrSource;
     } else {
       this.name = NAME as NAME;
       source = nameOrSource;
     }
-    if (source)
-      if (typeof source === "function") {
-        this._source = source();
-      } else {
-        this._source = (source as any)[Symbol.asyncIterator]?.() ?? (source as any)[Symbol.iterator]();
-      }
+    if (source) this._source = new Source(this, source);
 
     this._channels = new Channels(this);
   }
 
-  [Symbol.asyncIterator](): Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>> {
+  [Symbol.asyncIterator](): Channel<Stream.Batch<VALUE>, Channels.ChannelName<NAME>> {
     return this._channels.get();
   }
 
@@ -66,39 +60,7 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     }
     return this;
   }
-  throw(error: ERROR) {
-    if (!this._error?.channels.count)
-      Promise.reject(
-        `Unhandled error in "${this.name}": ${error}
 
-Consume ${this.name}.source.error to handle this.
-`,
-      );
-    this._error?.push(error);
-  }
-  async requestNext() {
-    if (!this._source || this._requestingNext) return;
-
-    this._requestingNext = true;
-
-    let result: IteratorResult<Stream.Batch<VALUE>, any> | Promise<IteratorResult<Stream.Batch<VALUE>, any>>;
-    try {
-      result = this._source.next();
-
-      result = result instanceof Promise ? await result : result;
-
-      this._requestingNext = false;
-      if (result.done) {
-        this._source = undefined;
-      } else {
-        this.batch(result.value);
-      }
-    } catch (error: any) {
-      this._requestingNext = false;
-      this.throw(error);
-      this.requestNext();
-    }
-  }
   pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
@@ -112,38 +74,32 @@ Consume ${this.name}.source.error to handle this.
   ): OUTPUT_STREAM {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-
   async dispose() {
-    await Promise.all([this._channels.dispose(), this._source?.return?.(), this._error?.dispose()]);
+    await Promise.all([this._channels.dispose(), this._source?.return?.()]);
 
     this._disposed?.push();
     await this._disposed?.dispose();
 
-    this._requestingNext = false;
-
-    this._source = this._error = this._disposed = undefined;
+    this._source = this._disposed = undefined;
   }
 
   get channels() {
     return this._channels;
   }
-
+  get source() {
+    return this._source;
+  }
   get disposed() {
     if (!this._disposed) {
       this._disposed = new Stream(`${this.name}Disposed`);
     }
     return this._disposed;
   }
-  get error() {
-    if (!this._error) this._error = new Stream(`${this.name}Error`);
-    return this._error;
-  }
 }
 
 export namespace Stream {
   export type Name = typeof NAME;
   export type Batch<VALUE> = VALUE[];
-  export type ChannelName<NAME extends string> = `${NAME}Channel${string}`;
   export type AnyStream = Stream<any, any, any>;
   export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
     T extends Stream<infer VALUE, any, any>
@@ -160,13 +116,6 @@ export namespace Stream {
         ? never
         : Transformer.ExtractError<T>;
 
-  export type Source<VALUE> =
-    | (() => AsyncGenerator<VALUE> | Generator<VALUE> | AsyncIterator<VALUE> | Iterator<VALUE>)
-    | AsyncIterable<VALUE>
-    | Iterable<VALUE>;
-  export class Error<const ERROR> {
-    constructor(public readonly data: ERROR) {}
-  }
   export type Transform<
     INPUT_STREAM extends AnyStream,
     OUTPUT_NAME extends string,

@@ -1,4 +1,4 @@
-import { Stream, Transformer } from "../core";
+import { Source, Stream, Transformer } from "../core/index.ts";
 
 const NAME = "each";
 export class Each<
@@ -16,9 +16,9 @@ export class Each<
 
             result = result instanceof Promise ? await result : result;
 
-            if (result instanceof Stream.Error) self.throw(result.data);
+            if (result instanceof Source.Error) self.source?.throw(result.data);
           } catch (error: any) {
-            self.throw(error);
+            self.source?.throw(error);
           }
         }
 
@@ -42,5 +42,5 @@ export namespace each {
   export type Name = typeof NAME;
   export type Callback<VALUE, ERROR> = (
     value: VALUE,
-  ) => void | Stream.Error<ERROR> | Promise<void | Stream.Error<ERROR>>;
+  ) => void | Source.Error<ERROR> | Promise<void | Source.Error<ERROR>>;
 }
