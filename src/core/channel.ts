@@ -60,7 +60,7 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
 
         this._pending!.promise = new Promise<VALUE | Queue.Empty>((resolve) => {
           this._pending!.resolve = resolve;
-          this.options?.onNext?.();
+          this.options?.pull?.();
         });
 
         value = await this._pending!.promise;
@@ -79,7 +79,7 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
     this._done?.push();
     await this._done?.dispose();
 
-    this.options?.onDone?.();
+    this.options?.done?.();
 
     this._pending = this.options = this._valueProcessing = this._valueProcessed = this._done = undefined;
     return { value: Queue.EMPTY as never, done: true };
@@ -105,7 +105,7 @@ export namespace Channel {
   export type Name = typeof NAME;
 
   export type Options = {
-    onNext?: () => void;
-    onDone?: () => void;
+    pull?: () => void;
+    done?: () => void;
   };
 }

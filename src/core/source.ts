@@ -22,15 +22,15 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
   [Symbol.dispose]() {
     this.return();
   }
-  next() {
-    if (!this._iterator || this._requestingNext) return;
-
-    this._requestingNext = true;
-
-    let result: IteratorResult<Stream.Batch<VALUE>> | Promise<IteratorResult<Stream.Batch<VALUE>>>;
+  pull() {
     (async () => {
+      if (!this._iterator || this._requestingNext) return;
+
+      this._requestingNext = true;
+
+      let result: IteratorResult<Stream.Batch<VALUE>> | Promise<IteratorResult<Stream.Batch<VALUE>>>;
       try {
-        result = this._iterator!.next();
+        result = this._iterator.next();
 
         result = result instanceof Promise ? await result : result;
 

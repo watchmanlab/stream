@@ -22,8 +22,8 @@ export class Channels<VALUE, NAME extends string> implements Iterable<Channel<VA
     }
 
     const channel = new Channel<VALUE, Channels.ChannelName<NAME>>(name, {
-      onNext: () => this.stream.source?.next(),
-      onDone: () => {
+      pull: () => this.stream.source?.pull(),
+      done: () => {
         this._collection.delete(name);
         this._detached?.push(channel);
       },

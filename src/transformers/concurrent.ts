@@ -1,4 +1,4 @@
-import { Channel, Queue, Stream, Transformer } from "../core/index.ts";
+import { Channel, Queue, Source, Stream, Transformer } from "../core/index.ts";
 
 const NAME = "concurrent";
 
@@ -21,98 +21,35 @@ class Concurrent<
     options?: concurrent.Options,
   ) {
     super(name, inputStream, () => {
-      const outputChannel = new Channel<Stream.Batch<VALUE>>();
-      const requestChannel = new Channel<void>();
+      const output = new Channel<Stream.Batch<VALUE>>();
 
-      requestChannel.next;
+      const buffer: Stream.Batch<VALUE>[] = [];
 
-      const batch: MAPPED[] = [];
+      let counter = 0;
 
-      let resolver: () => void;
-      let limitResolver: () => void;
-      let aborted = false;
-      const channel = inputStream.getChannel();
+      const input = inputStream.channels.get();
 
       return {
         next: async () => {
-          requestChannel.push();
-          return await outputChannel.next();
+          while (true) {
+            const result = await input.next();
+
+            if (result.done) return result;
+
+            counter += result.value.length;
+
+            buffer.push(result.value);
+
+            if (counter >= this._options.limit) break;
+          }
+
+          return await output.next();
         },
         return: async () => {
           //
           return { value: Queue.EMPTY as never, done: true };
         },
       };
-
-      (async () => {
-        for await (const batch of channel) {
-          for (let i = 0, length = batch.length; i < length; i++) {
-            const value = batch[i];
-
-            if (aborted) break;
-            if (self._pending >= self._options.limit) {
-              self._limitReached?.push(self._options.limit);
-              await new Promise<void>((r) => (limitResolver = r));
-            }
-            self._pending++;
-
-            if (self._options.ordered) {
-              try {
-                self._buffer.push({ value, mapped: mapper(value) });
-                resolver!?.();
-              } catch (error: any) {
-                self._buffer.push({ value, mapped: new Stream.Error(error) });
-              }
-            } else {
-              mapper(value)
-                .then((mapped) => {
-                  self._pending--;
-                  if (aborted) return;
-                  self._buffer.push({ value, mapped });
-                  resolver!?.();
-                })
-                .catch((error) => {
-                  self._buffer.push({ value, mapped: new Stream.Error(error) });
-                });
-            }
-          }
-        }
-        if (self._options.onDispose === "abort") aborted = true;
-        resolver!?.();
-      })();
-      try {
-        //TODO:: i think we will use stream as output so the produced simply push to it
-        while (true) {
-          if (self._buffer.length && !aborted) {
-            const entry = self._buffer.shift()!;
-
-            if (entry.mapped instanceof Promise) self._pending--;
-
-            try {
-              const mapped = entry.mapped instanceof Promise ? await entry.mapped : entry.mapped;
-
-              if (mapped instanceof Source.Error) {
-                self.source?.throw(mapped.data);
-                continue;
-              }
-
-              yield[mapped];
-
-              limitResolver!?.();
-            } catch (error: any) {
-              self.source?.throw(error);
-            }
-          } else {
-            if (!aborted) await new Promise<void>((r) => (resolver = r));
-          }
-        }
-      } finally {
-        self._buffer.length = 0;
-        aborted = true;
-        limitResolver!?.();
-        resolver!?.();
-        await channel.return();
-      }
     });
     const self = this;
     this._options = {
