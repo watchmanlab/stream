@@ -30,8 +30,8 @@ class Pump<
 
   private startOnSignal() {
     const signal = this._options.startSignal;
-    signal
-      ?.getChannel()
+    signal?.channels
+      .get()
       .next()
       .then(() => {
         if (signal === this._options.startSignal) this.start();
@@ -39,8 +39,8 @@ class Pump<
   }
   private stopOnSignal() {
     const signal = this._options.stopSignal;
-    signal
-      ?.getChannel()
+    signal?.channels
+      .get()
       .next()
       .then(() => {
         if (signal === this._options.stopSignal) this.stop();
@@ -54,7 +54,7 @@ class Pump<
     this.stopOnSignal();
 
     (async () => {
-      this._channel = this.inputStream.getChannel();
+      this._channel = this.inputStream.channels.get();
       for await (const batch of this._channel) {
         this.batch(batch);
       }
@@ -159,7 +159,7 @@ function bench() {
     )
     .pipe(pump());
 
-  mapped.traversal.effect.map.error.pipe(pump());
+  mapped.traversal.effect.map.events.error.pipe(pump());
 
   for (let i = 1; i <= MAX; i++) {
     stream.push(i);

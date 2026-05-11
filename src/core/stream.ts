@@ -1,24 +1,17 @@
 import { Channel } from "./channel.ts";
+import { Channels } from "./channels.ts";
 import { Transformer } from "./transformer.ts";
 
 const NAME = "root";
 
 export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
-  implements
-    AsyncIterable<Stream.Batch<VALUE>>,
-    Iterable<Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>>>,
-    AsyncDisposable,
-    Disposable
+  implements AsyncIterable<Stream.Batch<VALUE>>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
+  private _channels: Channels<Stream.Batch<VALUE>, NAME>;
   private _source?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>>;
   private _requestingNext = false;
   private _error?: Stream<ERROR, never, `${NAME}Error`>;
-  private _channels = new Map<string, Channel<Stream.Batch<VALUE>, any>>();
-  //TODO: groupe all events in single _event
-  private _channelAttached?: Stream<Channel<Stream.Batch<VALUE>, string>, never, `${NAME}ChannelAttached`>;
-  private _channelDetached?: Stream<Channel<Stream.Batch<VALUE>, string>, never, `${NAME}ChannelDetached`>;
-  private _cleared?: Stream<void, never, `${NAME}Cleared`>;
   private _disposed?: Stream<void, never, `${NAME}Disposed`>;
   constructor(name: NAME, source?: Stream.Source<Stream.Batch<VALUE>>);
   constructor(source?: Stream.Source<Stream.Batch<VALUE>>);
@@ -35,13 +28,14 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
       } else {
         this._source = (source as any)[Symbol.asyncIterator]?.() ?? (source as any)[Symbol.iterator]();
       }
+
+    this._channels = new Channels(this);
   }
+
   [Symbol.asyncIterator](): Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>> {
-    return this.getChannel();
+    return this._channels.get();
   }
-  [Symbol.iterator](): MapIterator<Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>>> {
-    return this._channels.values();
-  }
+
   async [Symbol.asyncDispose]() {
     await this.dispose();
   }
@@ -67,35 +61,13 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
   }
   batch(batch: Stream.Batch<VALUE>): this {
     if (!batch.length) return this;
-    for (const channel of this) {
+    for (const channel of this._channels) {
       channel.push(batch);
     }
     return this;
   }
-
-  getChannel(): Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>> {
-    let name: Stream.ChannelName<NAME>;
-
-    while (true) {
-      name = `${this.name}Channel${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}`;
-      if (!this._channels.has(name)) break;
-    }
-
-    const channel = new Channel<Stream.Batch<VALUE>, Stream.ChannelName<NAME>>(name, {
-      onNext: () => this.requestNext(),
-      onDone: () => {
-        this._channels.delete(name);
-        this._channelDetached?.push(channel);
-      },
-    });
-
-    this._channels.set(name, channel);
-    this._channelAttached?.push(channel);
-    return channel;
-  }
-
   throw(error: ERROR) {
-    if (!this._error?.channelsCount)
+    if (!this._error?.channels.count)
       Promise.reject(
         `Unhandled error in "${this.name}": ${error}
 
@@ -127,7 +99,6 @@ Consume ${this.name}.source.error to handle this.
       this.requestNext();
     }
   }
-
   pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
@@ -141,60 +112,22 @@ Consume ${this.name}.source.error to handle this.
   ): OUTPUT_STREAM {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-  async clear() {
-    const promises = [];
-    for (const channel of this) {
-      promises.push(channel.return());
-    }
 
-    await Promise.all(promises);
-    this._cleared?.push();
-  }
   async dispose() {
-    await Promise.all([
-      this.clear(),
-      this._source?.return?.(),
-      this._error?.dispose(),
-      this._channelAttached?.dispose(),
-      this._channelDetached?.dispose(),
-      this._cleared?.dispose(),
-    ]);
+    await Promise.all([this._channels.dispose(), this._source?.return?.(), this._error?.dispose()]);
 
     this._disposed?.push();
     await this._disposed?.dispose();
 
     this._requestingNext = false;
 
-    this._source =
-      this._error =
-      this._channelAttached =
-      this._channelDetached =
-      this._cleared =
-      this._disposed =
-        undefined;
+    this._source = this._error = this._disposed = undefined;
   }
 
-  get channelsCount() {
-    return this._channels.size;
+  get channels() {
+    return this._channels;
   }
-  get channelAttached() {
-    if (!this._channelAttached) {
-      this._channelAttached = new Stream(`${this.name}ChannelAttached`);
-    }
-    return this._channelAttached;
-  }
-  get channelDetached() {
-    if (!this._channelDetached) {
-      this._channelDetached = new Stream(`${this.name}ChannelDetached`);
-    }
-    return this._channelDetached;
-  }
-  get cleared() {
-    if (!this._cleared) {
-      this._cleared = new Stream(`${this.name}Cleared`);
-    }
-    return this._cleared;
-  }
+
   get disposed() {
     if (!this._disposed) {
       this._disposed = new Stream(`${this.name}Disposed`);
@@ -257,6 +190,8 @@ function simpleTest() {
       if (value[0] == 2) break;
     }
   })();
+
+  // stream.;
   (async () => {
     for await (const value of stream) {
       console.log("c2", value);
