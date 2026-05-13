@@ -5,13 +5,13 @@ import { Transformer } from "./transformer.ts";
 
 const NAME = "root";
 
-export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
+export class Stream<VALUE, NAME extends string = Stream.Name>
   implements AsyncIterable<Stream.Batch<VALUE>>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
   private _channels: Channels<Stream.Batch<VALUE>, NAME>;
-  private _source?: Source<VALUE, ERROR, NAME>;
-  private _disposed?: Stream<void, never, `${NAME}Disposed`>;
+  private _source?: Source<VALUE, NAME>;
+  private _disposed?: Stream<void, `${NAME}Disposed`>;
   constructor(name: NAME, dataGenerator?: Source.DataGenerator<VALUE>);
   constructor(dataGenerator?: Source.DataGenerator<VALUE>);
   constructor(nameOrDataGenerator?: NAME | Source.DataGenerator<VALUE>, dataGenerator?: Source.DataGenerator<VALUE>) {
@@ -25,8 +25,8 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
 
     this._channels = new Channels(this);
   }
-  [Symbol.asyncIterator](): Channel<Stream.Batch<VALUE>, Channels.ChannelName<NAME>> {
-    return this._channels.get();
+  [Symbol.asyncIterator]() {
+    return this._channels.get() as AsyncIterator<Stream.Batch<VALUE>>;
   }
   async [Symbol.asyncDispose]() {
     await this.dispose();
@@ -57,14 +57,14 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
     }
     return this;
   }
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME>>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME>>(
     name: OUTPUT_NAME,
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME>>(
     nameOrTransform: OUTPUT_NAME | Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
     transform?: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM {
@@ -96,31 +96,25 @@ export class Stream<VALUE, ERROR = unknown, NAME extends string = Stream.Name>
 export namespace Stream {
   export type Name = typeof NAME;
   export type Batch<VALUE> = VALUE[];
-  export type AnyStream = Stream<any, any, any>;
+  export type AnyStream = Stream<any, any>;
   export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
-    T extends Stream<infer VALUE, any, any>
+    T extends Stream<infer VALUE, any>
       ? VALUE
       : Transformer.ExtractValue<T> extends never
         ? never
         : Transformer.ExtractValue<T>;
 
   export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
-  export type ExtractError<T> =
-    T extends Stream<any, infer ERROR, any>
-      ? ERROR
-      : Transformer.ExtractError<T> extends never
-        ? never
-        : Transformer.ExtractError<T>;
 
   export type Transform<
     INPUT_STREAM extends AnyStream,
     OUTPUT_NAME extends string,
-    OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, any, OUTPUT_NAME>,
+    OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, OUTPUT_NAME>,
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
 }
 
 function simpleTest() {
-  const stream = new Stream<number, never>(async function* () {
+  const stream = new Stream(async function* () {
     await new Promise((r) => setTimeout(r, 10));
     yield [1];
     await new Promise((r) => setTimeout(r, 10));

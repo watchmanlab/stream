@@ -1,10 +1,10 @@
 import { Stream } from "./stream.ts";
 
-export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposable, Disposable {
-  private _iterator?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>>;
+export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disposable {
+  private _iterator?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>> | Source.VoidIterator;
   private _requestingNext = false;
-  private _error?: Stream<ERROR, never, `${NAME}SourceError`>;
-  private _done?: Stream<void, never, `${NAME}SourceDone`>;
+  private _error?: Stream<unknown, `${NAME}SourceError`>;
+  private _done?: Stream<void, `${NAME}SourceDone`>;
 
   constructor(
     private stream: Stream.AnyStream,
@@ -22,31 +22,45 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
   [Symbol.dispose]() {
     this.return();
   }
-  pull() {
-    (async () => {
-      if (!this._iterator || this._requestingNext) return;
-
-      this._requestingNext = true;
-
-      let result: IteratorResult<Stream.Batch<VALUE>> | Promise<IteratorResult<Stream.Batch<VALUE>>>;
-      try {
-        result = this._iterator.next();
-
-        result = result instanceof Promise ? await result : result;
-
-        this._requestingNext = false;
-        if (result.done) {
-          await this.return();
-        } else {
-          this.stream.batch(result.value);
-        }
-      } catch (error: any) {
-        this._requestingNext = false;
-        this.throw(error);
-      }
-    })();
+  ready() {
+    this._requestingNext = false;
   }
-  throw(error: ERROR) {
+  pull() {
+    if (!this._iterator || this._requestingNext) return;
+    this._requestingNext = true;
+
+    let result: IteratorResult<any> | void | Promise<IteratorResult<any> | void>;
+    try {
+      result = this._iterator!.next();
+
+      if (!result) return;
+
+      if (result instanceof Promise) {
+        result
+          .then((result) => {
+            if (!result) return;
+            if (result.done) return this.return();
+            this.stream.batch(result.value);
+            this.ready();
+          })
+          .catch((error) => this.throw(error));
+
+        return;
+      }
+
+      if (result.done) {
+        this.return();
+      } else {
+        this.stream.batch(result.value);
+      }
+      this.ready();
+    } catch (error: any) {
+      this._requestingNext = false;
+      this.throw(error);
+    }
+  }
+  throw(error: unknown) {
+    this.ready();
     if (!this._error?.channels.count)
       Promise.reject(
         `Unhandled error in "${this.stream.name}": ${error}\nConsume ${this.stream.name}.error to handle this.`,
@@ -73,16 +87,18 @@ export class Source<VALUE, ERROR, NAME extends string> implements AsyncDisposabl
 }
 
 export namespace Source {
+  export type VoidIterator = {
+    next: () => void | Promise<void>;
+    return?: () => void | Promise<void>;
+  };
+
   export type DataGenerator<VALUE> =
     | (() =>
+        | VoidIterator
         | AsyncGenerator<Stream.Batch<VALUE>>
         | Generator<Stream.Batch<VALUE>>
         | AsyncIterator<Stream.Batch<VALUE>>
         | Iterator<Stream.Batch<VALUE>>)
     | AsyncIterable<Stream.Batch<VALUE>>
     | Iterable<Stream.Batch<VALUE>>;
-
-  export class Error<const ERROR> {
-    constructor(public readonly data: ERROR) {}
-  }
 }

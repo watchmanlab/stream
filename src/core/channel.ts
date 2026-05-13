@@ -2,15 +2,13 @@ import { Queue } from "./queue.ts";
 import { Stream } from "./stream.ts";
 
 const NAME = "channel";
-export class Channel<VALUE, NAME extends string = Channel.Name>
-  implements AsyncIterableIterator<VALUE>, AsyncDisposable, Disposable
-{
+export class Channel<VALUE, NAME extends string = Channel.Name> implements AsyncDisposable, Disposable {
   readonly name: NAME;
   private _buffer: Queue<VALUE, `${NAME}Buffer`>;
   private _pending?: { promise: Promise<VALUE | Queue.Empty>; resolve: (value: VALUE | Queue.Empty) => void };
-  private _valueProcessing?: Stream<VALUE, never, `${NAME}ValueProcessing`>;
-  private _valueProcessed?: Stream<VALUE, never, `${NAME}ValueProcessed`>;
-  private _done?: Stream<void, never, `${NAME}Done`>;
+  private _valueProcessing?: Stream<VALUE, `${NAME}ValueProcessing`>;
+  private _valueProcessed?: Stream<VALUE, `${NAME}ValueProcessed`>;
+  private _done?: Stream<void, `${NAME}Done`>;
 
   constructor(
     name = NAME as NAME,
@@ -20,6 +18,9 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
     this._buffer = new Queue(`${this.name}Buffer`);
   }
   [Symbol.asyncIterator]() {
+    return this;
+  }
+  [Symbol.iterator]() {
     return this;
   }
   async [Symbol.asyncDispose]() {
@@ -40,7 +41,10 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
   }
 
   private _currentValue: VALUE | Queue.Empty = Queue.EMPTY;
-  async next(): Promise<IteratorResult<VALUE, Queue.Empty>> {
+  next(
+    onValue?: (value: VALUE) => void,
+    onDone?: () => void,
+  ): Promise<IteratorResult<VALUE, Queue.Empty>> | IteratorResult<VALUE, Queue.Empty> {
     if (this._currentValue !== Queue.EMPTY) {
       this._valueProcessed?.push(this._currentValue);
       this._currentValue = Queue.EMPTY;
@@ -50,25 +54,30 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
     if (value !== Queue.EMPTY) {
       this._valueProcessing?.push(value);
       this._currentValue = value;
-
+      onValue?.(value);
       return { value };
     } else {
-      if (this._pending) {
-        value = await this._pending.promise;
-      } else {
-        (this._pending as any) = {};
+      return (async () => {
+        if (this._pending) {
+          value = await this._pending.promise;
+        } else {
+          (this._pending as any) = {};
 
-        this._pending!.promise = new Promise<VALUE | Queue.Empty>((resolve) => {
-          this._pending!.resolve = resolve;
-          this.options?.pull?.();
-        });
+          this._pending!.promise = new Promise<VALUE | Queue.Empty>((resolve) => {
+            this._pending!.resolve = resolve;
+            this.options?.pull?.();
+          });
 
-        value = await this._pending!.promise;
-      }
+          value = await this._pending!.promise;
+        }
 
-      if (value === Queue.EMPTY) return { value: Queue.EMPTY as never, done: true };
-
-      return { value };
+        if (value === Queue.EMPTY) {
+          onDone?.();
+          return { value: Queue.EMPTY as never, done: true };
+        }
+        onValue?.(value);
+        return { value };
+      })();
     }
   }
   async return(): Promise<IteratorReturnResult<Queue.Empty>> {

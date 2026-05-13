@@ -1,48 +1,53 @@
-import { Source, Stream, Transformer } from "../core/index.ts";
+import { Stream, Transformer } from "../core/index.ts";
 
 const NAME = "map";
 class Map<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
-  ERROR = unknown,
   NAME extends string = map.Name,
-> extends Transformer<INPUT_STREAM, MAPPED, ERROR, NAME> {
-  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED, ERROR>) {
-    super(name, inputStream, async function* () {
-      for await (const batch of inputStream) {
-        const values: Stream.Batch<MAPPED> = [];
+> extends Transformer<INPUT_STREAM, MAPPED, NAME> {
+  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED>) {
+    super(name, inputStream, () => {
+      const channel = inputStream.channels.get();
 
-        for (let i = 0, length = batch.length; i < length; i++) {
-          try {
-            let result = mapper(batch[i]);
-            result = result instanceof Promise ? await result : result;
-
-            if (result instanceof Source.Error) {
-              self.source?.throw(result.data);
-              continue;
-            }
-
-            values.push(result);
-          } catch (error: any) {
-            self.source?.throw(error);
-          }
-        }
-        yield values;
-      }
+      return {
+        next: () => {
+          channel.next(
+            (batch) => {
+              for (let i = 0, length = batch.length; i < length; i++) {
+                try {
+                  let value = mapper(batch[i]);
+                  if (value instanceof Promise) {
+                    value.then((value) => this.push(value)).catch((error) => this.source?.throw(error));
+                  } else {
+                    this.push(value);
+                  }
+                } catch (error) {
+                  this.source?.throw(error);
+                } finally {
+                  this.source?.ready();
+                }
+              }
+            },
+            () => {
+              this.source?.return();
+            },
+          );
+        },
+        return: () => {
+          channel.return();
+        },
+      };
     });
-    const self = this;
   }
 }
 export function map<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
-  ERROR = unknown,
   NAME extends string = map.Name,
->(
-  mapper: map.Mapper<VALUE, MAPPED, ERROR>,
-): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, ERROR, NAME>> {
+>(mapper: map.Mapper<VALUE, MAPPED>): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, NAME>> {
   return (inputStream, name) => {
     return new Map(name, inputStream, mapper);
   };
@@ -50,7 +55,5 @@ export function map<
 
 export namespace map {
   export type Name = typeof NAME;
-  export type Mapper<VALUE, MAPPED, ERROR> = (
-    value: VALUE,
-  ) => MAPPED | Source.Error<ERROR> | Promise<MAPPED | Source.Error<ERROR>>;
+  export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED | Promise<MAPPED>;
 }

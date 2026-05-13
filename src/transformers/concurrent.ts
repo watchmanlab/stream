@@ -21,7 +21,8 @@ class Concurrent<
     options?: concurrent.Options,
   ) {
     super(name, inputStream, () => {
-      const output = new Channel<Stream.Batch<VALUE>>();
+      const output = new Stream<VALUE>();
+      const outputChannel = output.channels.get();
 
       const buffer: Stream.Batch<VALUE>[] = [];
 
@@ -43,7 +44,7 @@ class Concurrent<
             if (counter >= this._options.limit) break;
           }
 
-          return await output.next();
+          return await outputChannel.next();
         },
         return: async () => {
           //

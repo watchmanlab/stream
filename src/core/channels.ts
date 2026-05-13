@@ -3,10 +3,10 @@ import { Channel } from "./channel.ts";
 
 export class Channels<VALUE, NAME extends string> implements Iterable<Channel<VALUE, string>> {
   private _collection = new Map<string, Channel<VALUE, any>>();
-  private _attached?: Stream<Channel<VALUE, string>, never, `${NAME}ChannelAttached`>;
-  private _detached?: Stream<Channel<VALUE, string>, never, `${NAME}ChannelDetached`>;
-  private _cleared?: Stream<void, never, `${NAME}ChannelsCleared`>;
-  private _disposed?: Stream<void, never, `${NAME}ChannelsDisposed`>;
+  private _attached?: Stream<Channel<VALUE, string>, `${NAME}ChannelAttached`>;
+  private _detached?: Stream<Channel<VALUE, string>, `${NAME}ChannelDetached`>;
+  private _cleared?: Stream<void, `${NAME}ChannelsCleared`>;
+  private _disposed?: Stream<void, `${NAME}ChannelsDisposed`>;
 
   constructor(private stream: Stream.AnyStream) {}
 

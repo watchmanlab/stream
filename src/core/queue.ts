@@ -6,10 +6,10 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
   private _head?: Queue.Node<VALUE>;
   private _tail?: Queue.Node<VALUE>;
   private _size = 0;
-  private _valueEnqueued?: Stream<VALUE, never, `${NAME}ValueEnqueued`>;
-  private _valueDequeued?: Stream<VALUE, never, `${NAME}ValueDequeued`>;
-  private _cleared?: Stream<void, never, `${NAME}Cleared`>;
-  private _disposed?: Stream<void, never, `${NAME}Disposed`>;
+  private _valueEnqueued?: Stream<VALUE, `${NAME}ValueEnqueued`>;
+  private _valueDequeued?: Stream<VALUE, `${NAME}ValueDequeued`>;
+  private _cleared?: Stream<void, `${NAME}Cleared`>;
+  private _disposed?: Stream<void, `${NAME}Disposed`>;
 
   constructor(name = NAME as NAME) {
     this.name = name;
