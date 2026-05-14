@@ -2,10 +2,15 @@ import { Queue } from "./queue.ts";
 import { Stream } from "./stream.ts";
 
 const NAME = "channel";
-export class Channel<VALUE, NAME extends string = Channel.Name> implements AsyncDisposable, Disposable {
+export class Channel<VALUE, NAME extends string = Channel.Name>
+  implements AsyncIterable<VALUE>, AsyncDisposable, Disposable
+{
   readonly name: NAME;
   private _buffer: Queue<VALUE, `${NAME}Buffer`>;
-  private _pending?: { promise: Promise<VALUE | Queue.Empty>; resolve: (value: VALUE | Queue.Empty) => void };
+  private _pending?: {
+    promise: Promise<Stream.Batch<VALUE>>;
+    resolve: (value: Stream.Batch<VALUE>) => void;
+  };
   private _valueProcessing?: Stream<VALUE, `${NAME}ValueProcessing`>;
   private _valueProcessed?: Stream<VALUE, `${NAME}ValueProcessed`>;
   private _done?: Stream<void, `${NAME}Done`>;
@@ -18,70 +23,92 @@ export class Channel<VALUE, NAME extends string = Channel.Name> implements Async
     this._buffer = new Queue(`${this.name}Buffer`);
   }
   [Symbol.asyncIterator]() {
-    return this;
+    return {
+      next: () => {
+        const result = this.next();
+        if (result instanceof Promise) {
+          return (async () => {
+            const batch = await result;
+
+            if (!batch.length) {
+              return { value: [], done: true };
+            }
+
+            for (let i = 0, length = batch.length; i < length; i++) {
+              return { value: batch[i] };
+            }
+          })();
+        } else {
+          if (!result.length) {
+            return { value: [], done: true };
+          }
+          for (let i = 0, length = result.length; i < length; i++) {
+            return { value: result[i] };
+          }
+        }
+      },
+      return: () => this.return(),
+    } as AsyncIterator<VALUE>;
   }
-  [Symbol.iterator]() {
-    return this;
-  }
+
   async [Symbol.asyncDispose]() {
     await this.return();
   }
   [Symbol.dispose]() {
     this.return();
   }
-  push(value: VALUE): this {
+  batch(batch: Stream.Batch<VALUE>): this {
     if (this._pending) {
-      this._pending.resolve(value);
+      this._pending.resolve(batch);
       this._pending = undefined;
     } else {
-      this._buffer.enqueue(value);
+      this._buffer.enqueue(batch);
     }
-
     return this;
   }
 
-  private _currentValue: VALUE | Queue.Empty = Queue.EMPTY;
+  private _currentValue: Stream.Batch<VALUE> = [];
   next(
-    onValue?: (value: VALUE) => void,
-    onDone?: () => void,
-  ): Promise<IteratorResult<VALUE, Queue.Empty>> | IteratorResult<VALUE, Queue.Empty> {
-    if (this._currentValue !== Queue.EMPTY) {
-      this._valueProcessed?.push(this._currentValue);
-      this._currentValue = Queue.EMPTY;
+    onValue?: (value: Stream.Batch<VALUE>) => void,
+    onDone?: (value: []) => void,
+  ): Stream.Batch<VALUE> | Promise<Stream.Batch<VALUE>> {
+    if (this._currentValue.length) {
+      this._valueProcessed?.batch(this._currentValue);
+      this._currentValue.length = 0;
     }
 
-    let value = this._buffer.dequeue();
-    if (value !== Queue.EMPTY) {
-      this._valueProcessing?.push(value);
-      this._currentValue = value;
-      onValue?.(value);
-      return { value };
+    let batch = this._buffer.dequeue();
+    if (batch !== Stream.EMPTY) {
+      this._valueProcessing?.batch(batch);
+      this._currentValue = batch;
+      onValue?.(batch);
+      return batch;
     } else {
       return (async () => {
         if (this._pending) {
-          value = await this._pending.promise;
+          batch = await this._pending.promise;
         } else {
           (this._pending as any) = {};
 
-          this._pending!.promise = new Promise<VALUE | Queue.Empty>((resolve) => {
+          this._pending!.promise = new Promise<Stream.Batch<VALUE>>((resolve) => {
             this._pending!.resolve = resolve;
             this.options?.pull?.();
           });
 
-          value = await this._pending!.promise;
+          batch = await this._pending!.promise;
         }
 
-        if (value === Queue.EMPTY) {
-          onDone?.();
-          return { value: Queue.EMPTY as never, done: true };
+        if (!batch.length) {
+          onDone?.([]);
+          return [];
         }
-        onValue?.(value);
-        return { value };
+        onValue?.(batch);
+        return batch;
       })();
     }
   }
-  async return(): Promise<IteratorReturnResult<Queue.Empty>> {
-    this._pending?.resolve(Queue.EMPTY);
+  async return(): Promise<IteratorReturnResult<[]>> {
+    this._pending?.resolve([]);
 
     await Promise.all([this._buffer.dispose(), this._valueProcessing?.dispose(), this._valueProcessed?.dispose()]);
 
@@ -91,7 +118,7 @@ export class Channel<VALUE, NAME extends string = Channel.Name> implements Async
     this.options?.done?.();
 
     this._pending = this.options = this._valueProcessing = this._valueProcessed = this._done = undefined;
-    return { value: Queue.EMPTY as never, done: true };
+    return { value: Stream.EMPTY as never, done: true };
   }
 
   get buffer() {

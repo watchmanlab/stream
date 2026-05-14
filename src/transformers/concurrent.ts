@@ -48,7 +48,7 @@ class Concurrent<
         },
         return: async () => {
           //
-          return { value: Queue.EMPTY as never, done: true };
+          return { value: Stream.EMPTY as never, done: true };
         },
       };
     });

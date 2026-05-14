@@ -1,4 +1,3 @@
-import { Channel } from "./channel.ts";
 import { Channels } from "./channels.ts";
 import { Source } from "./source.ts";
 import { Transformer } from "./transformer.ts";
@@ -6,10 +5,10 @@ import { Transformer } from "./transformer.ts";
 const NAME = "root";
 
 export class Stream<VALUE, NAME extends string = Stream.Name>
-  implements AsyncIterable<Stream.Batch<VALUE>>, AsyncDisposable, Disposable
+  implements AsyncIterable<VALUE>, AsyncDisposable, Disposable
 {
   readonly name: NAME;
-  private _channels: Channels<Stream.Batch<VALUE>, NAME>;
+  private _channels: Channels<VALUE, NAME>;
   private _source?: Source<VALUE, NAME>;
   private _disposed?: Stream<void, `${NAME}Disposed`>;
   constructor(name: NAME, dataGenerator?: Source.DataGenerator<VALUE>);
@@ -26,7 +25,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     this._channels = new Channels(this);
   }
   [Symbol.asyncIterator]() {
-    return this._channels.get() as AsyncIterator<Stream.Batch<VALUE>>;
+    return this._channels.get()[Symbol.asyncIterator]();
   }
   async [Symbol.asyncDispose]() {
     await this.dispose();
@@ -53,7 +52,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
   batch(batch: Stream.Batch<VALUE>): this {
     if (!batch.length) return this;
     for (const channel of this._channels) {
-      channel.push(batch);
+      channel.batch(batch);
     }
     return this;
   }
@@ -111,6 +110,9 @@ export namespace Stream {
     OUTPUT_NAME extends string,
     OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, OUTPUT_NAME>,
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
+
+  export const EMPTY = [];
+  export type Empty = typeof EMPTY;
 }
 
 function simpleTest() {
@@ -123,21 +125,21 @@ function simpleTest() {
     yield [3];
   });
 
-  const v = new Stream(stream);
+  // const v = new Stream(stream);
   //.   ^?
 
   (async () => {
-    for await (const value of v) {
+    for await (const value of stream) {
       console.log("c1", value);
-      if (value[0] == 2) break;
+      if (value == 2) break;
     }
   })();
 
   // stream.;
   (async () => {
-    for await (const value of v) {
+    for await (const value of stream) {
       console.log("c2", value);
-      if (value[0] == 2) break;
+      if (value == 2) break;
     }
   })();
 
@@ -150,14 +152,10 @@ function bench() {
 
   const stream = new Stream<number, never>();
 
-  const c = stream[Symbol.asyncIterator]();
   (async () => {
-    for await (const items of stream) {
-      for (const item of items) {
-        item;
-        item - 3;
-      }
-      console.log("bench", items.pop(), Math.round(performance.now() - now));
+    for await (const item of stream) {
+      item - 3;
+      console.log("bench", item, Math.round(performance.now() - now));
     }
   })();
 

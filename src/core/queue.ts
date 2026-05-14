@@ -18,7 +18,7 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
     return {
       next: () => {
         const value = this.dequeue();
-        return { value: value as VALUE, done: value === Queue.EMPTY };
+        return { value: value as VALUE, done: value.length === 0 };
       },
     };
   }
@@ -28,7 +28,7 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
   [Symbol.dispose]() {
     this.dispose();
   }
-  enqueue(value: VALUE) {
+  enqueue(value: Stream.Batch<VALUE>) {
     this._size++;
     const node = { value };
     if (!this._head) {
@@ -37,16 +37,16 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
       this._tail!.next = node;
       this._tail = node;
     }
-    this._valueEnqueued?.push(value);
+    this._valueEnqueued?.batch(value);
   }
-  dequeue(): VALUE | Queue.Empty {
-    if (!this._head) return Queue.EMPTY;
+  dequeue(): Stream.Batch<VALUE> {
+    if (!this._head) return Stream.EMPTY;
 
     this._size--;
     const value = this._head.value;
     this._head = this._head.next;
 
-    this._valueDequeued?.push(value);
+    this._valueDequeued?.batch(value);
     return value;
   }
   clear() {
@@ -66,7 +66,6 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
   get size() {
     return this._size;
   }
-
   get valueEnqueued() {
     if (!this._valueEnqueued) this._valueEnqueued = new Stream(`${this.name}ValueEnqueued`);
     return this._valueEnqueued;
@@ -86,14 +85,6 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
 }
 export namespace Queue {
   export type Name = typeof NAME;
-  export type AnyQueue = Queue<any, any>;
-  export type AnyNode = Exclude<Node<any>, undefined>;
-
-  export type ExtractValue<T> = T extends Queue<infer VALUE, any> ? VALUE : T extends AnyNode ? T["value"] : never;
-  export type ExtractName<T> = T extends AnyQueue ? T["name"] : never;
-  export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
+  export type Node<VALUE> = { value: Stream.Batch<VALUE>; next?: Node<VALUE> } | undefined;
   export type DropStrategy = "newest" | "oldest";
-
-  export const EMPTY = Symbol("$EMPTY#");
-  export type Empty = typeof EMPTY;
 }
