@@ -7,7 +7,7 @@ export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disp
   private _done?: Stream<void, `${NAME}SourceDone`>;
 
   constructor(
-    private stream: Stream.AnyStream,
+    public readonly stream: Stream.AnyStream,
     dataGenerator: Source.DataGenerator<VALUE>,
   ) {
     if (typeof dataGenerator === "function") {
@@ -53,10 +53,10 @@ export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disp
       } else {
         this.stream.batch(result.value);
       }
-      this.ready();
     } catch (error: any) {
-      this._requestingNext = false;
       this.throw(error);
+    } finally {
+      this.ready();
     }
   }
   throw(error: unknown) {
@@ -88,8 +88,8 @@ export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disp
 
 export namespace Source {
   export type VoidIterator = {
-    next: () => void | Promise<void>;
-    return?: () => void | Promise<void>;
+    next: () => void;
+    return?: () => void;
   };
 
   export type DataGenerator<VALUE> =

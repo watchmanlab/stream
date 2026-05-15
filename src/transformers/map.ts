@@ -9,36 +9,25 @@ class Map<
 > extends Transformer<INPUT_STREAM, MAPPED, NAME> {
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED>) {
     super(name, inputStream, () => {
-      const channel = inputStream.channels.get();
-
-      return {
-        next: () => {
-          channel.next(
-            (batch) => {
-              for (let i = 0, length = batch.length; i < length; i++) {
-                try {
-                  let value = mapper(batch[i]);
-                  if (value instanceof Promise) {
-                    value.then((value) => this.push(value)).catch((error) => this.source?.throw(error));
-                  } else {
-                    this.push(value);
-                  }
-                } catch (error) {
-                  this.source?.throw(error);
-                } finally {
-                  this.source?.ready();
-                }
+      return inputStream.channels.get({
+        onNext: (batch) => {
+          for (let i = 0, length = batch.length; i < length; i++) {
+            try {
+              let value = mapper(batch[i]);
+              if (value instanceof Promise) {
+                value.then((value) => this.push(value)).catch((error) => this.source?.throw(error));
+              } else {
+                this.push(value);
               }
-            },
-            () => {
-              this.source?.return();
-            },
-          );
+            } catch (error) {
+              this.source?.throw(error);
+            } finally {
+              this.source?.ready();
+            }
+          }
         },
-        return: () => {
-          channel.return();
-        },
-      };
+        onDone: () => this.source?.return(),
+      });
     });
   }
 }

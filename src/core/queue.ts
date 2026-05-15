@@ -18,7 +18,7 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
     return {
       next: () => {
         const value = this.dequeue();
-        return { value: value as VALUE, done: value.length === 0 };
+        return { value: value as VALUE, done: value === Queue.EMPTY };
       },
     };
   }
@@ -28,7 +28,7 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
   [Symbol.dispose]() {
     this.dispose();
   }
-  enqueue(value: Stream.Batch<VALUE>) {
+  enqueue(value: VALUE) {
     this._size++;
     const node = { value };
     if (!this._head) {
@@ -37,16 +37,16 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
       this._tail!.next = node;
       this._tail = node;
     }
-    this._valueEnqueued?.batch(value);
+    this._valueEnqueued?.push(value);
   }
-  dequeue(): Stream.Batch<VALUE> {
-    if (!this._head) return Stream.EMPTY;
+  dequeue(): VALUE | Queue.Empty {
+    if (!this._head) return Queue.EMPTY;
 
     this._size--;
     const value = this._head.value;
     this._head = this._head.next;
 
-    this._valueDequeued?.batch(value);
+    this._valueDequeued?.push(value);
     return value;
   }
   clear() {
@@ -85,6 +85,8 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
 }
 export namespace Queue {
   export type Name = typeof NAME;
-  export type Node<VALUE> = { value: Stream.Batch<VALUE>; next?: Node<VALUE> } | undefined;
+  export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
   export type DropStrategy = "newest" | "oldest";
+  export const EMPTY = Symbol("$QUEUE_EMPTY#");
+  export type Empty = typeof EMPTY;
 }

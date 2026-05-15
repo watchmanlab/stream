@@ -2,37 +2,31 @@ import { Stream } from "./stream.ts";
 import { Channel } from "./channel.ts";
 
 export class Channels<VALUE, NAME extends string> implements Iterable<Channel<VALUE, string>> {
-  private _collection = new Map<string, Channel<VALUE, any>>();
+  private _collection = new Set<Channel<VALUE, any>>();
   private _attached?: Stream<Channel<VALUE, string>, `${NAME}ChannelAttached`>;
   private _detached?: Stream<Channel<VALUE, string>, `${NAME}ChannelDetached`>;
   private _cleared?: Stream<void, `${NAME}ChannelsCleared`>;
   private _disposed?: Stream<void, `${NAME}ChannelsDisposed`>;
 
-  constructor(private stream: Stream.AnyStream) {}
+  constructor(public readonly stream: Stream.AnyStream) {}
 
   [Symbol.iterator]() {
     return this._collection.values();
   }
-  get() {
-    let name: Channels.ChannelName<NAME>;
-
-    while (true) {
-      name = `${this.stream.name}Channel${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}`;
-      if (!this._collection.has(name)) break;
-    }
-
-    const channel = new Channel<VALUE, Channels.ChannelName<NAME>>(name, {
-      pull: () => this.stream.source?.pull(),
-      done: () => {
-        this._collection.delete(name);
+  get(options?: Channel.Options<VALUE>) {
+    const channel = new Channel<VALUE, NAME>(this.stream, {
+      onNext: options?.onNext,
+      onDone: () => {
+        this._collection.delete(channel);
         this._detached?.push(channel);
+        options?.onDone?.();
       },
     });
-
-    this._collection.set(name, channel);
+    this._collection.add(channel);
     this._attached?.push(channel);
     return channel;
   }
+
   async clear() {
     const promises = [];
     for (const channel of this) {
@@ -53,11 +47,9 @@ export class Channels<VALUE, NAME extends string> implements Iterable<Channel<VA
 
     this._cleared = this._attached = this._detached = this._disposed = undefined;
   }
+
   get count() {
     return this._collection.size;
-  }
-  get array() {
-    return [...this];
   }
   get attached() {
     if (!this._attached) this._attached = new Stream(`${this.stream.name}ChannelAttached`);

@@ -113,6 +113,9 @@ export namespace Stream {
 
   export const EMPTY = [];
   export type Empty = typeof EMPTY;
+  export function isEmpty<VALUE>(batch: Batch<VALUE>) {
+    return !batch.length;
+  }
 }
 
 function simpleTest() {
@@ -125,9 +128,6 @@ function simpleTest() {
     yield [3];
   });
 
-  // const v = new Stream(stream);
-  //.   ^?
-
   (async () => {
     for await (const value of stream) {
       console.log("c1", value);
@@ -135,7 +135,6 @@ function simpleTest() {
     }
   })();
 
-  // stream.;
   (async () => {
     for await (const value of stream) {
       console.log("c2", value);

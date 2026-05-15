@@ -1,12 +1,8 @@
 import { Queue } from "./queue.ts";
 import { Stream } from "./stream.ts";
 
-const NAME = "channel";
-export class Channel<VALUE, NAME extends string = Channel.Name>
-  implements AsyncIterable<VALUE>, AsyncDisposable, Disposable
-{
-  readonly name: NAME;
-  private _buffer: Queue<VALUE, `${NAME}Buffer`>;
+export class Channel<VALUE, NAME extends string> implements AsyncIterable<VALUE>, AsyncDisposable, Disposable {
+  private _buffer: Queue<Stream.Batch<VALUE>, `${NAME}Buffer`>;
   private _pending?: {
     promise: Promise<Stream.Batch<VALUE>>;
     resolve: (value: Stream.Batch<VALUE>) => void;
@@ -16,47 +12,26 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
   private _done?: Stream<void, `${NAME}Done`>;
 
   constructor(
-    name = NAME as NAME,
-    private options?: Channel.Options,
+    private stream: Stream<VALUE, NAME>,
+    private options?: Channel.Options<VALUE>,
   ) {
-    this.name = name;
-    this._buffer = new Queue(`${this.name}Buffer`);
-  }
-  [Symbol.asyncIterator]() {
-    return {
-      next: () => {
-        const result = this.next();
-        if (result instanceof Promise) {
-          return (async () => {
-            const batch = await result;
-
-            if (!batch.length) {
-              return { value: [], done: true };
-            }
-
-            for (let i = 0, length = batch.length; i < length; i++) {
-              return { value: batch[i] };
-            }
-          })();
-        } else {
-          if (!result.length) {
-            return { value: [], done: true };
-          }
-          for (let i = 0, length = result.length; i < length; i++) {
-            return { value: result[i] };
-          }
-        }
-      },
-      return: () => this.return(),
-    } as AsyncIterator<VALUE>;
+    this._buffer = new Queue(`${this.stream.name}Buffer`);
   }
 
+  async *[Symbol.asyncIterator]() {
+    while (true) {
+      const batch = await this.next();
+      if (!batch.length) break;
+      yield* batch;
+    }
+  }
   async [Symbol.asyncDispose]() {
     await this.return();
   }
   [Symbol.dispose]() {
     this.return();
   }
+
   batch(batch: Stream.Batch<VALUE>): this {
     if (this._pending) {
       this._pending.resolve(batch);
@@ -67,81 +42,75 @@ export class Channel<VALUE, NAME extends string = Channel.Name>
     return this;
   }
 
-  private _currentValue: Stream.Batch<VALUE> = [];
-  next(
-    onValue?: (value: Stream.Batch<VALUE>) => void,
-    onDone?: (value: []) => void,
-  ): Stream.Batch<VALUE> | Promise<Stream.Batch<VALUE>> {
-    if (this._currentValue.length) {
-      this._valueProcessed?.batch(this._currentValue);
-      this._currentValue.length = 0;
+  private _currentBatch: Stream.Batch<VALUE> = [];
+  next(): Stream.Batch<VALUE> | Promise<Stream.Batch<VALUE>> {
+    if (this._currentBatch.length) {
+      this._valueProcessed?.batch(this._currentBatch);
+      this._currentBatch.length = 0;
     }
 
     let batch = this._buffer.dequeue();
-    if (batch !== Stream.EMPTY) {
+    if (batch !== Queue.EMPTY) {
       this._valueProcessing?.batch(batch);
-      this._currentValue = batch;
-      onValue?.(batch);
+      this._currentBatch = batch;
+      this.options?.onNext?.(batch);
       return batch;
-    } else {
-      return (async () => {
-        if (this._pending) {
-          batch = await this._pending.promise;
-        } else {
-          (this._pending as any) = {};
-
-          this._pending!.promise = new Promise<Stream.Batch<VALUE>>((resolve) => {
-            this._pending!.resolve = resolve;
-            this.options?.pull?.();
-          });
-
-          batch = await this._pending!.promise;
-        }
-
-        if (!batch.length) {
-          onDone?.([]);
-          return [];
-        }
-        onValue?.(batch);
-        return batch;
-      })();
     }
+
+    return (async () => {
+      if (this._pending) {
+        batch = await this._pending.promise;
+      } else {
+        (this._pending as any) = {};
+
+        this._pending!.promise = new Promise<Stream.Batch<VALUE>>((resolve) => {
+          this._pending!.resolve = resolve;
+          this.stream.source?.pull();
+        });
+
+        batch = await this._pending!.promise;
+      }
+
+      if (batch.length) {
+        this.options?.onNext?.(batch);
+        return batch;
+      }
+      return Stream.EMPTY;
+    })();
   }
-  async return(): Promise<IteratorReturnResult<[]>> {
-    this._pending?.resolve([]);
+  async return(): Promise<void> {
+    this._pending?.resolve(Stream.EMPTY);
 
     await Promise.all([this._buffer.dispose(), this._valueProcessing?.dispose(), this._valueProcessed?.dispose()]);
 
     this._done?.push();
     await this._done?.dispose();
 
-    this.options?.done?.();
+    this.options?.onDone?.();
 
-    this._pending = this.options = this._valueProcessing = this._valueProcessed = this._done = undefined;
-    return { value: Stream.EMPTY as never, done: true };
+    this._pending = this._valueProcessing = this._valueProcessed = this._done = undefined;
   }
 
   get buffer() {
     return this._buffer;
   }
   get valueProcessing() {
-    if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.name}ValueProcessing`);
+    if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.stream.name}ValueProcessing`);
     return this._valueProcessing;
   }
   get valueProcessed() {
-    if (!this._valueProcessed) this._valueProcessed = new Stream(`${this.name}ValueProcessed`);
+    if (!this._valueProcessed) this._valueProcessed = new Stream(`${this.stream.name}ValueProcessed`);
     return this._valueProcessed;
   }
   get done() {
-    if (!this._done) this._done = new Stream(`${this.name}Done`);
+    if (!this._done) this._done = new Stream(`${this.stream.name}Done`);
     return this._done;
   }
 }
-export namespace Channel {
-  export type Name = typeof NAME;
 
-  export type Options = {
-    pull?: () => void;
-    done?: () => void;
+export namespace Channel {
+  export type Options<VALUE> = {
+    onNext?: (batch: Stream.Batch<VALUE>) => void;
+    onDone?: () => void;
   };
 }
