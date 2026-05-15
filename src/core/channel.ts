@@ -31,7 +31,6 @@ export class Channel<VALUE, NAME extends string> implements AsyncIterable<VALUE>
   [Symbol.dispose]() {
     this.return();
   }
-
   batch(batch: Stream.Batch<VALUE>): this {
     if (this._pending) {
       this._pending.resolve(batch);
@@ -41,7 +40,6 @@ export class Channel<VALUE, NAME extends string> implements AsyncIterable<VALUE>
     }
     return this;
   }
-
   private _currentBatch: Stream.Batch<VALUE> = [];
   next(): Stream.Batch<VALUE> | Promise<Stream.Batch<VALUE>> {
     if (this._currentBatch.length) {

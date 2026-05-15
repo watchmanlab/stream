@@ -8,8 +8,10 @@ class Map<
   NAME extends string = map.Name,
 > extends Transformer<INPUT_STREAM, MAPPED, NAME> {
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, mapper: map.Mapper<VALUE, MAPPED>) {
-    super(name, inputStream, () => {
-      return inputStream.channels.get({
+    super(
+      name,
+      inputStream,
+      inputStream.channels.get({
         onNext: (batch) => {
           for (let i = 0, length = batch.length; i < length; i++) {
             try {
@@ -27,8 +29,8 @@ class Map<
           }
         },
         onDone: () => this.source?.return(),
-      });
-    });
+      }),
+    );
   }
 }
 export function map<

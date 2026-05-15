@@ -1,17 +1,20 @@
+import { Channel } from "./channel.ts";
 import { Stream } from "./stream.ts";
 
 export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disposable {
-  private _iterator?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>> | Source.VoidIterator;
+  private _iterator?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>> | Channel<VALUE, NAME>;
   private _requestingNext = false;
   private _error?: Stream<unknown, `${NAME}SourceError`>;
   private _done?: Stream<void, `${NAME}SourceDone`>;
 
   constructor(
     public readonly stream: Stream.AnyStream,
-    dataGenerator: Source.DataGenerator<VALUE>,
+    dataGenerator: Source.DataGenerator<VALUE, NAME>,
   ) {
     if (typeof dataGenerator === "function") {
       this._iterator = dataGenerator();
+    } else if (dataGenerator instanceof Channel) {
+      this._iterator = dataGenerator;
     } else {
       this._iterator = (dataGenerator as any)[Symbol.asyncIterator]?.() ?? (dataGenerator as any)[Symbol.iterator]();
     }
@@ -29,16 +32,16 @@ export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disp
     if (!this._iterator || this._requestingNext) return;
     this._requestingNext = true;
 
-    let result: IteratorResult<any> | void | Promise<IteratorResult<any> | void>;
+    let result: IteratorResult<any> | Stream.Batch<VALUE> | Promise<IteratorResult<any> | Stream.Batch<VALUE>>;
     try {
       result = this._iterator!.next();
 
-      if (!result) return;
+      if (Array.isArray(result)) return;
 
       if (result instanceof Promise) {
         result
           .then((result) => {
-            if (!result) return;
+            if (Array.isArray(result)) return;
             if (result.done) return this.return();
             this.stream.batch(result.value);
             this.ready();
@@ -87,18 +90,14 @@ export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disp
 }
 
 export namespace Source {
-  export type VoidIterator = {
-    next: () => void;
-    return?: () => void;
-  };
-
-  export type DataGenerator<VALUE> =
+  export type DataGenerator<VALUE, NAME extends string> =
     | (() =>
-        | VoidIterator
+        | Channel<VALUE, NAME>
         | AsyncGenerator<Stream.Batch<VALUE>>
         | Generator<Stream.Batch<VALUE>>
         | AsyncIterator<Stream.Batch<VALUE>>
         | Iterator<Stream.Batch<VALUE>>)
     | AsyncIterable<Stream.Batch<VALUE>>
-    | Iterable<Stream.Batch<VALUE>>;
+    | Iterable<Stream.Batch<VALUE>>
+    | Channel<VALUE, NAME>;
 }

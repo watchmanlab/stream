@@ -11,9 +11,12 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
   private _channels: Channels<VALUE, NAME>;
   private _source?: Source<VALUE, NAME>;
   private _disposed?: Stream<void, `${NAME}Disposed`>;
-  constructor(name: NAME, dataGenerator?: Source.DataGenerator<VALUE>);
-  constructor(dataGenerator?: Source.DataGenerator<VALUE>);
-  constructor(nameOrDataGenerator?: NAME | Source.DataGenerator<VALUE>, dataGenerator?: Source.DataGenerator<VALUE>) {
+  constructor(name: NAME, dataGenerator?: Source.DataGenerator<VALUE, NAME>);
+  constructor(dataGenerator?: Source.DataGenerator<VALUE, NAME>);
+  constructor(
+    nameOrDataGenerator?: NAME | Source.DataGenerator<VALUE, NAME>,
+    dataGenerator?: Source.DataGenerator<VALUE, NAME>,
+  ) {
     if (typeof nameOrDataGenerator === "string") {
       this.name = nameOrDataGenerator;
     } else {
