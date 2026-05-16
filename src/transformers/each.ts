@@ -1,30 +1,32 @@
-import { Source, Stream, Transformer } from "../core/index.ts";
+import { Stream, Transformer } from "../core/index.ts";
 
 const NAME = "each";
 export class Each<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  ERROR = unknown,
   NAME extends string = each.Name,
-> extends Transformer<INPUT_STREAM, VALUE, ERROR, NAME> {
-  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, callback: each.Callback<VALUE, ERROR>) {
-    super(name, inputStream, async function* () {
-      for await (const batch of inputStream) {
-        for (let i = 0, length = batch.length; i < length; i++) {
-          try {
-            let result = callback(batch[i]);
-
-            result = result instanceof Promise ? await result : result;
-
-            if (result instanceof Source.Error) self.source?.throw(result.data);
-          } catch (error: any) {
-            self.source?.throw(error);
+> extends Transformer<INPUT_STREAM, VALUE, NAME> {
+  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, callback: each.Callback<VALUE>) {
+    super(
+      name,
+      inputStream,
+      inputStream.channels.get({
+        next: async (batch) => {
+          for (let i = 0, length = batch.length; i < length; i++) {
+            try {
+              const value = batch[i];
+              const result = callback(value);
+              if (result instanceof Promise) await result;
+              this.push(value);
+              this.source?.ready();
+            } catch (error) {
+              this.source?.throw(error);
+            }
           }
-        }
-
-        yield batch;
-      }
-    });
+        },
+        return: () => this.source?.return(),
+      }),
+    );
     const self = this;
   }
 }
@@ -32,15 +34,12 @@ export class Each<
 export function each<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  ERROR = unknown,
   NAME extends string = each.Name,
->(callback: each.Callback<VALUE, ERROR>): Stream.Transform<INPUT_STREAM, NAME, Each<INPUT_STREAM, VALUE, ERROR, NAME>> {
+>(callback: each.Callback<VALUE>): Stream.Transform<INPUT_STREAM, NAME, Each<INPUT_STREAM, VALUE, NAME>> {
   return (inputStream, name) => new Each(name, inputStream, callback);
 }
 
 export namespace each {
   export type Name = typeof NAME;
-  export type Callback<VALUE, ERROR> = (
-    value: VALUE,
-  ) => void | Source.Error<ERROR> | Promise<void | Source.Error<ERROR>>;
+  export type Callback<VALUE> = (value: VALUE) => void | Promise<void>;
 }

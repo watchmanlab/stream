@@ -1,20 +1,27 @@
 import { Channel } from "./channel.ts";
 import { Stream } from "./stream.ts";
 
-export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disposable {
-  private _iterator?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>> | Channel<VALUE, NAME>;
+export class Source<VALUE> implements AsyncDisposable, Disposable {
+  private _iterator?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>> | Channel<VALUE>;
   private _requestingNext = false;
-  private _error?: Stream<unknown, `${NAME}SourceError`>;
-  private _done?: Stream<void, `${NAME}SourceDone`>;
+  private _error?: Stream<unknown, `SourceError`>;
+  private _done?: Stream<void, `SourceDone`>;
 
   constructor(
-    public readonly stream: Stream.AnyStream,
-    dataGenerator: Source.DataGenerator<VALUE, NAME>,
+    private stream: Stream.AnyStream,
+    dataGenerator: Source.DataGenerator<VALUE>,
   ) {
     if (typeof dataGenerator === "function") {
-      this._iterator = dataGenerator();
+      const result = dataGenerator();
+      if (result instanceof Stream) {
+        this._iterator = result.channels.get();
+      } else {
+        this._iterator = result;
+      }
     } else if (dataGenerator instanceof Channel) {
       this._iterator = dataGenerator;
+    } else if (dataGenerator instanceof Stream) {
+      this._iterator = dataGenerator.channels.get();
     } else {
       this._iterator = (dataGenerator as any)[Symbol.asyncIterator]?.() ?? (dataGenerator as any)[Symbol.iterator]();
     }
@@ -32,21 +39,24 @@ export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disp
     if (!this._iterator || this._requestingNext) return;
     this._requestingNext = true;
 
-    let result: IteratorResult<any> | Stream.Batch<VALUE> | Promise<IteratorResult<any> | Stream.Batch<VALUE>>;
+    let result: IteratorResult<any> | void | Promise<IteratorResult<any>>;
     try {
       result = this._iterator!.next();
 
-      if (Array.isArray(result)) return;
+      if (this._iterator instanceof Channel || !result) return;
 
       if (result instanceof Promise) {
         result
           .then((result) => {
-            if (Array.isArray(result)) return;
+            if (!result) return;
             if (result.done) return this.return();
             this.stream.batch(result.value);
             this.ready();
           })
-          .catch((error) => this.throw(error));
+          .catch((error) => {
+            this.throw(error);
+            this.ready();
+          });
 
         return;
       }
@@ -55,15 +65,14 @@ export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disp
         this.return();
       } else {
         this.stream.batch(result.value);
+        this.ready();
       }
     } catch (error: any) {
       this.throw(error);
-    } finally {
       this.ready();
     }
   }
   throw(error: unknown) {
-    this.ready();
     if (!this._error?.channels.count)
       Promise.reject(
         `Unhandled error in "${this.stream.name}": ${error}\nConsume ${this.stream.name}.error to handle this.`,
@@ -78,26 +87,32 @@ export class Source<VALUE, NAME extends string> implements AsyncDisposable, Disp
   }
 
   get error() {
-    if (!this._error) this._error = new Stream(`${this.stream.name}SourceError`);
+    if (!this._error) this._error = new Stream(`SourceError`);
     return this._error;
   }
   get done() {
     if (!this._done) {
-      this._done = new Stream(`${this.stream.name}SourceDone`);
+      this._done = new Stream(`SourceDone`);
     }
     return this._done;
   }
 }
 
 export namespace Source {
-  export type DataGenerator<VALUE, NAME extends string> =
+  export interface VoidIterator {
+    next: () => void;
+    return?: () => void;
+  }
+  export type DataGenerator<VALUE> =
     | (() =>
-        | Channel<VALUE, NAME>
         | AsyncGenerator<Stream.Batch<VALUE>>
         | Generator<Stream.Batch<VALUE>>
         | AsyncIterator<Stream.Batch<VALUE>>
-        | Iterator<Stream.Batch<VALUE>>)
+        | Iterator<Stream.Batch<VALUE>>
+        | Channel<VALUE>
+        | Stream<VALUE, any>)
     | AsyncIterable<Stream.Batch<VALUE>>
     | Iterable<Stream.Batch<VALUE>>
-    | Channel<VALUE, NAME>;
+    | Channel<VALUE>
+    | Stream<VALUE, any>;
 }

@@ -4,19 +4,14 @@ import { Transformer } from "./transformer.ts";
 
 const NAME = "root";
 
-export class Stream<VALUE, NAME extends string = Stream.Name>
-  implements AsyncIterable<VALUE>, AsyncDisposable, Disposable
-{
+export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncDisposable, Disposable {
   readonly name: NAME;
-  private _channels: Channels<VALUE, NAME>;
-  private _source?: Source<VALUE, NAME>;
+  private _channels: Channels<VALUE>;
+  private _source?: Source<VALUE>;
   private _disposed?: Stream<void, `${NAME}Disposed`>;
-  constructor(name: NAME, dataGenerator?: Source.DataGenerator<VALUE, NAME>);
-  constructor(dataGenerator?: Source.DataGenerator<VALUE, NAME>);
-  constructor(
-    nameOrDataGenerator?: NAME | Source.DataGenerator<VALUE, NAME>,
-    dataGenerator?: Source.DataGenerator<VALUE, NAME>,
-  ) {
+  constructor(name: NAME, dataGenerator?: Source.DataGenerator<VALUE>);
+  constructor(dataGenerator?: Source.DataGenerator<VALUE>);
+  constructor(nameOrDataGenerator?: NAME | Source.DataGenerator<VALUE>, dataGenerator?: Source.DataGenerator<VALUE>) {
     if (typeof nameOrDataGenerator === "string") {
       this.name = nameOrDataGenerator;
     } else {
@@ -27,9 +22,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
 
     this._channels = new Channels(this);
   }
-  [Symbol.asyncIterator]() {
-    return this._channels.get()[Symbol.asyncIterator]();
-  }
+
   async [Symbol.asyncDispose]() {
     await this.dispose();
   }
@@ -120,51 +113,3 @@ export namespace Stream {
     return !batch.length;
   }
 }
-
-function simpleTest() {
-  const stream = new Stream(async function* () {
-    await new Promise((r) => setTimeout(r, 10));
-    yield [1];
-    await new Promise((r) => setTimeout(r, 10));
-    yield [2];
-    await new Promise((r) => setTimeout(r, 10));
-    yield [3];
-  });
-
-  (async () => {
-    for await (const value of stream) {
-      console.log("c1", value);
-      if (value == 2) break;
-    }
-  })();
-
-  (async () => {
-    for await (const value of stream) {
-      console.log("c2", value);
-      if (value == 2) break;
-    }
-  })();
-
-  stream.push(44);
-  stream.push(55);
-}
-function bench() {
-  const MAX = 1_000_000;
-  const now = performance.now();
-
-  const stream = new Stream<number, never>();
-
-  (async () => {
-    for await (const item of stream) {
-      item - 3;
-      console.log("bench", item, Math.round(performance.now() - now));
-    }
-  })();
-
-  for (let i = 1; i <= MAX; i++) {
-    stream.push(i);
-  }
-}
-
-simpleTest();
-// bench(); //22ms

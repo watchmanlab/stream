@@ -1,30 +1,21 @@
 import { Queue } from "./queue.ts";
+import { Source } from "./source.ts";
 import { Stream } from "./stream.ts";
 
-export class Channel<VALUE, NAME extends string> implements AsyncIterable<VALUE>, AsyncDisposable, Disposable {
-  private _buffer: Queue<Stream.Batch<VALUE>, `${NAME}Buffer`>;
+export class Channel<VALUE> implements Source.VoidIterator, AsyncDisposable, Disposable {
+  private _buffer: Queue<Stream.Batch<VALUE>>;
   private _pending?: {
     promise: Promise<Stream.Batch<VALUE>>;
     resolve: (value: Stream.Batch<VALUE>) => void;
   };
-  private _valueProcessing?: Stream<VALUE, `${NAME}ValueProcessing`>;
-  private _valueProcessed?: Stream<VALUE, `${NAME}ValueProcessed`>;
-  private _done?: Stream<void, `${NAME}Done`>;
+  private _valueProcessing?: Stream<VALUE, `ValueProcessing`>;
+  private _valueProcessed?: Stream<VALUE, `ValueProcessed`>;
+  private _done?: Stream<void, `Done`>;
 
-  constructor(
-    private stream: Stream<VALUE, NAME>,
-    private options?: Channel.Options<VALUE>,
-  ) {
-    this._buffer = new Queue(`${this.stream.name}Buffer`);
+  constructor(private options?: Channel.Options<VALUE>) {
+    this._buffer = new Queue();
   }
 
-  async *[Symbol.asyncIterator]() {
-    while (true) {
-      const batch = await this.next();
-      if (!batch.length) break;
-      yield* batch;
-    }
-  }
   async [Symbol.asyncDispose]() {
     await this.return();
   }
@@ -41,7 +32,7 @@ export class Channel<VALUE, NAME extends string> implements AsyncIterable<VALUE>
     return this;
   }
   private _currentBatch: Stream.Batch<VALUE> = [];
-  next(): Stream.Batch<VALUE> | Promise<Stream.Batch<VALUE>> {
+  next(): void {
     if (this._currentBatch.length) {
       this._valueProcessed?.batch(this._currentBatch);
       this._currentBatch.length = 0;
@@ -51,11 +42,11 @@ export class Channel<VALUE, NAME extends string> implements AsyncIterable<VALUE>
     if (batch !== Queue.EMPTY) {
       this._valueProcessing?.batch(batch);
       this._currentBatch = batch;
-      this.options?.onNext?.(batch);
-      return batch;
+      this.options?.next?.(batch);
+      return;
     }
 
-    return (async () => {
+    (async () => {
       if (this._pending) {
         batch = await this._pending.promise;
       } else {
@@ -63,17 +54,13 @@ export class Channel<VALUE, NAME extends string> implements AsyncIterable<VALUE>
 
         this._pending!.promise = new Promise<Stream.Batch<VALUE>>((resolve) => {
           this._pending!.resolve = resolve;
-          this.stream.source?.pull();
+          this.options?.ready?.();
         });
 
         batch = await this._pending!.promise;
       }
 
-      if (batch.length) {
-        this.options?.onNext?.(batch);
-        return batch;
-      }
-      return Stream.EMPTY;
+      if (batch.length) this.options?.next?.(batch);
     })();
   }
   async return(): Promise<void> {
@@ -84,31 +71,31 @@ export class Channel<VALUE, NAME extends string> implements AsyncIterable<VALUE>
     this._done?.push();
     await this._done?.dispose();
 
-    this.options?.onDone?.();
+    this.options?.return?.();
 
     this._pending = this._valueProcessing = this._valueProcessed = this._done = undefined;
   }
-
   get buffer() {
     return this._buffer;
   }
   get valueProcessing() {
-    if (!this._valueProcessing) this._valueProcessing = new Stream(`${this.stream.name}ValueProcessing`);
+    if (!this._valueProcessing) this._valueProcessing = new Stream(`ValueProcessing`);
     return this._valueProcessing;
   }
   get valueProcessed() {
-    if (!this._valueProcessed) this._valueProcessed = new Stream(`${this.stream.name}ValueProcessed`);
+    if (!this._valueProcessed) this._valueProcessed = new Stream(`ValueProcessed`);
     return this._valueProcessed;
   }
   get done() {
-    if (!this._done) this._done = new Stream(`${this.stream.name}Done`);
+    if (!this._done) this._done = new Stream(`Done`);
     return this._done;
   }
 }
 
 export namespace Channel {
   export type Options<VALUE> = {
-    onNext?: (batch: Stream.Batch<VALUE>) => void;
-    onDone?: () => void;
+    next?: (batch: Stream.Batch<VALUE>) => void;
+    return?: () => void;
+    ready?: () => void;
   };
 }

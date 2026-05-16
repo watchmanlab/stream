@@ -12,10 +12,10 @@ class Map<
       name,
       inputStream,
       inputStream.channels.get({
-        onNext: (batch) => {
+        next: (batch) => {
           for (let i = 0, length = batch.length; i < length; i++) {
             try {
-              let value = mapper(batch[i]);
+              const value = mapper(batch[i]);
               if (value instanceof Promise) {
                 value.then((value) => this.push(value)).catch((error) => this.source?.throw(error));
               } else {
@@ -23,12 +23,11 @@ class Map<
               }
             } catch (error) {
               this.source?.throw(error);
-            } finally {
-              this.source?.ready();
             }
           }
+          this.source?.ready();
         },
-        onDone: () => this.source?.return(),
+        return: () => this.source?.return(),
       }),
     );
   }

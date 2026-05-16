@@ -1,4 +1,4 @@
-import { Channel, Stream, Transformer, Source } from "../core/index.ts";
+import { Channel, Stream, Transformer } from "../core/index.ts";
 import { each } from "./each.ts";
 import { effect } from "./effect.ts";
 import { map } from "./map.ts";
@@ -9,12 +9,12 @@ class Pump<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   NAME extends string = pump.Name,
-> extends Transformer<INPUT_STREAM, VALUE, any, NAME> {
-  private _channel?: Channel<Stream.Batch<VALUE>, any>;
+> extends Transformer<INPUT_STREAM, VALUE, NAME> {
+  private _channel?: Channel<Stream.Batch<VALUE>>;
   private _options: pump.Options;
-  private _started?: Stream<void, never, `${NAME}Started`>;
-  private _stoped?: Stream<void, never, `${NAME}Stoped`>;
-  private _optionsChanged?: Stream<{ old: pump.Options; new: pump.Options }, never, `${NAME}OptionsChanged`>;
+  private _started?: Stream<void, `Started`>;
+  private _stoped?: Stream<void, `Stoped`>;
+  private _optionsChanged?: Stream<{ old: pump.Options; new: pump.Options }, `OptionsChanged`>;
 
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, options?: pump.Options) {
     super(name, inputStream);
@@ -30,21 +30,19 @@ class Pump<
 
   private startOnSignal() {
     const signal = this._options.startSignal;
-    signal?.channels
-      .get()
-      .next()
-      .then(() => {
+    signal?.channels.get({
+      next: () => {
         if (signal === this._options.startSignal) this.start();
-      });
+      },
+    });
   }
   private stopOnSignal() {
     const signal = this._options.stopSignal;
-    signal?.channels
-      .get()
-      .next()
-      .then(() => {
+    signal?.channels.get({
+      next: () => {
         if (signal === this._options.stopSignal) this.stop();
-      });
+      },
+    });
   }
   start() {
     if (this._channel) return;
@@ -53,12 +51,13 @@ class Pump<
 
     this.stopOnSignal();
 
-    (async () => {
-      this._channel = this.inputStream.channels.get();
-      for await (const batch of this._channel) {
+    this._channel = this.inputStream.channels.get({
+      next: (batch) => {
         this.batch(batch);
-      }
-    })();
+        this._channel?.next();
+      },
+    });
+    this._channel?.next();
   }
 
   async stop() {
@@ -106,15 +105,15 @@ class Pump<
     this._optionsChanged?.push({ old, new: options });
   }
   get started() {
-    if (!this._started) this._started = new Stream(`${this.name}Started`);
+    if (!this._started) this._started = new Stream(`Started`);
     return this._started;
   }
   get stoped() {
-    if (!this._stoped) this._stoped = new Stream(`${this.name}Stoped`);
+    if (!this._stoped) this._stoped = new Stream(`Stoped`);
     return this._stoped;
   }
   get optionsChanged() {
-    if (!this._optionsChanged) this._optionsChanged = new Stream(`${this.name}OptionsChanged`);
+    if (!this._optionsChanged) this._optionsChanged = new Stream(`OptionsChanged`);
     return this._optionsChanged;
   }
 }
@@ -146,7 +145,7 @@ function bench() {
   const mapped = stream
     .pipe(
       map((v) => {
-        if (v === 4) return new Source.Error("kechmahaja " + v);
+        if (v === 4) throw `kechmahaja ${v}`;
         return { value: v, doubled: v * 2 };
       }),
     )
@@ -164,9 +163,12 @@ function bench() {
   for (let i = 1; i <= MAX; i++) {
     stream.push(i);
   }
-  // setTimeout(() => {
-  //   stream.push(0);
-  // });
 }
 
 bench(); //128ms
+
+async function test() {
+  return Promise.resolve(4);
+}
+
+console.log(await test());

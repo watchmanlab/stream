@@ -1,19 +1,15 @@
 import { Stream } from "./stream.ts";
 
-const NAME = "queue";
-export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<VALUE>, AsyncDisposable, Disposable {
-  readonly name: NAME;
+export class Queue<VALUE> implements Iterable<VALUE>, AsyncDisposable, Disposable {
   private _head?: Queue.Node<VALUE>;
   private _tail?: Queue.Node<VALUE>;
   private _size = 0;
-  private _valueEnqueued?: Stream<VALUE, `${NAME}ValueEnqueued`>;
-  private _valueDequeued?: Stream<VALUE, `${NAME}ValueDequeued`>;
-  private _cleared?: Stream<void, `${NAME}Cleared`>;
-  private _disposed?: Stream<void, `${NAME}Disposed`>;
+  private _valueEnqueued?: Stream<VALUE, `ValueEnqueued`>;
+  private _valueDequeued?: Stream<VALUE, `ValueDequeued`>;
+  private _cleared?: Stream<void, `Cleared`>;
+  private _disposed?: Stream<void, `Disposed`>;
 
-  constructor(name = NAME as NAME) {
-    this.name = name;
-  }
+  constructor() {}
   [Symbol.iterator]() {
     return {
       next: () => {
@@ -67,24 +63,23 @@ export class Queue<VALUE, NAME extends string = Queue.Name> implements Iterable<
     return this._size;
   }
   get valueEnqueued() {
-    if (!this._valueEnqueued) this._valueEnqueued = new Stream(`${this.name}ValueEnqueued`);
+    if (!this._valueEnqueued) this._valueEnqueued = new Stream(`ValueEnqueued`);
     return this._valueEnqueued;
   }
   get valueDequeued() {
-    if (!this._valueDequeued) this._valueDequeued = new Stream(`${this.name}ValueDequeued`);
+    if (!this._valueDequeued) this._valueDequeued = new Stream(`ValueDequeued`);
     return this._valueDequeued;
   }
   get cleared() {
-    if (!this._cleared) this._cleared = new Stream(`${this.name}Cleared`);
+    if (!this._cleared) this._cleared = new Stream(`Cleared`);
     return this._cleared;
   }
   get disposed() {
-    if (!this._disposed) this._disposed = new Stream(`${this.name}Disposed`);
+    if (!this._disposed) this._disposed = new Stream(`Disposed`);
     return this._disposed;
   }
 }
 export namespace Queue {
-  export type Name = typeof NAME;
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
   export type DropStrategy = "newest" | "oldest";
   export const EMPTY = Symbol("$QUEUE_EMPTY#");
