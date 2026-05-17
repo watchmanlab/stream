@@ -1,6 +1,6 @@
 import { Stream } from "./stream.ts";
 
-export class Queue<VALUE> implements Iterable<VALUE>, AsyncDisposable, Disposable {
+export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
   private _head?: Queue.Node<VALUE>;
   private _tail?: Queue.Node<VALUE>;
   private _size = 0;
@@ -18,9 +18,7 @@ export class Queue<VALUE> implements Iterable<VALUE>, AsyncDisposable, Disposabl
       },
     };
   }
-  async [Symbol.asyncDispose]() {
-    await this.dispose();
-  }
+
   [Symbol.dispose]() {
     this.dispose();
   }
@@ -45,16 +43,18 @@ export class Queue<VALUE> implements Iterable<VALUE>, AsyncDisposable, Disposabl
     this._valueDequeued?.push(value);
     return value;
   }
-  clear() {
+  clear(): void {
     this._head = this._tail = undefined;
     this._cleared?.push();
   }
-  async dispose() {
+  dispose(): void {
     this.clear();
-    await Promise.all([this._valueEnqueued?.dispose(), this._valueDequeued?.dispose(), this._cleared?.dispose()]);
+    this._valueEnqueued?.dispose();
+    this._valueDequeued?.dispose();
+    this._cleared?.dispose();
 
     this._disposed?.push();
-    await this._disposed?.dispose();
+    this._disposed?.dispose();
 
     this._valueEnqueued = this._valueDequeued = this._cleared = this._disposed = undefined;
   }

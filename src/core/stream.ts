@@ -65,11 +65,12 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncDi
   ): OUTPUT_STREAM {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-  async dispose() {
-    await Promise.all([this._channels.dispose(), this._source?.return?.()]);
+  dispose(): void {
+    this._source?.return?.();
+    this._channels.dispose();
 
     this._disposed?.push();
-    await this._disposed?.dispose();
+    this._disposed?.dispose();
 
     this._source = this._disposed = undefined;
   }

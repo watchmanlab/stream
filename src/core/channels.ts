@@ -1,7 +1,7 @@
 import { Stream } from "./stream.ts";
 import { Channel } from "./channel.ts";
 
-export class Channels<VALUE> implements Iterable<Channel<VALUE>>, AsyncDisposable, Disposable {
+export class Channels<VALUE> implements Iterable<Channel<VALUE>>, Disposable {
   private _collection = new Set<Channel<VALUE>>();
   private _attached?: Stream<Channel<VALUE>, `ChannelAttached`>;
   private _detached?: Stream<Channel<VALUE>, `ChannelDetached`>;
@@ -12,13 +12,10 @@ export class Channels<VALUE> implements Iterable<Channel<VALUE>>, AsyncDisposabl
   [Symbol.iterator]() {
     return this._collection.values();
   }
-  async [Symbol.asyncDispose]() {
-    await this.dispose();
-  }
   [Symbol.dispose]() {
     this.dispose();
   }
-  get(options?: Channel.Options<VALUE>) {
+  get(options?: Channel.Options<VALUE>): Channel<VALUE> {
     const channel = new Channel<VALUE>({
       next: options?.next,
       return: () => {
@@ -27,7 +24,7 @@ export class Channels<VALUE> implements Iterable<Channel<VALUE>>, AsyncDisposabl
         options?.return?.();
       },
       ready: () => {
-        this.stream.source?.pull();
+        this.stream.source?.next();
         options?.ready?.();
       },
     });
@@ -35,23 +32,22 @@ export class Channels<VALUE> implements Iterable<Channel<VALUE>>, AsyncDisposabl
     this._attached?.push(channel);
     return channel;
   }
-  async clear() {
-    const promises = [];
+  clear(): void {
     for (const channel of this) {
-      promises.push(channel.return());
+      channel.return();
     }
-
-    await Promise.all(promises);
 
     this._cleared?.push();
 
-    await this._cleared?.dispose();
+    this._cleared?.dispose();
   }
-  async dispose() {
-    await Promise.all([this.clear(), this._attached?.dispose(), this._detached?.dispose()]);
+  dispose(): void {
+    this.clear();
+    this._attached?.dispose();
+    this._detached?.dispose();
 
     this._disposed?.push();
-    await this._disposed?.dispose();
+    this._disposed?.dispose();
 
     this._cleared = this._attached = this._detached = this._disposed = undefined;
   }

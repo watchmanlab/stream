@@ -2,7 +2,7 @@ import { Queue } from "./queue.ts";
 import { Source } from "./source.ts";
 import { Stream } from "./stream.ts";
 
-export class Channel<VALUE> implements Source.VoidIterator, AsyncDisposable, Disposable {
+export class Channel<VALUE> implements Source.VoidIterator, Disposable {
   private _buffer: Queue<Stream.Batch<VALUE>>;
   private _pending?: {
     promise: Promise<Stream.Batch<VALUE>>;
@@ -16,9 +16,6 @@ export class Channel<VALUE> implements Source.VoidIterator, AsyncDisposable, Dis
     this._buffer = new Queue();
   }
 
-  async [Symbol.asyncDispose]() {
-    await this.return();
-  }
   [Symbol.dispose]() {
     this.return();
   }
@@ -63,13 +60,14 @@ export class Channel<VALUE> implements Source.VoidIterator, AsyncDisposable, Dis
       if (batch.length) this.options?.next?.(batch);
     })();
   }
-  async return(): Promise<void> {
+  return(): void {
     this._pending?.resolve(Stream.EMPTY);
-
-    await Promise.all([this._buffer.dispose(), this._valueProcessing?.dispose(), this._valueProcessed?.dispose()]);
+    this._buffer.dispose();
+    this._valueProcessing?.dispose();
+    this._valueProcessed?.dispose();
 
     this._done?.push();
-    await this._done?.dispose();
+    this._done?.dispose();
 
     this.options?.return?.();
 

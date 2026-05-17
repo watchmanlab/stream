@@ -60,24 +60,22 @@ class Pump<
     this._channel?.next();
   }
 
-  async stop() {
+  stop() {
     if (!this._channel) return;
 
-    await this._channel?.return();
+    this._channel?.return();
     this._channel = undefined;
 
     this._stoped?.push();
     this.startOnSignal();
   }
-  override async dispose(): Promise<void> {
-    await Promise.all([
-      this.stop(),
-      this._options.startSignal?.dispose(),
-      this._options.stopSignal?.dispose(),
-      this._started?.dispose(),
-      this._stoped?.dispose(),
-      this._optionsChanged?.dispose(),
-    ]);
+  override dispose(): void {
+    this.stop();
+    this._options.startSignal?.dispose();
+    this._options.stopSignal?.dispose();
+    this._started?.dispose();
+    this._stoped?.dispose();
+    this._optionsChanged?.dispose();
 
     this._options.startSignal =
       this._options.stopSignal =
@@ -86,7 +84,7 @@ class Pump<
       this._optionsChanged =
         undefined;
 
-    await super.dispose();
+    super.dispose();
   }
   get isPumping() {
     return this._channel !== undefined;
@@ -166,9 +164,3 @@ function bench() {
 }
 
 bench(); //128ms
-
-async function test() {
-  return Promise.resolve(4);
-}
-
-console.log(await test());

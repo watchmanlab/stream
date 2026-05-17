@@ -1,7 +1,7 @@
 import { Channel } from "./channel.ts";
 import { Stream } from "./stream.ts";
 
-export class Source<VALUE> implements AsyncDisposable, Disposable {
+export class Source<VALUE> implements Disposable {
   private _iterator?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>> | Channel<VALUE>;
   private _requestingNext = false;
   private _error?: Stream<unknown, `SourceError`>;
@@ -26,16 +26,13 @@ export class Source<VALUE> implements AsyncDisposable, Disposable {
       this._iterator = (dataGenerator as any)[Symbol.asyncIterator]?.() ?? (dataGenerator as any)[Symbol.iterator]();
     }
   }
-  async [Symbol.asyncDispose]() {
-    await this.return();
-  }
   [Symbol.dispose]() {
     this.return();
   }
   ready() {
     this._requestingNext = false;
   }
-  pull() {
+  next() {
     if (!this._iterator || this._requestingNext) return;
     this._requestingNext = true;
 
@@ -67,7 +64,7 @@ export class Source<VALUE> implements AsyncDisposable, Disposable {
         this.stream.batch(result.value);
         this.ready();
       }
-    } catch (error: any) {
+    } catch (error) {
       this.throw(error);
       this.ready();
     }
@@ -79,10 +76,13 @@ export class Source<VALUE> implements AsyncDisposable, Disposable {
       );
     this._error?.push(error);
   }
-  async return() {
-    await Promise.all([this._iterator?.return?.(), this._error?.dispose()]);
+  return(): void {
+    this._iterator?.return?.();
+    this._error?.dispose();
+
     this._done?.push();
-    await this._done?.dispose();
+    this._done?.dispose();
+
     this._iterator = this._error = this._done = undefined;
   }
 
