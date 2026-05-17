@@ -4,7 +4,6 @@ import { Stream } from "./stream.ts";
 export class Source<VALUE> implements Disposable {
   private _iterator?: Iterator<Stream.Batch<VALUE>> | AsyncIterator<Stream.Batch<VALUE>> | Channel<VALUE>;
   private _requestingNext = false;
-  private _error?: Stream<unknown, `SourceError`>;
   private _done?: Stream<void, `SourceDone`>;
 
   constructor(
@@ -51,7 +50,7 @@ export class Source<VALUE> implements Disposable {
             this.ready();
           })
           .catch((error) => {
-            this.throw(error);
+            this.stream.batch([error]);
             this.ready();
           });
 
@@ -65,31 +64,20 @@ export class Source<VALUE> implements Disposable {
         this.ready();
       }
     } catch (error) {
-      this.throw(error);
+      this.stream.batch([error]);
       this.ready();
     }
   }
-  throw(error: unknown) {
-    if (!this._error?.channels.count)
-      Promise.reject(
-        `Unhandled error in "${this.stream.name}": ${error}\nConsume ${this.stream.name}.error to handle this.`,
-      );
-    this._error?.push(error);
-  }
+
   return(): void {
     this._iterator?.return?.();
-    this._error?.dispose();
 
     this._done?.push();
     this._done?.dispose();
 
-    this._iterator = this._error = this._done = undefined;
+    this._iterator = this._done = undefined;
   }
 
-  get error() {
-    if (!this._error) this._error = new Stream(`SourceError`);
-    return this._error;
-  }
   get done() {
     if (!this._done) {
       this._done = new Stream(`SourceDone`);
@@ -115,4 +103,17 @@ export namespace Source {
     | Iterable<Stream.Batch<VALUE>>
     | Channel<VALUE>
     | Stream<VALUE, any>;
+
+  export class Error<T, SOURCE extends Stream.AnyStream> extends globalThis.Error {
+    constructor(
+      public readonly data: T,
+      public readonly source: SOURCE,
+    ) {
+      super(typeof data === "string" ? data : "");
+    }
+    get sourceName(): SOURCE["name"] {
+      return this.source.name;
+    }
+    [Symbol.toStringTag] = `${this.sourceName} error`;
+  }
 }

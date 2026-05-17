@@ -17,7 +17,7 @@ export class Effect<
             try {
               callback(batch[i]);
             } catch (error) {
-              this.source?.throw(error);
+              //
             }
           }
           this.batch(batch);
