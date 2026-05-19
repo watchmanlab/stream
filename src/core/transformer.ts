@@ -8,7 +8,7 @@ export abstract class Transformer<INPUT_STREAM extends Stream.AnyStream, VALUE, 
   constructor(
     name: NAME,
     protected readonly inputStream: INPUT_STREAM,
-    dataGenerator?: Source.DataGenerator<VALUE>,
+    dataGenerator?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
   ) {
     super(name, dataGenerator);
 

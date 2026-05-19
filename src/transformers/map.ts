@@ -1,7 +1,7 @@
 import { Stream, Transformer } from "../core/index.ts";
 
 const NAME = "map";
-class Map<
+export class Map<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
@@ -14,13 +14,7 @@ class Map<
       inputStream,
       inputStream.channels.get({
         next: (batch) => {
-          for (let i = 0, length = batch.length; i < length; i++) {
-            try {
-              this.push(mapper(batch[i], ctx));
-            } catch (error) {
-              // this.push(error as);
-            }
-          }
+          this.batch(batch.map((value) => mapper(value, ctx)));
           this.source?.ready();
         },
         return: () => this.source?.return(),
@@ -32,11 +26,10 @@ export function map<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   MAPPED = VALUE,
-  CTX = {},
   NAME extends string = map.Name,
 >(
-  mapper: map.Mapper<VALUE, MAPPED, CTX>,
-): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, CTX, NAME>>;
+  mapper: map.Mapper<VALUE, MAPPED, {}>,
+): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, {}, NAME>>;
 export function map<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
@@ -58,10 +51,12 @@ export function map<
   mapper?: map.Mapper<VALUE, MAPPED, CTX>,
 ): Stream.Transform<INPUT_STREAM, NAME, Map<INPUT_STREAM, VALUE, MAPPED, CTX, NAME>> {
   return (inputStream, name) => {
-    const [_ctx, _mapper] = mapper
-      ? [ctxOrMapper as CTX, mapper]
-      : [undefined, ctxOrMapper as map.Mapper<VALUE, MAPPED, CTX>];
-    return new Map(name, inputStream, _mapper, _ctx);
+    return new Map(
+      name,
+      inputStream,
+      mapper ?? (ctxOrMapper as map.Mapper<VALUE, MAPPED, CTX>),
+      mapper ? (ctxOrMapper as CTX) : undefined,
+    );
   };
 }
 

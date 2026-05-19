@@ -1,3 +1,4 @@
+import { each } from "../transformers/each.ts";
 import { Channels } from "./channels.ts";
 import { Source } from "./source.ts";
 import { Transformer } from "./transformer.ts";
@@ -9,9 +10,12 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncDi
   private _channels: Channels<VALUE>;
   private _source?: Source<VALUE>;
   private _disposed?: Stream<void, `${NAME}Disposed`>;
-  constructor(name: NAME, dataGenerator?: Source.DataGenerator<VALUE>);
-  constructor(dataGenerator?: Source.DataGenerator<VALUE>);
-  constructor(nameOrDataGenerator?: NAME | Source.DataGenerator<VALUE>, dataGenerator?: Source.DataGenerator<VALUE>) {
+  constructor(name: NAME, dataGenerator?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
+  constructor(dataGenerator?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
+  constructor(
+    nameOrDataGenerator?: NAME | Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
+    dataGenerator?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
+  ) {
     if (typeof nameOrDataGenerator === "string") {
       this.name = nameOrDataGenerator;
     } else {

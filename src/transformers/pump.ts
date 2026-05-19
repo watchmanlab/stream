@@ -142,15 +142,15 @@ function bench() {
   const stream = new Stream<number>();
   const mapped = stream
     .pipe(
-      map((v, ctx) => {
-        if (v === 4) throw `kechmahaja ${v}`;
-        return { value: v, doubled: v * 2 };
+      map({ count: 0 }, (v, ctx) => {
+        ctx.count++;
+        return { value: v, doubled: v * 2, count: ctx.count };
       }),
     )
     .pipe(
-      effect((value) => {
+      each((value) => {
         if (value.value === MAX) {
-          console.log("each ", value.doubled, Math.round(performance.now() - start));
+          console.log("each ", value.count, Math.round(performance.now() - start));
         }
       }),
     )
@@ -161,4 +161,10 @@ function bench() {
   }
 }
 
-bench(); //128ms
+bench(); //69ms
+
+function test() {
+  new Stream([[1, 2, 3]]).pipe(each(console.log)).pipe(pump());
+}
+
+test();

@@ -1,8 +1,7 @@
 import { Queue } from "./queue.ts";
-import { Source } from "./source.ts";
 import { Stream } from "./stream.ts";
 
-export class Channel<VALUE> implements Source.VoidIterator, Disposable {
+export class Channel<VALUE> implements Disposable {
   private _buffer: Queue<Stream.Batch<VALUE>>;
   private _pending?: {
     promise: Promise<Stream.Batch<VALUE>>;
@@ -29,6 +28,7 @@ export class Channel<VALUE> implements Source.VoidIterator, Disposable {
     return this;
   }
   private _currentBatch: Stream.Batch<VALUE> = [];
+
   next(): void {
     if (this._currentBatch.length) {
       this._valueProcessed?.batch(this._currentBatch);
@@ -44,19 +44,20 @@ export class Channel<VALUE> implements Source.VoidIterator, Disposable {
     }
 
     (async () => {
+      let pendingPromise: Promise<Stream.Batch<VALUE>>;
+
       if (this._pending) {
-        batch = await this._pending.promise;
+        pendingPromise = this._pending.promise;
       } else {
-        (this._pending as any) = {};
-
-        this._pending!.promise = new Promise<Stream.Batch<VALUE>>((resolve) => {
-          this._pending!.resolve = resolve;
-          this.options?.ready?.();
+        let resolveRef: (value: Stream.Batch<VALUE>) => void;
+        pendingPromise = new Promise<Stream.Batch<VALUE>>((resolve) => {
+          resolveRef = resolve;
         });
-
-        batch = await this._pending!.promise;
+        this._pending = { promise: pendingPromise, resolve: resolveRef! };
+        this.options?.ready?.();
       }
 
+      batch = await pendingPromise;
       if (batch.length) this.options?.next?.(batch);
     })();
   }
