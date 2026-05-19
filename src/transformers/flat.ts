@@ -13,11 +13,11 @@ export class Flat<
       name,
       inputStream,
       inputStream.channels.get({
-        next: (batch) => {
+        onNext: (batch) => {
           this.batch(batch.flat(depth + 1) as FlatArray<VALUE, DEPTH>);
           this.source?.ready();
         },
-        return: () => this.source?.return(),
+        onReturn: () => this.source?.return(),
       }),
     );
   }

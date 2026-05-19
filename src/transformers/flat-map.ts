@@ -18,11 +18,11 @@ export class FlatMap<
       name,
       inputStream,
       inputStream.channels.get({
-        next: (batch) => {
+        onNext: (batch) => {
           this.batch(batch.flatMap((value) => mapper(value, ctx)));
           this.source?.ready();
         },
-        return: () => this.source?.return(),
+        onReturn: () => this.source?.return(),
       }),
     );
   }

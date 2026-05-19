@@ -34,7 +34,7 @@ class Pump<
   private startOnSignal() {
     const signal = this._options.startSignal;
     signal?.channels.get({
-      next: () => {
+      onNext: () => {
         if (signal === this._options.startSignal) this.start();
       },
     });
@@ -42,7 +42,7 @@ class Pump<
   private stopOnSignal() {
     const signal = this._options.stopSignal;
     signal?.channels.get({
-      next: () => {
+      onNext: () => {
         if (signal === this._options.stopSignal) this.stop();
       },
     });
@@ -55,7 +55,7 @@ class Pump<
     this.stopOnSignal();
 
     this._channel = this.inputStream.channels.get({
-      next: (batch) => {
+      onNext: (batch) => {
         this.batch(batch);
         this._channel?.next();
       },

@@ -5,9 +5,9 @@ import { Transformer } from "./transformer.ts";
 
 const NAME = "root";
 
-export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncDisposable, Disposable {
+export class Stream<VALUE, NAME extends string = Stream.Name> implements Disposable {
   readonly name: NAME;
-  private _channels: Channels<VALUE>;
+  private _channels: Channels<Stream.Batch<VALUE>>;
   private _source?: Source<VALUE>;
   private _disposed?: Stream<void, `${NAME}Disposed`>;
   constructor(name: NAME, sourceData?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
@@ -25,10 +25,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncDi
     if (sourceData) this._source = new Source(this, sourceData);
 
     this._channels = new Channels(this);
-  }
-
-  async [Symbol.asyncDispose]() {
-    await this.dispose();
   }
   [Symbol.dispose]() {
     this.dispose();
@@ -52,7 +48,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncDi
   batch(batch: Stream.Batch<VALUE>): this {
     if (!batch.length) return this;
     for (const channel of this._channels) {
-      channel.batch(batch);
+      channel.push(batch);
     }
     return this;
   }
@@ -71,14 +67,13 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncDi
   }
   dispose(): void {
     this._source?.return?.();
-    this._channels.dispose();
+    this._channels.clear();
 
     this._disposed?.push();
     this._disposed?.dispose();
 
     this._source = this._disposed = undefined;
   }
-
   get channels() {
     return this._channels;
   }

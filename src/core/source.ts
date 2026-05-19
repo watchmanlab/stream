@@ -3,7 +3,7 @@ import { Stream } from "./stream.ts";
 
 export class Source<VALUE> implements Disposable {
   private _requestingNext = false;
-  private _done?: Stream<void, `SourceDone`>;
+
   private _next?: () => void;
   private _return?: () => void;
 
@@ -13,7 +13,7 @@ export class Source<VALUE> implements Disposable {
       this._next = () => result.next();
       this._return = () => result.return();
     } else if (result instanceof Stream) {
-      const channel = result.channels.get();
+      const channel = result.channels.get({ onNext: (batch) => stream.batch(batch), onReturn: () => stream.dispose() });
       this._next = () => channel.next();
       this._return = () => channel.return();
     } else if (Symbol.iterator in result) {
@@ -64,7 +64,10 @@ export class Source<VALUE> implements Disposable {
             });
           };
         } else {
-          if (next.done) this.return();
+          if (!Array.isArray(next?.value) || next.done) {
+            this.return();
+            return;
+          }
           stream.batch(next.value);
           this.ready();
           this._next = () => {
@@ -92,23 +95,20 @@ export class Source<VALUE> implements Disposable {
     this._requestingNext = true;
     this._next?.();
   }
-
   return(): void {
     this._return?.();
-    this._done?.push();
-    this._done?.dispose();
 
-    this._return = this._next = this._done = undefined;
-  }
-
-  get done() {
-    if (!this._done) this._done = new Stream(`SourceDone`);
-    return this._done;
+    this._return = this._next = undefined;
   }
 }
 
 export namespace Source {
+  export type VoidIterator = {
+    next: () => void;
+    return?: () => void;
+  };
   export type SourceData<VALUE> =
+    | VoidIterator
     | AsyncGenerator<VALUE>
     | Generator<VALUE>
     | AsyncIterator<VALUE>
