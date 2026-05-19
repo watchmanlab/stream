@@ -1,6 +1,9 @@
 import { Channel, Stream, Transformer } from "../core/index.ts";
 import { each } from "./each.ts";
-import { effect } from "./effect.ts";
+import { tap } from "./tap.ts";
+import { filter } from "./filter.ts";
+import { flatMap } from "./flat-map.ts";
+import { flat } from "./flat.ts";
 import { map } from "./map.ts";
 
 const NAME = "pump";
@@ -142,9 +145,10 @@ function bench() {
   const stream = new Stream<number>();
   const mapped = stream
     .pipe(
-      map({ count: 0, v: 0 }, (v, ctx) => {
+      flatMap({ count: 0, v: 0 }, (v, ctx) => {
         ctx.count++;
         ctx.v = v;
+        if (v % 2 !== 0) return [];
         return v;
       }),
     )
@@ -165,7 +169,13 @@ function bench() {
 bench(); //40ms
 
 function test() {
-  new Stream([[1, 2, 3]]).pipe(each(console.log)).pipe(pump());
+  new Stream([[1, 2, 3, 4]])
+    .pipe(flat(-1))
+    .pipe(each((v) => console.log(v)))
+    //.         ^?
+    .pipe(pump())
+    .traversal.each.flat.disposed.pipe(each(console.log))
+    .pipe(pump());
 }
 
 test();

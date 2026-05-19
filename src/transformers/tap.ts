@@ -1,13 +1,13 @@
 import { Stream, Transformer } from "../core/index.ts";
 
-const NAME = "effect";
-export class Effect<
+const NAME = "tap";
+export class Tap<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   CTX = {},
-  NAME extends string = effect.Name,
+  NAME extends string = tap.Name,
 > extends Transformer<INPUT_STREAM, VALUE, NAME> {
-  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, callback: effect.Callback<VALUE, CTX>, ctx = {} as CTX) {
+  constructor(name = NAME as NAME, inputStream: INPUT_STREAM, callback: tap.Callback<VALUE, CTX>, ctx = {} as CTX) {
     super(
       name,
       inputStream,
@@ -24,40 +24,40 @@ export class Effect<
     );
   }
 }
-export function effect<
+export function tap<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   CTX = {},
-  NAME extends string = effect.Name,
->(callback: effect.Callback<VALUE, CTX>): Stream.Transform<INPUT_STREAM, NAME, Effect<INPUT_STREAM, VALUE, CTX, NAME>>;
-export function effect<
+  NAME extends string = tap.Name,
+>(callback: tap.Callback<VALUE, CTX>): Stream.Transform<INPUT_STREAM, NAME, Tap<INPUT_STREAM, VALUE, CTX, NAME>>;
+export function tap<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   CTX = {},
-  NAME extends string = effect.Name,
+  NAME extends string = tap.Name,
 >(
   ctx: CTX,
-  callback: effect.Callback<VALUE, CTX>,
-): Stream.Transform<INPUT_STREAM, NAME, Effect<INPUT_STREAM, VALUE, CTX, NAME>>;
-export function effect<
+  callback: tap.Callback<VALUE, CTX>,
+): Stream.Transform<INPUT_STREAM, NAME, Tap<INPUT_STREAM, VALUE, CTX, NAME>>;
+export function tap<
   INPUT_STREAM extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   CTX = {},
-  NAME extends string = effect.Name,
+  NAME extends string = tap.Name,
 >(
-  ctxOrCallback: CTX | effect.Callback<VALUE, CTX>,
-  callback?: effect.Callback<VALUE, CTX>,
-): Stream.Transform<INPUT_STREAM, NAME, Effect<INPUT_STREAM, VALUE, CTX, NAME>> {
+  ctxOrCallback: CTX | tap.Callback<VALUE, CTX>,
+  callback?: tap.Callback<VALUE, CTX>,
+): Stream.Transform<INPUT_STREAM, NAME, Tap<INPUT_STREAM, VALUE, CTX, NAME>> {
   return (inputStream, name) =>
-    new Effect(
+    new Tap(
       name,
       inputStream,
-      callback ?? (ctxOrCallback as effect.Callback<VALUE, CTX>),
+      callback ?? (ctxOrCallback as tap.Callback<VALUE, CTX>),
       callback ? (ctxOrCallback as CTX) : undefined,
     );
 }
 
-export namespace effect {
+export namespace tap {
   export type Name = typeof NAME;
   export type Callback<VALUE, CTX> = (value: VALUE, ctx: CTX) => void;
 }

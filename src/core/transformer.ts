@@ -8,9 +8,9 @@ export abstract class Transformer<INPUT_STREAM extends Stream.AnyStream, VALUE, 
   constructor(
     name: NAME,
     protected readonly inputStream: INPUT_STREAM,
-    dataGenerator?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
+    sourceData?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
   ) {
-    super(name, dataGenerator);
+    super(name, sourceData);
 
     return new Proxy(this, {
       get(target, p, receiver) {

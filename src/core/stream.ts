@@ -10,19 +10,19 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncDi
   private _channels: Channels<VALUE>;
   private _source?: Source<VALUE>;
   private _disposed?: Stream<void, `${NAME}Disposed`>;
-  constructor(name: NAME, dataGenerator?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
-  constructor(dataGenerator?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
+  constructor(name: NAME, sourceData?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
+  constructor(sourceData?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
   constructor(
-    nameOrDataGenerator?: NAME | Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
-    dataGenerator?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
+    nameOrSourceData?: NAME | Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
+    sourceData?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
   ) {
-    if (typeof nameOrDataGenerator === "string") {
-      this.name = nameOrDataGenerator;
+    if (typeof nameOrSourceData === "string") {
+      this.name = nameOrSourceData;
     } else {
       this.name = NAME as NAME;
-      dataGenerator = nameOrDataGenerator;
+      sourceData = nameOrSourceData;
     }
-    if (dataGenerator) this._source = new Source(this, dataGenerator);
+    if (sourceData) this._source = new Source(this, sourceData);
 
     this._channels = new Channels(this);
   }
@@ -56,14 +56,14 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements AsyncDi
     }
     return this;
   }
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME> | this>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME> | this>(
     name: OUTPUT_NAME,
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
-  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME>>(
+  pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME> | this>(
     nameOrTransform: OUTPUT_NAME | Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
     transform?: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM {
@@ -109,7 +109,7 @@ export namespace Stream {
   export type Transform<
     INPUT_STREAM extends AnyStream,
     OUTPUT_NAME extends string,
-    OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, OUTPUT_NAME>,
+    OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, OUTPUT_NAME> | INPUT_STREAM,
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
 
   export const EMPTY = [];

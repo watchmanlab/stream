@@ -1,4 +1,3 @@
-import { batch } from "../transformers/old/batch/batch.ts";
 import { Channel } from "./channel.ts";
 import { Stream } from "./stream.ts";
 
@@ -25,7 +24,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
-        stream.batch(result.value);
+        stream.push(result.value);
         this.ready();
       };
       this._return = () => iterator.return?.();
@@ -37,7 +36,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
-        stream.batch(result.value);
+        stream.push(result.value);
         this.ready();
       };
       this._return = () => iterator.return?.();
@@ -50,17 +49,17 @@ export class Source<VALUE> implements Disposable {
               this.return();
               return;
             }
-            stream.batch(result.value);
+            stream.push(result.value);
             this.ready();
           });
           this._next = () => {
-            const next = result.next() as Promise<IteratorResult<Stream.Batch<VALUE>>>;
+            const next = result.next() as Promise<IteratorResult<VALUE>>;
             next.then((result) => {
               if (result.done) {
                 this.return();
                 return;
               }
-              stream.batch(result.value);
+              stream.push(result.value);
               this.ready();
             });
           };
@@ -69,12 +68,12 @@ export class Source<VALUE> implements Disposable {
           stream.batch(next.value);
           this.ready();
           this._next = () => {
-            const next = result.next() as IteratorResult<Stream.Batch<VALUE>>;
+            const next = result.next() as IteratorResult<VALUE>;
             if (next.done) {
               this.return();
               return;
             }
-            stream.batch(next.value);
+            stream.push(next.value);
             this.ready();
           };
         }
@@ -110,13 +109,13 @@ export class Source<VALUE> implements Disposable {
 
 export namespace Source {
   export type SourceData<VALUE> =
-    | AsyncGenerator<Stream.Batch<VALUE>>
-    | Generator<Stream.Batch<VALUE>>
-    | AsyncIterator<Stream.Batch<VALUE>>
-    | Iterator<Stream.Batch<VALUE>>
+    | AsyncGenerator<VALUE>
+    | Generator<VALUE>
+    | AsyncIterator<VALUE>
+    | Iterator<VALUE>
     | Channel<VALUE>
     | Stream<VALUE, any>
-    | Iterable<Stream.Batch<VALUE>>
-    | AsyncIterable<Stream.Batch<VALUE>>;
+    | Iterable<VALUE>
+    | AsyncIterable<VALUE>;
   export type SourceDataFunction<VALUE> = () => SourceData<VALUE>;
 }
