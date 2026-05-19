@@ -13,9 +13,7 @@ export class Each<
       inputStream,
       inputStream.channels.get({
         next: async (batch) => {
-          for (let i = 0, length = batch.length; i < length; i++) {
-            callback(batch[i], ctx);
-          }
+          batch.map((value) => callback(value, ctx));
           this.batch(batch);
           this.source?.ready();
         },

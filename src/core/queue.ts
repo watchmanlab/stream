@@ -41,6 +41,9 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
     this._head = this._head.next;
 
     this._valueDequeued?.push(value);
+
+    if (!this._head) this._cleared?.push();
+
     return value;
   }
   clear(): void {

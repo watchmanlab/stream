@@ -14,9 +14,7 @@ export class Effect<
       inputStream.channels.get({
         next: (batch) => {
           queueMicrotask(() => {
-            for (let i = 0, length = batch.length; i < length; i++) {
-              callback(batch[i], ctx);
-            }
+            batch.map((value) => callback(value, ctx));
           });
           this.batch(batch);
           this.source?.ready();
