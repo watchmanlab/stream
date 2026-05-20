@@ -1,16 +1,13 @@
-import { Stream } from "./stream.ts";
 import { Channel } from "./channel.ts";
 
 export class Channels<VALUE> implements Iterable<Channel<VALUE>>, Disposable {
   private _collection = new Set<Channel<VALUE>>();
-  constructor(
-    private stream: Stream.AnyStream,
-    private options?: Channels.Options<VALUE>,
-  ) {}
-  [Symbol.iterator]() {
+
+  constructor(private options?: Channels.Options<VALUE>) {}
+  [Symbol.iterator](): SetIterator<Channel<VALUE>> {
     return this._collection.values();
   }
-  [Symbol.dispose]() {
+  [Symbol.dispose](): void {
     this.clear();
   }
   get(options: Channel.Options<VALUE>): Channel<VALUE> {
@@ -22,7 +19,7 @@ export class Channels<VALUE> implements Iterable<Channel<VALUE>>, Disposable {
         options?.return?.();
       },
       ready: () => {
-        this.stream.source?.next();
+        this.options?.ready?.();
         options?.ready?.();
       },
     });
@@ -49,5 +46,6 @@ export namespace Channels {
     attach?: (channel: Channel<VALUE>) => void;
     detach?: (channel: Channel<VALUE>) => void;
     clear?: (channels: Channel<VALUE>[]) => void;
+    ready?: () => void;
   };
 }

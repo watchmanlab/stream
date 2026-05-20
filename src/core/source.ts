@@ -1,31 +1,20 @@
-import { Channel } from "./channel.ts";
-import { Stream } from "./stream.ts";
-
 export class Source<VALUE> implements Disposable {
-  private _ready = true;
-
   private _next?: () => void;
   private _return?: () => void;
 
-  constructor(stream: Stream.AnyStream, sourceData: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>) {
-    const result = typeof sourceData === "function" ? sourceData() : sourceData;
-    if (result instanceof Channel) {
-      this._next = () => result.next();
-      this._return = () => result.return();
-    } else if (result instanceof Stream) {
-      const channel = result.channels.get({ next: (batch) => stream.batch(batch), return: () => stream.dispose() });
-      this._next = () => channel.next();
-      this._return = () => channel.return();
-    } else if (Symbol.iterator in result) {
+  constructor(private options: Source.Options<VALUE>) {
+    const result = typeof options.sourceData === "function" ? options.sourceData() : options.sourceData;
+    if (Symbol.iterator in result) {
       const iterator = result[Symbol.iterator]();
+
       this._next = () => {
         const result = iterator.next();
+
         if (result.done) {
           this.return();
           return;
         }
-        stream.batch([result.value]);
-        this.ready();
+        options.next(result.value);
       };
       this._return = () => iterator.return?.();
     } else if (Symbol.asyncIterator in result) {
@@ -36,8 +25,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
-        stream.batch([result.value]);
-        this.ready();
+        options.next(result.value);
       };
       this._return = () => iterator.return?.();
     } else {
@@ -49,8 +37,7 @@ export class Source<VALUE> implements Disposable {
               this.return();
               return;
             }
-            stream.batch([result.value]);
-            this.ready();
+            options.next(result.value);
           });
           this._next = () => {
             const next = result.next() as Promise<IteratorResult<VALUE>>;
@@ -59,25 +46,23 @@ export class Source<VALUE> implements Disposable {
                 this.return();
                 return;
               }
-              stream.batch([result.value]);
-              this.ready();
+              options.next(result.value);
             });
           };
         } else {
-          if (!Array.isArray(next?.value) || next.done) {
+          if (!(typeof next === "object") || !("value" in next) || next.done) {
             this.return();
             return;
           }
-          stream.batch(next.value);
-          this.ready();
+          options.next(next.value);
+
           this._next = () => {
             const next = result.next() as IteratorResult<VALUE>;
             if (next.done) {
               this.return();
               return;
             }
-            stream.batch([next.value]);
-            this.ready();
+            options.next(next.value);
           };
         }
       };
@@ -87,16 +72,13 @@ export class Source<VALUE> implements Disposable {
   [Symbol.dispose]() {
     this.return();
   }
-  ready(): void {
-    this._ready = true;
-  }
+
   next(): void {
-    if (!this._next || !this._ready) return;
-    this._ready = false;
     this._next?.();
   }
   return(): void {
     this._return?.();
+    this.options.return?.();
     this._return = this._next = undefined;
   }
 }
@@ -112,9 +94,13 @@ export namespace Source {
     | Generator<VALUE>
     | AsyncIterator<VALUE>
     | Iterator<VALUE>
-    | Channel<VALUE>
-    | Stream<VALUE, any>
     | Iterable<VALUE>
     | AsyncIterable<VALUE>;
   export type SourceDataFunction<VALUE> = () => SourceData<VALUE>;
+
+  export type Options<VALUE> = {
+    sourceData: SourceData<VALUE> | SourceDataFunction<VALUE>;
+    next: (value: VALUE) => void;
+    return?: () => void;
+  };
 }

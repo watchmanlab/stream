@@ -1,4 +1,5 @@
 import { Stream, Transformer } from "../core/index.ts";
+import { pump } from "./pump.ts";
 
 const NAME = "each";
 export class Each<
@@ -8,18 +9,16 @@ export class Each<
   NAME extends string = each.Name,
 > extends Transformer<INPUT_STREAM, VALUE, NAME> {
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, callback: each.Callback<VALUE, CTX>, ctx = {} as CTX) {
-    super(
-      name,
-      inputStream,
-      inputStream.channels.get({
-        next: (batch, channel) => {
-          batch.forEach((value) => callback(value, ctx));
-          this.batch(batch);
-          this.source?.ready();
-        },
-        return: () => this.source?.return(),
-      }),
-    );
+    const channel = inputStream.channels.get({
+      next: (batch) => {
+        batch.forEach((value) => callback(value, ctx));
+        this.batch(batch);
+      },
+    });
+    super(name, inputStream, {
+      next: () => channel.next(),
+      return: () => channel.return(),
+    });
   }
 }
 export function each<
@@ -59,3 +58,12 @@ export namespace each {
   export type Name = typeof NAME;
   export type Callback<VALUE, CTX> = (value: VALUE, ctx: CTX) => void;
 }
+
+function test() {
+  const stream = new Stream([1, 2, 3, 4])
+    // .pipe(batch(2))
+    .pipe(each((v) => console.log(v)))
+    .pipe(pump());
+}
+
+test();

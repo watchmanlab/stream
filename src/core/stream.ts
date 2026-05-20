@@ -21,9 +21,23 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Disposa
       this.name = NAME as NAME;
       sourceData = nameOrSourceData;
     }
-    if (sourceData) this._source = new Source(this, sourceData);
+    let ready = true;
+    if (sourceData)
+      this._source = new Source({
+        sourceData,
+        next: (value) => {
+          this.push(value);
+          ready = true;
+        },
+      });
 
-    this._channels = new Channels(this);
+    this._channels = new Channels({
+      ready: () => {
+        if (!ready) return;
+        ready = false;
+        this._source?.next();
+      },
+    });
   }
   [Symbol.dispose]() {
     this.dispose();

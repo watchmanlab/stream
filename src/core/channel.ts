@@ -20,6 +20,11 @@ export class Channel<VALUE> implements Disposable {
     return this;
   }
   next(): void {
+    if (this._pending > 0) {
+      this._pending++;
+      return;
+    }
+
     let value = this._queue.dequeue();
     if (value !== Queue.EMPTY) {
       this.options.next(value, this);
@@ -30,7 +35,7 @@ export class Channel<VALUE> implements Disposable {
     this.options.ready?.();
   }
   return(): void {
-    this._queue.clear();
+    // this._queue.clear();
     this.options.return?.();
   }
   get queue(): Queue<VALUE> {

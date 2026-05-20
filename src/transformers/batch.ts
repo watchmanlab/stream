@@ -16,7 +16,6 @@ export class Batch<
         this._buffer.push(...batch);
         if (this._buffer.length >= size) {
           this.batch(this._buffer.splice(0, size));
-          this.source?.ready();
         } else {
           inputChannel.next();
         }
@@ -26,7 +25,6 @@ export class Batch<
       next: () => {
         if (this._buffer.length >= size) {
           this.batch(this._buffer.splice(0, size));
-          this.source?.ready();
         } else {
           inputChannel.next();
         }
@@ -52,12 +50,3 @@ export function batch<
 export namespace batch {
   export type Name = typeof NAME;
 }
-
-function test() {
-  const stream = new Stream([1, 2, 3, 4])
-    // .pipe(batch(2))
-    .pipe(each((v) => console.log(v)))
-    .pipe(pump());
-}
-
-test();
