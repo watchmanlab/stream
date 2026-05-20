@@ -2,18 +2,18 @@ import { Queue } from "./queue.ts";
 
 export class Channel<VALUE> implements Disposable {
   private _queue: Queue<VALUE>;
-  private _pending = false;
+  private _pending = 0;
 
   constructor(private options: Channel.Options<VALUE>) {
     this._queue = options.queue ? options.queue : new Queue(options.queueOptions);
   }
-  [Symbol.dispose]() {
+  [Symbol.dispose](): void {
     this.return();
   }
   push(value: VALUE): this {
-    if (this._pending) {
-      this.options.next(value);
-      this._pending = false;
+    if (this._pending > 0) {
+      this.options.next(value, this);
+      this._pending--;
     } else {
       this._queue.enqueue(value);
     }
@@ -22,28 +22,28 @@ export class Channel<VALUE> implements Disposable {
   next(): void {
     let value = this._queue.dequeue();
     if (value !== Queue.EMPTY) {
-      this.options.next(value);
+      this.options.next(value, this);
       return;
     }
 
-    this._pending = true;
+    this._pending++;
     this.options.ready?.();
   }
   return(): void {
     this._queue.clear();
     this.options.return?.();
   }
-  get queue() {
+  get queue(): Queue<VALUE> {
     return this._queue;
   }
-  get pending() {
+  get pending(): number {
     return this._pending;
   }
 }
 
 export namespace Channel {
   export type Options<VALUE> = {
-    next: (value: VALUE) => void;
+    next: (value: VALUE, channel: Channel<VALUE>) => void;
     return?: () => void;
     ready?: () => void;
   } & ({ queue?: Queue<VALUE>; queueOptions?: never } | { queue?: never; queueOptions?: Queue.Options<VALUE> });

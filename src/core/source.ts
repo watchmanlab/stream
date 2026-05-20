@@ -2,7 +2,7 @@ import { Channel } from "./channel.ts";
 import { Stream } from "./stream.ts";
 
 export class Source<VALUE> implements Disposable {
-  private _requestingNext = false;
+  private _ready = true;
 
   private _next?: () => void;
   private _return?: () => void;
@@ -24,7 +24,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
-        stream.push(result.value);
+        stream.batch([result.value]);
         this.ready();
       };
       this._return = () => iterator.return?.();
@@ -36,7 +36,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
-        stream.push(result.value);
+        stream.batch([result.value]);
         this.ready();
       };
       this._return = () => iterator.return?.();
@@ -49,7 +49,7 @@ export class Source<VALUE> implements Disposable {
               this.return();
               return;
             }
-            stream.push(result.value);
+            stream.batch([result.value]);
             this.ready();
           });
           this._next = () => {
@@ -59,7 +59,7 @@ export class Source<VALUE> implements Disposable {
                 this.return();
                 return;
               }
-              stream.push(result.value);
+              stream.batch([result.value]);
               this.ready();
             });
           };
@@ -76,7 +76,7 @@ export class Source<VALUE> implements Disposable {
               this.return();
               return;
             }
-            stream.push(next.value);
+            stream.batch([next.value]);
             this.ready();
           };
         }
@@ -87,17 +87,16 @@ export class Source<VALUE> implements Disposable {
   [Symbol.dispose]() {
     this.return();
   }
-  ready() {
-    this._requestingNext = false;
+  ready(): void {
+    this._ready = true;
   }
-  next() {
-    if (!this._next || this._requestingNext) return;
-    this._requestingNext = true;
+  next(): void {
+    if (!this._next || !this._ready) return;
+    this._ready = false;
     this._next?.();
   }
   return(): void {
     this._return?.();
-
     this._return = this._next = undefined;
   }
 }

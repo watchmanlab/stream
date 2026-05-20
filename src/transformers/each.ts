@@ -12,8 +12,8 @@ export class Each<
       name,
       inputStream,
       inputStream.channels.get({
-        next: async (batch) => {
-          batch.map((value) => callback(value, ctx));
+        next: (batch, channel) => {
+          batch.forEach((value) => callback(value, ctx));
           this.batch(batch);
           this.source?.ready();
         },

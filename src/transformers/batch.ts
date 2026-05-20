@@ -54,7 +54,7 @@ export namespace batch {
 }
 
 function test() {
-  new Stream([1, 2, 3, 4])
+  const stream = new Stream([1, 2, 3, 4])
     // .pipe(batch(2))
     .pipe(each((v) => console.log(v)))
     .pipe(pump());

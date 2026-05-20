@@ -49,9 +49,9 @@ class Pump<
     this.stopOnSignal();
 
     this._channel = this.inputStream.channels.get({
-      next: (batch) => {
+      next: (batch, channel) => {
         this.batch(batch);
-        this._channel?.next();
+        channel.next();
       },
     });
     this._channel?.next();
