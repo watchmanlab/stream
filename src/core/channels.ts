@@ -3,7 +3,6 @@ import { Channel } from "./channel.ts";
 
 export class Channels<VALUE> implements Iterable<Channel<VALUE>>, Disposable {
   private _collection = new Set<Channel<VALUE>>();
-
   constructor(
     private stream: Stream.AnyStream,
     private options?: Channels.Options<VALUE>,
@@ -17,18 +16,18 @@ export class Channels<VALUE> implements Iterable<Channel<VALUE>>, Disposable {
   get(options: Channel.Options<VALUE>): Channel<VALUE> {
     const channel = new Channel<VALUE>({
       ...options,
-      onReturn: () => {
+      return: () => {
         this._collection.delete(channel);
-        this.options?.detached?.(channel);
-        options?.onReturn?.();
+        this.options?.detach?.(channel);
+        options?.return?.();
       },
-      onReady: () => {
+      ready: () => {
         this.stream.source?.next();
-        options?.onReady?.();
+        options?.ready?.();
       },
     });
     this._collection.add(channel);
-    this.options?.attached?.(channel);
+    this.options?.attach?.(channel);
     return channel;
   }
   clear(): void {
@@ -38,9 +37,8 @@ export class Channels<VALUE> implements Iterable<Channel<VALUE>>, Disposable {
       array.push(channel);
     }
 
-    this.options?.cleared?.(array);
+    this.options?.clear?.(array);
   }
-
   get count() {
     return this._collection.size;
   }
@@ -48,8 +46,8 @@ export class Channels<VALUE> implements Iterable<Channel<VALUE>>, Disposable {
 
 export namespace Channels {
   export type Options<VALUE> = {
-    attached?: (channel: Channel<VALUE>) => void;
-    detached?: (channel: Channel<VALUE>) => void;
-    cleared?: (channels: Channel<VALUE>[]) => void;
+    attach?: (channel: Channel<VALUE>) => void;
+    detach?: (channel: Channel<VALUE>) => void;
+    clear?: (channels: Channel<VALUE>[]) => void;
   };
 }

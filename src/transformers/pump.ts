@@ -1,10 +1,4 @@
 import { Channel, Stream, Transformer } from "../core/index.ts";
-import { each } from "./each.ts";
-import { tap } from "./tap.ts";
-import { filter } from "./filter.ts";
-import { flatMap } from "./flat-map.ts";
-import { flat } from "./flat.ts";
-import { map } from "./map.ts";
 
 const NAME = "pump";
 
@@ -34,7 +28,7 @@ class Pump<
   private startOnSignal() {
     const signal = this._options.startSignal;
     signal?.channels.get({
-      onNext: () => {
+      next: () => {
         if (signal === this._options.startSignal) this.start();
       },
     });
@@ -42,7 +36,7 @@ class Pump<
   private stopOnSignal() {
     const signal = this._options.stopSignal;
     signal?.channels.get({
-      onNext: () => {
+      next: () => {
         if (signal === this._options.stopSignal) this.stop();
       },
     });
@@ -55,7 +49,7 @@ class Pump<
     this.stopOnSignal();
 
     this._channel = this.inputStream.channels.get({
-      onNext: (batch) => {
+      next: (batch) => {
         this.batch(batch);
         this._channel?.next();
       },
@@ -137,45 +131,3 @@ export namespace pump {
   };
   export const defaultOptions = { autoStart: true };
 }
-
-function bench() {
-  const MAX = 1_000_000;
-  const start = performance.now();
-
-  const stream = new Stream<number>();
-  const mapped = stream
-    .pipe(
-      flatMap({ count: 0, v: 0 }, (v, ctx) => {
-        ctx.count++;
-        ctx.v = v;
-        if (v % 2 !== 0) return [];
-        return v;
-      }),
-    )
-    .pipe(
-      each((value) => {
-        if (value === MAX) {
-          console.log("each ", value, Math.round(performance.now() - start));
-        }
-      }),
-    )
-    .pipe(pump());
-
-  for (let i = 1; i <= MAX; i++) {
-    stream.push(i);
-  }
-}
-
-bench(); //40ms
-
-function test() {
-  new Stream([[1, 2, 3, 4]])
-    .pipe(flat(-1))
-    .pipe(each((v) => console.log(v)))
-    //.         ^?
-    .pipe(pump())
-    .traversal.each.flat.disposed.pipe(each(console.log))
-    .pipe(pump());
-}
-
-test();

@@ -13,7 +13,7 @@ export class Source<VALUE> implements Disposable {
       this._next = () => result.next();
       this._return = () => result.return();
     } else if (result instanceof Stream) {
-      const channel = result.channels.get({ onNext: (batch) => stream.batch(batch), onReturn: () => stream.dispose() });
+      const channel = result.channels.get({ next: (batch) => stream.batch(batch), return: () => stream.dispose() });
       this._next = () => channel.next();
       this._return = () => channel.return();
     } else if (Symbol.iterator in result) {

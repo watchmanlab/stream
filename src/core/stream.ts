@@ -1,4 +1,3 @@
-import { each } from "../transformers/each.ts";
 import { Channels } from "./channels.ts";
 import { Source } from "./source.ts";
 import { Transformer } from "./transformer.ts";
@@ -109,7 +108,4 @@ export namespace Stream {
 
   export const EMPTY = [];
   export type Empty = typeof EMPTY;
-  export function isEmpty<VALUE>(batch: Batch<VALUE>) {
-    return !batch.length;
-  }
 }

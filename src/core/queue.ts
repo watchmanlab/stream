@@ -25,7 +25,7 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
       this._tail!.next = node;
       this._tail = node;
     }
-    this.options?.onEnqueue?.(value);
+    this.options?.enqueue?.(value);
   }
   dequeue(): VALUE | Queue.Empty {
     if (!this._head) return Queue.EMPTY;
@@ -34,16 +34,16 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
     const value = this._head.value;
     this._head = this._head.next;
 
-    this.options?.onDequeue?.(value);
+    this.options?.dequeue?.(value);
 
-    if (!this._head) this.options?.onEmpty?.();
+    if (!this._head) this.options?.empty?.();
 
     return value;
   }
   clear(): void {
     const array = [...this];
     this._head = this._tail = undefined;
-    this.options?.onClear?.(array);
+    this.options?.clear?.(array);
   }
 
   get size() {
@@ -53,10 +53,10 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
 export namespace Queue {
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
   export type Options<VALUE> = {
-    onEnqueue?: (value: VALUE) => void;
-    onDequeue?: (value: VALUE) => void;
-    onClear?: (values: VALUE[]) => void;
-    onEmpty?: () => void;
+    enqueue?: (value: VALUE) => void;
+    dequeue?: (value: VALUE) => void;
+    clear?: (values: VALUE[]) => void;
+    empty?: () => void;
   };
   export const EMPTY = Symbol("$QUEUE_EMPTY#");
   export type Empty = typeof EMPTY;

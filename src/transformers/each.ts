@@ -12,12 +12,12 @@ export class Each<
       name,
       inputStream,
       inputStream.channels.get({
-        onNext: async (batch) => {
+        next: async (batch) => {
           batch.map((value) => callback(value, ctx));
           this.batch(batch);
           this.source?.ready();
         },
-        onReturn: () => this.source?.return(),
+        return: () => this.source?.return(),
       }),
     );
   }
