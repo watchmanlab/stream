@@ -9,32 +9,30 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Disposa
   private _channels: Channels<Stream.Batch<VALUE>>;
   private _source?: Source<VALUE>;
   private _disposed?: Stream<void, `${NAME}Disposed`>;
-  constructor(name: NAME, sourceData?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
-  constructor(sourceData?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
+  constructor(name: NAME, source?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
+  constructor(source?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
   constructor(
-    nameOrSourceData?: NAME | Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
-    sourceData?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
+    nameOrSource?: NAME | Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
+    source?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>,
   ) {
-    if (typeof nameOrSourceData === "string") {
-      this.name = nameOrSourceData;
+    if (typeof nameOrSource === "string") {
+      this.name = nameOrSource;
     } else {
       this.name = NAME as NAME;
-      sourceData = nameOrSourceData;
+      source = nameOrSource;
     }
-    let ready = true;
-    if (sourceData)
+
+    if (source) {
       this._source = new Source({
-        sourceData,
+        sourceData: source,
         next: (value) => {
-          this.push(value);
-          ready = true;
+          this.batch([value]);
         },
       });
+    }
 
     this._channels = new Channels({
       ready: () => {
-        if (!ready) return;
-        ready = false;
         this._source?.next();
       },
     });

@@ -12,7 +12,6 @@ class Pump<
   private _started?: Stream<void, `Started`>;
   private _stoped?: Stream<void, `Stoped`>;
   private _optionsChanged?: Stream<{ old: pump.Options; new: pump.Options }, `OptionsChanged`>;
-
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, options?: pump.Options) {
     super(name, inputStream);
 
@@ -24,7 +23,6 @@ class Pump<
       this.startOnSignal();
     }
   }
-
   private startOnSignal() {
     const signal = this._options.startSignal;
     signal?.channels.get({
@@ -41,7 +39,7 @@ class Pump<
       },
     });
   }
-  start() {
+  start(): void {
     if (this._channel) return;
 
     this._started?.push();
@@ -54,10 +52,11 @@ class Pump<
         channel.next();
       },
     });
+
     this._channel?.next();
   }
 
-  stop() {
+  stop(): void {
     if (!this._channel) return;
 
     this._channel?.return();

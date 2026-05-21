@@ -1,4 +1,5 @@
 export class Source<VALUE> implements Disposable {
+  private _ready = true;
   private _next?: () => void;
   private _return?: () => void;
 
@@ -6,7 +7,6 @@ export class Source<VALUE> implements Disposable {
     const result = typeof options.sourceData === "function" ? options.sourceData() : options.sourceData;
     if (Symbol.iterator in result) {
       const iterator = result[Symbol.iterator]();
-
       this._next = () => {
         const result = iterator.next();
 
@@ -14,6 +14,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
+        this.ready();
         options.next(result.value);
       };
       this._return = () => iterator.return?.();
@@ -25,6 +26,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
+        this.ready();
         options.next(result.value);
       };
       this._return = () => iterator.return?.();
@@ -37,6 +39,7 @@ export class Source<VALUE> implements Disposable {
               this.return();
               return;
             }
+            this.ready();
             options.next(result.value);
           });
           this._next = () => {
@@ -46,14 +49,21 @@ export class Source<VALUE> implements Disposable {
                 this.return();
                 return;
               }
+              this.ready();
               options.next(result.value);
             });
           };
         } else {
-          if (!(typeof next === "object") || !("value" in next) || next.done) {
+          if (!(typeof next === "object") || !("value" in next) || !next) {
+            this._next = () => result.next();
+            return;
+          }
+
+          if (next.done) {
             this.return();
             return;
           }
+          this.ready();
           options.next(next.value);
 
           this._next = () => {
@@ -62,6 +72,7 @@ export class Source<VALUE> implements Disposable {
               this.return();
               return;
             }
+            this.ready();
             options.next(next.value);
           };
         }
@@ -73,7 +84,12 @@ export class Source<VALUE> implements Disposable {
     this.return();
   }
 
+  ready() {
+    this._ready = true;
+  }
   next(): void {
+    if (!this._ready) return;
+    this._ready = false;
     this._next?.();
   }
   return(): void {
