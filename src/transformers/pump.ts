@@ -52,7 +52,6 @@ class Pump<
         channel.next();
       },
     });
-
     this._channel?.next();
   }
 

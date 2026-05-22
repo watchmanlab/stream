@@ -18,9 +18,9 @@ export class Channels<VALUE> implements Iterable<Channel<VALUE>>, Disposable {
         this.options?.detach?.(channel);
         options?.return?.();
       },
-      ready: () => {
-        this.options?.ready?.();
-        options?.ready?.();
+      pull: () => {
+        this.options?.pull?.();
+        options?.pull?.();
       },
     });
     this._collection.add(channel);
@@ -46,6 +46,6 @@ export namespace Channels {
     attach?: (channel: Channel<VALUE>) => void;
     detach?: (channel: Channel<VALUE>) => void;
     clear?: (channels: Channel<VALUE>[]) => void;
-    ready?: () => void;
+    pull?: () => void;
   };
 }

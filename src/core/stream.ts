@@ -32,7 +32,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Disposa
     }
 
     this._channels = new Channels({
-      ready: () => {
+      pull: () => {
         this._source?.next();
       },
     });

@@ -26,7 +26,7 @@ export class Channel<VALUE> implements Disposable {
     }
 
     this._pending++;
-    this.options.ready?.();
+    this.options.pull?.();
   }
   return(): void {
     this._queue.clear();
@@ -44,6 +44,6 @@ export namespace Channel {
   export type Options<VALUE> = {
     next: (value: VALUE, channel: Channel<VALUE>) => void;
     return?: () => void;
-    ready?: () => void;
+    pull?: () => void;
   } & ({ queue?: Queue<VALUE>; queueOptions?: never } | { queue?: never; queueOptions?: Queue.Options<VALUE> });
 }

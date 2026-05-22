@@ -14,11 +14,16 @@ export class Each<
       inputStream,
       inputStream.channels.get({
         next: (batch) => {
-          for (let i = 0, length = batch.length; i < length; i++) {
-            callback(batch[i], ctx);
+          switch (batch.length) {
+            case 1:
+              callback(batch[0], ctx);
+              break;
+            default:
+              for (let i = 0, length = batch.length; i < length; i++) {
+                callback(batch[i], ctx);
+              }
           }
 
-          this.source?.ready();
           this.batch(batch);
         },
       }),
@@ -63,26 +68,26 @@ export namespace each {
   export type Callback<VALUE, CTX> = (value: VALUE, ctx: CTX) => void;
 }
 
-function test() {
+function bench() {
   const MAX = 70_000_000;
   const start = performance.now();
 
-  const stream = new Stream([1, 2, 3]);
+  const stream = new Stream<number>([1, 2, 3]);
 
   stream
     .pipe(
       each((v) => {
-        if (v === MAX) console.log("each1", v, "ops ->", Math.round(performance.now() - start), "ms");
+        if (v === MAX) console.log("each1", v.toLocaleString(), "ops ->", Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
       each((v) => {
-        if (v === MAX) console.log("each2", v, "ops ->", Math.round(performance.now() - start), "ms");
+        if (v === MAX) console.log("each2", v.toLocaleString(), "ops ->", Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
       each((v) => {
-        if (v === MAX) console.log("each3", v, "ops ->", Math.round(performance.now() - start), "ms");
+        if (v === MAX) console.log("each3", v.toLocaleString(), "ops ->", Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(pump());
@@ -96,8 +101,22 @@ function test() {
   // stream.batch([33]);
 }
 
-test();
+bench();
 //log
-// each1 70000000 ops -> 871 ms
-// each2 70000000 ops -> 1005 ms
-// each3 70000000 ops -> 1139 ms
+// each1 70,000,000 ops -> 854 ms
+// each2 70,000,000 ops -> 966 ms
+// each3 70,000,000 ops -> 1078 ms
+
+// function test() {
+//   const stream = new Stream([1, 2, 3]);
+
+//   stream.pipe(each((v) => console.log(v))).pipe(pump());
+//   stream.pipe(each((v) => console.log("e2", v))).pipe(pump());
+
+//   // stream.batch([4, 5, 6]);
+//   // stream.push(7);
+//   // stream.push(8);
+//   // stream.push(9);
+// }
+
+// test();
