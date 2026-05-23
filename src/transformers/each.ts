@@ -101,22 +101,22 @@ function bench() {
   // stream.batch([33]);
 }
 
-bench();
+// bench();
 //log
 // each1 70,000,000 ops -> 854 ms
 // each2 70,000,000 ops -> 966 ms
 // each3 70,000,000 ops -> 1078 ms
 
-// function test() {
-//   const stream = new Stream([1, 2, 3]);
+function test() {
+  const stream = new Stream([1, 2, 3]);
 
-//   stream.pipe(each((v) => console.log(v))).pipe(pump());
-//   stream.pipe(each((v) => console.log("e2", v))).pipe(pump());
+  stream.pipe(each((v) => console.log(v))).pipe(pump());
+  stream.pipe(each((v) => console.log("e2", v))).pipe(pump());
 
-//   // stream.batch([4, 5, 6]);
-//   // stream.push(7);
-//   // stream.push(8);
-//   // stream.push(9);
-// }
+  // stream.batch([4, 5, 6]);
+  // stream.push(7);
+  // stream.push(8);
+  // stream.push(9);
+}
 
-// test();
+test();

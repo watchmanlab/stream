@@ -2,6 +2,7 @@ import { Channel } from "./channel";
 import { type Stream } from "./stream";
 
 export class Source<VALUE> implements Disposable {
+  private _done = false;
   private _next?: () => void;
   private _return?: () => void;
 
@@ -83,9 +84,13 @@ export class Source<VALUE> implements Disposable {
     this._next?.();
   }
   return(): void {
+    this._done = true;
     this._return?.();
     this.options.return?.();
     this._return = this._next = undefined;
+  }
+  get done() {
+    return this._done;
   }
 }
 

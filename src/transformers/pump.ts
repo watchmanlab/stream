@@ -64,23 +64,7 @@ class Pump<
     this._stoped?.push();
     this.startOnSignal();
   }
-  override dispose(): void {
-    this.stop();
-    this._options.startSignal?.dispose();
-    this._options.stopSignal?.dispose();
-    this._started?.dispose();
-    this._stoped?.dispose();
-    this._optionsChanged?.dispose();
 
-    this._options.startSignal =
-      this._options.stopSignal =
-      this._started =
-      this._stoped =
-      this._optionsChanged =
-        undefined;
-
-    super.dispose();
-  }
   get isPumping() {
     return this._channel !== undefined;
   }

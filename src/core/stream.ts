@@ -4,11 +4,11 @@ import { Transformer } from "./transformer.ts";
 
 const NAME = "root";
 
-export class Stream<VALUE, NAME extends string = Stream.Name> implements Disposable {
+export class Stream<VALUE, NAME extends string = Stream.Name> {
   readonly name: NAME;
   private _channels: Channels<Stream.Batch<VALUE>>;
   private _source?: Source<VALUE>;
-  private _disposed?: Stream<void, `${NAME}Disposed`>;
+
   constructor(name: NAME, source?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
   constructor(source?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
   constructor(
@@ -32,14 +32,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Disposa
     }
 
     this._channels = new Channels({
-      pull: () => {
-        this._source?.next();
-      },
+      pull: this._source ? () => this._source!.next() : undefined,
     });
   }
-  [Symbol.dispose]() {
-    this.dispose();
-  }
+
   private _batch: Stream.Batch<VALUE> = [];
   private _batchScheduled = false;
   push(value: VALUE): this {
@@ -76,26 +72,12 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Disposa
   ): OUTPUT_STREAM {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-  dispose(): void {
-    this._source?.return?.();
-    this._channels.clear();
 
-    this._disposed?.push();
-    this._disposed?.dispose();
-
-    this._source = this._disposed = undefined;
-  }
   get channels() {
     return this._channels;
   }
   get source() {
     return this._source;
-  }
-  get disposed() {
-    if (!this._disposed) {
-      this._disposed = new Stream(`${this.name}Disposed`);
-    }
-    return this._disposed;
   }
 }
 
