@@ -17,7 +17,7 @@ export class FlatMap<
     super(
       name,
       inputStream,
-      inputStream.channels.get({
+      inputStream.consumers.get({
         next: (batch) => {
           this.batch(batch.flatMap((value) => mapper(value, ctx)));
           this.source?.ready();

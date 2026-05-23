@@ -12,7 +12,7 @@ export class Flat<
     super(
       name,
       inputStream,
-      inputStream.channels.get({
+      inputStream.consumers.get({
         next: (batch) => {
           this.batch(batch.flat(depth + 1) as FlatArray<VALUE, DEPTH>);
           this.source?.ready();

@@ -1,4 +1,5 @@
-import { Channels } from "./channels.ts";
+import { Consumer } from "./consumer.ts";
+import { Consumers } from "./consumers.ts";
 import { Source } from "./source.ts";
 import { Transformer } from "./transformer.ts";
 
@@ -6,7 +7,7 @@ const NAME = "root";
 
 export class Stream<VALUE, NAME extends string = Stream.Name> {
   readonly name: NAME;
-  private _channels: Channels<Stream.Batch<VALUE>>;
+  private _consumers: Consumers<Stream.Batch<VALUE>>;
   private _source?: Source<VALUE>;
 
   constructor(name: NAME, source?: Source.SourceData<VALUE> | Source.SourceDataFunction<VALUE>);
@@ -28,10 +29,11 @@ export class Stream<VALUE, NAME extends string = Stream.Name> {
         next: (value) => {
           this.batch([value]);
         },
+        return: () => this._consumers.clear(),
       });
     }
 
-    this._channels = new Channels({
+    this._consumers = new Consumers({
       pull: this._source ? () => this._source!.next() : undefined,
     });
   }
@@ -54,8 +56,8 @@ export class Stream<VALUE, NAME extends string = Stream.Name> {
   }
   batch(batch: Stream.Batch<VALUE>): this {
     if (!batch.length) return this;
-    for (const channel of this._channels) {
-      channel.push(batch);
+    for (const consumer of this._consumers) {
+      consumer.push(batch);
     }
     return this;
   }
@@ -73,8 +75,8 @@ export class Stream<VALUE, NAME extends string = Stream.Name> {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
 
-  get channels() {
-    return this._channels;
+  get consumers() {
+    return this._consumers;
   }
   get source() {
     return this._source;
@@ -100,6 +102,15 @@ export namespace Stream {
     OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, OUTPUT_NAME> | INPUT_STREAM,
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
 
+  export type Source<VALUE> =
+    | Stream<VALUE>
+    | AsyncGenerator<VALUE>
+    | Generator<VALUE>
+    | AsyncIterator<VALUE>
+    | Iterator<VALUE>
+    | Iterable<VALUE>
+    | AsyncIterable<VALUE>;
+  export type SourceFunction<VALUE> = () => Source<VALUE>;
   export const EMPTY = [];
   export type Empty = typeof EMPTY;
 }

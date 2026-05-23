@@ -12,7 +12,7 @@ export class Map<
     super(
       name,
       inputStream,
-      inputStream.channels.get({
+      inputStream.consumers.get({
         next: (batch) => {
           this.batch(batch.map((value) => mapper(value, ctx)));
           this.source?.ready();

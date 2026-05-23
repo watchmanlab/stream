@@ -11,7 +11,7 @@ export class Batch<
 > extends Transformer<INPUT_STREAM, VALUE, NAME> {
   private _buffer: VALUE[] = [];
   constructor(name = NAME as NAME, inputStream: INPUT_STREAM, size: number) {
-    const inputChannel = inputStream.channels.get({
+    const inputChannel = inputStream.consumers.get({
       next: (batch) => {
         this._buffer.push(...batch);
         if (this._buffer.length >= size) {

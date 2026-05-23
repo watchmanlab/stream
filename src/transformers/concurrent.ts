@@ -1,4 +1,4 @@
-import { Channel, Queue, Source, Stream, Transformer } from "../core/index.ts";
+import { Consumer, Queue, Source, Stream, Transformer } from "../core/index.ts";
 
 const NAME = "concurrent";
 
@@ -22,13 +22,13 @@ class Concurrent<
   ) {
     super(name, inputStream, () => {
       const output = new Stream<VALUE>();
-      const outputChannel = output.channels.get();
+      const outputChannel = output.consumers.get();
 
       const buffer: Stream.Batch<VALUE>[] = [];
 
       let counter = 0;
 
-      const input = inputStream.channels.get();
+      const input = inputStream.consumers.get();
 
       return {
         next: async () => {

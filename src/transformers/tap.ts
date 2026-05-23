@@ -11,7 +11,7 @@ export class Tap<
     super(
       name,
       inputStream,
-      inputStream.channels.get({
+      inputStream.consumers.get({
         next: (batch) => {
           queueMicrotask(() => {
             batch.map((value) => callback(value, ctx));

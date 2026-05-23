@@ -12,7 +12,7 @@ export class Each<
     super(
       name,
       inputStream,
-      inputStream.channels.get({
+      inputStream.consumers.get({
         next: (batch) => {
           switch (batch.length) {
             case 1:

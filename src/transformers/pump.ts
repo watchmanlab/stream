@@ -1,4 +1,4 @@
-import { Channel, Stream, Transformer } from "../core/index.ts";
+import { Consumer, Stream, Transformer } from "../core/index.ts";
 
 const NAME = "pump";
 
@@ -7,7 +7,7 @@ class Pump<
   VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
   NAME extends string = pump.Name,
 > extends Transformer<INPUT_STREAM, VALUE, NAME> {
-  private _channel?: Channel<Stream.Batch<VALUE>>;
+  private _consumer?: Consumer<Stream.Batch<VALUE>>;
   private _options: pump.Options;
   private _started?: Stream<void, `Started`>;
   private _stoped?: Stream<void, `Stoped`>;
@@ -25,7 +25,7 @@ class Pump<
   }
   private startOnSignal() {
     const signal = this._options.startSignal;
-    signal?.channels.get({
+    signal?.consumers.get({
       next: () => {
         if (signal === this._options.startSignal) this.start();
       },
@@ -33,40 +33,40 @@ class Pump<
   }
   private stopOnSignal() {
     const signal = this._options.stopSignal;
-    signal?.channels.get({
+    signal?.consumers.get({
       next: () => {
         if (signal === this._options.stopSignal) this.stop();
       },
     });
   }
   start(): void {
-    if (this._channel) return;
+    if (this._consumer) return;
 
     this._started?.push();
 
     this.stopOnSignal();
 
-    this._channel = this.inputStream.channels.get({
-      next: (batch, channel) => {
+    this._consumer = this.inputStream.consumers.get({
+      next: (batch, consumer) => {
         this.batch(batch);
-        channel.next();
+        consumer.next();
       },
     });
-    this._channel?.next();
+    this._consumer?.next();
   }
 
   stop(): void {
-    if (!this._channel) return;
+    if (!this._consumer) return;
 
-    this._channel?.return();
-    this._channel = undefined;
+    this._consumer?.return();
+    this._consumer = undefined;
 
     this._stoped?.push();
     this.startOnSignal();
   }
 
   get isPumping() {
-    return this._channel !== undefined;
+    return this._consumer !== undefined;
   }
   get options() {
     return { ...this._options };

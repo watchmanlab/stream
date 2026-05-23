@@ -1,4 +1,4 @@
-import { Channel } from "./channel";
+import { Consumer } from "./consumer";
 import { type Stream } from "./stream";
 
 export class Source<VALUE> implements Disposable {
@@ -8,7 +8,7 @@ export class Source<VALUE> implements Disposable {
 
   constructor(private options: Source.Options<VALUE>) {
     const result = typeof options.sourceData === "function" ? options.sourceData() : options.sourceData;
-    if (result instanceof Channel) {
+    if (result instanceof Consumer) {
       this._next = () => result.next();
       this._return = () => result.return();
     } else if (Symbol.iterator in result) {
@@ -96,7 +96,7 @@ export class Source<VALUE> implements Disposable {
 
 export namespace Source {
   export type SourceData<VALUE> =
-    | Channel<Stream.Batch<VALUE>>
+    | Consumer<Stream.Batch<VALUE>>
     | AsyncGenerator<VALUE>
     | Generator<VALUE>
     | AsyncIterator<VALUE>

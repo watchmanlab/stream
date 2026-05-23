@@ -18,7 +18,7 @@ export class Filter<
     super(
       name,
       inputStream,
-      inputStream.channels.get({
+      inputStream.consumers.get({
         next: (batch) => {
           this.batch(batch.filter((value) => predicate(value, ctx)));
           this.source?.ready();

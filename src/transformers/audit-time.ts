@@ -13,7 +13,7 @@ export class AuditTime<INPUT_STREAM extends Stream.AnyStream, NAME extends strin
     super(
       name,
       inputStream,
-      inputStream.channels.get({
+      inputStream.consumers.get({
         next: (batch) => {
           batch.forEach((value) => {
             if (!canEmit) return;
