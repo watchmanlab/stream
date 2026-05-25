@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Bun: Debug Sandbox",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["--inspect-brk", "run", "${relativeFile}"],
+      "attachSimplePort": 9229,
+      "console": "integratedTerminal"
+    },
+    {
+      "type": "node",
+      "request": "attach",
+      "name": "Attach to Bun",
+      "port": 6499,
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

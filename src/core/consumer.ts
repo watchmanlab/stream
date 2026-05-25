@@ -49,10 +49,9 @@ export namespace Consumer {
   } & ({ queue?: Queue<VALUE>; queueOptions?: never } | { queue?: never; queueOptions?: Queue.Options<VALUE> });
 }
 
-const MAX = 250_000_000;
-const start = performance.now();
-
 function test() {
+  const MAX = 250_000_000;
+  const start = performance.now();
   const consumer = new Consumer({
     next(value, consumer) {
       if (value === MAX) console.log(value.toLocaleString("fr"), "ops", Math.round(performance.now() - start), "ms");
@@ -65,4 +64,4 @@ function test() {
   }
 }
 
-test(); // 300000000 ops 1173 ms
+// test(); // 300000000 ops 1173 ms

@@ -102,15 +102,6 @@ export namespace Stream {
     OUTPUT_STREAM extends Transformer<INPUT_STREAM, any, OUTPUT_NAME> | INPUT_STREAM,
   > = (inputStream: INPUT_STREAM, name?: OUTPUT_NAME) => OUTPUT_STREAM;
 
-  export type Source<VALUE> =
-    | Stream<VALUE>
-    | AsyncGenerator<VALUE>
-    | Generator<VALUE>
-    | AsyncIterator<VALUE>
-    | Iterator<VALUE>
-    | Iterable<VALUE>
-    | AsyncIterable<VALUE>;
-  export type SourceFunction<VALUE> = () => Source<VALUE>;
   export const EMPTY = [];
   export type Empty = typeof EMPTY;
 }

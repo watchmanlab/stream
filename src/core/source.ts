@@ -2,7 +2,7 @@ import { Consumer } from "./consumer";
 import { type Stream } from "./stream";
 
 export class Source<VALUE> implements Disposable {
-  private _done = false;
+  private _ready = true;
   private _next?: () => void;
   private _return?: () => void;
 
@@ -20,7 +20,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
-
+        this.ready();
         options.next(result.value);
       };
       this._return = () => iterator.return?.();
@@ -32,6 +32,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
+        this.ready();
         options.next(result.value);
       };
       this._return = () => iterator.return?.();
@@ -44,6 +45,7 @@ export class Source<VALUE> implements Disposable {
               this.return();
               return;
             }
+            this.ready();
             options.next(result.value);
           });
           this._next = () => {
@@ -53,7 +55,7 @@ export class Source<VALUE> implements Disposable {
                 this.return();
                 return;
               }
-
+              this.ready();
               options.next(result.value);
             });
           };
@@ -62,6 +64,7 @@ export class Source<VALUE> implements Disposable {
             this.return();
             return;
           }
+          this.ready();
           options.next(next.value);
           this._next = () => {
             const next = result.next() as IteratorResult<VALUE>;
@@ -69,6 +72,7 @@ export class Source<VALUE> implements Disposable {
               this.return();
               return;
             }
+            this.ready();
             options.next(next.value);
           };
         }
@@ -80,17 +84,19 @@ export class Source<VALUE> implements Disposable {
     this.return();
   }
 
+  ready() {
+    this._ready = true;
+  }
   next(): void {
+    if (!this._ready) return;
+    this._ready = false;
     this._next?.();
   }
   return(): void {
-    this._done = true;
+    this._ready = false;
     this._return?.();
     this.options.return?.();
     this._return = this._next = undefined;
-  }
-  get done() {
-    return this._done;
   }
 }
 

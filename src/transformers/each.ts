@@ -23,7 +23,7 @@ export class Each<
                 callback(batch[i], ctx);
               }
           }
-
+          this.source?.ready();
           this.batch(batch);
         },
       }),
@@ -77,17 +77,20 @@ function bench() {
   stream
     .pipe(
       each((v) => {
-        if (v === MAX) console.log("each1", v.toLocaleString(), "ops ->", Math.round(performance.now() - start), "ms");
+        if (v === MAX)
+          console.log("each1", v.toLocaleString("fr"), "ops ->", Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
       each((v) => {
-        if (v === MAX) console.log("each2", v.toLocaleString(), "ops ->", Math.round(performance.now() - start), "ms");
+        if (v === MAX)
+          console.log("each2", v.toLocaleString("fr"), "ops ->", Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
       each((v) => {
-        if (v === MAX) console.log("each3", v.toLocaleString(), "ops ->", Math.round(performance.now() - start), "ms");
+        if (v === MAX)
+          console.log("each3", v.toLocaleString("fr"), "ops ->", Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(pump());
@@ -101,7 +104,7 @@ function bench() {
   // stream.batch([33]);
 }
 
-// bench();
+bench();
 //log
 // each1 70,000,000 ops -> 854 ms
 // each2 70,000,000 ops -> 966 ms
@@ -119,4 +122,4 @@ function test() {
   // stream.push(9);
 }
 
-test();
+// test();

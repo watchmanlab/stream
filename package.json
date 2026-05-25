@@ -23,8 +23,7 @@
   "description": "Multi-paradigm reactive primitives for modern applications",
   "files": [
     "dist",
-    "src/transformers/**/*.md",
-    "patterns/README.md",
+    "src/transformers/*.md",
     "README.md"
   ],
   "keywords": [
@@ -39,11 +38,5 @@
   ],
   "license": "MIT",
   "type": "module",
-  "types": "./dist/index.d.ts",
-  "scripts": {
-    "generate-docs": "bun run scripts/generate-docs.ts",
-    "test": "bun test",
-    "test:patterns": "bun test patterns/",
-    "bench": "bun --watch src/streams/stream/mini-bench.ts"
-  }
+  "types": "./dist/index.d.ts"
 }
