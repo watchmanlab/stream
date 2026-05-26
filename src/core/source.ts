@@ -20,7 +20,7 @@ export class Source<VALUE> implements Disposable {
           this.return();
           return;
         }
-        this.ready();
+        // this.ready();
         options.next(result.value);
       };
       this._return = () => iterator.return?.();

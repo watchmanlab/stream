@@ -19,9 +19,7 @@ export class Each<
               callback(batch[0], ctx);
               break;
             default:
-              for (let i = 0, length = batch.length; i < length; i++) {
-                callback(batch[i], ctx);
-              }
+              for (let i = 0, length = batch.length; i < length; i++) callback(batch[i], ctx);
           }
           this.source?.ready();
           this.batch(batch);
