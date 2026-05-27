@@ -107,7 +107,7 @@ export class Mitto<VALUE = void> {
       }
     }
   }
-  listen(fn: Mitto.Listener<VALUE>, options?: Mitto.ListenOptions): Mitto<void> {
+  listen(fn: Mitto.Listener<VALUE> = () => {}, options?: Mitto.ListenOptions): Mitto<void> {
     this._listeners.add(fn);
     this.options?.listenerAdded?.(fn, this);
     this._listenerAdded?.emit(fn);
@@ -561,32 +561,170 @@ export class Mitto<VALUE = void> {
       },
     });
   }
-  bufferCount(size: number, startBufferEvery = size) {
-    const buffers: VALUE[][] = [];
+  bufferCount<SIZE extends number>(size: SIZE, startBufferEvery = size) {
+    const buffers = new Queue<VALUE[]>();
     let count = 0;
 
-    return new Mitto<VALUE[]>({
+    return new Mitto<Mitto.FixedArray<SIZE>>({
       scoop: this,
       source: (self) =>
         this.listen((value) => {
           if (count % startBufferEvery === 0) {
-            buffers.push([]);
+            buffers.enqueue([]);
           }
 
           for (const buffer of buffers) {
             buffer.push(value);
             if (buffer.length === size) {
-              self.emit([...buffer]);
-              buffers.shift();
+              self.emit([...buffer] as never);
+              buffers.dequeue();
             }
           }
 
           count++;
         }).emit.bind(self),
       aborted: () => {
-        buffers.length = 0;
+        buffers.clear();
         count = 0;
       },
+    });
+  }
+  windowTime(ms: number) {
+    let window: Mitto<VALUE> | null = null;
+    let timer: any = null;
+
+    return new Mitto<Mitto<VALUE>>({
+      scoop: this,
+      source: (self) => {
+        const signal = this.listen((value) => {
+          if (!window) {
+            window = new Mitto<VALUE>();
+            self.emit(window);
+
+            timer = setTimeout(() => {
+              window?.abort();
+              window = null;
+              timer = null;
+            }, ms);
+          }
+
+          window.emit(value);
+        });
+
+        return () => {
+          signal.emit();
+          clearTimeout(timer);
+          window?.abort();
+        };
+      },
+      aborted: () => {
+        clearTimeout(timer);
+        window?.abort();
+      },
+    });
+  }
+  windowCount(size: number, startWindowEvery = size) {
+    const windows: Mitto<VALUE>[] = [];
+    let count = 0;
+
+    return new Mitto<Mitto<VALUE>>({
+      scoop: this,
+      source: (self) =>
+        this.listen((value) => {
+          if (count % startWindowEvery === 0) {
+            const window = new Mitto<VALUE>();
+            windows.push(window);
+            self.emit(window);
+          }
+
+          for (const window of windows) {
+            window.emit(value);
+          }
+
+          windows.forEach((window, i) => {
+            if (++count >= size) {
+              window.abort();
+              windows.splice(i, 1);
+            }
+          });
+
+          count++;
+        }).emit.bind(self),
+      aborted: () => {
+        windows.forEach((w) => w.abort());
+        windows.length = 0;
+        count = 0;
+      },
+    });
+  }
+  bufferWhen(notifier: Mitto.AnyMitto) {
+    const buffer: VALUE[] = [];
+
+    return new Mitto<VALUE[]>({
+      scoop: { any: [this, notifier] },
+      source: (self) => {
+        const s1 = this.listen((value) => buffer.push(value));
+        const s2 = notifier.listen(() => {
+          if (buffer.length > 0) {
+            self.emit([...buffer]);
+            buffer.length = 0;
+          }
+        });
+
+        return () => {
+          s1.emit();
+          s2.emit();
+        };
+      },
+      aborted: () => (buffer.length = 0),
+    });
+  }
+  bufferToggle(opening: Mitto.AnyMitto, closingSelector: () => Mitto.AnyMitto) {
+    const buffers = new Map<number, VALUE[]>();
+    let id = 0;
+
+    return new Mitto<VALUE[]>({
+      scoop: { any: [this, opening] },
+      source: (self) => {
+        const s1 = this.listen((value) => {
+          for (const buffer of buffers.values()) {
+            buffer.push(value);
+          }
+        });
+
+        const s2 = opening.listen(() => {
+          const bufferId = id++;
+          const buffer: VALUE[] = [];
+          buffers.set(bufferId, buffer);
+
+          const closing = closingSelector();
+          closing.next(() => {
+            buffers.delete(bufferId);
+            self.emit([...buffer]);
+            closing.abort();
+          });
+        });
+
+        return () => {
+          s1.emit();
+          s2.emit();
+        };
+      },
+      aborted: () => buffers.clear(),
+    });
+  }
+  slidingWindow(size: number) {
+    const buffer = new Queue<VALUE>();
+
+    return new Mitto<VALUE[]>({
+      scoop: this,
+      source: (self) =>
+        this.listen((value) => {
+          buffer.enqueue(value);
+          if (buffer.size > size) buffer.dequeue();
+          if (buffer.size === size) self.emit([...buffer]);
+        }).emit.bind(self),
+      aborted: () => buffer.clear(),
     });
   }
 }
@@ -616,13 +754,16 @@ export namespace Mitto {
 }
 
 const m1 = new Mitto<number>();
-const m2 = new Mitto<string>();
-const m3 = new Mitto<boolean>();
 
-const v = m1.combineLatest(m3, m2).listen((v) => console.log(v));
+m1.map((v) => {
+  console.log("map", v);
+  return v.toLocaleString();
+})
+  .filter((v) => {
+    console.log("filrer", v);
+    return v.length > 0;
+  })
+  .listen(console.log);
 
 m1.emit(1);
-m2.emit("ok");
-m3.emit(true);
-
-m1.pairwise().listen((v) => v);
+m1.emit(2);

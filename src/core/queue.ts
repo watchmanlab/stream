@@ -5,10 +5,16 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
 
   constructor(private options?: Queue.Options<VALUE>) {}
   [Symbol.iterator]() {
+    let cursor = this._head;
     return {
       next: () => {
-        const value = this.dequeue();
-        return { value: value as VALUE, done: value === Queue.EMPTY };
+        if (cursor) {
+          const value = cursor.value;
+          cursor = cursor.next;
+          return { value };
+        } else {
+          return { value: Queue.EMPTY as VALUE, done: true };
+        }
       },
     };
   }
@@ -41,9 +47,12 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
     return value;
   }
   clear(): void {
-    const array = [...this];
+    let array = this.options?.clear ? [...this] : [];
+
     this._head = this._tail = undefined;
-    this.options?.clear?.(array);
+    this._size = 0;
+
+    this.options?.clear?.(array!);
   }
 
   get size() {
