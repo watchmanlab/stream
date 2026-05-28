@@ -1,20 +1,33 @@
 import { Queue } from "./queue.ts";
+import type { Transformer } from "./transformer.ts";
 
-export class Mitto<VALUE = void> {
+export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
+  readonly name: NAME;
   private _listeners = new Set<Mitto.Listener<VALUE>>();
   private _listenerAdded?: Mitto<Mitto.Listener<VALUE>>;
   private _listenerRemoved?: Mitto<Mitto.Listener<VALUE>>;
   private _aborted?: Mitto<void>;
 
-  constructor(private options = {} as Mitto.Options<VALUE, Mitto<VALUE>>) {
+  constructor(private options = {} as Mitto.Options<VALUE, NAME>) {
+    this.name = options.name ?? ("root" as NAME);
     if (options.scoop) {
       if (options.scoop instanceof Mitto) {
         options.scoop.aborted.next(() => this.abort());
       } else if (options.scoop.any) {
-        options.scoop.any.forEach((other) => other.aborted.next(() => this.abort()));
+        let signals: Mitto[] = [];
+        new Set(options.scoop.any).forEach((other) => {
+          signals.push(
+            other.aborted.next(() => {
+              this.abort();
+              signals.forEach((signal) => signal.emit());
+              signals.length = 0;
+            }),
+          );
+        });
       } else {
-        let count = options.scoop.all.length;
-        options.scoop.all.forEach((other) => other.aborted.next(() => !count-- && this.abort()));
+        const scoops = new Set(options.scoop.all);
+        let count = scoops.size;
+        scoops.forEach((other) => other.aborted.next(() => !count-- && this.abort()));
       }
     }
     if (options?.source) {
@@ -107,10 +120,6 @@ export class Mitto<VALUE = void> {
     }
   }
   listen(fn: Mitto.Listener<VALUE> = () => {}, options?: Mitto.ListenOptions): Mitto<void> {
-    this._listeners.add(fn);
-    this.options?.listenerAdded?.(fn, this);
-    this._listenerAdded?.emit(fn);
-
     const abortSignal = new Mitto({
       emited: () => {
         abortSignal.abort();
@@ -119,6 +128,11 @@ export class Mitto<VALUE = void> {
         this._listenerRemoved?.emit(fn);
       },
     });
+    if (this._listeners.has(fn)) return abortSignal;
+
+    this._listeners.add(fn);
+    this.options?.listenerAdded?.(fn, this);
+    this._listenerAdded?.emit(fn);
 
     options?.abortSignal?.next(() => abortSignal.abort(), { abortSignal });
     return abortSignal;
@@ -134,12 +148,7 @@ export class Mitto<VALUE = void> {
   derive() {
     return this.map((v) => v);
   }
-  map<MAPPED = VALUE>(fn: (value: VALUE) => MAPPED) {
-    return new Mitto<MAPPED>({
-      scoop: this,
-      source: (self) => this.listen((value) => self.emit(fn(value))).emit.bind(self),
-    });
-  }
+
   filter<FILTERED extends VALUE = VALUE>(predicate: (value: VALUE) => value is FILTERED): Mitto<FILTERED>;
   filter(predicate: (value: VALUE) => boolean): Mitto<VALUE>;
   filter<FILTERED extends VALUE = VALUE>(predicate: (value: VALUE) => value is FILTERED) {
@@ -726,55 +735,66 @@ export class Mitto<VALUE = void> {
       aborted: () => buffer.clear(),
     });
   }
-  state(initialValue: VALUE) {
-    return new Mitto<VALUE>({
-      scoop: this,
-      source: (self) =>
-        this.listen((value) => {
-          initialValue = value;
-          self.emit(value);
-        }).emit.bind(self),
-    });
-  }
+
   queue(options?: { size: number; drop: "newest" | "older" }) {
     //
+  }
+  scoop(other: Mitto.AnyMitto) {
+    other.aborted.next(() => this.abort());
+  }
+  pipe<OUTPUT_NAME extends string, OUTPUT extends Transformer<this, any, OUTPUT_NAME> | this>(
+    transform: Mitto.Transform<this, OUTPUT_NAME, OUTPUT>,
+  ): OUTPUT;
+  pipe<OUTPUT_NAME extends string, OUTPUT extends Transformer<this, any, OUTPUT_NAME> | this>(
+    name: OUTPUT_NAME,
+    transform: Mitto.Transform<this, OUTPUT_NAME, OUTPUT>,
+  ): OUTPUT;
+  pipe<OUTPUT_NAME extends string, OUTPUT extends Transformer<this, any, OUTPUT_NAME> | this>(
+    nameOrTransform: OUTPUT_NAME | Mitto.Transform<this, OUTPUT_NAME, OUTPUT>,
+    transform?: Mitto.Transform<this, OUTPUT_NAME, OUTPUT>,
+  ): OUTPUT {
+    return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
 }
 
 export namespace Mitto {
-  export type Options<VALUE, SELF extends Mitto<VALUE>> = {
-    scoop?:
-      | Mitto.AnyMitto
-      | { any: [other: Mitto.AnyMitto, ...others: Mitto.AnyMitto[]]; all?: never }
-      | { all: [other: Mitto.AnyMitto, ...others: Mitto.AnyMitto[]]; any?: never };
-    source?: (self: SELF) => () => void;
-    emited?: (value: VALUE, self: SELF) => void;
-    aborted?: (self: SELF) => void;
-    listenerAdded?: (fn: Listener<VALUE>, self: SELF) => void;
-    listenerRemoved?: (fn: Listener<VALUE>, self: SELF) => void;
+  export const NAME = "root";
+  export type Name = typeof NAME;
+  export type Scoop =
+    | Mitto.AnyMitto
+    | { any: [other: Mitto.AnyMitto, ...others: Mitto.AnyMitto[]]; all?: never }
+    | { all: [other: Mitto.AnyMitto, ...others: Mitto.AnyMitto[]]; any?: never };
+  export type Options<VALUE, NAME extends string> = {
+    name?: NAME;
+    scoop?: Scoop;
+    source?: () => () => void;
+    emited?: (value: VALUE) => void;
+    aborted?: () => void;
+    listenerAdded?: (fn: Listener<VALUE>) => void;
+    listenerRemoved?: (fn: Listener<VALUE>) => void;
   };
-  export type AnyMitto = Mitto<any>;
+  export type AnyMitto = Mitto<any, any>;
   export type Listener<VALUE> = (value: VALUE) => void;
   export type ListenOptions = { abortSignal?: AnyMitto };
-  export type ExtractValue<T extends AnyMitto> = T extends Mitto<infer VALUE> ? VALUE : never;
+
   export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
     ? ARR
     : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
 
   export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
 
-  //   export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
-  // T extends Stream<infer VALUE, any>
-  //   ? VALUE
-  //   : Transformer.ExtractValue<T> extends never
-  //     ? never
-  //     : Transformer.ExtractValue<T>;
+  export type ExtractValue<T extends AnyMitto | Transformer.AnyTransformer> =
+    T extends Mitto<infer VALUE, any>
+      ? VALUE
+      : Transformer.ExtractValue<T> extends never
+        ? never
+        : Transformer.ExtractValue<T>;
 
-  // export type Transform<
-  //   INPUT extends AnyMitto,
-  //   OUTPUT_NAME extends string,
-  //   OUTPUT extends Transformer<INPUT, any, OUTPUT_NAME> | INPUT,
-  // > = (inputStream: INPUT, name?: OUTPUT_NAME) => OUTPUT;
+  export type Transform<
+    INPUT extends AnyMitto,
+    OUTPUT_NAME extends string,
+    OUTPUT extends Transformer<INPUT, any, OUTPUT_NAME> | INPUT,
+  > = (inputStream: INPUT, name?: OUTPUT_NAME) => OUTPUT;
   export const EMPTY = Symbol.for("EMTY");
   export type Empty = typeof EMPTY;
 }
