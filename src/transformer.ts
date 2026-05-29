@@ -1,27 +1,30 @@
 import { Mitto } from "./mitto";
 
 export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME extends string> extends Mitto<VALUE, NAME> {
-  readonly input: INPUT;
-  constructor(options: Transformer.Options<INPUT, VALUE, NAME>) {
+  constructor(
+    name: NAME,
+    protected readonly input: INPUT,
+    options: Mitto.Options<VALUE, NAME>,
+  ) {
     let scoop: Mitto.Scoop | undefined = options.scoop;
     if (scoop instanceof Mitto) {
-      scoop = { any: [options.input, scoop] };
+      scoop = { any: [input, scoop] };
     } else if (scoop) {
       if (scoop.any) {
-        scoop = { any: [options.input, ...scoop.any] };
+        scoop = { any: [input, ...scoop.any] };
       } else {
-        scoop = { all: [options.input, ...scoop.all] };
+        scoop = { all: [input, ...scoop.all] };
       }
     }
 
-    super({ ...options, scoop: options.scoop });
+    super({ ...options, name, scoop: options.scoop });
 
-    this.input = options.input;
+    this.input = input;
 
     return new Proxy(this, {
       get(target, p, receiver) {
         if (p in target) return Reflect.get(target, p, receiver);
-        return options.input;
+        return input;
       },
     });
   }
@@ -39,10 +42,6 @@ export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME exte
 }
 
 export namespace Transformer {
-  export type Options<INPUT extends Mitto, VALUE, NAME extends string> = Mitto.Options<VALUE, NAME> & {
-    name: NAME;
-    input: INPUT;
-  };
   export type AnyTransformer = Transformer<Mitto.AnyMitto, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;

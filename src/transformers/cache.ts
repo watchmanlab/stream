@@ -7,41 +7,58 @@ export class Cache<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = cache.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  private _buffer = new Queue<VALUE>();
-  constructor({ name, input, drop, size, ttl }: cache.Options<INPUT, NAME>) {
-    let signal = input.listen((value) => this._buffer.enqueue(value));
-    super({
-      name: name ?? (cache.NAME as NAME),
-      input,
+  readonly buffer: VALUE[] = [];
+  private _options: Required<cache.Options>;
+
+  constructor(name = cache.NAME as NAME, input: INPUT, options?: cache.Options) {
+    let signal: Mitto | undefined;
+    super(name ?? (cache.NAME as NAME), input, {
       source: () => {
-        while (this._buffer.size) {
-          const value = this._buffer.dequeue();
-          if (value === Queue.EMPTY) break;
-          this.emit(value);
-        }
-        signal.emit();
+        this.emitBatch(this.buffer);
+        this.buffer.length = 0;
+        signal?.emit();
         signal = input.listen((value) => this.emit(value));
         return () => {
-          signal.emit();
-          signal = input.listen((value) => this._buffer.enqueue(value));
+          signal?.emit();
+          signal = this.save();
         };
       },
       aborted: () => {
-        signal.emit();
-        this._buffer.clear();
+        signal?.emit();
+        signal = undefined;
+        this.buffer.length = 0;
       },
     });
+
+    this._options = {
+      ...cache.DEFAULT_OPTIONS,
+      ...Object.fromEntries(Object.entries(options ?? {}).filter(([key, val]) => val != null)),
+    };
+
+    signal = this.save();
+  }
+  private save(): Mitto {
+    return this.input.listen((value) => {
+      if (this.buffer.length > this._options.size) {
+        //
+      }
+
+      this.buffer.push(value);
+    });
+  }
+
+  override get options() {
+    return this._options;
   }
 }
 
 export namespace cache {
   export const NAME = "cache";
   export type Name = typeof NAME;
-  export type Options<INPUT extends Mitto.AnyMitto, NAME extends string> = {
-    name?: NAME;
-    input: INPUT;
+  export type Options = {
     size?: number;
     drop?: "newest" | "older";
-    ttl?: number;
+    ttl?: number | null;
   };
+  export const DEFAULT_OPTIONS: Required<Options> = { size: 1000, drop: "newest", ttl: null };
 }

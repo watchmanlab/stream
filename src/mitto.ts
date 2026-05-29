@@ -34,19 +34,19 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
       const { listenerAdded, listenerRemoved, aborted } = options;
 
       let abort: () => void;
-      this.options.listenerAdded = (fn, self) => {
-        if (this.listenersCount === 1) abort = options.source!(this);
+      this.options.listenerAdded = (fn) => {
+        if (this.listenersCount === 1) abort = options.source!();
 
-        listenerAdded?.(fn, self);
+        listenerAdded?.(fn);
       };
-      this.options.listenerRemoved = (fn, self) => {
+      this.options.listenerRemoved = (fn) => {
         if (this.listenersCount === 0) abort();
 
-        listenerRemoved?.(fn, self);
+        listenerRemoved?.(fn);
       };
-      this.options.aborted = (self) => {
+      this.options.aborted = () => {
         abort();
-        aborted?.(self);
+        aborted?.();
       };
     }
   }
@@ -114,16 +114,18 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
     return this;
   }
   emit(...values: [value: VALUE, ...values: VALUE[]]): this {
+    return this.emitBatch(values);
+  }
+  emitBatch(values: VALUE[]): this {
     for (const value of values) {
       this.options?.emited?.(value);
       for (const fn of this._listeners) {
         fn(value);
       }
     }
-
     return this;
   }
-  this(fn: (mitto: this) => void): this {
+  self(fn: (mitto: this) => void): this {
     fn(this);
     return this;
   }
