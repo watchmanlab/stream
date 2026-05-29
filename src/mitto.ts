@@ -96,11 +96,11 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
   [Symbol.dispose]() {
     this.abort();
   }
-  abort() {
+  abort(): this {
     this._listeners.clear();
     this._aborted?.emit();
     this._aborted?.abort();
-    this.options?.aborted?.(this);
+    this.options?.aborted?.();
     this.options.aborted =
       this.options.emited =
       this.options.listenerAdded =
@@ -110,34 +110,42 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
       this._listenerRemoved =
       this._aborted =
         undefined;
+
+    return this;
   }
-  emit(...values: [value: VALUE, ...values: VALUE[]]) {
+  emit(...values: [value: VALUE, ...values: VALUE[]]): this {
     for (const value of values) {
-      this.options?.emited?.(value, this);
+      this.options?.emited?.(value);
       for (const fn of this._listeners) {
         fn(value);
       }
     }
+
+    return this;
+  }
+  this(fn: (mitto: this) => void): this {
+    fn(this);
+    return this;
   }
   listen(fn: Mitto.Listener<VALUE> = () => {}, options?: Mitto.ListenOptions): Mitto<void> {
     const abortSignal = new Mitto({
       emited: () => {
         abortSignal.abort();
         if (!this._listeners.delete(fn)) return;
-        this.options?.listenerRemoved?.(fn, this);
+        this.options?.listenerRemoved?.(fn);
         this._listenerRemoved?.emit(fn);
       },
     });
     if (this._listeners.has(fn)) return abortSignal;
 
     this._listeners.add(fn);
-    this.options?.listenerAdded?.(fn, this);
+    this.options?.listenerAdded?.(fn);
     this._listenerAdded?.emit(fn);
 
     options?.abortSignal?.next(() => abortSignal.abort(), { abortSignal });
     return abortSignal;
   }
-  next(fn: Mitto.Listener<VALUE>, options?: Mitto.ListenOptions) {
+  next(fn: Mitto.Listener<VALUE>, options?: Mitto.ListenOptions): Mitto<void> {
     const stopSignal = this.listen((value) => {
       fn?.(value);
       stopSignal.emit();
@@ -145,31 +153,7 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
 
     return stopSignal;
   }
-  derive() {
-    return this.map((v) => v);
-  }
 
-  filter<FILTERED extends VALUE = VALUE>(predicate: (value: VALUE) => value is FILTERED): Mitto<FILTERED>;
-  filter(predicate: (value: VALUE) => boolean): Mitto<VALUE>;
-  filter<FILTERED extends VALUE = VALUE>(predicate: (value: VALUE) => value is FILTERED) {
-    return new Mitto<FILTERED>({
-      scoop: this,
-      source: (self) =>
-        this.listen((value) => {
-          const result = predicate(value);
-          if (result) self.emit(value);
-        }).emit.bind(self),
-    });
-  }
-  merge<MITTOS extends [mitto: Mitto<any>, ...mittos: Mitto<any>[]]>(...mittos: MITTOS) {
-    return new Mitto<VALUE | Mitto.ExtractValue<MITTOS[number]>>({
-      scoop: this,
-      source: (self) => {
-        const signals = [this, ...mittos].map((m) => m.listen((value) => self.emit(value)));
-        return () => signals.forEach((abort) => abort.emit());
-      },
-    });
-  }
   flat<DEPTH extends number = 0>(depth = 0 as DEPTH) {
     return new Mitto<FlatArray<VALUE, DEPTH>>({
       scoop: this,

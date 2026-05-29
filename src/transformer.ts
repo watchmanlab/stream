@@ -1,7 +1,7 @@
 import { Mitto } from "./mitto";
 
 export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME extends string> extends Mitto<VALUE, NAME> {
-  readonly mitto: INPUT;
+  readonly input: INPUT;
   constructor(options: Transformer.Options<INPUT, VALUE, NAME>) {
     let scoop: Mitto.Scoop | undefined = options.scoop;
     if (scoop instanceof Mitto) {
@@ -16,7 +16,7 @@ export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME exte
 
     super({ ...options, scoop: options.scoop });
 
-    this.mitto = options.input;
+    this.input = options.input;
 
     return new Proxy(this, {
       get(target, p, receiver) {
@@ -31,7 +31,7 @@ export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME exte
       {},
       {
         get() {
-          return self.mitto;
+          return self.input;
         },
       },
     ) as never;

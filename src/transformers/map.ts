@@ -1,6 +1,5 @@
 import { Mitto } from "../mitto";
 import { Transformer } from "../transformer";
-import { state } from "./state";
 
 export class Map<
   INPUT extends Mitto.AnyMitto,
@@ -8,11 +7,11 @@ export class Map<
   MAPPED = VALUE,
   NAME extends string = map.Name,
 > extends Transformer<INPUT, MAPPED, NAME> {
-  constructor(options: map.Options<INPUT, VALUE, MAPPED, NAME>) {
+  constructor({ name, input, callback }: map.Options<INPUT, VALUE, MAPPED, NAME>) {
     super({
-      name: options.name ?? (map.NAME as NAME),
-      input: options.input,
-      source: () => options.input.listen((value) => this.emit(options.callback(value))).emit.bind(this),
+      name: name ?? (map.NAME as NAME),
+      input: input,
+      source: () => input.listen((value) => this.emit(callback(value))).emit.bind(this),
     });
   }
 }
