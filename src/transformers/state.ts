@@ -9,17 +9,17 @@ export class State<
   private _value: VALUE;
   constructor(name = state.NAME as NAME, input: INPUT, initialValue: VALUE) {
     super(name, input, {
-      source: () => input.listen((value) => (this.value = value)).emit.bind(this),
+      source: () => input.listen((value) => this.set(value)).emit.bind(this),
     });
 
     this._value = initialValue;
   }
 
-  get value() {
+  get() {
     return this._value;
   }
 
-  set value(value: VALUE) {
+  set(value: VALUE) {
     this._value = value;
     this.emit(value);
   }
