@@ -7,15 +7,19 @@ export class Cache<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = cache.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  readonly buffer: VALUE[] = [];
+  readonly buffer = new Queue<VALUE>();
   private _options: Required<cache.Options>;
+  private _dropped?: Mitto<
+    { value: VALUE; reason: "size" | "ttl"; options: Required<cache.Options> },
+    `${NAME}Dropped`
+  >;
 
   constructor(name = cache.NAME as NAME, input: INPUT, options?: cache.Options) {
     let signal: Mitto | undefined;
     super(name ?? (cache.NAME as NAME), input, {
       source: () => {
-        this.emitBatch(this.buffer);
-        this.buffer.length = 0;
+        this.emitBatch([...this.buffer]);
+        this.buffer.clear();
         signal?.emit();
         signal = input.listen((value) => this.emit(value));
         return () => {
@@ -26,7 +30,7 @@ export class Cache<
       aborted: () => {
         signal?.emit();
         signal = undefined;
-        this.buffer.length = 0;
+        this.buffer.clear();
       },
     });
 
@@ -39,16 +43,14 @@ export class Cache<
   }
   private save(): Mitto {
     return this.input.listen((value) => {
-      if (this.buffer.length > this._options.size) {
-        //
+      if (this.buffer.size >= this._options.size) {
+        if (this._options.drop === "newest") return;
+        this.buffer.dequeue();
+        return;
       }
 
-      this.buffer.push(value);
+      this.buffer.enqueue(value);
     });
-  }
-
-  override get options() {
-    return this._options;
   }
 }
 

@@ -7,14 +7,12 @@ export class State<
   NAME extends string = state.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
   private _value: VALUE;
-  constructor(options: state.Options<INPUT, VALUE, NAME>) {
-    super({
-      name: options.name ?? (state.NAME as NAME),
-      input: options.input,
-      source: () => options.input.listen((value) => (this.value = value)).emit.bind(this),
+  constructor(name = state.NAME as NAME, input: INPUT, initialValue: VALUE) {
+    super(name, input, {
+      source: () => input.listen((value) => (this.value = value)).emit.bind(this),
     });
 
-    this._value = options.initialValue;
+    this._value = initialValue;
   }
 
   get value() {
@@ -32,16 +30,10 @@ export function state<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = state.Name,
 >(initialValue: VALUE): Mitto.Transform<INPUT, NAME, State<INPUT, VALUE, NAME>> {
-  return (input, name) => new State({ initialValue, input, name });
+  return (input, name) => new State(name, input, initialValue);
 }
 
 export namespace state {
   export const NAME = "state";
   export type Name = typeof NAME;
-
-  export type Options<INPUT extends Mitto.AnyMitto, VALUE, NAME extends string> = {
-    name?: NAME;
-    input: INPUT;
-    initialValue: VALUE;
-  };
 }

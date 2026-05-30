@@ -8,10 +8,8 @@ export class Filter<
   NAME extends string = filter.Name,
 > extends Transformer<INPUT, FILTERED, NAME> {
   private _filtered?: Mitto<VALUE, `${NAME}Filtered`>;
-  constructor({ name, input, predicate }: filter.Options<INPUT, VALUE, FILTERED, NAME>) {
-    super({
-      name: name ?? (filter.NAME as NAME),
-      input,
+  constructor(name = filter.NAME as NAME, input: INPUT, predicate: filter.Predicate<VALUE, FILTERED>) {
+    super(name, input, {
       source: () => {
         return input
           .listen((value) => {
@@ -39,7 +37,7 @@ export function filter<
   FILTERED extends VALUE = VALUE,
   NAME extends string = filter.Name,
 >(predicate: filter.Predicate<VALUE, FILTERED>): Mitto.Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
-  return (input, name) => new Filter({ name, input, predicate });
+  return (input, name) => new Filter(name, input, predicate);
 }
 
 export namespace filter {
@@ -48,15 +46,4 @@ export namespace filter {
   export type Predicate<VALUE, FILTERED extends VALUE> =
     | ((value: VALUE) => value is FILTERED)
     | ((value: VALUE) => boolean);
-
-  export type Options<
-    INPUT extends Mitto.AnyMitto,
-    VALUE extends Mitto.ExtractValue<INPUT>,
-    FILTERED extends VALUE,
-    NAME extends string,
-  > = {
-    name?: NAME;
-    input: INPUT;
-    predicate: Predicate<VALUE, FILTERED>;
-  };
 }
