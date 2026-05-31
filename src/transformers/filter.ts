@@ -11,17 +11,20 @@ export class Filter<
   constructor(name = filter.NAME as NAME, input: INPUT, predicate: filter.Predicate<VALUE, FILTERED>) {
     super(name, input, {
       source: () => {
-        return input
-          .listen((value) => {
-            if (predicate(value)) {
-              this.emit(value);
-            } else {
-              this._filtered?.emit(value);
-            }
-          })
-          .emit.bind(this);
+        const signal = input.listen((value) => {
+          if (predicate(value)) {
+            this.emit(value);
+          } else {
+            this._filtered?.emit(value);
+          }
+        });
+
+        return () => signal.emit();
       },
-      aborted: () => this._filtered?.abort(),
+      aborted: () => {
+        this._filtered?.abort();
+        this._filtered = undefined;
+      },
     });
   }
 

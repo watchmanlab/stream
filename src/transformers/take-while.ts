@@ -8,15 +8,18 @@ export class TakeWhile<
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(name = takeWhile.NAME as NAME, input: INPUT, predicate: takeWhile.Predicate<VALUE>) {
     super(name, input, {
-      source: () =>
-        this.listen((value) => {
+      source: () => {
+        const signal = input.listen((value) => {
           if (!predicate(value)) {
             this.abort();
             return;
           }
 
           this.emit(value);
-        }).emit.bind(this),
+        });
+
+        return () => signal.emit();
+      },
     });
   }
 }

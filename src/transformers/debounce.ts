@@ -10,7 +10,7 @@ export class Debounce<INPUT extends Mitto.AnyMitto, NAME extends string = deboun
     let timer: any = null;
     super(name, input, {
       source: () => {
-        const signal = this.listen((value) => {
+        const signal = input.listen((value) => {
           clearTimeout(timer);
           timer = setTimeout(() => this.emit(value), ms);
         });

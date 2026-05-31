@@ -10,7 +10,10 @@ export class Emit<
     super(name, input, {
       source: () => {
         this.emit(...values);
-        return input.listen((value) => this.emit(value)).emit.bind(this);
+
+        const signal = input.listen((value) => this.emit(value));
+
+        return () => signal.emit();
       },
     });
   }

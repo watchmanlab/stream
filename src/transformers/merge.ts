@@ -14,7 +14,7 @@ export class Merge<
   ) {
     super(name, input, {
       source: () => {
-        const signals = [this, ...others].map((m) => m.listen((value) => this.emit(value)));
+        const signals = [input, ...others].map((m) => m.listen((value) => this.emit(value)));
         return () => signals.forEach((abort) => abort.emit());
       },
     });

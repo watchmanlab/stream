@@ -8,11 +8,14 @@ export class Take<INPUT extends Mitto.AnyMitto, NAME extends string = take.Name>
 > {
   constructor(name = take.NAME as NAME, input: INPUT, count: number) {
     super(name, input, {
-      source: () =>
-        this.listen((value) => {
+      source: () => {
+        const signal = input.listen((value) => {
           this.emit(value);
           if (--count === 0) this.abort();
-        }).emit.bind(this),
+        });
+
+        return () => signal.emit();
+      },
     });
   }
 }

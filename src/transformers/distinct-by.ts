@@ -1,18 +1,20 @@
 import type { Mitto } from "../mitto";
 import { Transformer } from "../transformer";
 
-export class Distinct<
+export class DistinctBy<
   INPUT extends Mitto.AnyMitto,
+  KEY,
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
-  NAME extends string = distinct.Name,
+  NAME extends string = distinctBy.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = distinct.NAME as NAME, input: INPUT) {
-    let last: VALUE;
+  constructor(name = distinctBy.NAME as NAME, input: INPUT, fn: (value: VALUE) => KEY) {
+    let last: KEY;
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {
-          if (value !== last) {
-            last = value;
+          const key = fn(value);
+          if (key !== last) {
+            last = key;
             this.emit(value);
           }
         });
@@ -22,15 +24,16 @@ export class Distinct<
   }
 }
 
-export function distinct<
+export function distinctBy<
   INPUT extends Mitto.AnyMitto,
+  KEY,
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
-  NAME extends string = distinct.Name,
->(): Mitto.Transform<INPUT, NAME, Distinct<INPUT, VALUE, NAME>> {
-  return (input, name) => new Distinct(name, input);
+  NAME extends string = distinctBy.Name,
+>(fn: (value: VALUE) => KEY): Mitto.Transform<INPUT, NAME, DistinctBy<INPUT, KEY, VALUE, NAME>> {
+  return (input, name) => new DistinctBy(name, input, fn);
 }
 
-export namespace distinct {
-  export const NAME = "distinct";
+export namespace distinctBy {
+  export const NAME = "distinctBy";
   export type Name = typeof NAME;
 }

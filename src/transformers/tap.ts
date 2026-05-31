@@ -1,17 +1,16 @@
 import type { Mitto } from "../mitto";
 import { Transformer } from "../transformer";
 
-export class SkipUntil<
+export class Tap<
   INPUT extends Mitto.AnyMitto,
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
-  NAME extends string = skipUntil.Name,
+  NAME extends string = tap.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = skipUntil.NAME as NAME, input: INPUT, predicate: skipUntil.Predicate<VALUE>) {
+  constructor(name = tap.NAME as NAME, input: INPUT, fn: tap.Fn<VALUE>) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {
-          if (!predicate(value)) return;
-
+          fn(value);
           this.emit(value);
         });
 
@@ -21,16 +20,16 @@ export class SkipUntil<
   }
 }
 
-export function skipUntil<
+export function tap<
   INPUT extends Mitto.AnyMitto,
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
-  NAME extends string = skipUntil.Name,
->(predicate: skipUntil.Predicate<VALUE>): Mitto.Transform<INPUT, NAME, SkipUntil<INPUT, VALUE, NAME>> {
-  return (input, name) => new SkipUntil(name, input, predicate);
+  NAME extends string = tap.Name,
+>(fn: tap.Fn<VALUE>): Mitto.Transform<INPUT, NAME, Tap<INPUT, VALUE, NAME>> {
+  return (input, name) => new Tap(name, input, fn);
 }
 
-export namespace skipUntil {
-  export const NAME = "skipUntil";
+export namespace tap {
+  export const NAME = "tap";
   export type Name = typeof NAME;
-  export type Predicate<VALUE> = (value: VALUE) => boolean;
+  export type Fn<VALUE> = (value: VALUE) => void;
 }

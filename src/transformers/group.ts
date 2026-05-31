@@ -13,8 +13,8 @@ export class Group<
     public readonly size = 2 as SIZE,
   ) {
     super(name, input, {
-      source: () =>
-        this.listen((value) => {
+      source: () => {
+        const signal = input.listen((value) => {
           this._buffer.push(value);
 
           if (this._buffer.length === size) {
@@ -22,7 +22,10 @@ export class Group<
             this._buffer.length = 0;
             this.emit(out as never);
           }
-        }).emit.bind(this),
+        });
+
+        return () => signal.emit();
+      },
       aborted: () => (this._buffer.length = 0),
     });
   }

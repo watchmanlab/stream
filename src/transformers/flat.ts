@@ -13,8 +13,8 @@ export class Flat<
     public readonly depth = 0 as DEPTH,
   ) {
     super(name, input, {
-      source: () =>
-        this.listen((value) => {
+      source: () => {
+        const signal = input.listen((value) => {
           if (Array.isArray(value)) {
             const flatten = depth === 0 ? value : value.flat(depth);
             for (let i = 0, length = flatten.length; i < length; i++) {
@@ -23,7 +23,10 @@ export class Flat<
           } else {
             this.emit(value as never);
           }
-        }).emit.bind(this),
+        });
+
+        return () => signal.emit();
+      },
     });
   }
 }

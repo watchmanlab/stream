@@ -4,12 +4,13 @@ import type { Transformer } from "./transformer.ts";
 export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
   readonly name: NAME;
   private _listeners = new Set<Mitto.Listener<VALUE>>();
-  private _listenerAdded?: Mitto<Mitto.Listener<VALUE>>;
-  private _listenerRemoved?: Mitto<Mitto.Listener<VALUE>>;
-  private _aborted?: Mitto<void>;
+  private _listenerAdded?: Mitto<Mitto.Listener<VALUE>, `${NAME}ListenerAdded`>;
+  private _listenerRemoved?: Mitto<Mitto.Listener<VALUE>, `${NAME}ListenerRemoved`>;
+  private _aborted?: Mitto<void, `${NAME}Aborted`>;
 
   constructor(private options = {} as Mitto.Options<VALUE, NAME>) {
     this.name = options.name ?? ("root" as NAME);
+
     if (options.scoop) {
       if (options.scoop instanceof Mitto) {
         options.scoop.aborted.next(() => this.abort());
@@ -36,7 +37,6 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
       let abort: () => void;
       this.options.listenerAdded = (fn) => {
         if (this.listenersCount === 1) abort = options.source!();
-
         listenerAdded?.(fn);
       };
       this.options.listenerRemoved = (fn) => {
@@ -50,20 +50,20 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
       };
     }
   }
-  static create<VALUE, PROPS extends Record<string, any>>() {}
+
   get listenersCount() {
     return this._listeners.size;
   }
   get listenerAdded() {
-    if (!this._listenerAdded) this._listenerAdded = new Mitto();
+    if (!this._listenerAdded) this._listenerAdded = new Mitto({ name: `${this.name}ListenerAdded` });
     return this._listenerAdded;
   }
   get listenerRemoved() {
-    if (!this._listenerRemoved) this._listenerRemoved = new Mitto();
+    if (!this._listenerRemoved) this._listenerRemoved = new Mitto({ name: `${this.name}ListenerRemoved` });
     return this._listenerRemoved;
   }
   get aborted() {
-    if (!this._aborted) this._aborted = new Mitto();
+    if (!this._aborted) this._aborted = new Mitto({ name: `${this.name}Aborted` });
     return this._aborted;
   }
   async *[Symbol.asyncIterator]() {
@@ -97,7 +97,6 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
     this.abort();
   }
   abort(): this {
-    this._listeners.clear();
     this._aborted?.emit();
     this._aborted?.abort();
     this.options?.aborted?.();
@@ -111,10 +110,12 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
       this._aborted =
         undefined;
 
+    this._listeners.clear();
+
     return this;
   }
   emit(...values: [value: VALUE, ...values: VALUE[]]): this {
-    return this.emitBatch(values);
+    return this.emitBatch(values.length ? values : ([undefined] as VALUE[]));
   }
   emitBatch(values: VALUE[]): this {
     for (const value of values) {
@@ -156,193 +157,6 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
     return stopSignal;
   }
 
-  signal() {
-    return new Mitto({
-      scoop: this,
-      source: (self) =>
-        this.next(() => {
-          self.emit();
-          self.abort();
-        }).emit.bind(self),
-    });
-  }
-  distinct() {
-    let last: VALUE;
-    return new Mitto<VALUE>({
-      scoop: this,
-      source: (self) =>
-        this.listen((value) => {
-          if (value !== last) {
-            last = value;
-            self.emit(value);
-          }
-        }).emit.bind(self),
-    });
-  }
-  distinctBy<KEY>(fn: (value: VALUE) => KEY) {
-    let last: KEY;
-    return new Mitto<VALUE>({
-      scoop: this,
-      source: (self) =>
-        this.listen((value) => {
-          const key = fn(value);
-          if (key !== last) {
-            last = key;
-            self.emit(value);
-          }
-        }).emit.bind(self),
-    });
-  }
-  scan<ACC>(seed: ACC, fn: (acc: ACC, value: VALUE) => ACC) {
-    let acc = seed;
-    return new Mitto<ACC>({
-      scoop: this,
-      source: (self) =>
-        this.listen((value) => {
-          acc = fn(acc, value);
-          self.emit(acc);
-        }).emit.bind(self),
-    });
-  }
-  delay(ms: number) {
-    let timer: any = null;
-    return new Mitto<VALUE>({
-      scoop: this,
-      source: (self) =>
-        this.listen((value) => {
-          timer = setTimeout(() => self.emit(value), ms);
-        }).emit.bind(self),
-      aborted: () => clearTimeout(timer),
-    });
-  }
-  auditTime(ms: number) {
-    let timer: any = null;
-    let latest: VALUE;
-    return new Mitto<VALUE>({
-      scoop: this,
-      source: (self) => {
-        const signal = this.listen((value) => {
-          latest = value;
-          if (!timer) {
-            timer = setTimeout(() => {
-              self.emit(latest);
-              timer = null;
-            }, ms);
-          }
-        });
-        return () => {
-          signal.emit();
-          clearTimeout(timer);
-        };
-      },
-      aborted: () => clearTimeout(timer),
-    });
-  }
-  combineLatest<OTHERS extends readonly [other: Mitto.AnyMitto, ...others: Mitto.AnyMitto[]]>(...others: OTHERS) {
-    const mittos = [this, ...others] as [other: Mitto.AnyMitto, ...others: Mitto.AnyMitto[]];
-
-    const EMPTY = Symbol.for("EMPTY");
-
-    const values = new Array(others.length + 1).fill(EMPTY);
-
-    return new Mitto<[curr: VALUE, ...{ [K in keyof OTHERS]: Mitto.ExtractValue<OTHERS[K]> }]>({
-      scoop: { any: mittos },
-      source: (self) => {
-        const signals = mittos.map((mitto, index) =>
-          mitto.listen((value) => {
-            values[index] = value;
-
-            if (values.every((v) => v !== EMPTY)) self.emit([...values] as never);
-          }),
-        );
-
-        return () => signals.forEach((signal) => signal.emit());
-      },
-
-      aborted: () => {
-        mittos.length = 0;
-        values.length = 0;
-      },
-    });
-  }
-  withLatestFrom<
-    OTHER extends Mitto.AnyMitto,
-    OTHER_VALUE extends Mitto.ExtractValue<OTHER> = Mitto.ExtractValue<OTHER>,
-  >(other: OTHER) {
-    let lastOther: OTHER_VALUE | Mitto.Empty;
-
-    return new Mitto<[curr: VALUE, other: OTHER_VALUE]>({
-      scoop: { any: [this, other] },
-      source: (self) => {
-        const s1 = other.listen((v) => {
-          lastOther = v;
-        });
-        const s2 = this.listen((v) => {
-          if (lastOther !== Mitto.EMPTY) self.emit([v, lastOther]);
-        });
-        return () => {
-          s1.emit();
-          s2.emit();
-        };
-      },
-    });
-  }
-  tap(fn: (value: VALUE) => void) {
-    return new Mitto<VALUE>({
-      scoop: this,
-      source: (self) =>
-        this.listen((value) => {
-          fn(value);
-          self.emit(value);
-        }).emit.bind(self),
-    });
-  }
-  startWith(...values: [value: VALUE, ...values: VALUE[]]) {
-    return new Mitto<VALUE>({
-      scoop: this,
-      source: (self) => {
-        for (const value of values) self.emit(value);
-        return this.listen((v) => self.emit(v)).emit.bind(self);
-      },
-    });
-  }
-  pairwise() {
-    let prev: VALUE | Mitto.Empty;
-    return new Mitto<[prev: VALUE, curr: VALUE]>({
-      scoop: this,
-      source: (self) =>
-        this.listen((value) => {
-          if (prev !== Mitto.EMPTY) self.emit([prev, value]);
-          prev = value;
-        }).emit.bind(self),
-    });
-  }
-  first(predicate?: (value: VALUE) => boolean) {
-    return new Mitto<VALUE>({
-      scoop: this,
-      source: (self) =>
-        this.listen((value) => {
-          if (!predicate || predicate(value)) {
-            self.emit(value);
-            self.abort();
-          }
-        }).emit.bind(self),
-    });
-  }
-  last() {
-    let latest: VALUE;
-    return new Mitto<VALUE>({
-      scoop: this,
-      source: (self) => {
-        const signal = this.listen((value) => (latest = value));
-        this.aborted.next(() => {
-          self.emit(latest);
-          self.abort();
-        });
-        return signal.emit.bind(signal);
-      },
-    });
-  }
   catchError(fn: (error: any) => VALUE) {
     return new Mitto<VALUE>({
       scoop: this,
@@ -630,6 +444,6 @@ export namespace Mitto {
     OUTPUT_NAME extends string,
     OUTPUT extends Transformer<INPUT, any, OUTPUT_NAME> | INPUT,
   > = (inputStream: INPUT, name?: OUTPUT_NAME) => OUTPUT;
-  export const EMPTY = Symbol.for("EMTY");
+  export const EMPTY = Symbol.for("EMPTY");
   export type Empty = typeof EMPTY;
 }

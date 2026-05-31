@@ -8,12 +8,15 @@ export class SkipWhile<
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(name = skipWhile.NAME as NAME, input: INPUT, predicate: skipWhile.Predicate<VALUE>) {
     super(name, input, {
-      source: () =>
-        this.listen((value) => {
+      source: () => {
+        const signal = input.listen((value) => {
           if (predicate(value)) return;
 
           this.emit(value);
-        }).emit.bind(this),
+        });
+
+        return () => signal.emit();
+      },
     });
   }
 }

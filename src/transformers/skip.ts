@@ -8,11 +8,14 @@ export class Skip<INPUT extends Mitto.AnyMitto, NAME extends string = skip.Name>
 > {
   constructor(name = skip.NAME as NAME, input: INPUT, count: number) {
     super(name, input, {
-      source: () =>
-        this.listen((value) => {
+      source: () => {
+        const signal = input.listen((value) => {
           if (--count > 0) return;
           this.emit(value);
-        }).emit.bind(this),
+        });
+
+        return () => signal.emit();
+      },
     });
   }
 }

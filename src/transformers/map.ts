@@ -9,7 +9,11 @@ export class Map<
 > extends Transformer<INPUT, MAPPED, NAME> {
   constructor(name = map.NAME as NAME, input: INPUT, callback: map.Callback<VALUE, MAPPED>) {
     super(name, input, {
-      source: () => input.listen((value) => this.emit(callback(value))).emit.bind(this),
+      source: () => {
+        const signal = input.listen((value) => this.emit(callback(value)));
+
+        return () => signal.emit();
+      },
     });
   }
 }

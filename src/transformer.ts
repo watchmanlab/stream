@@ -7,6 +7,7 @@ export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME exte
     options: Mitto.Options<VALUE, NAME>,
   ) {
     let scoop: Mitto.Scoop | undefined = options.scoop;
+
     if (scoop instanceof Mitto) {
       scoop = { any: [input, scoop] };
     } else if (scoop) {
@@ -15,9 +16,11 @@ export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME exte
       } else {
         scoop = { all: [input, ...scoop.all] };
       }
+    } else {
+      scoop = input;
     }
 
-    super({ ...options, name, scoop: options.scoop });
+    super({ ...options, name, scoop });
 
     this.input = input;
 

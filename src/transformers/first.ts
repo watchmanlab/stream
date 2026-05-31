@@ -1,21 +1,19 @@
 import type { Mitto } from "../mitto";
 import { Transformer } from "../transformer";
 
-export class TakeUntil<
+export class First<
   INPUT extends Mitto.AnyMitto,
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
-  NAME extends string = takeUntil.Name,
+  NAME extends string = first.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = takeUntil.NAME as NAME, input: INPUT, predicate: takeUntil.Predicate<VALUE>) {
+  constructor(name = first.NAME as NAME, input: INPUT, predicate?: first.Predicate<VALUE>) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {
-          if (predicate(value)) {
+          if (!predicate || predicate(value)) {
+            this.emit(value);
             this.abort();
-            return;
           }
-
-          this.emit(value);
         });
 
         return () => signal.emit();
@@ -24,16 +22,16 @@ export class TakeUntil<
   }
 }
 
-export function takeUntil<
+export function first<
   INPUT extends Mitto.AnyMitto,
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
-  NAME extends string = takeUntil.Name,
->(predicate: takeUntil.Predicate<VALUE>): Mitto.Transform<INPUT, NAME, TakeUntil<INPUT, VALUE, NAME>> {
-  return (input, name) => new TakeUntil(name, input, predicate);
+  NAME extends string = first.Name,
+>(predicate?: first.Predicate<VALUE>): Mitto.Transform<INPUT, NAME, First<INPUT, VALUE, NAME>> {
+  return (input, name) => new First(name, input, predicate);
 }
 
-export namespace takeUntil {
-  export const NAME = "takeUntil";
+export namespace first {
+  export const NAME = "first";
   export type Name = typeof NAME;
   export type Predicate<VALUE> = (value: VALUE) => boolean;
 }

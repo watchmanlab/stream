@@ -8,7 +8,11 @@ export class Derive<
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(name = derive.NAME as NAME, input: INPUT) {
     super(name, input, {
-      source: () => input.listen((value) => this.emit(value)).emit.bind(this),
+      source: () => {
+        const signal = input.listen((value) => this.emit(value));
+
+        return () => signal.emit();
+      },
     });
   }
 }
