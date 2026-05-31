@@ -7,7 +7,11 @@ export class State<
   NAME extends string = state.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
   private _value: VALUE;
-  constructor(name = state.NAME as NAME, input: INPUT, initialValue: VALUE) {
+  constructor(
+    name = state.NAME as NAME,
+    input: INPUT,
+    public readonly initialValue: VALUE,
+  ) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => this.set(value));

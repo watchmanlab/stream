@@ -6,7 +6,11 @@ export class CatchError<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = catchError.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = catchError.NAME as NAME, input: INPUT, handler: catchError.Handler<VALUE>) {
+  constructor(
+    name = catchError.NAME as NAME,
+    input: INPUT,
+    public readonly handler: catchError.Handler<VALUE>,
+  ) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {

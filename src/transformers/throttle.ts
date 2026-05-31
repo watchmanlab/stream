@@ -6,7 +6,11 @@ export class Throttle<INPUT extends Mitto.AnyMitto, NAME extends string = thrott
   Mitto.ExtractValue<INPUT>,
   NAME
 > {
-  constructor(name = throttle.NAME as NAME, input: INPUT, ms: number) {
+  constructor(
+    name = throttle.NAME as NAME,
+    input: INPUT,
+    public readonly ms: number,
+  ) {
     let inThrottle = false;
     let timer: any = null;
     super(name, input, {

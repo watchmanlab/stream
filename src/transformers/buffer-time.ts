@@ -6,20 +6,24 @@ export class BufferTime<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = bufferTime.Name,
 > extends Transformer<INPUT, VALUE[], NAME> {
-  readonly buffer: VALUE[] = [];
-  constructor(name = bufferTime.NAME as NAME, input: INPUT, ms: number) {
+  private _buffer: VALUE[] = [];
+  constructor(
+    name = bufferTime.NAME as NAME,
+    input: INPUT,
+    public readonly ms: number,
+  ) {
     let timer: any = null;
 
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {
-          this.buffer.push(value);
+          this._buffer.push(value);
 
           if (!timer) {
             timer = setTimeout(() => {
-              if (this.buffer.length > 0) {
-                this.emit([...this.buffer]);
-                this.buffer.length = 0;
+              if (this._buffer.length > 0) {
+                this.emit([...this._buffer]);
+                this._buffer.length = 0;
               }
               timer = null;
             }, ms);
@@ -33,9 +37,12 @@ export class BufferTime<
       },
       aborted: () => {
         clearTimeout(timer);
-        this.buffer.length = 0;
+        this._buffer.length = 0;
       },
     });
+  }
+  get buffer() {
+    return this._buffer.values();
   }
 }
 

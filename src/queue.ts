@@ -4,7 +4,7 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
   private _size = 0;
 
   constructor(private options?: Queue.Options<VALUE>) {}
-  [Symbol.iterator]() {
+  [Symbol.iterator](): Queue.Iterator<VALUE> {
     let cursor = this._head;
     return {
       next: () => {
@@ -13,7 +13,7 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
           cursor = cursor.next;
           return { value };
         } else {
-          return { value: Queue.EMPTY as VALUE, done: true };
+          return { value: Queue.EMPTY, done: true };
         }
       },
     };
@@ -66,6 +66,17 @@ export namespace Queue {
     dequeue?: (value: VALUE) => void;
     clear?: (values: VALUE[]) => void;
     empty?: () => void;
+  };
+  export type Iterator<VALUE> = {
+    next: () =>
+      | {
+          value: VALUE;
+          done?: false;
+        }
+      | {
+          value: Empty;
+          done: true;
+        };
   };
   export const EMPTY = Symbol("$QUEUE_EMPTY#");
   export type Empty = typeof EMPTY;

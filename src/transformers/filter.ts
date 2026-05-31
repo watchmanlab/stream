@@ -8,7 +8,11 @@ export class Filter<
   NAME extends string = filter.Name,
 > extends Transformer<INPUT, FILTERED, NAME> {
   private _filtered?: Mitto<VALUE, `${NAME}Filtered`>;
-  constructor(name = filter.NAME as NAME, input: INPUT, predicate: filter.Predicate<VALUE, FILTERED>) {
+  constructor(
+    name = filter.NAME as NAME,
+    input: INPUT,
+    public readonly predicate: filter.Predicate<VALUE, FILTERED>,
+  ) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {

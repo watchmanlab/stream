@@ -6,7 +6,11 @@ export class SkipUntil<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = skipUntil.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = skipUntil.NAME as NAME, input: INPUT, predicate: skipUntil.Predicate<VALUE>) {
+  constructor(
+    name = skipUntil.NAME as NAME,
+    input: INPUT,
+    public readonly predicate: skipUntil.Predicate<VALUE>,
+  ) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {

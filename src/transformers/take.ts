@@ -6,7 +6,11 @@ export class Take<INPUT extends Mitto.AnyMitto, NAME extends string = take.Name>
   Mitto.ExtractValue<INPUT>,
   NAME
 > {
-  constructor(name = take.NAME as NAME, input: INPUT, count: number) {
+  constructor(
+    name = take.NAME as NAME,
+    input: INPUT,
+    public readonly count: number,
+  ) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {

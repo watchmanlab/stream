@@ -6,7 +6,11 @@ export class Sample<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = sample.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = sample.NAME as NAME, input: INPUT, notifier: Mitto.AnyMitto) {
+  constructor(
+    name = sample.NAME as NAME,
+    input: INPUT,
+    public readonly notifier: Mitto.AnyMitto,
+  ) {
     let latest: VALUE | Mitto.Empty;
 
     super(name, input, {

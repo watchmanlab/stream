@@ -6,6 +6,7 @@ export class StartWith<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = startWith.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
+  private _values: VALUE[];
   constructor(name = startWith.NAME as NAME, input: INPUT, values: VALUE[]) {
     super(name, input, {
       source: () => {
@@ -14,9 +15,14 @@ export class StartWith<
         return () => signal.emit();
       },
       listenerAdded: (listener) => {
-        for (const value of values) listener(value);
+        for (const value of this._values) listener(value);
       },
     });
+    this._values = [...values];
+  }
+
+  get values() {
+    return [...this._values];
   }
 }
 

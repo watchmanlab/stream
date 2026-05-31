@@ -6,7 +6,11 @@ export class TakeUntil<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = takeUntil.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = takeUntil.NAME as NAME, input: INPUT, predicate: takeUntil.Predicate<VALUE>) {
+  constructor(
+    name = takeUntil.NAME as NAME,
+    input: INPUT,
+    public readonly predicate: takeUntil.Predicate<VALUE>,
+  ) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {

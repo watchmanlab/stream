@@ -6,7 +6,11 @@ export class Delay<INPUT extends Mitto.AnyMitto, NAME extends string = delay.Nam
   Mitto.ExtractValue<INPUT>,
   NAME
 > {
-  constructor(name = delay.NAME as NAME, input: INPUT, ms: number) {
+  constructor(
+    name = delay.NAME as NAME,
+    input: INPUT,
+    public readonly ms: number,
+  ) {
     let timer: any = null;
     super(name, input, {
       source: () => {

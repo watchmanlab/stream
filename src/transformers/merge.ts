@@ -7,17 +7,19 @@ export class Merge<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = merge.Name,
 > extends Transformer<INPUT, VALUE | Mitto.ExtractValue<OTHERS[number]>, NAME> {
-  constructor(
-    name = merge.NAME as NAME,
-    input: INPUT,
-    public readonly others: OTHERS,
-  ) {
+  private _others: OTHERS;
+  constructor(name = merge.NAME as NAME, input: INPUT, others: OTHERS) {
     super(name, input, {
       source: () => {
-        const signals = [input, ...others].map((m) => m.listen((value) => this.emit(value)));
+        const signals = [input, ...this._others].map((m) => m.listen((value) => this.emit(value)));
         return () => signals.forEach((abort) => abort.emit());
       },
     });
+
+    this._others = [...others];
+  }
+  get others() {
+    return [...this._others];
   }
 }
 

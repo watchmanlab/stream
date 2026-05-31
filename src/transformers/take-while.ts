@@ -6,7 +6,11 @@ export class TakeWhile<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = takeWhile.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = takeWhile.NAME as NAME, input: INPUT, predicate: takeWhile.Predicate<VALUE>) {
+  constructor(
+    name = takeWhile.NAME as NAME,
+    input: INPUT,
+    public readonly predicate: takeWhile.Predicate<VALUE>,
+  ) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {

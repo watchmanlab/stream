@@ -6,7 +6,11 @@ export class Skip<INPUT extends Mitto.AnyMitto, NAME extends string = skip.Name>
   Mitto.ExtractValue<INPUT>,
   NAME
 > {
-  constructor(name = skip.NAME as NAME, input: INPUT, count: number) {
+  constructor(
+    name = skip.NAME as NAME,
+    input: INPUT,
+    public readonly count: number,
+  ) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {

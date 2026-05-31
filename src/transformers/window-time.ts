@@ -6,7 +6,11 @@ export class WindowTime<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = windowTime.Name,
 > extends Transformer<INPUT, Mitto<VALUE>, NAME> {
-  constructor(name = windowTime.NAME as NAME, input: INPUT, ms: number) {
+  constructor(
+    name = windowTime.NAME as NAME,
+    input: INPUT,
+    public readonly ms: number,
+  ) {
     let window: Mitto<VALUE> | null = null;
     let timer: any = null;
 

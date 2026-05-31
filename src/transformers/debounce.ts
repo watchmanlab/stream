@@ -6,7 +6,11 @@ export class Debounce<INPUT extends Mitto.AnyMitto, NAME extends string = deboun
   Mitto.ExtractValue<INPUT>,
   NAME
 > {
-  constructor(name = debounce.NAME as NAME, input: INPUT, ms: number) {
+  constructor(
+    name = debounce.NAME as NAME,
+    input: INPUT,
+    public readonly ms: number,
+  ) {
     let timer: any = null;
     super(name, input, {
       source: () => {

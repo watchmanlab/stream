@@ -1,4 +1,4 @@
-import type { Mitto } from "../mitto";
+import { Mitto } from "../mitto";
 import { Transformer } from "../transformer";
 
 export class AuditTime<
@@ -6,16 +6,21 @@ export class AuditTime<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = auditTime.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = auditTime.NAME as NAME, input: INPUT, ms: number) {
+  private _latest: VALUE | Mitto.Empty = Mitto.EMPTY;
+  constructor(
+    name = auditTime.NAME as NAME,
+    input: INPUT,
+    public readonly ms: number,
+  ) {
     let timer: any = null;
-    let latest: VALUE;
+
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {
-          latest = value;
+          this._latest = value;
           if (!timer) {
             timer = setTimeout(() => {
-              this.emit(latest);
+              this.emit(this._latest as VALUE);
               timer = null;
             }, ms);
           }
@@ -27,6 +32,9 @@ export class AuditTime<
       },
       aborted: () => clearTimeout(timer),
     });
+  }
+  get latest() {
+    return this._latest;
   }
 }
 

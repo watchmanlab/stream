@@ -6,16 +6,22 @@ export class Emit<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = emit.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
+  private _values: [value: VALUE, ...values: VALUE[]];
   constructor(name = emit.NAME as NAME, input: INPUT, values: [value: VALUE, ...values: VALUE[]]) {
     super(name, input, {
       source: () => {
-        this.emit(...values);
+        this.emit(...this._values);
+        this._values.length = 0;
 
         const signal = input.listen((value) => this.emit(value));
 
         return () => signal.emit();
       },
     });
+    this._values = [...values];
+  }
+  get values() {
+    return [...this._values];
   }
 }
 

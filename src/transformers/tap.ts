@@ -6,7 +6,11 @@ export class Tap<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = tap.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(name = tap.NAME as NAME, input: INPUT, fn: tap.Fn<VALUE>) {
+  constructor(
+    name = tap.NAME as NAME,
+    input: INPUT,
+    public readonly fn: tap.Fn<VALUE>,
+  ) {
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {

@@ -7,10 +7,14 @@ export class Map<
   MAPPED = VALUE,
   NAME extends string = map.Name,
 > extends Transformer<INPUT, MAPPED, NAME> {
-  constructor(name = map.NAME as NAME, input: INPUT, callback: map.Callback<VALUE, MAPPED>) {
+  constructor(
+    name = map.NAME as NAME,
+    input: INPUT,
+    public readonly mapper: map.Mapper<VALUE, MAPPED>,
+  ) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => this.emit(callback(value)));
+        const signal = input.listen((value) => this.emit(mapper(value)));
 
         return () => signal.emit();
       },
@@ -22,11 +26,11 @@ export function map<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends string = map.Name,
->(callback: map.Callback<VALUE, MAPPED>): Mitto.Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
-  return (input, name) => new Map(name, input, callback);
+>(mapper: map.Mapper<VALUE, MAPPED>): Mitto.Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
+  return (input, name) => new Map(name, input, mapper);
 }
 export namespace map {
   export const NAME = "map";
   export type Name = typeof NAME;
-  export type Callback<VALUE, MAPPED> = (value: VALUE) => MAPPED;
+  export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;
 }

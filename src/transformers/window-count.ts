@@ -7,8 +7,13 @@ export class WindowCount<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = windowCount.Name,
 > extends Transformer<INPUT, Mitto<VALUE>, NAME> {
-  constructor(name = windowCount.NAME as NAME, input: INPUT, size: number, startWindowEvery = size) {
-    const windows = new Queue<{ mitto: Mitto<VALUE>; count: number }>();
+  private _windows = new Queue<{ mitto: Mitto<VALUE>; count: number }>();
+  constructor(
+    name = windowCount.NAME as NAME,
+    input: INPUT,
+    public readonly size: number,
+    public readonly startWindowEvery = size,
+  ) {
     let count = 0;
 
     super(name, input, {
@@ -16,16 +21,16 @@ export class WindowCount<
         const signal = input.listen((value) => {
           if (count % startWindowEvery === 0) {
             const window = new Mitto<VALUE>();
-            windows.enqueue({ mitto: window, count: 0 });
+            this._windows.enqueue({ mitto: window, count: 0 });
             this.emit(window);
           }
 
-          for (const window of windows) {
+          for (const window of this._windows) {
             window.mitto.emit(value);
             window.count++;
             if (window.count >= size) {
               window.mitto.abort();
-              windows.dequeue();
+              this._windows.dequeue();
             }
           }
 
@@ -35,13 +40,17 @@ export class WindowCount<
         return () => signal.emit();
       },
       aborted: () => {
-        for (const w of windows) {
+        for (const w of this._windows) {
           w.mitto.abort();
         }
-        windows.clear();
+        this._windows.clear();
         count = 0;
       },
     });
+  }
+
+  get windows() {
+    return this._windows[Symbol.iterator]();
   }
 }
 
