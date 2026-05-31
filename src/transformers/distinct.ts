@@ -6,22 +6,19 @@ export class Distinct<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = distinct.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  private _latest: VALUE | Mitto.Empty = Mitto.EMPTY;
   constructor(name = distinct.NAME as NAME, input: INPUT) {
+    let last: VALUE;
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {
-          if (value !== this._latest) {
-            this._latest = value;
+          if (value !== last) {
+            last = value;
             this.emit(value);
           }
         });
         return () => signal.emit();
       },
     });
-  }
-  get latest() {
-    return this._latest;
   }
 }
 

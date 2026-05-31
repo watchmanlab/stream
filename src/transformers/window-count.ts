@@ -50,7 +50,7 @@ export class WindowCount<
   }
 
   get windows() {
-    return this._windows[Symbol.iterator]();
+    return this._windows.values();
   }
 }
 

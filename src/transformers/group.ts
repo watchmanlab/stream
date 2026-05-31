@@ -3,10 +3,11 @@ import { Transformer } from "../transformer";
 
 export class Group<
   INPUT extends Mitto.AnyMitto,
+  VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   SIZE extends number = 2,
   NAME extends string = group.Name,
-> extends Transformer<INPUT, Mitto.ExtractValue<INPUT>, NAME> {
-  private _buffer = new Array();
+> extends Transformer<INPUT, Mitto.FixedArray<VALUE, SIZE>, NAME> {
+  private _buffer: VALUE[] = [];
   constructor(
     name = group.NAME as NAME,
     input: INPUT,
@@ -20,7 +21,7 @@ export class Group<
           if (this._buffer.length === size) {
             const out = [...this._buffer];
             this._buffer.length = 0;
-            this.emit(out as never);
+            this.emit(out as Mitto.FixedArray<VALUE, SIZE>);
           }
         });
 
@@ -29,13 +30,16 @@ export class Group<
       aborted: () => (this._buffer.length = 0),
     });
   }
-  get buffer() {
-    return this._buffer;
+  get buffer(): ArrayIterator<VALUE> {
+    return this._buffer.values();
   }
 }
-export function group<INPUT extends Mitto.AnyMitto, SIZE extends number = 2, NAME extends string = group.Name>(
-  size = 2 as SIZE,
-): Mitto.Transform<INPUT, NAME, Group<INPUT, SIZE, NAME>> {
+export function group<
+  INPUT extends Mitto.AnyMitto,
+  VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
+  SIZE extends number = 2,
+  NAME extends string = group.Name,
+>(size = 2 as SIZE): Mitto.Transform<INPUT, NAME, Group<INPUT, VALUE, SIZE, NAME>> {
   return (input, name) => new Group(name, input, size);
 }
 export namespace group {

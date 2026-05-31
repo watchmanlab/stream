@@ -7,27 +7,24 @@ export class DistinctBy<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = distinctBy.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  private _latestKey: KEY | Mitto.Empty = Mitto.EMPTY;
   constructor(
     name = distinctBy.NAME as NAME,
     input: INPUT,
     public readonly fn: distinctBy.Fn<VALUE, KEY>,
   ) {
+    let last: KEY;
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {
           const key = fn(value);
-          if (key !== this._latestKey) {
-            this._latestKey = key;
+          if (key !== last) {
+            last = key;
             this.emit(value);
           }
         });
         return () => signal.emit();
       },
     });
-  }
-  get latestKey() {
-    return this._latestKey;
   }
 }
 

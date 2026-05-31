@@ -19,10 +19,10 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
     };
   }
 
-  [Symbol.dispose]() {
+  [Symbol.dispose](): void {
     this.clear();
   }
-  enqueue(value: VALUE) {
+  enqueue(value: VALUE): this {
     this._size++;
     const node = { value };
     if (!this._head) {
@@ -32,6 +32,7 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
       this._tail = node;
     }
     this.options?.enqueue?.(value);
+    return this;
   }
   dequeue(): VALUE | Queue.Empty {
     if (!this._head) return Queue.EMPTY;
@@ -45,6 +46,9 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
     if (!this._head) this.options?.empty?.();
 
     return value;
+  }
+  values(): Queue.Iterator<VALUE> {
+    return this[Symbol.iterator]();
   }
   clear(): void {
     let array = this.options?.clear ? [...this] : [];

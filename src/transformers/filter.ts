@@ -32,7 +32,7 @@ export class Filter<
     });
   }
 
-  get filtered() {
+  get filtered(): Mitto<VALUE, `${NAME}Filtered`> {
     if (!this._filtered) this._filtered = new Mitto({ name: `${this.name}Filtered` });
     return this._filtered;
   }

@@ -22,7 +22,7 @@ export class StartWith<
   }
 
   get values() {
-    return [...this._values];
+    return this._values.values();
   }
 }
 

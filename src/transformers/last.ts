@@ -7,16 +7,16 @@ export class Last<
   NAME extends string = last.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(name = last.NAME as NAME, input: INPUT) {
-    let latest: VALUE;
+    let last: VALUE;
     super(name, input, {
       source: () => {
         const signal = input.listen((value) => {
-          latest = value;
+          last = value;
         });
         return () => signal.emit();
       },
       aborted: () => {
-        this.emit(latest);
+        this.emit(last);
       },
     });
   }

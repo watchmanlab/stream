@@ -20,8 +20,8 @@ export class Emit<
     });
     this._values = [...values];
   }
-  get values() {
-    return [...this._values];
+  get values(): ArrayIterator<VALUE> {
+    return this._values.values();
   }
 }
 

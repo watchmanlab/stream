@@ -7,7 +7,7 @@ export class DropNewest<
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
   NAME extends string = dropNewest.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
-  readonly buffer = new Queue<VALUE>();
+  private _buffer = new Queue<VALUE>();
 
   private _dropped?: Mitto<VALUE, `${NAME}Dropped`>;
 
@@ -19,8 +19,8 @@ export class DropNewest<
     let signal: Mitto | undefined;
     super(name ?? (dropNewest.NAME as NAME), input, {
       source: () => {
-        this.emitBatch([...this.buffer]);
-        this.buffer.clear();
+        this.emitBatch([...this._buffer]);
+        this._buffer.clear();
         signal?.emit();
         signal = input.listen((value) => this.emit(value));
         return () => {
@@ -31,7 +31,7 @@ export class DropNewest<
       aborted: () => {
         signal?.emit();
         signal = undefined;
-        this.buffer.clear();
+        this._buffer.clear();
       },
     });
 
@@ -39,17 +39,20 @@ export class DropNewest<
   }
   private save(): Mitto {
     return this.input.listen((value) => {
-      if (this.buffer.size >= this.size) {
+      if (this._buffer.size >= this.size) {
         this._dropped?.emit(value);
         return;
       }
-      this.buffer.enqueue(value);
+      this._buffer.enqueue(value);
     });
   }
 
   get dropped() {
     if (!this._dropped) this._dropped = new Mitto({ name: `${this.name}Dropped` });
     return this._dropped;
+  }
+  get buffer() {
+    return this._buffer.values();
   }
 }
 
