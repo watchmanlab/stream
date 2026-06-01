@@ -3,20 +3,23 @@ import type { Transformer } from "./transformer.ts";
 
 export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
   readonly name: NAME;
+  private _options: Mitto.Options<VALUE, NAME>;
   private _listeners = new Set<Mitto.Listener<VALUE>>();
   private _listenerAdded?: Mitto<Mitto.Listener<VALUE>, `${NAME}ListenerAdded`>;
   private _listenerRemoved?: Mitto<Mitto.Listener<VALUE>, `${NAME}ListenerRemoved`>;
   private _aborted?: Mitto<void, `${NAME}Aborted`>;
 
-  constructor(private options = {} as Mitto.Options<VALUE, NAME>) {
-    this.name = options.name ?? ("root" as NAME);
+  constructor(options?: Mitto.Options<VALUE, NAME>) {
+    this._options = { ...options };
 
-    if (options.scoop) {
-      if (options.scoop instanceof Mitto) {
-        options.scoop.aborted.next(() => this.abort());
-      } else if (options.scoop.any) {
+    this.name = this._options.name ?? ("root" as NAME);
+
+    if (this._options.scoop) {
+      if (this._options.scoop instanceof Mitto) {
+        this._options.scoop.aborted.next(() => this.abort());
+      } else if (this._options.scoop.any) {
         let signals: Mitto[] = [];
-        new Set(options.scoop.any).forEach((other) => {
+        new Set(this._options.scoop.any).forEach((other) => {
           signals.push(
             other.aborted.next(() => {
               this.abort();
@@ -26,26 +29,60 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
           );
         });
       } else {
-        const scoops = new Set(options.scoop.all);
+        const scoops = new Set(this._options.scoop.all);
         let count = scoops.size;
         scoops.forEach((other) => other.aborted.next(() => !count-- && this.abort()));
       }
     }
-    if (options?.source) {
-      const { listenerAdded, listenerRemoved, aborted } = options;
+    if (this._options?.source) {
+      const { listenerAdded, listenerRemoved, aborted } = this._options;
 
-      let abort: () => void;
-      this.options.listenerAdded = (fn) => {
-        if (this.listenersCount === 1) abort = options.source!();
+      let signal: Mitto | undefined;
+      let cleanup: (...args: any) => void | undefined;
+      let stop = false;
+      let iterator: Iterator<VALUE> | AsyncIterator<VALUE> | undefined;
+      let resolver: (() => void) | undefined;
+      this._options.listenerAdded = (fn) => {
+        if (this.listenersCount === 1) {
+          const source = typeof this._options.source === "function" ? this._options.source() : this._options.source!;
+          if (typeof source === "function") {
+            cleanup = source;
+          } else if (source instanceof Mitto) {
+            signal = source.listen((value) => this.emit(value));
+          } else {
+            resolver?.();
+            stop = false;
+            if (!iterator) {
+              iterator = (source as any)[Symbol.iterator]?.() ?? (source as any)[Symbol.asyncIterator]?.() ?? source;
+              (async () => {
+                let next = await iterator!.next();
+
+                while (!next.done) {
+                  if (stop) await new Promise<void>((r) => (resolver = r));
+                  this.emit(next.value);
+                  next = await iterator!.next();
+                }
+              })();
+            }
+          }
+        }
         listenerAdded?.(fn);
       };
-      this.options.listenerRemoved = (fn) => {
-        if (this.listenersCount === 0) abort();
+      this._options.listenerRemoved = (fn) => {
+        if (this.listenersCount === 0) {
+          signal?.emit();
+          cleanup?.();
+          stop = true;
+        }
 
         listenerRemoved?.(fn);
       };
-      this.options.aborted = () => {
-        abort();
+      this._options.aborted = () => {
+        signal?.emit();
+        cleanup?.();
+        stop = true;
+        iterator?.return?.();
+        resolver?.();
         aborted?.();
       };
     }
@@ -99,12 +136,12 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
   abort(): this {
     this._aborted?.emit();
     this._aborted?.abort();
-    this.options?.aborted?.();
-    this.options.aborted =
-      this.options.emited =
-      this.options.listenerAdded =
-      this.options.listenerRemoved =
-      this.options.source =
+    this._options?.aborted?.();
+    this._options.aborted =
+      this._options.emited =
+      this._options.listenerAdded =
+      this._options.listenerRemoved =
+      this._options.source =
       this._listenerAdded =
       this._listenerRemoved =
       this._aborted =
@@ -119,7 +156,7 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
   }
   emitBatch(values: VALUE[]): this {
     for (const value of values) {
-      this.options?.emited?.(value);
+      this._options?.emited?.(value);
       for (const fn of this._listeners) {
         fn(value);
       }
@@ -135,14 +172,14 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
       emited: () => {
         abortSignal.abort();
         if (!this._listeners.delete(fn)) return;
-        this.options?.listenerRemoved?.(fn);
+        this._options?.listenerRemoved?.(fn);
         this._listenerRemoved?.emit(fn);
       },
     });
     if (this._listeners.has(fn)) return abortSignal;
 
     this._listeners.add(fn);
-    this.options?.listenerAdded?.(fn);
+    this._options?.listenerAdded?.(fn);
     this._listenerAdded?.emit(fn);
 
     options?.abortSignal?.next(() => abortSignal.abort(), { abortSignal });
@@ -182,10 +219,26 @@ export namespace Mitto {
     | Mitto.AnyMitto
     | { any: [other: Mitto.AnyMitto, ...others: Mitto.AnyMitto[]]; all?: never }
     | { all: [other: Mitto.AnyMitto, ...others: Mitto.AnyMitto[]]; any?: never };
+
+  export type Source<VALUE = never> =
+    | Mitto<VALUE, any>
+    | Iterable<VALUE>
+    | AsyncIterable<VALUE>
+    | Iterator<VALUE>
+    | AsyncIterator<VALUE>
+    | (() =>
+        | Mitto<VALUE, any>
+        | Iterable<VALUE>
+        | AsyncIterable<VALUE>
+        | Iterator<VALUE>
+        | AsyncIterator<VALUE>
+        | Generator<VALUE>
+        | AsyncGenerator<VALUE>
+        | (() => void));
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
     scoop?: Scoop;
-    source?: () => () => void;
+    source?: Source<VALUE>;
     emited?: (value: VALUE) => void;
     aborted?: () => void;
     listenerAdded?: (fn: Listener<VALUE>) => void;

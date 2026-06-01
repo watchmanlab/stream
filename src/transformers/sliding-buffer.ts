@@ -22,6 +22,9 @@ export class SlidingBuffer<
       aborted: () => this._buffer.clear(),
     });
   }
+  get buffer() {
+    return this._buffer.values();
+  }
 }
 export function slidingBuffer<
   INPUT extends Mitto.AnyMitto,

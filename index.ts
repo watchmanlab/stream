@@ -1,15 +1,26 @@
 import { Mitto } from "./src/mitto";
-const m1 = new Mitto<number>();
+const m1 = new Mitto({
+  source: function* () {
+    yield 1;
+    yield 2;
+    yield 3;
+  },
+});
 
-m1.map((v) => {
-  console.log("map", v);
-  return v.toLocaleString();
-})
-  .filter((v) => {
-    console.log("filrer", v);
-    return v.length > 0;
-  })
-  .listen();
+let s = m1.listen((v) => {
+  console.log("l1", v);
+  s.emit();
+});
 
-m1.emit(1);
-m1.emit(2);
+setTimeout(() => {
+  s = m1.listen((v) => {
+    console.log("l2", v);
+    s.emit();
+  });
+}, 1000);
+setTimeout(() => {
+  s = m1.listen((v) => {
+    console.log("l3", v);
+    s.emit();
+  });
+}, 2000);
