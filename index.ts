@@ -6,6 +6,7 @@ const m1 = new Mitto({
     yield 3;
   },
 });
+m1.aborted.listen(() => console.log("aborted"));
 
 let s = m1.listen((v) => {
   console.log("l1", v);

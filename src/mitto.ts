@@ -62,6 +62,7 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
                   this.emit(next.value);
                   next = await iterator!.next();
                 }
+                this.abort();
               })();
             }
           }
@@ -87,7 +88,6 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
       };
     }
   }
-
   get listenersCount() {
     return this._listeners.size;
   }
@@ -185,6 +185,9 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
     options?.abortSignal?.next(() => abortSignal.abort(), { abortSignal });
     return abortSignal;
   }
+  unlisten(fn: Mitto.Listener<VALUE>): boolean {
+    return this._listeners.delete(fn);
+  }
   next(fn: Mitto.Listener<VALUE>, options?: Mitto.ListenOptions): Mitto<void> {
     const stopSignal = this.listen((value) => {
       fn?.(value);
@@ -194,9 +197,18 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
     return stopSignal;
   }
 
-  scoop(other: Mitto.AnyMitto) {
-    other.aborted.next(() => this.abort());
+  protected then<TResult2 = never>(
+    onfulfilled?: ((value: VALUE) => VALUE | PromiseLike<VALUE>) | undefined | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null,
+  ): PromiseLike<VALUE | TResult2> {
+    return new Promise<VALUE>((resolve, reject) => {
+      this.next(resolve);
+      this.aborted.next(reject);
+    })
+      .then(onfulfilled, onrejected)
+      .catch();
   }
+
   pipe<OUTPUT_NAME extends string, OUTPUT extends Transformer<this, any, OUTPUT_NAME> | this>(
     transform: Mitto.Transform<this, OUTPUT_NAME, OUTPUT>,
   ): OUTPUT;

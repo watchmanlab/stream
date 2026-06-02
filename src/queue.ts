@@ -3,7 +3,7 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
   private _tail?: Queue.Node<VALUE>;
   private _size = 0;
 
-  constructor(private options?: Queue.Options<VALUE>) {}
+  constructor() {}
   [Symbol.iterator](): Queue.Iterator<VALUE> {
     let cursor = this._head;
     return {
@@ -31,7 +31,6 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
       this._tail!.next = node;
       this._tail = node;
     }
-    this.options?.enqueue?.(value);
     return this;
   }
   dequeue(): VALUE | Queue.Empty {
@@ -41,22 +40,14 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
     const value = this._head.value;
     this._head = this._head.next;
 
-    this.options?.dequeue?.(value);
-
-    if (!this._head) this.options?.empty?.();
-
     return value;
   }
   values(): Queue.Iterator<VALUE> {
     return this[Symbol.iterator]();
   }
   clear(): void {
-    let array = this.options?.clear ? [...this] : [];
-
     this._head = this._tail = undefined;
     this._size = 0;
-
-    this.options?.clear?.(array!);
   }
 
   get size() {
@@ -65,12 +56,7 @@ export class Queue<VALUE> implements Iterable<VALUE>, Disposable {
 }
 export namespace Queue {
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
-  export type Options<VALUE> = {
-    enqueue?: (value: VALUE) => void;
-    dequeue?: (value: VALUE) => void;
-    clear?: (values: VALUE[]) => void;
-    empty?: () => void;
-  };
+
   export type Iterator<VALUE> = {
     next: () =>
       | {
@@ -82,6 +68,6 @@ export namespace Queue {
           done: true;
         };
   };
-  export const EMPTY = Symbol("$QUEUE_EMPTY#");
+  export const EMPTY = Symbol.for("empty");
   export type Empty = typeof EMPTY;
 }
