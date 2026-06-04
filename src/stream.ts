@@ -12,41 +12,22 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
 
     if (this._options.scoop) {
       if (this._options.scoop instanceof Channel) {
-        {
-          const next = this._options.scoop.completed.getChannel().next();
-          if (next instanceof Promise) {
-            next.then(() => {
-              this.complete();
-            });
-          } else {
-            this.complete();
-          }
-        }
-        {
-          const next = this._options.scoop.aborted.getChannel().next();
-          if (next instanceof Promise) {
-            next.then(() => {
-              this.abort();
-            });
-          } else {
-            this.abort();
-          }
-        }
+        this._options.scoop.completed.getChannel().handleNext({ onDone: () => this.complete() });
+        this._options.scoop.aborted.getChannel().handleNext({ onDone: () => this.abort() });
       } else if (this._options.scoop.any) {
-        let signals: Mitto[] = [];
         new Set(this._options.scoop.any).forEach((other) => {
-          signals.push(
-            other.aborted.next(() => {
-              this.abort();
-              signals.forEach((signal) => signal.emit());
-              signals.length = 0;
-            }),
-          );
+          other.completed.getChannel().handleNext({ onDone: () => this.complete() });
+          other.aborted.getChannel().handleNext({ onDone: () => this.abort() });
         });
       } else {
         const scoops = new Set(this._options.scoop.all);
-        let count = scoops.size;
-        scoops.forEach((other) => other.aborted.next(() => !count-- && this.abort()));
+        let completCount = scoops.size,
+          abortCount = scoops.size;
+
+        scoops.forEach((other) => {
+          other.completed.getChannel().handleNext({ onDone: () => !completCount-- && this.complete() });
+          other.aborted.getChannel().handleNext({ onDone: () => !abortCount-- && this.abort() });
+        });
       }
     }
   }

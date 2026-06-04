@@ -21,15 +21,50 @@ export class Channel<VALUE> {
     }
   }
 
+  static handleNext<VALUE, CHANNEL extends Channel<VALUE>>(
+    channel: CHANNEL,
+    next: VALUE | Channel.Done | Promise<VALUE | Channel.Done>,
+    handlers: Channel.NextHandlers<VALUE, CHANNEL>,
+  ) {
+    if (next instanceof Promise) {
+      next.then((value) => {
+        if (value !== Channel.DONE) {
+          handlers.onValue?.(value, channel);
+          return;
+        }
+
+        if (channel.status === "completed") {
+          handlers.onComplete?.(channel);
+        } else {
+          handlers.onAbort?.(channel);
+        }
+        handlers.onDone?.(channel);
+      });
+    } else {
+      if (next !== Channel.DONE) {
+        handlers.onValue?.(next, channel);
+        return;
+      }
+
+      if (channel.status === "completed") {
+        handlers.onComplete?.(channel);
+      } else {
+        handlers.onAbort?.(channel);
+      }
+      handlers.onDone?.(channel);
+    }
+  }
+  handleNext(handlers: Channel.NextHandlers<VALUE, this>) {
+    Channel.handleNext(this, this.next(), handlers);
+  }
   next(): VALUE | Channel.Done | Promise<VALUE | Channel.Done> {
     const value = this._queue.dequeue();
     if (value !== Queue.EMPTY) return value;
 
     if (this._status === "drain") {
       this.complete();
-
       return Channel.DONE;
-    } else if (this._status === "aborted") {
+    } else if (this._status === "aborted" || this._status === "completed") {
       return Channel.DONE;
     }
 
@@ -98,6 +133,31 @@ export namespace Channel {
     abort?: (self: SELF) => void;
   };
 
+  export type NextHandlers<VALUE, SELF extends Channel<VALUE>> =
+    | {
+        onValue: (value: VALUE, self: SELF) => void;
+        onAbort?: (self: SELF) => void;
+        onComplete?: (self: SELF) => void;
+        onDone?: (self: SELF) => void;
+      }
+    | {
+        onValue?: (value: VALUE, self: SELF) => void;
+        onAbort: (self: SELF) => void;
+        onComplete?: (self: SELF) => void;
+        onDone?: (self: SELF) => void;
+      }
+    | {
+        onValue?: (value: VALUE, self: SELF) => void;
+        onAbort?: (self: SELF) => void;
+        onComplete: (self: SELF) => void;
+        onDone?: (self: SELF) => void;
+      }
+    | {
+        onValue?: (value: VALUE, self: SELF) => void;
+        onAbort?: (self: SELF) => void;
+        onComplete?: (self: SELF) => void;
+        onDone: (self: SELF) => void;
+      };
   export const DONE = Symbol.for("done");
   export type Done = typeof DONE;
 }
