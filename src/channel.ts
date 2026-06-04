@@ -1,11 +1,15 @@
 import { Queue } from "./queue";
+import { Stream } from "./stream";
 
 export class Channel<VALUE> {
   private _queue = new Queue<VALUE>();
   private _status: Channel.Status = "active";
   private _pending?: { promise: Promise<VALUE | Channel.Done>; resolver: (value: VALUE | Channel.Done) => void };
+  private _completed?: Stream<Channel.Done, "completed">;
+  private _aborted?: Stream<Channel.Done, "aborted">;
+  private _stream?: Stream<VALUE, "channel">;
 
-  constructor(private options?: Channel.Options) {}
+  constructor(private options?: Channel.Options<Channel<VALUE>>) {}
 
   push(value: VALUE) {
     if (this._status !== "active") return;
@@ -16,38 +20,54 @@ export class Channel<VALUE> {
       this._queue.enqueue(value);
     }
   }
-  next() {
-    if (this._status === "aborted") return Channel.DONE;
 
+  next(): VALUE | Channel.Done | Promise<VALUE | Channel.Done> {
     const value = this._queue.dequeue();
     if (value !== Queue.EMPTY) return value;
 
-    if (this._status === "drain") return Channel.DONE;
+    if (this._status === "drain") {
+      this.complete();
+
+      return Channel.DONE;
+    } else if (this._status === "aborted") {
+      return Channel.DONE;
+    }
 
     if (this._pending) return this._pending.promise;
 
-    const pending: any = {};
+    let resolver!: (value: VALUE | Channel.Done) => void;
 
-    pending.promise = new Promise<VALUE | Channel.Done>((r) => {
-      pending.resolver = r;
-      this.options?.pull?.();
+    const promise = new Promise<VALUE | Channel.Done>((r) => {
+      resolver = r;
+      this.options?.pull?.(this);
     });
 
-    this._pending = pending;
-
-    return this._pending!.promise;
+    this._pending = { promise, resolver };
+    return promise;
   }
-
   complete() {
-    this._status = "drain";
-    this.options?.done?.();
+    if (this._queue.size) {
+      this._status = "drain";
+    } else {
+      this._status = "completed";
+      this.options?.complete?.(this);
+      this.options?.done?.(this);
+      this._completed?.abort();
+      this.options = this._aborted = this._completed = this._stream = undefined;
+    }
   }
   abort() {
     this._status = "aborted";
     this._queue.clear();
     this._pending?.resolver(Channel.DONE);
-    this._pending = undefined;
-    this.options?.done?.();
+    this.options?.abort?.(this);
+    this.options?.done?.(this);
+    this._aborted?.abort();
+    this._pending = this.options = this._aborted = this._completed = this._stream = undefined;
+  }
+  get stream() {
+    if (!this._stream) this._stream = new Stream({ name: "channel", source: this, scoop: this });
+    return this._stream;
   }
   get status() {
     return this._status;
@@ -55,51 +75,29 @@ export class Channel<VALUE> {
   get queue() {
     return this._queue;
   }
-  get pending() {
+  get hasPending() {
     return this._pending !== undefined;
+  }
+  get completed() {
+    if (!this._completed) this._completed = new Stream({ name: "completed" });
+    return this._completed;
+  }
+  get aborted() {
+    if (!this._aborted) this._aborted = new Stream({ name: "aborted" });
+    return this._aborted;
   }
 }
 
 export namespace Channel {
-  export type Status = "active" | "drain" | "aborted";
-  export type Options = {
-    pull?: () => void;
-    done?: () => void;
+  export type AnyChannel = Channel<any>;
+  export type Status = "active" | "drain" | "completed" | "aborted";
+  export type Options<SELF extends AnyChannel> = {
+    pull?: (self: SELF) => void;
+    done?: (self: SELF) => void;
+    complete?: (self: SELF) => void;
+    abort?: (self: SELF) => void;
   };
+
   export const DONE = Symbol.for("done");
   export type Done = typeof DONE;
 }
-
-function test() {
-  const MAX = 1_000_000;
-  const start = performance.now();
-
-  const stream = new Channel<number>();
-
-  (async () => {
-    let next = stream.next();
-    next = next instanceof Promise ? await next : next;
-
-    while (next !== Channel.DONE) {
-      if (next === MAX) console.log(next, Math.round(performance.now() - start));
-      next = stream.next();
-      next = next instanceof Promise ? await next : next;
-    }
-  })();
-
-  for (let i = 0; i <= MAX; i++) {
-    stream.push(i);
-  }
-  //   function* gen() {
-  //     for (let i = 0; i <= MAX; i++) {
-  //       yield i;
-  //     }
-  //   }
-  //   (async () => {
-  //     for (const value of gen()) {
-  //       if (value === MAX) console.log(value, Math.round(performance.now() - start));
-  //     }
-  //   })();
-}
-
-test();
