@@ -4,9 +4,13 @@ import { Stream } from "./stream";
 export class Channel<VALUE> {
   private _queue = new Queue<VALUE>();
   private _status: Channel.Status = "active";
-  private _pending?: { promise: Promise<VALUE | Channel.Done>; resolver: (value: VALUE | Channel.Done) => void };
-  private _completed?: Stream<Channel.Done, "completed">;
-  private _aborted?: Stream<Channel.Done, "aborted">;
+  private _pending?: {
+    promise: Promise<VALUE>;
+    resolve: (value: VALUE) => void;
+    reject: (reason: Channel.Aborted | Channel.Completed) => void;
+  };
+  private _completed?: Stream<void, "completed">;
+  private _aborted?: Stream<void, "aborted">;
   private _stream?: Stream<VALUE, "channel">;
 
   constructor(private options?: Channel.Options<Channel<VALUE>>) {}
@@ -14,90 +18,67 @@ export class Channel<VALUE> {
   push(value: VALUE) {
     if (this._status !== "active") return;
     if (this._pending) {
-      this._pending.resolver(value);
+      this._pending.resolve(value);
       this._pending = undefined;
     } else {
       this._queue.enqueue(value);
     }
   }
 
-  static handleNext<VALUE, CHANNEL extends Channel<VALUE>>(
-    channel: CHANNEL,
-    next: VALUE | Channel.Done | Promise<VALUE | Channel.Done>,
-    handlers: Channel.NextHandlers<VALUE, CHANNEL>,
-  ) {
-    if (next instanceof Promise) {
-      next.then((value) => {
-        if (value !== Channel.DONE) {
-          handlers.onValue?.(value, channel);
-          return;
-        }
-
-        if (channel.status === "completed") {
-          handlers.onComplete?.(channel);
-        } else {
-          handlers.onAbort?.(channel);
-        }
-        handlers.onDone?.(channel);
-      });
-    } else {
-      if (next !== Channel.DONE) {
-        handlers.onValue?.(next, channel);
-        return;
-      }
-
-      if (channel.status === "completed") {
-        handlers.onComplete?.(channel);
-      } else {
-        handlers.onAbort?.(channel);
-      }
-      handlers.onDone?.(channel);
-    }
-  }
-  handleNext(handlers: Channel.NextHandlers<VALUE, this>) {
-    Channel.handleNext(this, this.next(), handlers);
-  }
-  next(): VALUE | Channel.Done | Promise<VALUE | Channel.Done> {
+  next(): VALUE | Promise<VALUE> {
     const value = this._queue.dequeue();
     if (value !== Queue.EMPTY) return value;
 
-    if (this._status === "drain") {
-      this.complete();
-      return Channel.DONE;
-    } else if (this._status === "aborted" || this._status === "completed") {
-      return Channel.DONE;
+    switch (this._status) {
+      case "completed":
+        throw Channel.COMPLETED;
+      case "aborted":
+        throw Channel.ABORTED;
+      case "drain":
+        this.complete();
+        throw Channel.COMPLETED;
     }
 
     if (this._pending) return this._pending.promise;
 
-    let resolver!: (value: VALUE | Channel.Done) => void;
+    let resolve!: (value: VALUE) => void;
+    let reject!: (reason: Channel.Aborted | Channel.Completed) => void;
 
-    const promise = new Promise<VALUE | Channel.Done>((r) => {
-      resolver = r;
+    const promise = new Promise<VALUE>((res, rej) => {
+      resolve = res;
+      reject = rej;
       this.options?.pull?.(this);
     });
 
-    this._pending = { promise, resolver };
+    this._pending = { promise, resolve, reject };
     return promise;
   }
   complete() {
+    if (this._status !== "active") return;
+
     if (this._queue.size) {
       this._status = "drain";
     } else {
       this._status = "completed";
+
+      this._pending?.reject(Channel.COMPLETED);
+
       this.options?.complete?.(this);
       this.options?.done?.(this);
-      this._completed?.abort();
-      this.options = this._aborted = this._completed = this._stream = undefined;
+      this._completed?.push();
+      this._completed?.complete();
+      this.options = this._aborted = this._completed = this._stream = this._pending = undefined;
     }
   }
   abort() {
+    if (this.status === "aborted") return;
     this._status = "aborted";
     this._queue.clear();
-    this._pending?.resolver(Channel.DONE);
+    this._pending?.reject(Channel.ABORTED);
     this.options?.abort?.(this);
     this.options?.done?.(this);
-    this._aborted?.abort();
+    this._aborted?.push();
+    this._aborted?.complete();
     this._pending = this.options = this._aborted = this._completed = this._stream = undefined;
   }
   get stream() {
@@ -158,6 +139,9 @@ export namespace Channel {
         onComplete?: (self: SELF) => void;
         onDone: (self: SELF) => void;
       };
-  export const DONE = Symbol.for("done");
-  export type Done = typeof DONE;
+
+  export const COMPLETED = Symbol.for("completed");
+  export type Completed = typeof COMPLETED;
+  export const ABORTED = Symbol.for("aborted");
+  export type Aborted = typeof ABORTED;
 }

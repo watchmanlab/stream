@@ -12,12 +12,10 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
 
     if (this._options.scoop) {
       if (this._options.scoop instanceof Channel) {
-        this._options.scoop.completed.getChannel().handleNext({ onDone: () => this.complete() });
-        this._options.scoop.aborted.getChannel().handleNext({ onDone: () => this.abort() });
+        this._handleScoop(this._options.scoop);
       } else if (this._options.scoop.any) {
         new Set(this._options.scoop.any).forEach((other) => {
-          other.completed.getChannel().handleNext({ onDone: () => this.complete() });
-          other.aborted.getChannel().handleNext({ onDone: () => this.abort() });
+          this._handleScoop(other);
         });
       } else {
         const scoops = new Set(this._options.scoop.all);
@@ -25,10 +23,37 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
           abortCount = scoops.size;
 
         scoops.forEach((other) => {
-          other.completed.getChannel().handleNext({ onDone: () => !completCount-- && this.complete() });
-          other.aborted.getChannel().handleNext({ onDone: () => !abortCount-- && this.abort() });
+          this._handleScoop(
+            other,
+            () => !completCount-- && this.complete(),
+            () => !abortCount-- && this.abort(),
+          );
         });
       }
+    }
+  }
+  private _handleScoop(channel: Channel<VALUE>, onComplete?: () => void, onAbort?: () => void) {
+    const completedChannel = channel.completed.getChannel();
+    try {
+      const next = completedChannel.next();
+      if (next instanceof Promise) {
+        next.then(() => (onComplete ? onComplete() : this.complete())).catch(() => this.abort());
+      } else {
+        onComplete ? onComplete() : this.complete();
+      }
+    } catch (done) {
+      this.abort();
+    }
+    const abortedChannel = channel.aborted.getChannel();
+    try {
+      const next = abortedChannel.next();
+      if (next instanceof Promise) {
+        next.then(() => (onAbort ? onAbort() : this.abort())).catch(() => this.abort());
+      } else {
+        onAbort ? onAbort() : this.abort();
+      }
+    } catch (done) {
+      this.abort();
     }
   }
 
@@ -43,17 +68,24 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
       pull: () => {
         if (this._pulling || !this._options.source) return;
 
-        const next = this._options.source.next();
+        try {
+          const next = this._options.source.next();
 
-        if (next instanceof Promise) {
-          this._pulling = true;
-
-          next.then((value) => {
-            this._pulling = false;
-            this._handleNext(value);
-          });
-        } else {
-          this._handleNext(next);
+          if (next instanceof Promise) {
+            this._pulling = true;
+            next
+              .then((value) => {
+                this._pulling = false;
+                this.push(value);
+              })
+              .catch((done) => {
+                this._handleError(done);
+              });
+          } else {
+            this.push(next);
+          }
+        } catch (done) {
+          this._handleError(done);
         }
       },
       done: () => {
@@ -69,12 +101,12 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
     return channel;
   }
 
-  private _handleNext(next: VALUE | Channel.Done) {
-    if (next === Channel.DONE) {
-      this._options.source = undefined;
-      this.complete();
+  private _handleError(error: any) {
+    this._options.source = undefined;
+    if (error === Channel.ABORTED) {
+      this.abort();
     } else {
-      this.push(next);
+      this.complete();
     }
   }
   // pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME> | this>(
@@ -146,14 +178,16 @@ function bench() {
   const channel = stream.getChannel();
 
   (async () => {
-    let next = channel.next();
-    next = next instanceof Promise ? await next : next;
-
-    while (next !== Channel.DONE) {
-      if (next === MAX) console.log(next, Math.round(performance.now() - start));
-      next = channel.next();
+    try {
+      let next = channel.next();
       next = next instanceof Promise ? await next : next;
-    }
+
+      while (true) {
+        if (next === MAX) console.log(next, Math.round(performance.now() - start));
+        next = channel.next();
+        next = next instanceof Promise ? await next : next;
+      }
+    } catch (error) {}
   })();
 
   for (let i = 0; i <= MAX; i++) {
@@ -168,15 +202,17 @@ function test() {
   const channel = stream.getChannel();
 
   (async () => {
-    let next = channel.next();
-    next = next instanceof Promise ? await next : next;
-
-    while (next !== Channel.DONE) {
-      console.log(next);
-
-      next = channel.next();
+    try {
+      let next = channel.next();
       next = next instanceof Promise ? await next : next;
-    }
+
+      while (true) {
+        console.log(next);
+
+        next = channel.next();
+        next = next instanceof Promise ? await next : next;
+      }
+    } catch (error) {}
   })();
 
   stream.push(1);
@@ -199,17 +235,19 @@ function optimizedBench() {
   const start = performance.now();
 
   (async () => {
-    let next = channel.next();
-    next = next instanceof Promise ? await next : next;
-
-    while (next !== Channel.DONE) {
-      if (next === MAX) {
-        // This will print an even lower, purely synchronous runtime score
-        console.log("Synchronous Processing Done:", next, Math.round(performance.now() - start), "ms");
-      }
-      next = channel.next();
+    try {
+      let next = channel.next();
       next = next instanceof Promise ? await next : next;
-    }
+
+      while (true) {
+        if (next === MAX) {
+          // This will print an even lower, purely synchronous runtime score
+          console.log("Synchronous Processing Done:", next, Math.round(performance.now() - start), "ms");
+        }
+        next = channel.next();
+        next = next instanceof Promise ? await next : next;
+      }
+    } catch (error) {}
   })();
 }
 
@@ -235,19 +273,21 @@ function multiConsumerBench() {
 
   function consume(channel: any, name: string) {
     (async () => {
-      let next = channel.next();
-      next = next instanceof Promise ? await next : next;
-
-      while (next !== Channel.DONE) {
-        if (next === MAX) {
-          completedConsumers++;
-          if (completedConsumers === 3) {
-            console.log("All 3 Consumers Done!", Math.round(performance.now() - start), "ms");
-          }
-        }
-        next = channel.next();
+      try {
+        let next = channel.next();
         next = next instanceof Promise ? await next : next;
-      }
+
+        while (true) {
+          if (next === MAX) {
+            completedConsumers++;
+            if (completedConsumers === 3) {
+              console.log("All 3 Consumers Done!", Math.round(performance.now() - start), "ms");
+            }
+          }
+          next = channel.next();
+          next = next instanceof Promise ? await next : next;
+        }
+      } catch (error) {}
     })();
   }
 
