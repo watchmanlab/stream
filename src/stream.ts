@@ -12,45 +12,25 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
 
     if (this._options.scope) {
       if (this._options.scope instanceof Channel) {
-        Promise.resolve(this._options.scope.closed.getChannel().next()).then((complete) => this.close(complete));
-        this._handleScoop(this._options.scope);
+        Promise.resolve(this._options.scope.aborted.getChannel().next()).then(() => this.abort());
       } else if (this._options.scope.any) {
-        const scopes = new Set(this._options.scope.any);
-        scopes.forEach((other) => {
-          this._handleScoop(other, (drain) => {
-            this.close(drain);
-            scopes.forEach((scope) => scope.close());
+        const channels = new Set(this._options.scope.any).values().map((other) => {
+          const channel = other.aborted.getChannel();
+          Promise.resolve(channel.next()).then(() => {
+            this.abort();
+            channels.forEach((channel) => channel.abort());
           });
+          return channel;
         });
       } else {
         const scopes = new Set(this._options.scope.all);
-        let count = 0;
+        let count = scopes.size;
         scopes.forEach((other) => {
-          this._handleScoop(other, (complete) => {
-            if (complete) {
-              count++;
-              if (count === scopes.size) this.close(true);
-            } else {
-              this.close();
-            }
-          });
+          Promise.resolve(other.aborted.getChannel().next()).then(() => !count++ && this.abort());
         });
       }
     }
   }
-  private _handleScoop(channel: Channel<VALUE>, onClose?: (drain: boolean) => void) {
-    try {
-      const drain = channel.closed.getChannel().next();
-      if (drain instanceof Promise) {
-        drain.then((drain) => (onClose ? onClose(drain) : this.close(drain))).catch(() => this.close(false));
-      } else {
-        onClose ? onClose(drain) : this.close(drain);
-      }
-    } catch (done) {
-      this.close(false);
-    }
-  }
-  scope(channel: Channel<VALUE>, options: { drain: boolean; onClose?: (drain: boolean) => void }) {}
 
   push(value: VALUE) {
     const len = this._channels.length;
@@ -65,7 +45,6 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
 
         try {
           const next = this._options.source.next();
-
           if (next instanceof Promise) {
             this._pulling = true;
             next
@@ -73,17 +52,17 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
                 this._pulling = false;
                 this.push(value);
               })
-              .catch((done) => {
-                this._handleError(done);
+              .catch(() => {
+                this.abort();
               });
           } else {
             this.push(next);
           }
-        } catch (done) {
-          this._handleError(done);
+        } finally {
+          this.abort();
         }
       },
-      close: () => {
+      abort: () => {
         const index = this._channels.indexOf(channel);
         if (index !== -1) {
           (this._channels as any)[index] = this._channels[this._channels.length - 1];
@@ -96,14 +75,6 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
     return channel;
   }
 
-  private _handleError(error: any) {
-    this._options.source = undefined;
-    if (error === Channel.ABORTED) {
-      this.close(false);
-    } else {
-      this.close();
-    }
-  }
   // pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME> | this>(
   //   transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   // ): OUTPUT_STREAM;
@@ -117,9 +88,9 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
   // ): OUTPUT_STREAM {
   //   return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   // }
-  close(complete = true) {
+  abort() {
     for (const channel of this._channels) {
-      channel.close(complete);
+      channel.abort();
     }
   }
 
@@ -135,9 +106,7 @@ export namespace Stream {
   export const NAME = "root";
   export type Name = typeof NAME;
   export type AnyStream = Stream<any, any>;
-  export interface Closable {
-    close(drain: boolean): void;
-  }
+
   export type Scoop =
     | Channel.AnyChannel
     | { any: [other: Channel.AnyChannel, ...others: Channel.AnyChannel[]]; all?: never }
