@@ -1,7 +1,7 @@
 import { Queue } from "./queue";
 import { Stream } from "./stream";
 
-export class Channel<VALUE> implements Stream.Closable {
+export class Channel<VALUE> {
   private _queue = new Queue<VALUE>();
   private _status: Channel.Status = "active";
   private _pending?: {
@@ -52,9 +52,9 @@ export class Channel<VALUE> implements Stream.Closable {
     this._pending = { promise, resolve, reject };
     return promise;
   }
-  close(drain = true) {
+  close(complete = false) {
     if (this._status == "aborted" || this._status === "completed") return;
-    if (drain) {
+    if (complete) {
       if (this._queue.size) {
         this._status = "drain";
         return;
@@ -69,8 +69,8 @@ export class Channel<VALUE> implements Stream.Closable {
       this._pending?.reject(Channel.ABORTED);
       this._closed?.push(false);
     }
-    this.options?.close?.(drain, this);
-    this._closed?.close();
+    this.options?.close?.(complete, this);
+    this._closed?.close(true);
     this.options = this._closed = this._stream = this._pending = undefined;
   }
 
@@ -98,7 +98,7 @@ export namespace Channel {
   export type Status = "active" | "drain" | "completed" | "aborted";
   export type Options<SELF extends AnyChannel> = {
     pull?: (self: SELF) => void;
-    close?: (complter: boolean, self: SELF) => void;
+    close?: (complete: boolean, self: SELF) => void;
   };
 
   export type NextHandlers<VALUE, SELF extends Channel<VALUE>> =

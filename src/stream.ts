@@ -1,6 +1,6 @@
 import { Channel } from "./channel";
 
-export class Stream<VALUE = void, NAME extends string = Stream.Name> implements Stream.Closable {
+export class Stream<VALUE = void, NAME extends string = Stream.Name> {
   readonly name: NAME;
   private _options: Stream.Options<VALUE, NAME>;
   private _channels: Channel<VALUE>[] = [];
@@ -12,29 +12,26 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
 
     if (this._options.scope) {
       if (this._options.scope instanceof Channel) {
+        Promise.resolve(this._options.scope.closed.getChannel().next()).then((complete) => this.close(complete));
         this._handleScoop(this._options.scope);
       } else if (this._options.scope.any) {
         const scopes = new Set(this._options.scope.any);
         scopes.forEach((other) => {
           this._handleScoop(other, (drain) => {
             this.close(drain);
-            scopes.forEach((scope) => scope.close(false));
+            scopes.forEach((scope) => scope.close());
           });
         });
       } else {
         const scopes = new Set(this._options.scope.all);
-        let completCount = 0,
-          abortCount = 0;
-
+        let count = 0;
         scopes.forEach((other) => {
-          this._handleScoop(other, (drain) => {
-            if (drain) {
-              completCount++;
+          this._handleScoop(other, (complete) => {
+            if (complete) {
+              count++;
+              if (count === scopes.size) this.close(true);
             } else {
-              abortCount++;
-            }
-            if (completCount + abortCount === scopes.size) {
-              this.close(abortCount === 0);
+              this.close();
             }
           });
         });
@@ -53,6 +50,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
       this.close(false);
     }
   }
+  scope(channel: Channel<VALUE>, options: { drain: boolean; onClose?: (drain: boolean) => void }) {}
 
   push(value: VALUE) {
     const len = this._channels.length;
@@ -119,9 +117,9 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> implements 
   // ): OUTPUT_STREAM {
   //   return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   // }
-  close(drain = true) {
+  close(complete = true) {
     for (const channel of this._channels) {
-      channel.close(drain);
+      channel.close(complete);
     }
   }
 
