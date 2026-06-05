@@ -13,7 +13,7 @@ export class BufferWhen<
     public readonly notifier: Mitto.AnyMitto,
   ) {
     super(name, input, {
-      scoop: notifier,
+      scope: notifier,
       source: () => {
         const s1 = input.listen((value) => this._buffer.push(value));
         const s2 = notifier.listen(() => {

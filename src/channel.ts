@@ -1,7 +1,7 @@
 import { Queue } from "./queue";
 import { Stream } from "./stream";
 
-export class Channel<VALUE> {
+export class Channel<VALUE> implements Stream.Closable {
   private _queue = new Queue<VALUE>();
   private _status: Channel.Status = "active";
   private _pending?: {
@@ -9,8 +9,7 @@ export class Channel<VALUE> {
     resolve: (value: VALUE) => void;
     reject: (reason: Channel.Aborted | Channel.Completed) => void;
   };
-  private _completed?: Stream<void, "completed">;
-  private _aborted?: Stream<void, "aborted">;
+  private _closed?: Stream<boolean, "closed">;
   private _stream?: Stream<VALUE, "channel">;
 
   constructor(private options?: Channel.Options<Channel<VALUE>>) {}
@@ -35,7 +34,7 @@ export class Channel<VALUE> {
       case "aborted":
         throw Channel.ABORTED;
       case "drain":
-        this.complete();
+        this.close(true);
         throw Channel.COMPLETED;
     }
 
@@ -53,36 +52,30 @@ export class Channel<VALUE> {
     this._pending = { promise, resolve, reject };
     return promise;
   }
-  complete() {
-    if (this._status !== "active") return;
-
-    if (this._queue.size) {
-      this._status = "drain";
+  close(drain = true) {
+    if (this._status == "aborted" || this._status === "completed") return;
+    if (drain) {
+      if (this._queue.size) {
+        this._status = "drain";
+        return;
+      } else {
+        this._status = "completed";
+        this._pending?.reject(Channel.COMPLETED);
+        this._closed?.push(true);
+      }
     } else {
-      this._status = "completed";
-
-      this._pending?.reject(Channel.COMPLETED);
-
-      this.options?.complete?.(this);
-      this.options?.done?.(this);
-      this._completed?.push();
-      this._completed?.complete();
-      this.options = this._aborted = this._completed = this._stream = this._pending = undefined;
+      this._status = "aborted";
+      this._queue.clear();
+      this._pending?.reject(Channel.ABORTED);
+      this._closed?.push(false);
     }
+    this.options?.close?.(drain, this);
+    this._closed?.close();
+    this.options = this._closed = this._stream = this._pending = undefined;
   }
-  abort() {
-    if (this.status === "aborted") return;
-    this._status = "aborted";
-    this._queue.clear();
-    this._pending?.reject(Channel.ABORTED);
-    this.options?.abort?.(this);
-    this.options?.done?.(this);
-    this._aborted?.push();
-    this._aborted?.complete();
-    this._pending = this.options = this._aborted = this._completed = this._stream = undefined;
-  }
+
   get stream() {
-    if (!this._stream) this._stream = new Stream({ name: "channel", source: this, scoop: this });
+    if (!this._stream) this._stream = new Stream({ name: "channel", source: this, scope: this });
     return this._stream;
   }
   get status() {
@@ -94,13 +87,9 @@ export class Channel<VALUE> {
   get hasPending() {
     return this._pending !== undefined;
   }
-  get completed() {
-    if (!this._completed) this._completed = new Stream({ name: "completed" });
-    return this._completed;
-  }
-  get aborted() {
-    if (!this._aborted) this._aborted = new Stream({ name: "aborted" });
-    return this._aborted;
+  get closed() {
+    if (!this._closed) this._closed = new Stream({ name: "closed" });
+    return this._closed;
   }
 }
 
@@ -109,9 +98,7 @@ export namespace Channel {
   export type Status = "active" | "drain" | "completed" | "aborted";
   export type Options<SELF extends AnyChannel> = {
     pull?: (self: SELF) => void;
-    done?: (self: SELF) => void;
-    complete?: (self: SELF) => void;
-    abort?: (self: SELF) => void;
+    close?: (complter: boolean, self: SELF) => void;
   };
 
   export type NextHandlers<VALUE, SELF extends Channel<VALUE>> =

@@ -6,21 +6,21 @@ export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME exte
     protected readonly input: INPUT,
     options: Mitto.Options<VALUE, NAME>,
   ) {
-    let scoop: Mitto.Scoop | undefined = options.scoop;
+    let scope: Mitto.Scoop | undefined = options.scope;
 
-    if (scoop instanceof Mitto) {
-      scoop = { any: [input, scoop] };
-    } else if (scoop) {
-      if (scoop.any) {
-        scoop = { any: [input, ...scoop.any] };
+    if (scope instanceof Mitto) {
+      scope = { any: [input, scope] };
+    } else if (scope) {
+      if (scope.any) {
+        scope = { any: [input, ...scope.any] };
       } else {
-        scoop = { all: [input, ...scoop.all] };
+        scope = { all: [input, ...scope.all] };
       }
     } else {
-      scoop = input;
+      scope = input;
     }
 
-    super({ ...options, name, scoop });
+    super({ ...options, name, scope });
 
     this.input = input;
 

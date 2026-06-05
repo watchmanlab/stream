@@ -14,12 +14,12 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
 
     this.name = this._options.name ?? ("root" as NAME);
 
-    if (this._options.scoop) {
-      if (this._options.scoop instanceof Mitto) {
-        this._options.scoop.aborted.next(() => this.abort());
-      } else if (this._options.scoop.any) {
+    if (this._options.scope) {
+      if (this._options.scope instanceof Mitto) {
+        this._options.scope.aborted.next(() => this.abort());
+      } else if (this._options.scope.any) {
         let signals: Mitto[] = [];
-        new Set(this._options.scoop.any).forEach((other) => {
+        new Set(this._options.scope.any).forEach((other) => {
           signals.push(
             other.aborted.next(() => {
               this.abort();
@@ -29,9 +29,9 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
           );
         });
       } else {
-        const scoops = new Set(this._options.scoop.all);
-        let count = scoops.size;
-        scoops.forEach((other) => other.aborted.next(() => !count-- && this.abort()));
+        const scopes = new Set(this._options.scope.all);
+        let count = scopes.size;
+        scopes.forEach((other) => other.aborted.next(() => !count-- && this.abort()));
       }
     }
     if (this._options?.source) {
@@ -249,7 +249,7 @@ export namespace Mitto {
         | (() => void));
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
-    scoop?: Scoop;
+    scope?: Scoop;
     source?: Source<VALUE>;
     emited?: (value: VALUE) => void;
     aborted?: () => void;

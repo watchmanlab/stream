@@ -1,6 +1,6 @@
 import { Channel } from "./channel";
 
-export class Stream<VALUE = void, NAME extends string = Stream.Name> {
+export class Stream<VALUE = void, NAME extends string = Stream.Name> implements Stream.Closable {
   readonly name: NAME;
   private _options: Stream.Options<VALUE, NAME>;
   private _channels: Channel<VALUE>[] = [];
@@ -10,50 +10,47 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
     this._options = { ...options };
     this.name = this._options.name ?? ("root" as NAME);
 
-    if (this._options.scoop) {
-      if (this._options.scoop instanceof Channel) {
-        this._handleScoop(this._options.scoop);
-      } else if (this._options.scoop.any) {
-        new Set(this._options.scoop.any).forEach((other) => {
-          this._handleScoop(other);
+    if (this._options.scope) {
+      if (this._options.scope instanceof Channel) {
+        this._handleScoop(this._options.scope);
+      } else if (this._options.scope.any) {
+        const scopes = new Set(this._options.scope.any);
+        scopes.forEach((other) => {
+          this._handleScoop(other, (drain) => {
+            this.close(drain);
+            scopes.forEach((scope) => scope.close(false));
+          });
         });
       } else {
-        const scoops = new Set(this._options.scoop.all);
-        let completCount = scoops.size,
-          abortCount = scoops.size;
+        const scopes = new Set(this._options.scope.all);
+        let completCount = 0,
+          abortCount = 0;
 
-        scoops.forEach((other) => {
-          this._handleScoop(
-            other,
-            () => !completCount-- && this.complete(),
-            () => !abortCount-- && this.abort(),
-          );
+        scopes.forEach((other) => {
+          this._handleScoop(other, (drain) => {
+            if (drain) {
+              completCount++;
+            } else {
+              abortCount++;
+            }
+            if (completCount + abortCount === scopes.size) {
+              this.close(abortCount === 0);
+            }
+          });
         });
       }
     }
   }
-  private _handleScoop(channel: Channel<VALUE>, onComplete?: () => void, onAbort?: () => void) {
-    const completedChannel = channel.completed.getChannel();
+  private _handleScoop(channel: Channel<VALUE>, onClose?: (drain: boolean) => void) {
     try {
-      const next = completedChannel.next();
-      if (next instanceof Promise) {
-        next.then(() => (onComplete ? onComplete() : this.complete())).catch(() => this.abort());
+      const drain = channel.closed.getChannel().next();
+      if (drain instanceof Promise) {
+        drain.then((drain) => (onClose ? onClose(drain) : this.close(drain))).catch(() => this.close(false));
       } else {
-        onComplete ? onComplete() : this.complete();
+        onClose ? onClose(drain) : this.close(drain);
       }
     } catch (done) {
-      this.abort();
-    }
-    const abortedChannel = channel.aborted.getChannel();
-    try {
-      const next = abortedChannel.next();
-      if (next instanceof Promise) {
-        next.then(() => (onAbort ? onAbort() : this.abort())).catch(() => this.abort());
-      } else {
-        onAbort ? onAbort() : this.abort();
-      }
-    } catch (done) {
-      this.abort();
+      this.close(false);
     }
   }
 
@@ -88,7 +85,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
           this._handleError(done);
         }
       },
-      done: () => {
+      close: () => {
         const index = this._channels.indexOf(channel);
         if (index !== -1) {
           (this._channels as any)[index] = this._channels[this._channels.length - 1];
@@ -104,9 +101,9 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
   private _handleError(error: any) {
     this._options.source = undefined;
     if (error === Channel.ABORTED) {
-      this.abort();
+      this.close(false);
     } else {
-      this.complete();
+      this.close();
     }
   }
   // pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME> | this>(
@@ -122,16 +119,12 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
   // ): OUTPUT_STREAM {
   //   return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   // }
-  complete() {
+  close(drain = true) {
     for (const channel of this._channels) {
-      channel.complete();
+      channel.close(drain);
     }
   }
-  abort() {
-    for (const channel of this._channels) {
-      channel.abort();
-    }
-  }
+
   get channels() {
     return this._channels.values();
   }
@@ -144,6 +137,9 @@ export namespace Stream {
   export const NAME = "root";
   export type Name = typeof NAME;
   export type AnyStream = Stream<any, any>;
+  export interface Closable {
+    close(drain: boolean): void;
+  }
   export type Scoop =
     | Channel.AnyChannel
     | { any: [other: Channel.AnyChannel, ...others: Channel.AnyChannel[]]; all?: never }
@@ -151,7 +147,7 @@ export namespace Stream {
 
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
-    scoop?: Scoop;
+    scope?: Scoop;
     source?: Channel<VALUE>;
   };
   // export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
@@ -222,16 +218,14 @@ function test() {
 // test();
 
 function optimizedBench() {
-  const MAX = 18_000_000;
+  const MAX = 10_000_000;
   const stream = new Stream<number>();
   const channel = stream.getChannel();
 
-  // 1. Flood the stream with data first
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);
   }
 
-  // 2. Start the timer right before consumption starts
   const start = performance.now();
 
   (async () => {
@@ -241,7 +235,6 @@ function optimizedBench() {
 
       while (true) {
         if (next === MAX) {
-          // This will print an even lower, purely synchronous runtime score
           console.log("Synchronous Processing Done:", next, Math.round(performance.now() - start), "ms");
         }
         next = channel.next();
@@ -254,7 +247,7 @@ function optimizedBench() {
 // optimizedBench();
 
 function multiConsumerBench() {
-  const MAX = 30_000_000;
+  const MAX = 20_000_000;
   const stream = new Stream<number>();
 
   // 1. Create multiple independent consumer channels
@@ -271,7 +264,7 @@ function multiConsumerBench() {
   const start = performance.now();
   let completedConsumers = 0;
 
-  function consume(channel: any, name: string) {
+  function consume(channel: any) {
     (async () => {
       try {
         let next = channel.next();
@@ -292,9 +285,9 @@ function multiConsumerBench() {
   }
 
   // 4. Drain all channels concurrently
-  consume(channelA, "A");
-  consume(channelB, "B");
-  consume(channelC, "C");
+  consume(channelA);
+  consume(channelB);
+  consume(channelC);
 }
 
 // multiConsumerBench();

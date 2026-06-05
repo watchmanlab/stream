@@ -15,7 +15,7 @@ export class BufferToggle<
   ) {
     let id = 0;
     super(name, input, {
-      scoop: opening,
+      scope: opening,
       source: () => {
         const s1 = input.listen((value) => {
           for (const buffer of this._buffers.values()) {

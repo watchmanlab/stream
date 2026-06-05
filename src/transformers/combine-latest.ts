@@ -13,7 +13,7 @@ export class CombineLatest<
     const mittos = [input, ...others] as [other: Mitto.AnyMitto, ...others: Mitto.AnyMitto[]];
 
     super(name, input, {
-      scoop: { any: mittos },
+      scope: { any: mittos },
       source: () => {
         const signals = mittos.map((mitto, index) =>
           mitto.listen((value) => {
