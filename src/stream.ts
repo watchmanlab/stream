@@ -181,7 +181,7 @@ function test() {
 // test();
 
 function optimizedBench() {
-  const MAX = 10_000_000;
+  const MAX = 70_000_000;
   const stream = new Stream<number>();
   const channel = stream.getChannel();
 
@@ -207,7 +207,7 @@ function optimizedBench() {
   })();
 }
 
-// optimizedBench();
+optimizedBench();
 
 function multiConsumerBench() {
   const MAX = 20_000_000;
