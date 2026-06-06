@@ -12,21 +12,21 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
 
     if (this._options.scope) {
       if (this._options.scope instanceof Channel) {
-        Promise.resolve(this._options.scope.aborted.getChannel().next()).then(() => this.abort());
+        this._options.scope.terminated.getChannel().once({ next: (reason) => this.terminate(reason) });
       } else if (this._options.scope.any) {
-        const channels = new Set(this._options.scope.any).values().map((other) => {
-          const channel = other.aborted.getChannel();
-          Promise.resolve(channel.next()).then(() => {
-            this.abort();
-            channels.forEach((channel) => channel.abort());
-          });
-          return channel;
-        });
+        const others = new Set(this._options.scope.any).values().map((other) =>
+          other.terminated.getChannel().once({
+            next: (reason) => {
+              others.forEach((other) => other.terminate(Channel.COMPLETED));
+              this.terminate(reason);
+            },
+          }),
+        );
       } else {
-        const scopes = new Set(this._options.scope.all);
-        let count = scopes.size;
-        scopes.forEach((other) => {
-          Promise.resolve(other.aborted.getChannel().next()).then(() => !count++ && this.abort());
+        const others = new Set(this._options.scope.all);
+        let count = others.size;
+        others.forEach((other) => {
+          other.terminated.getChannel().once({ next: (reason) => !count-- && this.terminate(reason) });
         });
       }
     }
@@ -38,36 +38,30 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
       this._channels[i]!.push(value);
     }
   }
-  getChannel(): Channel<VALUE> {
+  getChannel(options?: Channel.Options<Channel<VALUE>>): Channel<VALUE> {
     const channel = new Channel<VALUE>({
-      pull: () => {
+      pull: (self) => {
         if (this._pulling || !this._options.source) return;
 
-        try {
-          const next = this._options.source.next();
-          if (next instanceof Promise) {
-            this._pulling = true;
-            next
-              .then((value) => {
-                this._pulling = false;
-                this.push(value);
-              })
-              .catch(() => {
-                this.abort();
-              });
-          } else {
-            this.push(next);
-          }
-        } finally {
-          this.abort();
-        }
+        this._options.source.once({
+          next: (value) => {
+            this._pulling = false;
+            this.push(value);
+          },
+          terminate: (reason) => {
+            this._options.source = undefined;
+            this.terminate(reason);
+          },
+        });
+        options?.pull?.(self);
       },
-      abort: () => {
+      terminate: (reason, self) => {
         const index = this._channels.indexOf(channel);
         if (index !== -1) {
           (this._channels as any)[index] = this._channels[this._channels.length - 1];
           this._channels.pop();
         }
+        options?.terminate?.(reason, self);
       },
     });
 
@@ -88,9 +82,9 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
   // ): OUTPUT_STREAM {
   //   return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   // }
-  abort() {
+  terminate(reason: Channel.Aborted | Channel.Completed) {
     for (const channel of this._channels) {
-      channel.abort();
+      channel.terminate(reason);
     }
   }
 
@@ -106,7 +100,9 @@ export namespace Stream {
   export const NAME = "root";
   export type Name = typeof NAME;
   export type AnyStream = Stream<any, any>;
-
+  export interface Closable {
+    close(drain: boolean): void;
+  }
   export type Scoop =
     | Channel.AnyChannel
     | { any: [other: Channel.AnyChannel, ...others: Channel.AnyChannel[]]; all?: never }
