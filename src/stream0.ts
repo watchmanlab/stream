@@ -5,6 +5,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
   readonly name: NAME;
   private _options: Stream.Options<VALUE, NAME>;
   private _channels: Channel<VALUE>[] = [];
+  private _source?: Channel<VALUE>;
   private _pulling = false;
   private _returned?: Stream<void, `${NAME}Returned`>;
 
@@ -32,6 +33,15 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
         });
       }
     }
+
+    if (this._options.source) {
+      this._source = this._options.source.getChannel({
+        next: (value) => {
+          this._pulling = false;
+          this.push(value);
+        },
+      });
+    }
   }
 
   private _swapPush() {
@@ -52,21 +62,30 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
         };
     }
   }
-  push(value: VALUE) {}
+  push(value: VALUE): void {}
+  private _executor: Stream.Executor<VALUE> = {
+    next: (value: VALUE) => {
+      this._pulling = false;
+      this.push(value);
+    },
+    return: () => {
+      this._pulling = false;
+      this.return();
+    },
+  };
   getChannel(options: Channel.Options<VALUE>): Channel<VALUE> {
     const channel = new Channel<VALUE>({
       ...options,
       pull: (self) => {
-        if (this._pulling || !this._options.source) return;
+        if (this._pulling) return;
+        this._pulling = true;
 
-        this._options.source.getChannel({
-          next: (value) => {
-            this._pulling = false;
-            this.push(value);
-          },
-        });
+        if (this._source) {
+          this._source.next();
+        }
 
         options?.pull?.(self);
+        this._options.pull?.(this._executor);
       },
       return: (self) => {
         const index = this._channels.indexOf(channel);
@@ -83,7 +102,12 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
     this._swapPush();
     return channel;
   }
-
+  return() {
+    while (this._channels.length > 0) {
+      this._channels[0]!.return();
+    }
+    this._returned?.push();
+  }
   pipe<OUTPUT_NAME extends string, OUTPUT_STREAM extends Transformer<this, any, OUTPUT_NAME> | this>(
     transform: Stream.Transform<this, OUTPUT_NAME, OUTPUT_STREAM>,
   ): OUTPUT_STREAM;
@@ -97,12 +121,6 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
   ): OUTPUT_STREAM {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-  return() {
-    while (this._channels.length > 0) {
-      this._channels[0]!.return();
-    }
-    this._returned?.push();
-  }
 
   get returned() {
     if (!this._returned) this._returned = new Stream({ name: `${this.name}Returned` });
@@ -113,6 +131,21 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
   }
   get source() {
     return this._options.source;
+  }
+
+  static fromIterable<VALUE>(iterable: Iterable<VALUE>) {
+    const iterator = iterable[Symbol.iterator]();
+
+    return new Stream<VALUE>({
+      pull: (self) => {
+        const next = iterator.next();
+        if (next.done) {
+          self.return();
+        } else {
+          self.next(next.value);
+        }
+      },
+    });
   }
 }
 
@@ -127,11 +160,12 @@ export namespace Stream {
     | AnyStream
     | { any: [other: AnyStream, ...others: AnyStream[]]; all?: never }
     | { all: [other: AnyStream, ...others: AnyStream[]]; any?: never };
-
+  export type Executor<VALUE> = { next: (value: VALUE) => void; return: () => void };
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
     scope?: Scoop;
     source?: Stream<VALUE, any>;
+    pull?: (executor: Executor<VALUE>) => void;
   };
   export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
     T extends Stream<infer VALUE, any>
@@ -163,7 +197,6 @@ function test() {
   stream.push(1);
   stream.push(2);
 }
-
 // test();
 
 function optimizedBench() {
@@ -184,5 +217,19 @@ function optimizedBench() {
     stream.push(i);
   }
 }
+// optimizedBench();
 
-optimizedBench();
+function fromIterable() {
+  const stream = Stream.fromIterable([1, 2, 3, 4]);
+
+  stream
+    .getChannel({
+      next(value, self) {
+        console.log(value);
+        self.next();
+      },
+    })
+    .next();
+}
+
+fromIterable();
