@@ -7,11 +7,23 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
   private _channels: Channel<VALUE>[] = [];
   private _source?: Channel<VALUE>;
   private _pulling = false;
+  private _executor: Channel.Executor<VALUE>;
   private _returned?: Stream<void, `${NAME}Returned`>;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
     this._options = { ...options };
     this.name = this._options.name ?? ("root" as NAME);
+    this._executor = {
+      next: (value: VALUE) => this.push(value),
+      ready: (value) => {
+        this._pulling = false;
+        this.push(value);
+      },
+      return: () => {
+        this._pulling = false;
+        this.return();
+      },
+    };
 
     if (this._options.scope) {
       if (this._options.scope instanceof Stream) {
@@ -63,20 +75,11 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
     }
   }
   push(value: VALUE): void {}
-  private _executor: Stream.Executor<VALUE> = {
-    next: (value: VALUE) => {
-      this._pulling = false;
-      this.push(value);
-    },
-    return: () => {
-      this._pulling = false;
-      this.return();
-    },
-  };
+
   getChannel(options: Channel.Options<VALUE>): Channel<VALUE> {
     const channel = new Channel<VALUE>({
       ...options,
-      pull: (self) => {
+      pull: (executor) => {
         if (this._pulling) return;
         this._pulling = true;
 
@@ -84,7 +87,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
           this._source.next();
         }
 
-        options?.pull?.(self);
+        options?.pull?.(executor);
         this._options.pull?.(this._executor);
       },
       return: (self) => {
@@ -137,12 +140,12 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
     const iterator = iterable[Symbol.iterator]();
 
     return new Stream<VALUE>({
-      pull: (self) => {
+      pull: (executor) => {
         const next = iterator.next();
         if (next.done) {
-          self.return();
+          executor.return();
         } else {
-          self.next(next.value);
+          executor.ready(next.value);
         }
       },
     });
@@ -160,12 +163,12 @@ export namespace Stream {
     | AnyStream
     | { any: [other: AnyStream, ...others: AnyStream[]]; all?: never }
     | { all: [other: AnyStream, ...others: AnyStream[]]; any?: never };
-  export type Executor<VALUE> = { next: (value: VALUE) => void; return: () => void };
+
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
     scope?: Scoop;
     source?: Stream<VALUE, any>;
-    pull?: (executor: Executor<VALUE>) => void;
+    pull?: (executor: Channel.Executor<VALUE>) => void;
   };
   export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
     T extends Stream<infer VALUE, any>

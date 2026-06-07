@@ -1,23 +1,18 @@
 import { Queue } from "./queue.ts";
 
 export class Channel<VALUE> implements Disposable {
-  static fromIterable<VALUE>(source: Iterable<VALUE>) {
-    const iterator = source[Symbol.iterator]();
-
-    const channel = new Channel<VALUE>({
-      next: (value) => {
-        //
-      },
-      pull: () => {
-        iterator.next();
-      },
-    });
-  }
   private _queue: Queue<VALUE>;
-  private _pending = 0;
+  private _pending: number;
+  private _executor: Channel.Executor<VALUE>;
 
   constructor(private options: Channel.Options<VALUE>) {
     this._queue = options.queue ? options.queue : new Queue();
+    this._pending = 0;
+    this._executor = {
+      next: (value) => this.push(value),
+      ready: (value) => this.push(value),
+      return: () => this.return(),
+    };
   }
   [Symbol.dispose](): void {
     this.return();
@@ -30,6 +25,7 @@ export class Channel<VALUE> implements Disposable {
       this._queue.enqueue(value);
     }
   }
+
   next(): void {
     let value = this._queue.dequeue();
 
@@ -39,7 +35,7 @@ export class Channel<VALUE> implements Disposable {
     }
 
     this._pending++;
-    this.options.pull?.(this);
+    this.options.pull?.(this._executor);
   }
   return(): void {
     this._queue.clear();
@@ -54,10 +50,15 @@ export class Channel<VALUE> implements Disposable {
 }
 
 export namespace Channel {
+  export type Executor<VALUE> = {
+    next: (value: VALUE) => void;
+    return: () => void;
+    ready: (value: VALUE) => void;
+  };
   export type Options<VALUE> = {
     next: (value: VALUE, self: Channel<VALUE>) => void;
     return?: (self: Channel<VALUE>) => void;
-    pull?: (self: Channel<VALUE>) => void;
+    pull?: (executor: Executor<VALUE>) => void;
     queue?: Queue<VALUE>;
   };
 }
