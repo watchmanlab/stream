@@ -87,7 +87,17 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
           this._source.next();
         }
 
-        options?.pull?.(executor);
+        options?.pull?.({
+          ...executor,
+          ready: (value) => {
+            this._pulling = false;
+            executor.ready(value);
+          },
+          return: () => {
+            this._pulling = false;
+            executor.return();
+          },
+        });
         this._options.pull?.(this._executor);
       },
       return: (self) => {
@@ -223,12 +233,20 @@ function optimizedBench() {
 // optimizedBench();
 
 function fromIterable() {
-  const stream = Stream.fromIterable([1, 2, 3, 4]);
+  const MAX = 1_000_000;
+  const array = new Array(MAX);
+  for (let i = 0; i <= MAX; i++) {
+    array.push(i);
+  }
+
+  const start = performance.now();
+
+  const stream = Stream.fromIterable(array);
 
   stream
     .getChannel({
       next(value, self) {
-        console.log(value);
+        if (value === MAX) console.log(value, Math.round(performance.now() - start));
         self.next();
       },
     })
