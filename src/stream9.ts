@@ -1,4 +1,4 @@
-import { Channel } from "./channel0";
+import { Channel } from "./core/channel";
 import { Transformer } from "./transformer0";
 
 export class Stream<VALUE = void, NAME extends string = Stream.Name> {
@@ -226,10 +226,7 @@ function fromIterable() {
   stream
     .getChannel({
       next(value, self) {
-        if (value === MAX) {
-          console.log(value, Math.round(performance.now() - start));
-          return;
-        }
+        if (value === MAX) console.log(value, Math.round(performance.now() - start));
         self.next();
       },
     })
