@@ -73,4 +73,4 @@ function test() {
   }
 }
 
-test(); // 300000000 ops 976 ms
+// test(); // 300000000 ops 976 ms
