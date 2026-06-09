@@ -13,11 +13,11 @@ export class Map<
     public readonly mapper: map.Mapper<VALUE, MAPPED>,
   ) {
     super(name, input, {
-      source: () => {
-        const signal = input.listen((value) => this.emit(mapper(value)));
-
-        return () => signal.emit();
-      },
+      source: () =>
+        (
+          (signal) => () =>
+            signal.emit()
+        )(input.listen((val) => this.emit(mapper(val)))),
     });
   }
 }

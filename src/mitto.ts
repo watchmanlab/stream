@@ -185,9 +185,7 @@ export class Mitto<VALUE = void, NAME extends string = Mitto.Name> {
     options?.abortSignal?.next(() => abortSignal.abort(), { abortSignal });
     return abortSignal;
   }
-  unlisten(fn: Mitto.Listener<VALUE>): boolean {
-    return this._listeners.delete(fn);
-  }
+
   next(fn: Mitto.Listener<VALUE>, options?: Mitto.ListenOptions): Mitto<void> {
     const stopSignal = this.listen((value) => {
       fn?.(value);
