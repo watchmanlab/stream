@@ -1,5 +1,5 @@
 import { Queue } from "./queue";
-import { Stream } from "./stream";
+import type { Stream } from "./stream";
 
 export class Channel<VALUE> {
   private _queue = new Queue<VALUE>();
@@ -107,10 +107,10 @@ export class Channel<VALUE> {
     this.options = this._terminated = this._stream = this._pending = undefined;
   }
 
-  get stream() {
-    if (!this._stream) this._stream = new Stream({ name: "channel", source: this, scope: this });
-    return this._stream;
-  }
+  // get stream() {
+  //   if (!this._stream) this._stream = new Stream({ name: "channel", source: this, scope: this });
+  //   return this._stream;
+  // }
   get status() {
     return this._status;
   }
@@ -120,10 +120,10 @@ export class Channel<VALUE> {
   get hasPending() {
     return this._pending !== undefined;
   }
-  get terminated() {
-    if (!this._terminated) this._terminated = new Stream({ name: "terminated" });
-    return this._terminated;
-  }
+  // get terminated() {
+  //   if (!this._terminated) this._terminated = new Stream({ name: "terminated" });
+  //   return this._terminated;
+  // }
 }
 
 export namespace Channel {
@@ -146,3 +146,26 @@ export namespace Channel {
   export const ABORTED = Symbol.for("aborted");
   export type Aborted = typeof ABORTED;
 }
+
+function test() {
+  const MAX = 30_000_000;
+  const start = performance.now();
+
+  const channel = new Channel<number>();
+
+  for (let i = 0; i <= MAX; i++) {
+    channel.push(i);
+  }
+
+  (async () => {
+    try {
+      while (true) {
+        let next = channel.next();
+        next = next instanceof Promise ? await next : next;
+        if (next === MAX) console.log(next.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      }
+    } catch (error) {}
+  })();
+}
+
+test(); //30 000 000 951 ms

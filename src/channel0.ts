@@ -8,9 +8,7 @@ export class Channel<VALUE> implements Disposable {
     this._queue = options.queue ? options.queue : new Queue();
     this._pending = 0;
   }
-  [Symbol.dispose](): void {
-    this.return();
-  }
+
   push(value: VALUE): void {
     if (this._pending > 0) {
       this._pending--;
@@ -41,6 +39,9 @@ export class Channel<VALUE> implements Disposable {
   }
   get pending(): number {
     return this._pending;
+  }
+  [Symbol.dispose](): void {
+    this.return();
   }
 }
 

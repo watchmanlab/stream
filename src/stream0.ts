@@ -132,6 +132,7 @@ export class Stream<VALUE = void, NAME extends string = Stream.Name> {
     return new Stream<VALUE>({
       pull: (self) => {
         const next = iterator.next();
+
         if (next.done) {
           self.return();
         } else {
@@ -213,27 +214,28 @@ function optimizedBench() {
 // optimizedBench();
 
 function fromIterable() {
-  const MAX = 1_000_000;
-  const array = new Array(MAX);
+  const MAX = 50_000_000;
+  const array = new Array<number>(MAX);
   for (let i = 0; i <= MAX; i++) {
-    array.push(i);
+    array[i] = i;
   }
 
   const start = performance.now();
 
   const stream = Stream.fromIterable(array);
 
-  stream
-    .getChannel({
-      next(value, self) {
-        if (value === MAX) {
-          console.log(value, Math.round(performance.now() - start));
-          return;
-        }
-        self.next();
-      },
-    })
-    .next();
+  const channel = stream.getChannel({
+    next(value, self) {
+      if (value === MAX) {
+        console.log(value, Math.round(performance.now() - start));
+        return;
+      }
+    },
+  });
+  // channel.next();
+  for (let i = 0; i <= MAX; i++) {
+    channel.next();
+  }
 }
 
 fromIterable();

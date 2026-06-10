@@ -1,5 +1,5 @@
-import { Mitto } from "../mitto";
-import { Transformer } from "../transformer";
+import { Mitto } from "../core/mitto";
+import { Transformer } from "../core/transformer";
 
 export class Filter<
   INPUT extends Mitto.AnyMitto,
@@ -35,6 +35,14 @@ export class Filter<
   get filtered(): Mitto<VALUE, `${NAME}Filtered`> {
     if (!this._filtered) this._filtered = new Mitto({ name: `${this.name}Filtered` });
     return this._filtered;
+  }
+  override get<T extends "filtered" | Mitto.LifecycleName>(
+    key: T,
+  ): T extends "filtered"
+    ? Mitto<VALUE, `${NAME}Filtered`>
+    : NonNullable<Mitto.Lifecycles<VALUE>[Exclude<T, "filtered">]> {
+    if (key === "filtered") return this._filtered as never;
+    return super.get(key as any);
   }
 }
 
