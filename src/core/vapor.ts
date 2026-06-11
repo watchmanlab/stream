@@ -1,5 +1,4 @@
 import { Queue } from "../queue";
-import { Smoker } from "./smoker";
 
 export class Vapor<VALUE> {
   private subscriptions: Vapor.Subscription<VALUE>[] = [];
@@ -107,7 +106,7 @@ export namespace Vapor {
   };
 }
 
-function test() {
+function bench() {
   const MAX = 30_000_000;
   const vapor = new Vapor<number>();
 
@@ -131,4 +130,35 @@ function test() {
   }
 }
 
-test(); //foo 100 000 000 887
+// bench(); //foo 100 000 000 887
+
+function sequential() {
+  const vapor = new Vapor<number>();
+
+  vapor.listen(async ({ value, ready }) => {
+    await new Promise((r) => setTimeout(r, Math.random() * 1000));
+    console.log("sequential", value);
+    ready();
+  });
+
+  vapor.emit(1);
+  vapor.emit(2);
+  vapor.emit(3);
+}
+
+sequential();
+function consurrent() {
+  const vapor = new Vapor<number>();
+
+  vapor.listen(async ({ value, ready }) => {
+    ready();
+    await new Promise((r) => setTimeout(r, Math.random() * 1000));
+    console.log("concurrent", value);
+  });
+
+  vapor.emit(1);
+  vapor.emit(2);
+  vapor.emit(3);
+}
+
+consurrent();
