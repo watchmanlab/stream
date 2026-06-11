@@ -1,5 +1,5 @@
 import { Queue } from "./queue";
-import type { Stream } from "./stream";
+import { Stream } from "./stream";
 
 export class Channel<VALUE> {
   private _queue = new Queue<VALUE>();
@@ -24,7 +24,7 @@ export class Channel<VALUE> {
     }
   }
 
-  once(handlers: Channel.OnceHandlers<VALUE, this>): this {
+  handleNext(handlers: Channel.OnceHandlers<VALUE>): this {
     try {
       const next = this.next();
       if (next instanceof Promise) {
@@ -79,10 +79,10 @@ export class Channel<VALUE> {
     const promise = new Promise<VALUE>((res, rej) => {
       resolve = res;
       reject = rej;
-      this.options?.pull?.(this);
     });
 
     this._pending = { promise, resolve, reject };
+    this.options?.pull?.(this);
     return promise;
   }
   terminate(reason: Channel.Aborted | Channel.Completed) {
@@ -107,10 +107,10 @@ export class Channel<VALUE> {
     this.options = this._terminated = this._stream = this._pending = undefined;
   }
 
-  // get stream() {
-  //   if (!this._stream) this._stream = new Stream({ name: "channel", source: this, scope: this });
-  //   return this._stream;
-  // }
+  get stream() {
+    if (!this._stream) this._stream = new Stream({ name: "channel", source: this, scope: this });
+    return this._stream;
+  }
   get status() {
     return this._status;
   }
@@ -120,10 +120,10 @@ export class Channel<VALUE> {
   get hasPending() {
     return this._pending !== undefined;
   }
-  // get terminated() {
-  //   if (!this._terminated) this._terminated = new Stream({ name: "terminated" });
-  //   return this._terminated;
-  // }
+  get terminated() {
+    if (!this._terminated) this._terminated = new Stream({ name: "terminated" });
+    return this._terminated;
+  }
 }
 
 export namespace Channel {
@@ -134,38 +134,16 @@ export namespace Channel {
     terminate?: (reason: Aborted | Completed, self: SELF) => void;
   };
 
-  export type OnceHandlers<VALUE, SELF extends Channel<VALUE>> = {
-    next?: (value: VALUE, self: SELF) => void;
-    complete?: (self: SELF) => void;
-    abort?: (self: SELF) => void;
-    terminate?: (reason: Aborted | Completed, self: SELF) => void;
-    error?: (reason: any, self: SELF) => void;
+  export type OnceHandlers<VALUE> = {
+    next?: (value: VALUE, self: Channel<VALUE>) => void;
+    complete?: (self: Channel<VALUE>) => void;
+    abort?: (self: Channel<VALUE>) => void;
+    terminate?: (reason: Aborted | Completed, self: Channel<VALUE>) => void;
+    error?: (reason: any, self: Channel<VALUE>) => void;
   };
   export const COMPLETED = Symbol.for("completed");
   export type Completed = typeof COMPLETED;
   export const ABORTED = Symbol.for("aborted");
   export type Aborted = typeof ABORTED;
+  export type Terminated = Aborted | Completed;
 }
-
-function test() {
-  const MAX = 30_000_000;
-  const start = performance.now();
-
-  const channel = new Channel<number>();
-
-  for (let i = 0; i <= MAX; i++) {
-    channel.push(i);
-  }
-
-  (async () => {
-    try {
-      while (true) {
-        let next = channel.next();
-        next = next instanceof Promise ? await next : next;
-        if (next === MAX) console.log(next.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      }
-    } catch (error) {}
-  })();
-}
-
-test(); //30 000 000 951 ms

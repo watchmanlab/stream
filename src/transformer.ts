@@ -1,23 +1,27 @@
-import { Mitto } from "./mitto";
+import { Channel } from "./channel";
+import { Stream } from "./stream";
 
-export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME extends string> extends Mitto<VALUE, NAME> {
+export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME extends string> extends Stream<
+  VALUE,
+  NAME
+> {
   constructor(
     name: NAME,
     protected readonly input: INPUT,
-    options: Mitto.Options<VALUE, NAME>,
+    options: Stream.Options<VALUE, NAME>,
   ) {
-    let scope: Mitto.Scoop | undefined = options.scope;
+    let scope: Stream.Scoop | undefined = options.scope;
 
-    if (scope instanceof Mitto) {
-      scope = { any: [input, scope] };
+    if (scope instanceof Channel) {
+      scope = { any: [input.getChannel(), scope] };
     } else if (scope) {
       if (scope.any) {
-        scope = { any: [input, ...scope.any] };
+        scope = { any: [input.getChannel(), ...scope.any] };
       } else {
-        scope = { all: [input, ...scope.all] };
+        scope = { all: [input.getChannel(), ...scope.all] };
       }
     } else {
-      scope = input;
+      scope = input.getChannel();
     }
 
     super({ ...options, name, scope });
@@ -45,11 +49,11 @@ export abstract class Transformer<INPUT extends Mitto.AnyMitto, VALUE, NAME exte
 }
 
 export namespace Transformer {
-  export type AnyTransformer = Transformer<Mitto.AnyMitto, any, any>;
+  export type AnyTransformer = Transformer<Stream.AnyStream, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;
   export type ExtractMitto<T> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
-  export type Traversable<T extends Mitto.AnyMitto> =
+  export type Traversable<T extends Stream.AnyStream> =
     ExtractMitto<T> extends never
       ? T
       : Omit<T, "traversal"> & Record<ExtractMitto<T>["name"] | (`$${string}` & {}), Traversable<ExtractMitto<T>>>;
