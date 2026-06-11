@@ -1,62 +1,35 @@
 export class Vapor<VALUE> {
   private subscriptions: Vapor.Subscription<VALUE>[] = [];
+
+  // The Shared Queue State
   private sharedQueue: { value: VALUE; pending: number }[] = [];
   private queueHead = 0; // Tracks the start of the valid data in the array
-  private _emit = (value: VALUE) => {};
 
-  private swapEmit() {
-    switch (this.subscriptions.length) {
-      case 0:
-        this._emit = (value: VALUE) => {};
-        break;
-      case 1:
-        const sub = this.subscriptions[0]!;
-        this._emit = (value: VALUE) => {
-          let pendingCount = 0;
-          if (sub.isReady) {
-            sub.executeHot(value);
-          } else {
-            pendingCount++;
-
-            if (sub.tailPointer === -1) {
-              sub.tailPointer = this.sharedQueue.length;
-            }
-          }
-          if (pendingCount > 0) {
-            this.sharedQueue.push({ value, pending: pendingCount });
-          }
-        };
-        break;
-      default:
-        this._emit = (value: VALUE) => {
-          const subs = this.subscriptions;
-          const len = subs.length;
-          let pendingCount = 0;
-
-          // Phase 1: Try the hot path first for ready subscribers
-          for (let i = 0; i < len; i++) {
-            const sub = subs[i]!;
-            if (sub.isReady) {
-              sub.executeHot(value);
-            } else {
-              // Consumer is blocked; they will need to pull this later
-              pendingCount++;
-              // Tell the subscriber exactly where their next item is waiting
-              if (sub.tailPointer === -1) {
-                sub.tailPointer = this.sharedQueue.length;
-              }
-            }
-          }
-
-          // Phase 2: Only allocate memory if someone was actually blocked
-          if (pendingCount > 0) {
-            this.sharedQueue.push({ value, pending: pendingCount });
-          }
-        };
-    }
-  }
   emit(value: VALUE) {
-    this._emit(value);
+    const subs = this.subscriptions;
+    const len = subs.length;
+
+    let pendingCount = 0;
+
+    // Phase 1: Try the hot path first for ready subscribers
+    for (let i = 0; i < len; i++) {
+      const sub = subs[i]!;
+      if (sub.isReady) {
+        sub.executeHot(value);
+      } else {
+        // Consumer is blocked; they will need to pull this later
+        pendingCount++;
+        // Tell the subscriber exactly where their next item is waiting
+        if (sub.tailPointer === -1) {
+          sub.tailPointer = this.sharedQueue.length;
+        }
+      }
+    }
+
+    // Phase 2: Only allocate memory if someone was actually blocked
+    if (pendingCount > 0) {
+      this.sharedQueue.push({ value, pending: pendingCount });
+    }
   }
 
   listen(listener: Vapor.Listener<VALUE>): Vapor.Abort {
@@ -132,7 +105,6 @@ export class Vapor<VALUE> {
     };
 
     this.subscriptions.push(sub);
-    this.swapEmit();
     const self = this;
     return abort;
 
@@ -143,7 +115,6 @@ export class Vapor<VALUE> {
         if (index < self.subscriptions.length) {
           (self.subscriptions[index] = last).index = index;
         }
-        self.swapEmit();
       }
 
       // Clean up reference counting if this subscription aborts while holding items
