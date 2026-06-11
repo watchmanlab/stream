@@ -32,61 +32,44 @@ export class Vapor<VALUE> {
 
   listen(listener: Vapor.Listener<VALUE>): Vapor.Abort {
     let isProcessing = false;
-    let syncReadyRequested = false;
 
     const sub: Vapor.Subscription<VALUE> = {
       listener,
       abort,
       ready: () => {
-        // Condition A: User called ready() SYNCHRONOUSLY during listener thread
-        if (isProcessing) {
-          syncReadyRequested = true;
-          return; // Return immediately to avoid re-entering drain on a deep stack frame
-        }
-
-        // Condition B: User called ready() ASYNCHRONOUSLY later on
+        // Safe to call anytime (sync or async)
         sub.isReady = true;
         sub.drain();
       },
       drain: () => {
-        // GATEKEEPER CHECK:
-        // Only proceed if the consumer is explicitly ready AND there is data to process
-        if (!sub.isReady || !sub.queue.size) {
+        // 1. TRAMPOLINE GUARD: If drain() is already running higher up the stack,
+        // stop immediately. The active loop will pull the remaining items.
+        if (isProcessing) {
           return;
         }
 
-        // Consume exactly ONE value to respect backpressure
-        sub.isReady = false;
-        const value = sub.queue.dequeue() as VALUE;
-
-        // Set re-entrancy processing guards
+        // 2. TRUE LOOP UNROLLING: Pull items sequentially on a flat stack frame
         isProcessing = true;
-        syncReadyRequested = false;
-
         try {
-          // Hand control over to user code
-          listener({ value, ready: sub.ready, abort: sub.abort });
+          while (sub.isReady && sub.queue.size) {
+            sub.isReady = false; // Reset readiness flag for this item
+            const value = sub.queue.dequeue() as VALUE;
+
+            // Hand control over to the user code cleanly
+            listener({ value, ready: sub.ready, abort: sub.abort });
+          }
         } finally {
           isProcessing = false;
-        }
-
-        // TRAMPOLINE EVALUATION:
-        // If the user synchronously called ready() during the execution block above,
-        // syncReadyRequested was set to true.
-        if (syncReadyRequested) {
-          sub.isReady = true;
-          sub.drain(); // Flat loop execution of the next single item
         }
       },
       enqueue: (value) => {
         sub.queue.enqueue(value);
-        // If the user was already sitting idle waiting for data, wake up the drain pipeline
         if (sub.isReady) {
           sub.drain();
         }
       },
       queue: new Queue(),
-      isReady: true, // Start true so the very first emit passes through seamlessly
+      isReady: true,
       index: this.subscriptions.length,
     };
 
@@ -125,19 +108,23 @@ export namespace Vapor {
 }
 
 function test() {
-  const MAX = 100_000_000;
+  const MAX = 30_000_000;
   const vapor = new Vapor<number>();
 
   const start = performance.now();
 
   vapor.listen(({ value, ready }) => {
     if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start));
+
+    if (value === 1000) {
+      queueMicrotask(() => {
+        console.log("promise resolved", value);
+        ready();
+      });
+      return;
+    }
     ready();
   });
-  //   vapor.listen(({ value, ready, abort }) => {
-  //     if (value === MAX) console.log("bar", value.toLocaleString("fr"), Math.round(performance.now() - start));
-  //     abort();
-  //   });
 
   for (let i = 0; i <= MAX; i++) {
     vapor.emit(i);
