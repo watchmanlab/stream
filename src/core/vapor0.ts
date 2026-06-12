@@ -2,16 +2,9 @@ import { Queue } from "../queue";
 
 export class Vapor<VALUE> {
   private subscriptions: Vapor.Subscription<VALUE>[] = [];
-  //   private smoker = new Smoker<Vapor.Subscription<VALUE>>();
 
   constructor(source?: Vapor<VALUE>) {
     source?.listen(({ value }) => this.emit(value));
-
-    // this.smoker.listen(sub=>{
-    //     while(sub.queue.size){
-    //         const value = sub.queue.dequeue()
-    //     }
-    // })
   }
 
   emit(value: VALUE) {
@@ -146,7 +139,7 @@ function sequential() {
   vapor.emit(3);
 }
 
-sequential();
+// sequential();
 function consurrent() {
   const vapor = new Vapor<number>();
 
@@ -161,4 +154,4 @@ function consurrent() {
   vapor.emit(3);
 }
 
-consurrent();
+// consurrent();

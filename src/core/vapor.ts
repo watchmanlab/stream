@@ -2,7 +2,7 @@ export class Vapor<VALUE> {
   private _subscriptions: Vapor.Subscription<VALUE>[] = [];
 
   // The Shared Queue State
-  private _sharedQueue: { value: VALUE; pending: number }[] = [];
+  private _sharedQueue: Vapor.SharedQueue<VALUE> = [];
   private _queueHead = 0; // Tracks the start of the valid data in the array
   private _subscriptionsCount = 0;
   private _state: Vapor.State = "active";
@@ -22,8 +22,8 @@ export class Vapor<VALUE> {
         sub.executeHot(value);
       } else {
         pendingCount++;
-        if (sub.tailPointer === -1) {
-          sub.tailPointer = this._sharedQueue.length;
+        if (sub.sharedQueueIndex === -1) {
+          sub.sharedQueueIndex = this._sharedQueue.length;
         }
       }
     }
@@ -39,9 +39,9 @@ export class Vapor<VALUE> {
     const sub: Vapor.Subscription<VALUE> = {
       listener,
       abort,
-      tailPointer: -1,
+      sharedQueueIndex: -1,
       isReady: true,
-      index: this._subscriptions.length,
+      subscriptionIndex: this._subscriptions.length,
 
       ready: () => {
         sub.isReady = true;
@@ -69,10 +69,10 @@ export class Vapor<VALUE> {
 
         isProcessing = true;
         try {
-          while (sub.isReady && sub.tailPointer !== -1 && sub.tailPointer < this._sharedQueue.length) {
+          while (sub.isReady && sub.sharedQueueIndex !== -1 && sub.sharedQueueIndex < this._sharedQueue.length) {
             sub.isReady = false;
 
-            const item = this._sharedQueue[sub.tailPointer]!;
+            const item = this._sharedQueue[sub.sharedQueueIndex]!;
             const value = item.value;
 
             item.pending--;
@@ -89,9 +89,9 @@ export class Vapor<VALUE> {
               this._completeInstant();
             }
 
-            sub.tailPointer++;
-            if (sub.tailPointer >= this._sharedQueue.length) {
-              sub.tailPointer = -1;
+            sub.sharedQueueIndex++;
+            if (sub.sharedQueueIndex >= this._sharedQueue.length) {
+              sub.sharedQueueIndex = -1;
             }
 
             listener({ value, ready: sub.ready, abort: sub.abort });
@@ -108,17 +108,17 @@ export class Vapor<VALUE> {
     return abort;
 
     function abort() {
-      const index = self._subscriptions.indexOf(sub);
-      if (index >= 0) {
+      const subscriptionIndex = self._subscriptions.indexOf(sub);
+      if (subscriptionIndex >= 0) {
         self._subscriptionsCount--;
         const last = self._subscriptions.pop()!;
-        if (index < self._subscriptions.length) {
-          (self._subscriptions[index] = last).index = index;
+        if (subscriptionIndex < self._subscriptions.length) {
+          (self._subscriptions[subscriptionIndex] = last).subscriptionIndex = subscriptionIndex;
         }
       }
 
-      if (sub.tailPointer !== -1) {
-        for (let i = sub.tailPointer; i < self._sharedQueue.length; i++) {
+      if (sub.sharedQueueIndex !== -1) {
+        for (let i = sub.sharedQueueIndex; i < self._sharedQueue.length; i++) {
           if (self._sharedQueue[i]) {
             self._sharedQueue[i]!.pending--;
           }
@@ -206,9 +206,10 @@ export namespace Vapor {
     drain: () => void;
     executeHot: (value: VALUE) => void;
     isReady: boolean;
-    tailPointer: number;
-    index: number;
+    sharedQueueIndex: number;
+    subscriptionIndex: number;
   };
+  export type SharedQueue<VALUE> = { value: VALUE; pending: number }[];
 
   export type State = "active" | "drain" | "completed" | "aborted" | "error";
   export type TerminateReason<ERROR> = { type: "complete" } | { type: "abort" } | { type: "error"; error: ERROR };
@@ -247,7 +248,7 @@ function bench() {
   }
 }
 
-bench(); //foo 100 000 000  785 ms
+// bench(); //foo 100 000 000  785 ms
 
 function sequential() {
   const vapor = new Vapor<number>();
@@ -278,4 +279,4 @@ function consurrent() {
   vapor.emit(3);
 }
 
-// consurrent();
+consurrent();
