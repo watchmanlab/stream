@@ -1,7 +1,8 @@
 import { Subscription } from "./subscription";
 
 export class Vapor<VALUE> {
-  private _subscriptions: Set<Subscription<VALUE>>;
+  private _subscriptions = new Set<Subscription<VALUE, any>>();
+  private _gloablError?: Vapor<any>;
 
   constructor() {
     this._subscriptions = new Set();
@@ -13,22 +14,34 @@ export class Vapor<VALUE> {
     }
   }
 
-  listen(listener: Subscription.Listener<VALUE>): Subscription.Abort {
-    const subscriptions = this._subscriptions;
+  listen<ERROR>(
+    listener: Subscription.Listener<VALUE, ERROR>,
+    init?: Omit<Subscription.Init<VALUE, ERROR>, "listener">,
+  ): Subscription.Abort<ERROR>;
+  listen<ERROR>(init: Subscription.Init<VALUE, ERROR>): Subscription.Abort<ERROR>;
+  listen<ERROR>(
+    listenerOrInit: Subscription.Listener<VALUE, ERROR> | Subscription.Init<VALUE, ERROR>,
+    _init?: Omit<Subscription.Init<VALUE, ERROR>, "listener">,
+  ): Subscription.Abort<ERROR> {
+    const init = typeof listenerOrInit === "function" ? { listener: listenerOrInit, ..._init } : { ...listenerOrInit };
 
-    const sub = new Subscription({ listener, onAbort: abort });
+    const sub = new Subscription({
+      ...init,
+      abort: (error) => {
+        this._subscriptions.clear();
+        init?.abort?.(error);
+      },
+    });
 
     this._subscriptions.add(sub);
 
-    return abort;
-
-    function abort() {
-      subscriptions.delete(sub);
-    }
+    return sub.abort;
   }
 
   clear() {
     this._subscriptions.clear();
+    this._gloablError?.clear();
+    this._gloablError = undefined;
   }
 
   get subscriptionsCount() {
@@ -39,14 +52,15 @@ export class Vapor<VALUE> {
 export namespace Vapor {}
 
 function bench() {
-  const MAX = 8_000_000;
+  const MAX = 50_000_000;
   const vapor = new Vapor<number>();
 
   const start = performance.now();
 
   vapor.listen(({ value, ready }) => {
     if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-    value.toFixed();
+    const obj = { value, ready };
+    obj.value++;
     // if (value === 1000) {
     //   queueMicrotask(() => {
     //     console.log("promise resolved", value);
@@ -62,7 +76,7 @@ function bench() {
   }
 }
 
-// bench(); //foo 8 000 000 959 ms
+bench(); //foo 8 000 000 959 ms
 
 function sequential() {
   const vapor = new Vapor<number>();
