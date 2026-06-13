@@ -39,14 +39,14 @@ export class Vapor<VALUE> {
 export namespace Vapor {}
 
 function bench() {
-  const MAX = 40_000_000;
+  const MAX = 8_000_000;
   const vapor = new Vapor<number>();
 
   const start = performance.now();
 
   vapor.listen(({ value, ready }) => {
     if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-
+    value.toFixed();
     // if (value === 1000) {
     //   queueMicrotask(() => {
     //     console.log("promise resolved", value);
@@ -62,7 +62,7 @@ function bench() {
   }
 }
 
-bench(); //foo 100 000 000  785 ms
+// bench(); //foo 8 000 000 959 ms
 
 function sequential() {
   const vapor = new Vapor<number>();

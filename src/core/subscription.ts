@@ -1,43 +1,33 @@
 import { Queue } from "../queue";
 
-export class Subscription<VALUE> implements Subscription.Executor<VALUE> {
+export class Subscription<VALUE> {
   private _isReady: boolean = true;
   private _queue: Queue<VALUE>;
   private _isProcessing = false;
-  private _value: VALUE = undefined as VALUE;
+
   constructor(private init: Subscription.Init<VALUE>) {
     this._queue = new Queue();
-    this.ready = this.ready.bind(this);
-    this.abort = this.abort.bind(this);
-  }
-  get value() {
-    return this._value;
   }
 
   push(value: VALUE) {
     if (this._isReady && !this._isProcessing) {
       this._isProcessing = true;
       this._isReady = false;
-      this._value = value;
+
       try {
-        this.init.listener(this);
+        this.init.listener({ value, ready: this.ready, abort: this.abort });
       } finally {
         this._isProcessing = false;
       }
 
-      if (this._isReady) {
-        this.drain();
-      }
+      //   if (this._isReady && this._queue.size) {
+      //     this.drain();
+      //   }
     } else {
       this._queue.enqueue(value);
     }
   }
 
-  ready() {
-    if (this._isReady) return;
-    this._isReady = true;
-    this.drain();
-  }
   private drain() {
     if (this._isProcessing) return;
 
@@ -47,20 +37,25 @@ export class Subscription<VALUE> implements Subscription.Executor<VALUE> {
       while (this._isReady && this._queue.size) {
         this._isReady = false;
 
-        this._value = this._queue.dequeue() as VALUE;
+        const value = this._queue.dequeue() as VALUE;
 
-        this.init.listener(this);
+        this.init.listener({ value, ready: this.ready, abort: this.abort });
       }
     } finally {
       this._isProcessing = false;
     }
   }
-  abort() {
-    this._value = undefined as VALUE;
+  readonly ready = (): void => {
+    if (this._isReady) return;
+    this._isReady = true;
+    this.drain();
+  };
+
+  readonly abort = (): void => {
     this._queue.clear();
     this.init.onAbort();
     this.init = {} as Subscription.Init<VALUE>;
-  }
+  };
 }
 
 export namespace Subscription {
