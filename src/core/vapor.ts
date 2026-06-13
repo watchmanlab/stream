@@ -1,231 +1,45 @@
+import { Subscription } from "./subscription";
+
 export class Vapor<VALUE> {
-  private _subscriptions: Vapor.Subscription<VALUE>[] = [];
+  private _subscriptions: Set<Subscription<VALUE>>;
 
-  // The Shared Queue State
-  private _sharedQueue: Vapor.SharedQueue<VALUE> = [];
-  private _queueHead = 0; // Tracks the start of the valid data in the array
-  private _subscriptionsCount = 0;
-  private _state: Vapor.State = "active";
-  private _errors?: Vapor<any>;
-
-  constructor() {}
+  constructor() {
+    this._subscriptions = new Set();
+  }
 
   emit(value: VALUE) {
-    const subs = this._subscriptions;
-    const len = subs.length;
-    let pendingCount = 0;
-
-    // Pristine Phase 1: Pure hot path loop (No isDead branch overhead)
-    for (let i = 0; i < len; i++) {
-      const sub = subs[i]!;
-      if (sub.isReady) {
-        sub.executeHot(value);
-      } else {
-        pendingCount++;
-        if (sub.sharedQueueIndex === -1) {
-          sub.sharedQueueIndex = this._sharedQueue.length;
-        }
-      }
-    }
-
-    if (pendingCount > 0) {
-      this._sharedQueue.push({ value, pending: pendingCount });
+    for (const sub of this._subscriptions) {
+      sub.push(value);
     }
   }
 
-  listen(listener: Vapor.Listener<VALUE>): Vapor.Abort {
-    let isProcessing = false;
+  listen(listener: Subscription.Listener<VALUE>): Subscription.Abort {
+    const subscriptions = this._subscriptions;
 
-    const sub: Vapor.Subscription<VALUE> = {
-      listener,
-      abort,
-      sharedQueueIndex: -1,
-      isReady: true,
-      subscriptionIndex: this._subscriptions.length,
+    const sub = new Subscription({ listener, onAbort: abort });
 
-      ready: () => {
-        sub.isReady = true;
-        sub.drain();
-      },
+    this._subscriptions.add(sub);
 
-      executeHot: (value) => {
-        if (isProcessing) return;
-
-        isProcessing = true;
-        sub.isReady = false;
-        try {
-          listener({ value, ready: sub.ready, abort: sub.abort });
-        } finally {
-          isProcessing = false;
-        }
-
-        if (sub.isReady) {
-          sub.drain();
-        }
-      },
-
-      drain: () => {
-        if (isProcessing) return;
-
-        isProcessing = true;
-        try {
-          while (sub.isReady && sub.sharedQueueIndex !== -1 && sub.sharedQueueIndex < this._sharedQueue.length) {
-            sub.isReady = false;
-
-            const item = this._sharedQueue[sub.sharedQueueIndex]!;
-            const value = item.value;
-
-            item.pending--;
-
-            // Fast compaction
-            while (this._queueHead < this._sharedQueue.length && this._sharedQueue[this._queueHead]?.pending === 0) {
-              (this._sharedQueue[this._queueHead] as any) = Vapor.EMPTY;
-              this._queueHead++;
-            }
-
-            // High-Performance Termination Hook Check
-            // We check this at the boundary when the queue actually empties out
-            if (this._queueHead === this._sharedQueue.length && this._state === "drain") {
-              this._completeInstant();
-            }
-
-            sub.sharedQueueIndex++;
-            if (sub.sharedQueueIndex >= this._sharedQueue.length) {
-              sub.sharedQueueIndex = -1;
-            }
-
-            listener({ value, ready: sub.ready, abort: sub.abort });
-          }
-        } finally {
-          isProcessing = false;
-        }
-      },
-    };
-
-    this._subscriptions.push(sub);
-    this._subscriptionsCount++;
-    const self = this;
     return abort;
 
     function abort() {
-      const subscriptionIndex = self._subscriptions.indexOf(sub);
-      if (subscriptionIndex >= 0) {
-        self._subscriptionsCount--;
-        const last = self._subscriptions.pop()!;
-        if (subscriptionIndex < self._subscriptions.length) {
-          (self._subscriptions[subscriptionIndex] = last).subscriptionIndex = subscriptionIndex;
-        }
-      }
-
-      if (sub.sharedQueueIndex !== -1) {
-        for (let i = sub.sharedQueueIndex; i < self._sharedQueue.length; i++) {
-          if (self._sharedQueue[i]) {
-            self._sharedQueue[i]!.pending--;
-          }
-        }
-        while (self._queueHead < self._sharedQueue.length && self._sharedQueue[self._queueHead]?.pending === 0) {
-          (self._sharedQueue[self._queueHead] as any) = Vapor.EMPTY;
-          self._queueHead++;
-        }
-      }
+      subscriptions.delete(sub);
     }
   }
 
-  terminate<ERROR>(reason: Vapor.TerminateReason<ERROR>) {
-    switch (reason.type) {
-      case "abort":
-        this.emit =
-          (this.listen as any) =
-          this.terminate =
-            () => this._throw(new Vapor.EmitException(`terminated`, { cause: "aborted" }));
-        this._state = "aborted";
-        this._clear();
-        break;
-      case "error":
-        this.emit =
-          (this.listen as any) =
-          this.terminate =
-            () => this._throw(new Vapor.EmitException(`terminated`, { cause: reason.error }));
-        this._state = "error";
-        this._throw(reason.error);
-        this._clear();
-        break;
-      case "complete":
-        if (this._state === "active") {
-          // If the queue is already empty, terminate instantly
-          if (this._queueHead >= this._sharedQueue.length) {
-            this._completeInstant();
-          } else {
-            // Otherwise, block future emits and wait for drain loop to finish
-            this.emit = () => this._throw(new Vapor.EmitException(`terminated`, { cause: "drain" }));
-            this._state = "drain";
-          }
-        }
-        break;
-    }
-  }
-
-  private _completeInstant() {
-    this.emit =
-      (this.listen as any) =
-      this.terminate =
-        () => this._throw(new Vapor.EmitException(`terminated`, { cause: "completed" }));
-    this._state = "completed";
-  }
-
-  private _clear() {
-    this._queueHead = 0;
-    this._sharedQueue.length = 0;
-    this._subscriptions.length = 0;
-    this._subscriptionsCount = 0;
-    this._errors?.terminate({ type: "complete" });
-    this._errors = undefined;
-  }
-
-  private _throw<ERROR>(error: ERROR) {
-    if (!this._errors || !this._errors.subscriptionsCount) {
-      Promise.reject(error);
-    } else {
-      this._errors.emit(error);
-    }
+  clear() {
+    this._subscriptions.clear();
   }
 
   get subscriptionsCount() {
-    return this._subscriptionsCount;
+    return this._subscriptions.size;
   }
 }
 
-export namespace Vapor {
-  export type Abort = () => void;
-  export type Ready = () => void;
-  export type Listener<VALUE> = (props: { value: VALUE; ready: Ready; abort: Abort }) => void;
-  export type Subscription<VALUE> = {
-    listener: Listener<VALUE>;
-    abort: Abort;
-    ready: Ready;
-    drain: () => void;
-    executeHot: (value: VALUE) => void;
-    isReady: boolean;
-    sharedQueueIndex: number;
-    subscriptionIndex: number;
-  };
-  export type SharedQueue<VALUE> = { value: VALUE; pending: number }[];
-
-  export type State = "active" | "drain" | "completed" | "aborted" | "error";
-  export type TerminateReason<ERROR> = { type: "complete" } | { type: "abort" } | { type: "error"; error: ERROR };
-
-  export class EmitException extends Error {
-    constructor(message?: string, options?: ErrorOptions) {
-      super(message, options);
-    }
-  }
-
-  export const EMPTY = Symbol.for("empty");
-  export type Empty = typeof EMPTY;
-}
+export namespace Vapor {}
 
 function bench() {
-  const MAX = 100_000_000;
+  const MAX = 40_000_000;
   const vapor = new Vapor<number>();
 
   const start = performance.now();
@@ -248,7 +62,7 @@ function bench() {
   }
 }
 
-// bench(); //foo 100 000 000  785 ms
+bench(); //foo 100 000 000  785 ms
 
 function sequential() {
   const vapor = new Vapor<number>();
@@ -279,4 +93,4 @@ function consurrent() {
   vapor.emit(3);
 }
 
-consurrent();
+// consurrent();

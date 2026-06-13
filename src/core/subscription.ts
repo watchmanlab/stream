@@ -1,71 +1,65 @@
-import type { Vapor } from "./vapor";
+import { Queue } from "../queue";
 
 export class Subscription<VALUE> implements Subscription.Executor<VALUE> {
-  private isReady: boolean = true;
-  private sharedQueueIndex: number = -1;
-  private listener: Subscription.Listener<VALUE>;
-  private subscriptionIndex: number;
-  private sharedQueue: Vapor.SharedQueue<VALUE>;
-  private onDrain: () => void;
-  private onAbort: () => void;
-  private isProcessing = false;
-  value: VALUE = undefined as VALUE;
-  constructor(init: Subscription.Init<VALUE>) {
-    this.listener = init.listener;
-    this.subscriptionIndex = init.subscriptionIndex;
-    this.sharedQueue = init.sharedQueue;
-    this.onDrain = init.onDrain;
-    this.onAbort = init.onAbort;
+  private _isReady: boolean = true;
+  private _queue: Queue<VALUE>;
+  private _isProcessing = false;
+  private _value: VALUE = undefined as VALUE;
+  constructor(private init: Subscription.Init<VALUE>) {
+    this._queue = new Queue();
+    this.ready = this.ready.bind(this);
+    this.abort = this.abort.bind(this);
+  }
+  get value() {
+    return this._value;
   }
 
-  executeHot(value: VALUE) {
-    if (this.isProcessing) return;
+  push(value: VALUE) {
+    if (this._isReady && !this._isProcessing) {
+      this._isProcessing = true;
+      this._isReady = false;
+      this._value = value;
+      try {
+        this.init.listener(this);
+      } finally {
+        this._isProcessing = false;
+      }
 
-    this.isProcessing = true;
-    this.isReady = false;
-    this.value = value;
-    try {
-      this.listener(this);
-    } finally {
-      this.isProcessing = false;
-    }
-
-    if (this.isReady) {
-      this.drain();
+      if (this._isReady) {
+        this.drain();
+      }
+    } else {
+      this._queue.enqueue(value);
     }
   }
+
   ready() {
-    this.isReady = true;
+    if (this._isReady) return;
+    this._isReady = true;
     this.drain();
   }
-  drain() {
-    if (this.isProcessing) return;
+  private drain() {
+    if (this._isProcessing) return;
 
-    this.isProcessing = true;
+    this._isProcessing = true;
+
     try {
-      while (this.isReady && this.sharedQueueIndex !== -1 && this.sharedQueueIndex < this.sharedQueue.length) {
-        this.isReady = false;
+      while (this._isReady && this._queue.size) {
+        this._isReady = false;
 
-        const item = this.sharedQueue[this.sharedQueueIndex]!;
-        this.value = item.value;
+        this._value = this._queue.dequeue() as VALUE;
 
-        item.pending--;
-
-        this.onDrain();
-
-        this.sharedQueueIndex++;
-        if (this.sharedQueueIndex >= this.sharedQueue.length) {
-          this.sharedQueueIndex = -1;
-        }
-
-        this.listener(this);
+        this.init.listener(this);
       }
     } finally {
-      this.isProcessing = false;
+      this._isProcessing = false;
     }
   }
   abort() {
-    this.onAbort();
+    this._value = undefined as VALUE;
+    this._queue.clear();
+    this.init.onAbort();
+    this.init = {} as Subscription.Init<VALUE>;
   }
 }
 
@@ -73,17 +67,14 @@ export namespace Subscription {
   export type Abort = () => void;
   export type Ready = () => void;
   export interface Executor<VALUE> {
-    value: VALUE;
-    ready: Ready;
-    abort: Abort;
+    readonly value: VALUE;
+    readonly ready: Ready;
+    readonly abort: Abort;
   }
   export type Listener<VALUE> = (executor: Executor<VALUE>) => void;
 
   export type Init<VALUE> = {
     listener: Subscription.Listener<VALUE>;
-    subscriptionIndex: number;
-    sharedQueue: Vapor.SharedQueue<VALUE>;
-    onDrain: () => void;
     onAbort: () => void;
   };
 }
