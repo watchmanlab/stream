@@ -1,12 +1,12 @@
-import { IQueue } from "./types";
+import { Queue } from "./types";
 
-export class Queue<VALUE> implements IQueue<VALUE> {
-  private _head?: Queue.Node<VALUE>;
-  private _tail?: Queue.Node<VALUE>;
+export class LinkedList<VALUE> implements Queue<VALUE> {
+  private _head?: LinkedList.Node<VALUE>;
+  private _tail?: LinkedList.Node<VALUE>;
   private _size = 0;
 
   constructor() {}
-  [Symbol.iterator](): IQueue.Iterator<VALUE> {
+  [Symbol.iterator](): Queue.Iterator<VALUE> {
     let cursor = this._head;
     return {
       next: () => {
@@ -15,7 +15,7 @@ export class Queue<VALUE> implements IQueue<VALUE> {
           cursor = cursor.next;
           return { value };
         } else {
-          return { value: IQueue.EMPTY, done: true };
+          return { value: Queue.EMPTY, done: true };
         }
       },
     };
@@ -34,8 +34,8 @@ export class Queue<VALUE> implements IQueue<VALUE> {
       this._tail = node;
     }
   }
-  dequeue(): VALUE | IQueue.Empty {
-    if (!this._head) return IQueue.EMPTY;
+  dequeue(): VALUE | Queue.Empty {
+    if (!this._head) return Queue.EMPTY;
 
     this._size--;
     const value = this._head.value;
@@ -43,7 +43,7 @@ export class Queue<VALUE> implements IQueue<VALUE> {
 
     return value;
   }
-  values(): IQueue.Iterator<VALUE> {
+  values(): Queue.Iterator<VALUE> {
     return this[Symbol.iterator]();
   }
   clear(): void {
@@ -55,6 +55,6 @@ export class Queue<VALUE> implements IQueue<VALUE> {
     return this._size;
   }
 }
-export namespace Queue {
+export namespace LinkedList {
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
 }

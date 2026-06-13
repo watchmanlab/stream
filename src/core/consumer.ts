@@ -1,14 +1,15 @@
-import { Queue } from "./queue";
-import type { IQueue } from "./types";
-import type { Vapor } from "./vapor";
+import { LinkedList } from "./queue";
+import type { Queue } from "./types";
+import type { Smoker } from "./smoker";
 
-export class Subscription<VALUE, ERROR> {
-  private _isReady: boolean = true;
-  private _queue: IQueue<VALUE>;
+export class Consumer<VALUE, ERROR> {
+  private _isReady: boolean;
+  private _queue: Queue<VALUE>;
   private _isProcessing = false;
 
-  constructor(private init: Subscription.Init<VALUE, ERROR>) {
-    this._queue = init.queue ? init.queue : new Queue();
+  constructor(private init: Consumer.Init<VALUE, ERROR>) {
+    this._queue = init.queue ? init.queue : new LinkedList();
+    this._isReady = init.isReady === undefined ? true : init.isReady;
     this.initReady();
   }
 
@@ -18,7 +19,7 @@ export class Subscription<VALUE, ERROR> {
       this._isReady = false;
 
       try {
-        this.init.listener({ value, ready: this.ready, abort: this.abort });
+        this.init.handler(value, this.ready, this.abort);
       } catch (error) {
         this.error(error);
       } finally {
@@ -40,7 +41,7 @@ export class Subscription<VALUE, ERROR> {
 
         const value = this._queue.dequeue() as VALUE;
 
-        this.init.listener({ value, ready: this.ready, abort: this.abort });
+        this.init.handler(value, this.ready, this.abort);
       }
     } catch (error) {
       this.error(error);
@@ -49,20 +50,13 @@ export class Subscription<VALUE, ERROR> {
     }
   }
   private error(error: any): void {
-    if (!this.init.globalError?.subscriptionsCount && !this.init.error) {
+    if (!this.init.globalError?.consumers && !this.init.error) {
       Promise.reject(error);
     } else {
       this.init.globalError?.emit(error);
       this.init.error?.(error);
     }
   }
-  readonly ready: Subscription.Ready<ERROR> = (error?: ERROR): void => {
-    if (this._isReady) return;
-    if (error) this.error(error);
-    this.init.ready!(error);
-    this._isReady = true;
-    this.drain();
-  };
   private initReady(): void {
     if (!this.init.ready)
       (this.ready as any) = (error?: ERROR): void => {
@@ -72,16 +66,23 @@ export class Subscription<VALUE, ERROR> {
         this.drain();
       };
   }
+  readonly ready: Consumer.Ready<ERROR> = (error?: ERROR): void => {
+    if (this._isReady) return;
+    if (error) this.error(error);
+    this.init.ready!(error);
+    this._isReady = true;
+    this.drain();
+  };
 
-  readonly abort: Subscription.Abort<ERROR> = (error?: ERROR): void => {
+  readonly abort: Consumer.Abort<ERROR> = (error?: ERROR): void => {
     this._queue.clear();
     this.init.abort?.(error);
-    this.init = {} as Subscription.Init<VALUE, any>;
+    this.init = {} as Consumer.Init<VALUE, any>;
     if (error) this.error(error);
   };
 }
 
-export namespace Subscription {
+export namespace Consumer {
   export type Abort<ERROR> = (error?: ERROR) => void;
   export type Ready<ERROR> = (error?: ERROR) => void;
   export type Error<ERROR> = (error: ERROR) => void;
@@ -91,14 +92,15 @@ export namespace Subscription {
     readonly ready: Ready<ERROR>;
     readonly abort: Abort<ERROR>;
   };
-  export type Listener<VALUE, ERROR> = (executor: Executor<VALUE, ERROR>) => void;
+  export type Handler<VALUE, ERROR> = (value: VALUE, ready: Ready<ERROR>, abort: Abort<ERROR>) => void;
   export type Init<VALUE, ERROR> = {
-    listener: Subscription.Listener<VALUE, ERROR>;
+    handler: Consumer.Handler<VALUE, ERROR>;
     ready?: Ready<ERROR>;
     abort?: Abort<ERROR>;
     error?: Error<ERROR>;
-    queue?: IQueue<VALUE>;
-    globalError?: Vapor<any>;
+    queue?: Queue<VALUE>;
+    globalError?: Smoker<any>;
+    isReady?: boolean;
   };
   export type State = "active" | "drain" | "complete" | "abort";
 }
