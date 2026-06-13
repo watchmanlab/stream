@@ -1,16 +1,18 @@
-import { Queue } from "../queue";
+import { Queue } from "./queue";
+import type { IQueue } from "./types";
 import type { Vapor } from "./vapor";
 
 export class Subscription<VALUE, ERROR> {
   private _isReady: boolean = true;
-  private _queue: Queue<VALUE>;
+  private _queue: IQueue<VALUE>;
   private _isProcessing = false;
 
   constructor(private init: Subscription.Init<VALUE, ERROR>) {
-    this._queue = new Queue();
+    this._queue = init.queue ? init.queue : new Queue();
+    this.initReady();
   }
 
-  push(value: VALUE) {
+  push(value: VALUE): void {
     if (this._isReady && !this._isProcessing) {
       this._isProcessing = true;
       this._isReady = false;
@@ -27,7 +29,7 @@ export class Subscription<VALUE, ERROR> {
     }
   }
 
-  private drain() {
+  private drain(): void {
     if (this._isProcessing) return;
 
     this._isProcessing = true;
@@ -46,7 +48,7 @@ export class Subscription<VALUE, ERROR> {
       this._isProcessing = false;
     }
   }
-  private error(error: any) {
+  private error(error: any): void {
     if (!this.init.globalError?.subscriptionsCount && !this.init.error) {
       Promise.reject(error);
     } else {
@@ -54,15 +56,24 @@ export class Subscription<VALUE, ERROR> {
       this.init.error?.(error);
     }
   }
-  readonly ready = (error?: ERROR): void => {
+  readonly ready: Subscription.Ready<ERROR> = (error?: ERROR): void => {
     if (this._isReady) return;
     if (error) this.error(error);
-    this.init.ready?.(error);
+    this.init.ready!(error);
     this._isReady = true;
     this.drain();
   };
+  private initReady(): void {
+    if (!this.init.ready)
+      (this.ready as any) = (error?: ERROR): void => {
+        if (this._isReady) return;
+        if (error) this.error(error);
+        this._isReady = true;
+        this.drain();
+      };
+  }
 
-  readonly abort = (error?: ERROR): void => {
+  readonly abort: Subscription.Abort<ERROR> = (error?: ERROR): void => {
     this._queue.clear();
     this.init.abort?.(error);
     this.init = {} as Subscription.Init<VALUE, any>;
@@ -86,7 +97,7 @@ export namespace Subscription {
     ready?: Ready<ERROR>;
     abort?: Abort<ERROR>;
     error?: Error<ERROR>;
-
+    queue?: IQueue<VALUE>;
     globalError?: Vapor<any>;
   };
   export type State = "active" | "drain" | "complete" | "abort";
