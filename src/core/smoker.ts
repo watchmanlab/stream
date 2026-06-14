@@ -1,7 +1,7 @@
 import { Consumer } from "./consumer";
-import type { Source } from "./types";
+import type { Prettify, Source } from "./types";
 
-export class Smoker<VALUE, NAME extends string = Smoker.Name> {
+export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<VALUE> {
   readonly name: NAME;
   private _consumers = new Set<Consumer<VALUE, any>>();
   private _gloablError?: Smoker<any>;
@@ -11,33 +11,33 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
   }
 
   emit(value: VALUE) {
-    for (const sub of this._consumers) {
-      sub.push(value);
+    for (const consumer of this._consumers) {
+      consumer.push(value);
     }
   }
 
   listen<ERROR>(
-    handler: Consumer.Handler<VALUE, ERROR>,
-    init?: Omit<Consumer.Init<VALUE, ERROR>, "handler">,
-  ): Consumer.Abort<ERROR>;
-  listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer.Abort<ERROR>;
+    handler: Source.Handler<VALUE, ERROR>,
+    init?: Prettify<Omit<Consumer.Init<VALUE, ERROR>, "handler">>,
+  ): Source.Abort<ERROR>;
+  listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Source.Abort<ERROR>;
   listen<ERROR>(
-    handlerOrInit: Consumer.Handler<VALUE, ERROR> | Consumer.Init<VALUE, ERROR>,
+    handlerOrInit: Source.Handler<VALUE, ERROR> | Consumer.Init<VALUE, ERROR>,
     _init?: Omit<Consumer.Init<VALUE, ERROR>, "handler">,
-  ): Consumer.Abort<ERROR> {
+  ): Source.Abort<ERROR> {
     const init = typeof handlerOrInit === "function" ? { handler: handlerOrInit, ..._init } : { ...handlerOrInit };
 
-    const sub = new Consumer({
+    const consumer = new Consumer({
       ...init,
       abort: (error) => {
-        this._consumers.clear();
+        this._consumers.delete(consumer);
         init?.abort?.(error);
       },
     });
 
-    this._consumers.add(sub);
+    this._consumers.add(consumer);
 
-    return sub.abort;
+    return consumer.abort;
   }
 
   clear() {
@@ -67,22 +67,23 @@ export namespace Smoker {
 }
 
 function bench() {
-  const MAX = 50_000_000;
+  const MAX = 40_000_000;
   const smoker = new Smoker<number>();
 
   const start = performance.now();
-
+  // smoker.listen(() => {});
   smoker.listen((value, ready) => {
     if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
     const obj = { value, ready };
     obj.value++;
-    // if (value === 1000) {
-    //   queueMicrotask(() => {
-    //     console.log("promise resolved", value);
-    //     ready();
-    //   });
-    //   return;
-    // }
+    if (value === 1000) {
+      value++;
+      // queueMicrotask(() => {
+      //   console.log("promise resolved", value);
+      //   ready();
+      // });
+      // return;
+    }
     ready();
   });
 
@@ -91,7 +92,7 @@ function bench() {
   }
 }
 
-bench(); //foo 50 000 000 988 ms
+bench(); //foo 40 000 000 937 ms
 
 function sequential() {
   const smoker = new Smoker<number>();

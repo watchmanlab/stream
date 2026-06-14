@@ -1,6 +1,3 @@
-import type { Consumer } from "./consumer";
-import type { Smoker } from "./smoker";
-
 export interface Queue<VALUE> extends Iterable<VALUE>, Disposable {
   enqueue(value: VALUE): void;
   dequeue(): VALUE | Queue.Empty;
@@ -25,10 +22,23 @@ export namespace Queue {
 }
 
 export interface Source<VALUE> {
-  readonly aborted: Smoker<"">;
-  listen<ERROR>(
-    handler: Consumer.Handler<VALUE, ERROR>,
-    init?: Omit<Consumer.Init<VALUE, ERROR>, "handler">,
-  ): Consumer.Abort<ERROR>;
-  listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer.Abort<ERROR>;
+  listen<ERROR>(init: Source.ListenInit<VALUE, ERROR>): Source.Abort<ERROR>;
 }
+export namespace Source {
+  export type Abort<ERROR> = (error?: ERROR) => void;
+  export type Ready<ERROR> = [ERROR] extends [never] ? () => void : (error?: ERROR) => void;
+  export type Error<ERROR> = (error: ERROR) => void;
+
+  export type Handler<VALUE, ERROR> = (value: VALUE, ready: Ready<ERROR>, abort: Abort<ERROR>) => void;
+  export type ListenInit<VALUE, ERROR> = {
+    handler: Handler<VALUE, ERROR>;
+    ready?: Ready<never>;
+    abort?: Abort<ERROR>;
+    error?: Error<ERROR>;
+  };
+}
+
+export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
+export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
+  ? ARR
+  : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
