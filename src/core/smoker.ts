@@ -1,13 +1,13 @@
 import { Consumer } from "./consumer";
-import type { Prettify, Source } from "./types";
+import type { Prettify, Queue, Source } from "./types";
 
 export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<VALUE> {
   readonly name: NAME;
   private _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
-  private _gloablError?: Smoker<any>;
+  private _globalError?: Smoker<any>;
   private _source?: Consumer<VALUE, any>;
 
-  constructor(options?: Smoker.Options<VALUE, NAME>) {
+  constructor(private options?: Smoker.Options<VALUE, NAME>) {
     this.name = options?.name ?? (Smoker.NAME as NAME);
 
     if (options?.source) {
@@ -43,6 +43,8 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
         this._consumers.delete(init.handler);
         init?.abort?.(error);
       },
+      queue: init.queue ? init.queue : this.options?.queue?.(),
+      globalError: init.globalError ? init.globalError : this._globalError,
     });
 
     this._consumers.set(init.handler, consumer);
@@ -51,8 +53,8 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
   }
   clear() {
     this._consumers.clear();
-    this._gloablError?.clear();
-    this._gloablError = undefined;
+    this._globalError?.clear();
+    this._globalError = undefined;
   }
   get consumers() {
     return this._consumers.size;
@@ -72,11 +74,13 @@ export namespace Smoker {
     name?: NAME;
     source?: Source<VALUE>;
     scope?: Scope;
+    error?: Smoker<any>;
+    queue?: () => Queue<VALUE>;
   };
 }
 
 function bench() {
-  const MAX = 80_000_000;
+  const MAX = 10_000_000;
   const smoker = new Smoker<number>();
 
   const consumer = smoker.listen(
@@ -104,7 +108,7 @@ function bench() {
   consumer.next();
 }
 
-bench(); //foo 50 000 000 463 ms
+bench(); //foo 10 000 000 46 ms
 
 function sequential() {
   const smoker = new Smoker<number>();

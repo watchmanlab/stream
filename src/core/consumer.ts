@@ -40,9 +40,7 @@ export class Consumer<VALUE, ERROR> {
     this._queue.clear();
     this.init.abort?.(error);
     this.init = null as any;
-    this.drain = null as any;
-    (this.next as any) = null as any;
-    (this.abort as any) = null as any;
+
     if (error) this.error(error);
   }
   private drain(): void {
@@ -85,7 +83,7 @@ export class Consumer<VALUE, ERROR> {
 
 export namespace Consumer {
   export type Push<VALUE> = (value: VALUE) => void;
-  export type Abort<ERROR> = (error?: ERROR) => void;
+  export type Abort<ERROR> = (error?: ERROR, drain?: boolean) => void;
   export type Ready = () => void;
   export type Error<ERROR> = (error: ERROR) => void;
   export type Handler<VALUE, ERROR> = (value: VALUE, consumer: Consumer<VALUE, ERROR>) => void;
