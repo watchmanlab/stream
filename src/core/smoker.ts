@@ -43,6 +43,10 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
         this._consumers.delete(init.handler);
         init?.abort?.(error);
       },
+      complete: () => {
+        this._consumers.delete(init.handler);
+        init.complete?.();
+      },
       queue: init.queue ? init.queue : this.options?.queue?.(),
       globalError: init.globalError ? init.globalError : this._globalError,
     });
@@ -70,6 +74,7 @@ export namespace Smoker {
     | AnySmoker
     | { any: [AnySmoker, ...AnySmoker[]]; all?: never }
     | { any?: never; all: [AnySmoker, ...AnySmoker[]] };
+
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
     source?: Source<VALUE>;
