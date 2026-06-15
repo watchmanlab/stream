@@ -3,52 +3,61 @@ import type { Prettify, Source } from "./types";
 
 export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<VALUE> {
   readonly name: NAME;
-  private _consumers = new Set<Consumer<VALUE, any>>();
+  private _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
   private _gloablError?: Smoker<any>;
+  private _source?: Consumer<VALUE, any>;
 
-  constructor(name?: NAME) {
-    this.name = name ?? (Smoker.NAME as NAME);
-  }
+  constructor(options?: Smoker.Options<VALUE, NAME>) {
+    this.name = options?.name ?? (Smoker.NAME as NAME);
 
-  emit(value: VALUE) {
-    for (const consumer of this._consumers) {
-      consumer.push(value);
+    if (options?.source) {
+      this._source = options.source.listen({
+        handler: (value) => {
+          this.emit(value);
+        },
+      });
     }
   }
 
+  emit(value: VALUE) {
+    for (const consumer of this._consumers.values()) {
+      consumer.push(value);
+    }
+  }
   listen<ERROR>(
-    handler: Source.Handler<VALUE, ERROR>,
+    handler: Consumer.Handler<VALUE, ERROR>,
     init?: Prettify<Omit<Consumer.Init<VALUE, ERROR>, "handler">>,
-  ): Source.Abort<ERROR>;
-  listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Source.Abort<ERROR>;
+  ): Consumer<VALUE, ERROR>;
+  listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer<VALUE, ERROR>;
   listen<ERROR>(
-    handlerOrInit: Source.Handler<VALUE, ERROR> | Consumer.Init<VALUE, ERROR>,
+    handlerOrInit: Consumer.Handler<VALUE, ERROR> | Consumer.Init<VALUE, ERROR>,
     _init?: Omit<Consumer.Init<VALUE, ERROR>, "handler">,
-  ): Source.Abort<ERROR> {
+  ): Consumer<VALUE, ERROR> {
     const init = typeof handlerOrInit === "function" ? { handler: handlerOrInit, ..._init } : { ...handlerOrInit };
+
+    if (this._consumers.has(init.handler)) return this._consumers.get(init.handler)!;
 
     const consumer = new Consumer({
       ...init,
       abort: (error) => {
-        this._consumers.delete(consumer);
+        this._consumers.delete(init.handler);
         init?.abort?.(error);
       },
     });
 
-    this._consumers.add(consumer);
+    this._consumers.set(init.handler, consumer);
 
-    return consumer.abort;
+    return consumer;
   }
-
   clear() {
     this._consumers.clear();
     this._gloablError?.clear();
     this._gloablError = undefined;
   }
-
   get consumers() {
     return this._consumers.size;
   }
+  static fromIterable<VALUE>(iterable: Iterable<VALUE>) {}
 }
 
 export namespace Smoker {
@@ -67,40 +76,43 @@ export namespace Smoker {
 }
 
 function bench() {
-  const MAX = 40_000_000;
+  const MAX = 80_000_000;
   const smoker = new Smoker<number>();
 
-  const start = performance.now();
-  // smoker.listen(() => {});
-  smoker.listen((value, ready) => {
-    if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-    const obj = { value, ready };
-    obj.value++;
-    if (value === 1000) {
-      value++;
-      // queueMicrotask(() => {
-      //   console.log("promise resolved", value);
-      //   ready();
-      // });
-      // return;
-    }
-    ready();
-  });
+  const consumer = smoker.listen(
+    (value, consumer) => {
+      if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      const obj = { value, consumer };
+      obj.value++;
+      // if (value === 1000) {
+      //   queueMicrotask(() => {
+      //     console.log("promise resolved", value);
+      //     consumer.next();
+      //   });
+      //   return;
+      // }
+
+      consumer.next();
+    },
+    { isReady: false },
+  );
 
   for (let i = 0; i <= MAX; i++) {
     smoker.emit(i);
   }
+  const start = performance.now();
+  consumer.next();
 }
 
-bench(); //foo 40 000 000 937 ms
+bench(); //foo 50 000 000 463 ms
 
 function sequential() {
   const smoker = new Smoker<number>();
 
-  smoker.listen(async (value, ready) => {
+  smoker.listen(async (value, consumer) => {
     await new Promise((r) => setTimeout(r, Math.random() * 1000));
     console.log("sequential", value);
-    ready();
+    consumer.next();
   });
 
   smoker.emit(1);
@@ -109,18 +121,20 @@ function sequential() {
 }
 
 // sequential();
-function consurrent() {
+function concurrent() {
   const smoker = new Smoker<number>();
 
-  smoker.listen(async (value, ready) => {
-    ready();
+  smoker.listen(async (value, consumer) => {
+    consumer.next();
     await new Promise((r) => setTimeout(r, Math.random() * 1000));
     console.log("concurrent", value);
   });
+
+  // consumer.next();
 
   smoker.emit(1);
   smoker.emit(2);
   smoker.emit(3);
 }
 
-// consurrent();
+// concurrent();

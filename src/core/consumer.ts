@@ -1,6 +1,6 @@
-import { LinkedList } from "./queue";
-import type { Queue, Source } from "./types";
+import type { Queue } from "./types";
 import type { Smoker } from "./smoker";
+import { LinkedList } from "./queue";
 
 export class Consumer<VALUE, ERROR> {
   private _isReady: boolean;
@@ -11,14 +11,13 @@ export class Consumer<VALUE, ERROR> {
     this._queue = init.queue ? init.queue : new LinkedList();
     this._isReady = init.isReady === undefined ? true : init.isReady;
   }
-
-  push(value: VALUE): void {
+  push(value: VALUE) {
     if (this._isReady && !this._isProcessing) {
       this._isProcessing = true;
       this._isReady = false;
 
       try {
-        this.init.handler(value, this.ready, this.abort);
+        this.init.handler(value, this);
       } catch (error) {
         this.error(error);
       } finally {
@@ -28,25 +27,24 @@ export class Consumer<VALUE, ERROR> {
       this._queue.enqueue(value);
     }
   }
-  readonly ready: Source.Ready<ERROR> = (error?: ERROR): void => {
+  next(error?: ERROR) {
     if (this._isReady) return;
     if (error) this.error(error);
     this._isReady = true;
     if (!this._queue.size) this.init.ready?.();
     this.drain();
-  };
-
-  readonly abort: Source.Abort<ERROR> = (error?: ERROR): void => {
+  }
+  abort(error?: ERROR) {
     this._isReady = false;
     this._isProcessing = true;
     this._queue.clear();
     this.init.abort?.(error);
     this.init = null as any;
     this.drain = null as any;
-    (this.ready as any) = null as any;
+    (this.next as any) = null as any;
     (this.abort as any) = null as any;
     if (error) this.error(error);
-  };
+  }
   private drain(): void {
     if (this._isProcessing) return;
 
@@ -58,7 +56,7 @@ export class Consumer<VALUE, ERROR> {
 
         const value = this._queue.dequeue() as VALUE;
 
-        this.init.handler(value, this.ready, this.abort);
+        this.init.handler(value, this);
       }
     } catch (error) {
       this.error(error);
@@ -74,10 +72,28 @@ export class Consumer<VALUE, ERROR> {
       this.init.error?.(error);
     }
   }
+  get queue(): Queue<VALUE> {
+    return this._queue;
+  }
+  get isReady(): boolean {
+    return this._isReady;
+  }
+  get isProcessing(): boolean {
+    return this._isProcessing;
+  }
 }
 
 export namespace Consumer {
-  export type Init<VALUE, ERROR> = Source.ListenInit<VALUE, ERROR> & {
+  export type Push<VALUE> = (value: VALUE) => void;
+  export type Abort<ERROR> = (error?: ERROR) => void;
+  export type Ready = () => void;
+  export type Error<ERROR> = (error: ERROR) => void;
+  export type Handler<VALUE, ERROR> = (value: VALUE, consumer: Consumer<VALUE, ERROR>) => void;
+  export type Init<VALUE, ERROR> = {
+    handler: Handler<VALUE, ERROR>;
+    ready?: Ready;
+    abort?: Abort<ERROR>;
+    error?: Error<ERROR>;
     queue?: Queue<VALUE>;
     globalError?: Smoker<any>;
     isReady?: boolean;
