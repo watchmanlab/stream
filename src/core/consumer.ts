@@ -47,7 +47,7 @@ export class Consumer<VALUE, ERROR> {
     this.drain();
   }
   abort(error?: ERROR): void {
-    if (this._state === "aborted") return;
+    if (this._state === "aborted" || this._state === "completed") return;
     this._state = "aborted";
     this.push = () => this.error(new Consumer.Exception("push_not_allowed", "aborted"));
     this.clean();
@@ -59,9 +59,12 @@ export class Consumer<VALUE, ERROR> {
     if (this._state !== "active") return;
     if (this._queue.size) {
       this._state = "drain";
+      this.init.drain?.();
       this.push = () => this.error(new Consumer.Exception("push_not_allowed", "drain"));
     } else {
       this._state = "completed";
+      this.clean();
+      this.init.complete?.();
       this.push = () => this.error(new Consumer.Exception("push_not_allowed", "completed"));
     }
   }
@@ -91,7 +94,7 @@ export class Consumer<VALUE, ERROR> {
     this.init = null as any;
   }
   private error(error: any): void {
-    if (!this.init.globalError?.consumers && !this.init.error) {
+    if (!this.init.globalError?.get("consumersCount") && !this.init.error) {
       Promise.reject(error);
     } else {
       this.init.globalError?.emit(error);
@@ -115,15 +118,17 @@ export class Consumer<VALUE, ERROR> {
 export namespace Consumer {
   export type State = "active" | "drain" | "aborted" | "completed";
   export type Push<VALUE> = (value: VALUE) => void;
-  export type Abort<ERROR> = (error?: ERROR) => void;
-  export type Complete = () => void;
   export type Ready = () => void;
+  export type Complete = () => void;
+  export type Drain = () => void;
+  export type Abort<ERROR> = (error?: ERROR) => void;
 
   export type Error<ERROR> = (error: ERROR) => void;
   export type Handler<VALUE, ERROR> = (value: VALUE, consumer: Consumer<VALUE, ERROR>) => void;
   export type Init<VALUE, ERROR> = {
     handler: Handler<VALUE, ERROR>;
     ready?: Ready;
+    drain?: Drain;
     complete?: Complete;
     abort?: Abort<ERROR>;
     error?: Error<ERROR>;
