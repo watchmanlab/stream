@@ -42,8 +42,8 @@ export class Consumer<VALUE, ERROR, NAME extends string> {
   }
   next(error?: ERROR): void {
     if (this._isReady) return;
-    if (error) this._fireEvent({ type: "error", error });
     this._isReady = true;
+    if (error) this._fireEvent({ type: "error", error });
 
     if (this._queue.size === 0) {
       if (this._state === "active") {
@@ -135,7 +135,7 @@ export class Consumer<VALUE, ERROR, NAME extends string> {
 
 export namespace Consumer {
   export type State = "active" | "drain" | "aborted" | "completed";
-
+  export type AnyConsumer = Consumer<any, any, any>;
   export type Handler<VALUE, ERROR, NAME extends string> = (
     value: VALUE,
     consumer: Consumer<VALUE, ERROR, NAME>,
