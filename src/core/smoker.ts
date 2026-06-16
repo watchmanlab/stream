@@ -5,11 +5,11 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
   private _consumers = new Map<Consumer.Handler<VALUE, any, NAME>, Consumer<VALUE, any, NAME>>();
   private _state: Smoker.State;
   private _name: NAME;
-  private _source?: Consumer<VALUE, any, any>;
+  private _sourceConsumer?: Consumer<VALUE, any, any>;
   private _fireEvent: Smoker.OnEvent<VALUE>;
   private _queueFactory?: Smoker.QueueFactory<VALUE>;
-  private _error?: Smoker<any, `${NAME}Error`>;
   private _event?: Smoker<Smoker.Event<VALUE>, `${NAME}Event`>;
+  private _pulling = false;
   constructor(init?: Smoker.Init<VALUE, NAME>) {
     this._name = init?.name ?? (Smoker.NAME as NAME);
     this._fireEvent = (event: Smoker.Event<VALUE>) => {
@@ -17,12 +17,13 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
       this._event?.push(event);
     };
     this._queueFactory = init?.queueFactory;
-    this._error = init?.error;
+
     this._state = "active";
 
     if (init?.source) {
-      this._source = init?.source.listen({
+      this._sourceConsumer = init?.source.listen({
         handler: (value) => {
+          this._pulling = false;
           this.push(value);
         },
         isReady: false,
@@ -30,7 +31,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     }
   }
 
-  push(value: VALUE) {
+  push(value: VALUE): void {
     for (const consumer of this._consumers.values()) {
       consumer.push(value);
     }
@@ -53,41 +54,47 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
       onEvent: (event) => {
         if (event.type === "complete" || event.type === "abort") {
           this._consumers.delete(init.handler);
-          this._fireEvent({ type: "consumer-left", data: { consumer } });
+          this._fireEvent({ type: "consumer-left", consumer });
 
-          if (event.type === "complete" && this._consumers.size === 0 && this._state === "drain") {
+          if (this._consumers.size === 0 && this._state === "drain") {
             this.completed();
           }
         }
+        if (event.type === "ready" && !this._pulling && this._sourceConsumer) {
+          this._pulling = true;
+          this._sourceConsumer.next();
+        } else if (event.type === "error") {
+          this._fireEvent({ type: "error", error: event.error });
+        }
+
         init.onEvent?.(event);
       },
 
       queue: init.queue ? init.queue : this._queueFactory?.(),
-      error: init.error ? init.error : this._error,
     });
 
     this._consumers.set(init.handler, consumer);
-    this._fireEvent({ type: "consumer-join", data: { consumer } });
+    this._fireEvent({ type: "consumer-join", consumer });
 
     return consumer;
   }
   abort(error?: any): void {
     if (this._state === "aborted" || this._state === "completed") return;
     this._state = "aborted";
-    this.push = () => this.error(new Smoker.Exception("push_not_allowed", "aborted"));
+    this.push = () => this._fireEvent({ type: "error", error: new Smoker.Exception("push_not_allowed", "aborted") });
     for (const consumer of this._consumers.values()) {
       consumer.abort(error);
     }
-    this._fireEvent({ type: "abort", data: { error } });
+    this._fireEvent({ type: "abort", error });
 
-    this.clean(error);
+    this.clean("aborted", error);
   }
   complete(): void {
     if (this._state !== "active") return;
 
     if (this._consumers.size) {
       this._state = "drain";
-      this.push = () => this.error(new Smoker.Exception("push_not_allowed", "drain"));
+      this.push = () => this._fireEvent({ type: "error", error: new Smoker.Exception("push_not_allowed", "drain") });
       this._fireEvent({ type: "drain" });
     } else {
       this.completed();
@@ -96,27 +103,18 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
       consumer.complete();
     }
   }
-  private completed() {
+  private completed(): void {
     this._state = "completed";
-    this.push = () => this.error(new Smoker.Exception("push_not_allowed", "completed"));
+    this.push = () => this._fireEvent({ type: "error", error: new Smoker.Exception("push_not_allowed", "completed") });
     this._fireEvent({ type: "complete" });
-    this.clean();
+    this.clean("completed");
   }
-  private error(error: any): void {
-    if (!this._error?.get("consumersCount") && !this._error) {
-      Promise.reject(error);
-    } else {
-      this._fireEvent({ type: "error", data: { error } });
-    }
-  }
-  private clean(error?: any) {
-    this._error?.push(error);
-    this._error?.complete();
+  private clean(reason: "aborted" | "completed", error?: any): void {
     this._event?.complete();
-    this._event = this._error = this._queueFactory = this._source = undefined;
+    reason === "aborted" ? this._sourceConsumer?.abort(error) : this._sourceConsumer?.complete();
+    this._event = this._queueFactory = this._sourceConsumer = undefined;
   }
-
-  get<PROP extends "name" | "state" | "consumersCount" | "event" | "error">(
+  get<PROP extends "name" | "state" | "consumersCount" | "event" | "queueFactory">(
     prop: PROP,
   ): PROP extends "name"
     ? NAME
@@ -126,8 +124,8 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
         ? number
         : PROP extends "event"
           ? Smoker<Smoker.Event<VALUE>, `${NAME}Event`>
-          : PROP extends "error"
-            ? Smoker<any, `${NAME}Error`>
+          : PROP extends "queueFactory"
+            ? Smoker.QueueFactory<VALUE>
             : never {
     switch (prop) {
       case "name":
@@ -139,9 +137,8 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
       case "event":
         if (!this._event) this._event = new Smoker({ name: `${this._name}Event` });
         return new Smoker({ name: this._event.get("name"), source: this._event }) as never;
-      case "error":
-        if (!this._error) this._error = new Smoker({ name: `${this._name}Error` });
-        return new Smoker({ name: this._error.get("name"), source: this._error }) as never;
+      case "queueFactory":
+        return this._queueFactory as never;
     }
   }
 
@@ -171,7 +168,6 @@ export namespace Smoker {
     name?: NAME;
     source?: Source<VALUE>;
     scope?: Scope;
-    error?: AnySmoker;
     onEvent?: OnEvent<VALUE>;
     queueFactory?: QueueFactory<VALUE>;
   };
@@ -181,7 +177,6 @@ export namespace Smoker {
     override message: "push_not_allowed";
     constructor(message: "push_not_allowed", cause: "aborted" | "completed" | "drain") {
       super();
-
       this.cause = cause;
       this.message = message;
     }
@@ -217,7 +212,7 @@ function bench() {
   consumer.next();
 }
 
-bench(); //foo 10 000 000 46 ms
+// bench(); //foo 10 000 000 46 ms
 
 function sequential() {
   const smoker = new Smoker<number>();
@@ -251,3 +246,26 @@ function concurrent() {
 }
 
 // concurrent();
+
+function errorHandling() {
+  const smoker = new Smoker<number>();
+  smoker.get("event").listen((e) => {
+    console.log(e);
+    // if (e.type === "error") {
+    // console.log(e.data);
+    // }
+  });
+
+  smoker.listen((value, consumer) => {
+    if (value === 3) throw "kechmahaja";
+    console.log(value);
+
+    consumer.next();
+  });
+
+  smoker.push(1);
+  smoker.push(2);
+  smoker.push(3);
+}
+
+errorHandling();
