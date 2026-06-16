@@ -1,28 +1,25 @@
-import type { Queue } from "./types";
+import type { EventShape, Queue } from "./types";
 import { Smoker } from "./smoker";
 import { LinkedList } from "./queue";
 
-export class Consumer<VALUE, ERROR> {
+export class Consumer<VALUE, ERROR, NAME extends string> {
   private _queue: Queue<VALUE>;
   private _isReady: boolean;
   private _isProcessing: boolean;
   private _state: Consumer.State;
-  private _handler: Consumer.Handler<VALUE, ERROR>;
-  private _ready?: Consumer.Ready;
-  private _drain?: Consumer.Drain;
-  private _complete?: Consumer.Complete;
-  private _abort?: Consumer.Abort<ERROR>;
-  private _error?: Consumer.Error<ERROR>;
-  private _globalError?: Smoker<any>;
-  constructor(init: Consumer.Init<VALUE, ERROR>) {
+  private _handler: Consumer.Handler<VALUE, ERROR, NAME>;
+  private _fireEvent: Consumer.OnEvent<ERROR>;
+  private _error?: Smoker.AnySmoker;
+  private _event?: Smoker<Consumer.Event<ERROR>, `${NAME}ConsumerEvent`>;
+  constructor(init: Consumer.Init<VALUE, ERROR, NAME>) {
     this._handler = init.handler;
-    this._ready = init.ready;
-    this._drain = init.drain;
-    this._complete = init.complete;
-    this._abort = init.abort;
+    this._fireEvent = (event: Consumer.Event<ERROR>) => {
+      init.onEvent?.(event);
+      this._event?.push(event);
+    };
     this._error = init.error;
     this._queue = init.queue ? init.queue : new LinkedList();
-    this._globalError = init.globalError;
+    this._error = init.error;
     this._isReady = init.isReady === undefined ? true : init.isReady;
 
     this._isProcessing = false;
@@ -51,11 +48,11 @@ export class Consumer<VALUE, ERROR> {
 
     if (this._queue.size === 0) {
       if (this._state === "active") {
-        this._ready?.();
+        this._fireEvent({ type: "ready" });
       } else {
         this._state = "completed";
         this.clean();
-        this._complete?.();
+        this._fireEvent({ type: "complete" });
       }
     }
     this.drain();
@@ -65,20 +62,20 @@ export class Consumer<VALUE, ERROR> {
     this._state = "aborted";
     this.push = () => this.error(new Smoker.Exception("push_not_allowed", "aborted"));
     this.clean();
-    this._abort?.(error);
+    this._fireEvent({ type: "abort", data: { error } });
     if (error) this.error(error);
   }
-
   complete(): void {
     if (this._state !== "active") return;
     if (this._queue.size) {
       this._state = "drain";
-      this._drain?.();
+      this._fireEvent({ type: "drain" });
+
       this.push = () => this.error(new Smoker.Exception("push_not_allowed", "drain"));
     } else {
       this._state = "completed";
       this.clean();
-      this._complete?.();
+      this._fireEvent({ type: "complete" });
       this.push = () => this.error(new Smoker.Exception("push_not_allowed", "completed"));
     }
   }
@@ -105,34 +102,31 @@ export class Consumer<VALUE, ERROR> {
     this._isReady = false;
     this._isProcessing = true;
     this._queue.clear();
-    (this._handler as any) =
-      this._ready =
-      this._drain =
-      this._complete =
-      this._abort =
-      this._error =
-      this._globalError =
-        undefined;
+    this._event?.complete();
+    (this._handler as any) = this._event = this._error = undefined;
   }
   private error(error: any): void {
-    if (!this._globalError?.get("consumersCount") && !this._error) {
+    if (!this._error?.get("consumersCount") && !this._error) {
       Promise.reject(error);
     } else {
-      this._globalError?.push(error);
-      this._error?.(error);
+      this._error?.push(error);
+      this._fireEvent({ type: "error", data: { error } });
     }
   }
-
-  get<PROP extends "state" | "queue" | "isReady" | "isProcessing">(
+  get<PROP extends "handler" | "state" | "queue" | "isReady" | "isProcessing">(
     prop: PROP,
-  ): PROP extends "state"
-    ? Consumer.State
-    : PROP extends "queue"
-      ? Queue<VALUE>
-      : PROP extends "isReady" | "isProcessing"
-        ? boolean
-        : never {
+  ): PROP extends "handler"
+    ? Consumer.Handler<VALUE, ERROR, NAME>
+    : PROP extends "state"
+      ? Consumer.State
+      : PROP extends "queue"
+        ? Queue<VALUE>
+        : PROP extends "isReady" | "isProcessing"
+          ? boolean
+          : never {
     switch (prop) {
+      case "handler":
+        return this._handler as never;
       case "state":
         return this._state as never;
       case "queue":
@@ -147,22 +141,20 @@ export class Consumer<VALUE, ERROR> {
 
 export namespace Consumer {
   export type State = "active" | "drain" | "aborted" | "completed";
-  export type Push<VALUE> = (value: VALUE) => void;
-  export type Ready = () => void;
-  export type Complete = () => void;
-  export type Drain = () => void;
-  export type Abort<ERROR> = (error?: ERROR) => void;
-  export type Error<ERROR> = (error: ERROR) => void;
-  export type Handler<VALUE, ERROR> = (value: VALUE, consumer: Consumer<VALUE, ERROR>) => void;
-  export type Init<VALUE, ERROR> = {
-    handler: Handler<VALUE, ERROR>;
-    ready?: Ready;
-    drain?: Drain;
-    complete?: Complete;
-    abort?: Abort<ERROR>;
-    error?: Error<ERROR>;
+
+  export type Handler<VALUE, ERROR, NAME extends string> = (
+    value: VALUE,
+    consumer: Consumer<VALUE, ERROR, NAME>,
+  ) => void;
+  export type Event<ERROR> =
+    | EventShape<"ready" | "complete" | "drain">
+    | EventShape<"abort" | "error", { error?: ERROR }>;
+  export type OnEvent<ERROR> = (event: Event<ERROR>) => void;
+  export type Init<VALUE, ERROR, NAME extends string> = {
+    handler: Handler<VALUE, ERROR, NAME>;
+    onEvent?: OnEvent<ERROR>;
     queue?: Queue<VALUE>;
-    globalError?: Smoker<any>;
+    error?: Smoker.AnySmoker;
     isReady?: boolean;
   };
 }

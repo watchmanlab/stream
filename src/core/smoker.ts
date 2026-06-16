@@ -1,29 +1,23 @@
 import { Consumer } from "./consumer";
-import type { Prettify, Queue, Source } from "./types";
+import type { Prettify, Queue, Source, EventShape } from "./types";
 
 export class Smoker<VALUE, NAME extends string = Smoker.Name> {
-  private _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
+  private _consumers = new Map<Consumer.Handler<VALUE, any, NAME>, Consumer<VALUE, any, NAME>>();
   private _state: Smoker.State;
   private _name: NAME;
-  private _source?: Consumer<VALUE, any>;
-  private _globalError?: Smoker.AnySmoker;
-  private _drain?: Smoker.Drain;
-  private _complete?: Smoker.Complete;
-  private _abort?: Smoker.Abort;
-  private _error?: Smoker.Error;
+  private _source?: Consumer<VALUE, any, any>;
+  private _fireEvent: Smoker.OnEvent<VALUE>;
   private _queueFactory?: Smoker.QueueFactory<VALUE>;
-
-  private _events?: Smoker.Events<VALUE, NAME>;
+  private _error?: Smoker<any, `${NAME}Error`>;
+  private _event?: Smoker<Smoker.Event<VALUE>, `${NAME}Event`>;
   constructor(init?: Smoker.Init<VALUE, NAME>) {
     this._name = init?.name ?? (Smoker.NAME as NAME);
-    this._globalError = init?.globalError;
-    this._drain = init?.drain;
-    this._complete = init?.complete;
-    this._abort = init?.abort;
-    this._error = init?.error;
+    this._fireEvent = (event: Smoker.Event<VALUE>) => {
+      init?.onEvent?.(event);
+      this._event?.push(event);
+    };
     this._queueFactory = init?.queueFactory;
-
-    this._events = init?.globalError ? { globalError: init.globalError } : undefined;
+    this._error = init?.error;
     this._state = "active";
 
     if (init?.source) {
@@ -42,39 +36,38 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     }
   }
   listen<ERROR>(
-    handler: Consumer.Handler<VALUE, ERROR>,
-    init?: Prettify<Omit<Consumer.Init<VALUE, ERROR>, "handler">>,
-  ): Consumer<VALUE, ERROR>;
-  listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer<VALUE, ERROR>;
+    handler: Consumer.Handler<VALUE, ERROR, NAME>,
+    init?: Prettify<Omit<Consumer.Init<VALUE, ERROR, NAME>, "handler">>,
+  ): Consumer<VALUE, ERROR, any>;
+  listen<ERROR>(init: Consumer.Init<VALUE, ERROR, NAME>): Consumer<VALUE, ERROR, NAME>;
   listen<ERROR>(
-    handlerOrInit: Consumer.Handler<VALUE, ERROR> | Consumer.Init<VALUE, ERROR>,
-    _init?: Omit<Consumer.Init<VALUE, ERROR>, "handler">,
-  ): Consumer<VALUE, ERROR> {
+    handlerOrInit: Consumer.Handler<VALUE, ERROR, NAME> | Consumer.Init<VALUE, ERROR, NAME>,
+    _init?: Omit<Consumer.Init<VALUE, ERROR, NAME>, "handler">,
+  ): Consumer<VALUE, ERROR, NAME> {
     const init = typeof handlerOrInit === "function" ? { handler: handlerOrInit, ..._init } : { ...handlerOrInit };
 
     if (this._consumers.has(init.handler)) return this._consumers.get(init.handler)!;
 
     const consumer = new Consumer({
       ...init,
-      complete: () => {
-        this._consumers.delete(init.handler);
-        if (this._consumers.size === 0 && this._state === "drain") {
-          this.completed();
+      onEvent: (event) => {
+        if (event.type === "complete" || event.type === "abort") {
+          this._consumers.delete(init.handler);
+          this._fireEvent({ type: "consumer-left", data: { consumer } });
+
+          if (event.type === "complete" && this._consumers.size === 0 && this._state === "drain") {
+            this.completed();
+          }
         }
-        init.complete?.();
-        this._events?.consumerLeave?.push(consumer);
+        init.onEvent?.(event);
       },
-      abort: (error) => {
-        this._consumers.delete(init.handler);
-        init?.abort?.(error);
-        this._events?.consumerLeave?.push(consumer);
-      },
+
       queue: init.queue ? init.queue : this._queueFactory?.(),
-      globalError: init.globalError ? init.globalError : this._events?.globalError,
+      error: init.error ? init.error : this._error,
     });
 
     this._consumers.set(init.handler, consumer);
-    this._events?.consumerJoin?.push(consumer);
+    this._fireEvent({ type: "consumer-join", data: { consumer } });
 
     return consumer;
   }
@@ -85,8 +78,8 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     for (const consumer of this._consumers.values()) {
       consumer.abort(error);
     }
-    this._abort?.(error);
-    this._events?.abort?.push(error);
+    this._fireEvent({ type: "abort", data: { error } });
+
     this.clean(error);
   }
   complete(): void {
@@ -95,8 +88,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     if (this._consumers.size) {
       this._state = "drain";
       this.push = () => this.error(new Smoker.Exception("push_not_allowed", "drain"));
-      this._drain?.();
-      this._events?.drain?.push();
+      this._fireEvent({ type: "drain" });
     } else {
       this.completed();
     }
@@ -107,30 +99,24 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
   private completed() {
     this._state = "completed";
     this.push = () => this.error(new Smoker.Exception("push_not_allowed", "completed"));
-    this._complete?.();
-    this._events?.complete?.push();
+    this._fireEvent({ type: "complete" });
     this.clean();
   }
   private error(error: any): void {
-    if (!this._events?.globalError?.get("consumersCount") && !this._error) {
+    if (!this._error?.get("consumersCount") && !this._error) {
       Promise.reject(error);
     } else {
-      this._events?.globalError?.push(error);
-      this._error?.(error);
+      this._fireEvent({ type: "error", data: { error } });
     }
   }
   private clean(error?: any) {
-    this._events?.globalError?.push(error);
-    this._events?.globalError?.complete();
-    this._events?.drain?.complete();
-    this._events?.complete?.complete();
-    this._events?.abort?.complete();
-    this._events?.consumerJoin?.complete();
-    this._events?.consumerLeave?.complete();
-    this._events = undefined;
+    this._error?.push(error);
+    this._error?.complete();
+    this._event?.complete();
+    this._event = this._error = this._queueFactory = this._source = undefined;
   }
 
-  get<PROP extends "name" | "state" | "consumersCount" | NonNullable<keyof Smoker.Events<VALUE, NAME>>>(
+  get<PROP extends "name" | "state" | "consumersCount" | "event" | "error">(
     prop: PROP,
   ): PROP extends "name"
     ? NAME
@@ -138,9 +124,11 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
       ? Smoker.State
       : PROP extends "consumersCount"
         ? number
-        : PROP extends NonNullable<keyof Smoker.Events<VALUE, NAME>>
-          ? NonNullable<Smoker.Events<VALUE, NAME>[PROP]>
-          : never {
+        : PROP extends "event"
+          ? Smoker<Smoker.Event<VALUE>, `${NAME}Event`>
+          : PROP extends "error"
+            ? Smoker<any, `${NAME}Error`>
+            : never {
     switch (prop) {
       case "name":
         return this._name as never;
@@ -148,37 +136,12 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
         return this._state as never;
       case "consumersCount":
         return this._consumers.size as never;
-      case "drain":
-        if (!this._events) this._events = {};
-        if (!this._events.drain) this._events.drain = new Smoker({ name: `${this._name}Drain` });
-        return new Smoker({ name: this._events.drain.get("name"), source: this._events.drain }) as never;
-      case "complete":
-        if (!this._events) this._events = {};
-        if (!this._events.complete) this._events.complete = new Smoker({ name: `${this._name}Complete` });
-        return new Smoker({ name: this._events.complete.get("name"), source: this._events.complete }) as never;
-      case "abort":
-        if (!this._events) this._events = {};
-        if (!this._events.abort) this._events.abort = new Smoker({ name: `${this._name}Abort` });
-        return new Smoker({ name: this._events.abort.get("name"), source: this._events.abort }) as never;
-      case "consumerJoin":
-        if (!this._events) this._events = {};
-        if (!this._events.consumerJoin) this._events.consumerJoin = new Smoker({ name: `${this._name}ConsumerJoin` });
-        return new Smoker({ name: this._events.consumerJoin.get("name"), source: this._events.consumerJoin }) as never;
-      case "consumerLeave":
-        if (!this._events) this._events = {};
-        if (!this._events.consumerLeave)
-          this._events.consumerLeave = new Smoker({ name: `${this._name}ConsumerLeave` });
-        return new Smoker({
-          name: this._events.consumerLeave.get("name"),
-          source: this._events.consumerLeave,
-        }) as never;
-      case "globalError":
-        if (!this._events) this._events = {};
-        if (!this._events.globalError) this._events.globalError = new Smoker({ name: `${this._name}GlobalError` });
-        return new Smoker({
-          name: this._events.globalError.get("name"),
-          source: this._events.globalError,
-        }) as never;
+      case "event":
+        if (!this._event) this._event = new Smoker({ name: `${this._name}Event` });
+        return new Smoker({ name: this._event.get("name"), source: this._event }) as never;
+      case "error":
+        if (!this._error) this._error = new Smoker({ name: `${this._name}Error` });
+        return new Smoker({ name: this._error.get("name"), source: this._error }) as never;
     }
   }
 
@@ -197,31 +160,22 @@ export namespace Smoker {
     | { any: [AnySmoker, ...AnySmoker[]]; all?: never }
     | { any?: never; all: [AnySmoker, ...AnySmoker[]] };
 
-  export type Abort = (error?: any) => void;
-  export type Drain = () => void;
-  export type Complete = () => void;
-  export type Error = (error: any) => void;
+  export type Event<VALUE> =
+    | EventShape<"drain" | "complete">
+    | EventShape<"abort" | "error", { error: any }>
+    | EventShape<"consumer-join" | "consumer-left", { consumer: Consumer<VALUE, any, any> }>;
+
+  export type OnEvent<VALUE> = (event: Event<VALUE>) => void;
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Init<VALUE, NAME extends string> = {
     name?: NAME;
     source?: Source<VALUE>;
     scope?: Scope;
-    globalError?: AnySmoker;
-    drain?: Drain;
-    complete?: Complete;
-    abort?: Abort;
-    error?: Error;
+    error?: AnySmoker;
+    onEvent?: OnEvent<VALUE>;
     queueFactory?: QueueFactory<VALUE>;
   };
 
-  export type Events<VALUE, NAME extends string> = {
-    drain?: Smoker<void, `${NAME}Drain`>;
-    complete?: Smoker<void, `${NAME}Complete`>;
-    abort?: Smoker<any, `${NAME}Abort`>;
-    consumerJoin?: Smoker<Consumer<VALUE, any>, `${NAME}ConsumerJoin`>;
-    consumerLeave?: Smoker<Consumer<VALUE, any>, `${NAME}ConsumerLeave`>;
-    globalError?: AnySmoker;
-  };
   export class Exception extends Error {
     override cause?: "aborted" | "completed" | "drain";
     override message: "push_not_allowed";

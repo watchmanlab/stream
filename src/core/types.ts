@@ -24,10 +24,13 @@ export namespace Queue {
 }
 
 export interface Source<VALUE> {
-  listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer<VALUE, ERROR>;
+  listen<ERROR>(init: Consumer.Init<VALUE, ERROR, any>): Consumer<VALUE, ERROR, any>;
 }
 export namespace Source {}
 
+export type EventShape<TYPE extends string, DATA = never> = [DATA] extends [never]
+  ? { type: TYPE }
+  : { type: TYPE; data: DATA };
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR
