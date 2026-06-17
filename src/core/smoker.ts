@@ -22,39 +22,23 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     this._state = "active";
 
     if (init?.source) {
-      if (init.source instanceof Smoker) {
-        this._sourceConsumer = init.source.listen({
-          handler: (value) => {
-            this._pulling = false;
-            this.push(value);
-          },
-          onEvent: (event) => {
-            switch (event.type) {
-              case "abort":
-                this.abort(event.error);
-                break;
-              case "complete":
-                this.complete();
-            }
-          },
-          isReady: false,
-        });
-      } else {
-        this._sourceConsumer = init?.source;
-        this._sourceConsumer.get("event").listen((event, self) => {
+      this._sourceConsumer = init.source.listen({
+        name: this.name,
+        handler: (value) => {
+          this._pulling = false;
+          this.push(value);
+        },
+        onEvent: (event) => {
           switch (event.type) {
-            case "ready":
-              this._pulling = false;
-              break;
             case "abort":
               this.abort(event.error);
               break;
             case "complete":
               this.complete();
           }
-          self.next();
-        });
-      }
+        },
+        isReady: false,
+      });
     }
     if (init?.scope) {
       if (init.scope instanceof Smoker) {
@@ -268,7 +252,7 @@ export namespace Smoker {
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Init<VALUE, NAME extends string> = {
     name?: NAME;
-    source?: Smoker<VALUE, any> | Consumer<VALUE, any, any>;
+    source?: Source<VALUE>;
     scope?: Scope;
     onEvent?: OnEvent<VALUE, NAME>;
     queueFactory?: QueueFactory<VALUE>;

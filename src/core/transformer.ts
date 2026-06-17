@@ -7,7 +7,7 @@ export abstract class Transformer<INPUT extends Smoker.AnySmoker, VALUE, NAME ex
   constructor(
     name: NAME,
     protected readonly input: INPUT,
-    init: Transformer.Init<VALUE, NAME>,
+    init: Smoker.Init<VALUE, NAME>,
   ) {
     let scope: Smoker.Scope | undefined = init.scope;
 
@@ -23,24 +23,7 @@ export abstract class Transformer<INPUT extends Smoker.AnySmoker, VALUE, NAME ex
       scope = input;
     }
 
-    let cleanup: () => void;
-    super({
-      ...init,
-      name,
-      scope,
-      source: undefined, /// must be connected to a consumer
-      onEvent: (e) => {
-        switch (e.type) {
-          case "consumer-join":
-            if (this.get("consumersCount") === 1) cleanup = init.source();
-            break;
-          case "consumer-left":
-            if (this.get("consumersCount") === 0) cleanup();
-            break;
-        }
-        init.onEvent?.(e);
-      },
-    });
+    super({ ...init, name, scope });
 
     this.input = input;
 
@@ -65,9 +48,6 @@ export abstract class Transformer<INPUT extends Smoker.AnySmoker, VALUE, NAME ex
 }
 
 export namespace Transformer {
-  export type Init<VALUE, NAME extends string> = Omit<Smoker.Init<VALUE, NAME>, "source"> & {
-    source: () => () => void;
-  };
   export type AnyTransformer = Transformer<Smoker.AnySmoker, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;
