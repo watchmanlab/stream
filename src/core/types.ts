@@ -24,7 +24,7 @@ export namespace Queue {
 }
 
 export interface Source<VALUE> {
-  listen<ERROR>(init: Consumer.Init<VALUE, ERROR, any>): Consumer<VALUE, ERROR, any>;
+  listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer<VALUE, ERROR>;
 }
 export namespace Source {}
 

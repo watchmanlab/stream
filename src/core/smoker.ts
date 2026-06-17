@@ -2,99 +2,105 @@ import { Consumer } from "./consumer";
 import type { Prettify, Queue, Source, EventShape } from "./types";
 import type { Transformer } from "./transformer";
 
-export class Smoker<VALUE, NAME extends string = Smoker.Name> {
-  private _consumers = new Map<Consumer.Handler<VALUE, any, NAME>, Consumer<VALUE, any, NAME>>();
+export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<VALUE> {
+  private _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
   private _state: Smoker.State;
   readonly name: NAME;
-  private _sourceConsumer?: Consumer<VALUE, any, any>;
-  private _fireEvent: Smoker.OnEvent<VALUE, NAME>;
+  private _sourceConsumer?: Consumer<VALUE, any>;
+  private _fireEvent!: Smoker.OnEvent<VALUE>;
   private _queueFactory?: Smoker.QueueFactory<VALUE>;
-  private _event?: Smoker<Smoker.Event<VALUE, NAME>, `${NAME}Event`>;
+  private _event?: Smoker<Smoker.Event<VALUE>, `${NAME}Event`>;
   private _pulling = false;
   constructor(init?: Smoker.Init<VALUE, NAME>) {
     this.name = init?.name ?? (Smoker.NAME as NAME);
-    this._fireEvent = (event: Smoker.Event<VALUE, NAME>) => {
-      init?.onEvent?.(event);
-      this._event?.push(event);
-    };
     this._queueFactory = init?.queueFactory;
-
     this._state = "active";
 
-    if (init?.source) {
-      this._sourceConsumer = init.source.listen({
-        name: this.name,
-        handler: (value) => {
-          this._pulling = false;
-          this.push(value);
-        },
-        onEvent: (event) => {
-          switch (event.type) {
-            case "abort":
-              this.abort(event.error);
-              break;
-            case "complete":
-              this.complete();
-          }
-        },
-        isReady: false,
+    this.bindEvent(init?.onEvent);
+    this.bindSource(init?.source);
+    this.bindScope(init?.scope);
+  }
+  private bindEvent(onEvent?: Smoker.OnEvent<VALUE>) {
+    this._fireEvent = onEvent
+      ? (event: Smoker.Event<VALUE>) => {
+          onEvent(event);
+          this._event?.push(event);
+        }
+      : (event: Smoker.Event<VALUE>) => this._event?.push(event);
+  }
+  private bindSource(source?: Source<VALUE>) {
+    if (!source) return;
+    this._sourceConsumer = source.listen({
+      handler: (value) => {
+        this.ready(value);
+      },
+      onEvent: (event) => {
+        switch (event.type) {
+          case "abort":
+            this.abort(event.error);
+            break;
+          case "complete":
+            this.complete();
+        }
+      },
+      isReady: false,
+    });
+  }
+  private bindScope(scope?: Smoker.Scope) {
+    if (!scope) return;
+    if (scope instanceof Smoker) {
+      scope.get("event").listen((e) => {
+        switch (e.type) {
+          case "abort":
+            this.abort(e.error);
+            break;
+          case "complete":
+            this.complete();
+            break;
+        }
       });
-    }
-    if (init?.scope) {
-      if (init.scope instanceof Smoker) {
-        init.scope.get("event").listen((e) => {
-          switch (e.type) {
-            case "abort":
-              this.abort(e.error);
-              break;
-            case "complete":
-              this.complete();
-              break;
-          }
-        });
-      } else if (init.scope.any) {
-        const others: Consumer.AnyConsumer[] = [];
-        new Set(init.scope.any).forEach((other) =>
-          others.push(
-            other.get("event").listen((e) => {
-              switch (e.type) {
-                case "abort":
-                  this.abort(e.error);
-                  break;
-                case "complete":
-                  this.complete();
-                  break;
-              }
-
-              others.length = 0;
-            }),
-          ),
-        );
-      } else {
-        const others = new Set(init.scope.all);
-        let count = others.size;
-        others.forEach((other) => {
+    } else if (scope.any) {
+      const others: Consumer.AnyConsumer[] = [];
+      new Set(scope.any).forEach((other) =>
+        others.push(
           other.get("event").listen((e) => {
             switch (e.type) {
               case "abort":
                 this.abort(e.error);
-                others.clear();
                 break;
               case "complete":
-                if (!count--) {
-                  this.complete();
-                  others.clear();
-                }
+                this.complete();
                 break;
             }
-          });
+
+            others.length = 0;
+          }),
+        ),
+      );
+    } else {
+      const others = new Set(scope.all);
+      let count = others.size;
+      others.forEach((other) => {
+        other.get("event").listen((e) => {
+          switch (e.type) {
+            case "abort":
+              this.abort(e.error);
+              others.clear();
+              break;
+            case "complete":
+              if (!count--) {
+                this.complete();
+                others.clear();
+              }
+              break;
+          }
         });
-      }
+      });
     }
   }
   protected ready(value: VALUE) {
-    this.push(value);
     this._pulling = false;
+    this.push(value);
   }
 
   push(value: VALUE): void {
@@ -103,21 +109,20 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     }
   }
   listen<ERROR>(
-    handler: Consumer.Handler<VALUE, ERROR, NAME>,
-    init?: Prettify<Omit<Consumer.Init<VALUE, ERROR, NAME>, "handler" | "name">>,
-  ): Consumer<VALUE, ERROR, NAME>;
-  listen<ERROR>(init: Prettify<Omit<Consumer.Init<VALUE, ERROR, NAME>, "name">>): Consumer<VALUE, ERROR, NAME>;
+    handler: Consumer.Handler<VALUE, ERROR>,
+    init?: Prettify<Omit<Consumer.Init<VALUE, ERROR>, "handler" | "name">>,
+  ): Consumer<VALUE, ERROR>;
+  listen<ERROR>(init: Prettify<Omit<Consumer.Init<VALUE, ERROR>, "name">>): Consumer<VALUE, ERROR>;
   listen<ERROR>(
-    handlerOrInit: Consumer.Handler<VALUE, ERROR, NAME> | Prettify<Omit<Consumer.Init<VALUE, ERROR, NAME>, "name">>,
-    _init?: Omit<Consumer.Init<VALUE, ERROR, NAME>, "handler">,
-  ): Consumer<VALUE, ERROR, NAME> {
+    handlerOrInit: Consumer.Handler<VALUE, ERROR> | Prettify<Omit<Consumer.Init<VALUE, ERROR>, "name">>,
+    _init?: Omit<Consumer.Init<VALUE, ERROR>, "handler">,
+  ): Consumer<VALUE, ERROR> {
     const init = typeof handlerOrInit === "function" ? { handler: handlerOrInit, ..._init } : { ...handlerOrInit };
 
     if (this._consumers.has(init.handler)) return this._consumers.get(init.handler)!;
 
     const consumer = new Consumer({
       ...init,
-      name: this.name,
       onEvent: (event) => {
         switch (event.type) {
           case "abort":
@@ -198,7 +203,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     : PROP extends "consumersCount"
       ? number
       : PROP extends "event"
-        ? Smoker<Smoker.Event<VALUE, NAME>, `${NAME}Event`>
+        ? Smoker<Smoker.Event<VALUE>, `${NAME}Event`>
         : PROP extends "queueFactory"
           ? Smoker.QueueFactory<VALUE>
           : never {
@@ -243,18 +248,18 @@ export namespace Smoker {
     | { any: [AnySmoker, ...AnySmoker[]]; all?: never }
     | { any?: never; all: [AnySmoker, ...AnySmoker[]] };
 
-  export type Event<VALUE, NAME extends string> =
+  export type Event<VALUE> =
     | EventShape<"drain" | "complete">
     | EventShape<"abort" | "error", { error: any }>
-    | EventShape<"consumer-join" | "consumer-left", { consumer: Consumer<VALUE, any, NAME> }>;
+    | EventShape<"consumer-join" | "consumer-left", { consumer: Consumer<VALUE, any> }>;
 
-  export type OnEvent<VALUE, NAME extends string> = (event: Event<VALUE, NAME>) => void;
+  export type OnEvent<VALUE> = (event: Event<VALUE>) => void;
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Init<VALUE, NAME extends string> = {
     name?: NAME;
     source?: Source<VALUE>;
     scope?: Scope;
-    onEvent?: OnEvent<VALUE, NAME>;
+    onEvent?: OnEvent<VALUE>;
     queueFactory?: QueueFactory<VALUE>;
   };
   export type ExtractValue<T extends AnySmoker | Transformer.AnyTransformer> =

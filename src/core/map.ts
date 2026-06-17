@@ -14,14 +14,17 @@ export class Map<
     public readonly mapper: map.Mapper<VALUE, MAPPED>,
   ) {
     super(name, input, {
-      source: () => {
-        const consumer = input.listen(
-          (value) => {
-            this.ready(mapper(value));
-          },
-          { isReady: false },
-        );
-        return () => consumer.abort();
+      source: {
+        listen: (init) => {
+          return new Consumer<MAPPED, any>({
+            ...init,
+            onEvent: (e) => {
+              switch (e.type) {
+                case "ready":
+              }
+            },
+          });
+        },
       },
     });
   }
