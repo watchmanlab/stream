@@ -15,7 +15,6 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     this.name = init?.name ?? (Smoker.NAME as NAME);
     this._fireEvent = (event: Smoker.Event<VALUE, NAME>) => {
       init?.onEvent?.(event);
-
       this._event?.push(event);
     };
     this._queueFactory = init?.queueFactory;

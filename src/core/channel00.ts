@@ -22,7 +22,7 @@ export class Consumer<VALUE> implements Disposable {
     let value = this._queue.dequeue();
 
     if (value !== Queue.EMPTY) {
-      this.options.next(value, this);
+      this.options.handler(value, this);
       return;
     }
 

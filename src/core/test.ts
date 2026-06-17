@@ -8,7 +8,7 @@ const consumer = smoker.pipe(map((v) => v * 2)).listen(
     console.log(v);
     consumer.next();
   },
-  { isReady: false },
+  { isReady: true },
 );
 
 smoker.push(4);

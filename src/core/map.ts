@@ -13,19 +13,17 @@ export class Map<
     input: INPUT,
     public readonly mapper: map.Mapper<VALUE, MAPPED>,
   ) {
-    const consumer = input.listen(
-      (value) => {
-        this.ready(mapper(value));
-      },
-      { isReady: false },
-    );
     super(name, input, {
-      source: consumer,
+      source: () => {
+        const consumer = input.listen(
+          (value) => {
+            this.ready(mapper(value));
+          },
+          { isReady: false },
+        );
+        return () => consumer.abort();
+      },
     });
-
-    setTimeout(() => {
-      console.log("map", [...consumer.get("queue")]);
-    }, 100);
   }
 }
 export function map<

@@ -98,10 +98,6 @@ export class Consumer<VALUE, ERROR, NAME extends string> {
       this._fireEvent({ type: "error", error });
     } finally {
       this._isProcessing = false;
-      // if (this._queue.size === 0 && this._state === "active" && !this._isReady) {
-      //   this._isReady = true;
-      //   this._fireEvent({ type: "ready" });
-      // }
     }
   }
   private clean() {
