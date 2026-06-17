@@ -8,7 +8,7 @@ export interface Queue<VALUE> extends Iterable<VALUE>, Disposable {
   readonly size: number;
 }
 export namespace Queue {
-  export type Iterator<VALUE> = {
+  export interface Iterator<VALUE> {
     next: () =>
       | {
           value: VALUE;
@@ -18,7 +18,7 @@ export namespace Queue {
           value: Empty;
           done: true;
         };
-  };
+  }
   export const EMPTY = Symbol.for("empty");
   export type Empty = typeof EMPTY;
 }

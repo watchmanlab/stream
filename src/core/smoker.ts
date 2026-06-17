@@ -7,13 +7,13 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
   private _state: Smoker.State;
   readonly name: NAME;
   private _sourceConsumer?: Consumer<VALUE, any, any>;
-  private _fireEvent: Smoker.OnEvent<VALUE>;
+  private _fireEvent: Smoker.OnEvent<VALUE, NAME>;
   private _queueFactory?: Smoker.QueueFactory<VALUE>;
-  private _event?: Smoker<Smoker.Event<VALUE>, `${NAME}Event`>;
+  private _event?: Smoker<Smoker.Event<VALUE, NAME>, `${NAME}Event`>;
   private _pulling = false;
   constructor(init?: Smoker.Init<VALUE, NAME>) {
     this.name = init?.name ?? (Smoker.NAME as NAME);
-    this._fireEvent = (event: Smoker.Event<VALUE>) => {
+    this._fireEvent = (event: Smoker.Event<VALUE, NAME>) => {
       init?.onEvent?.(event);
 
       this._event?.push(event);
@@ -23,22 +23,39 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     this._state = "active";
 
     if (init?.source) {
-      this._sourceConsumer = init?.source.listen({
-        handler: (value) => {
-          this._pulling = false;
-          this.push(value);
-        },
-        onEvent: (event) => {
+      if (init.source instanceof Smoker) {
+        this._sourceConsumer = init.source.listen({
+          handler: (value) => {
+            this._pulling = false;
+            this.push(value);
+          },
+          onEvent: (event) => {
+            switch (event.type) {
+              case "abort":
+                this.abort(event.error);
+                break;
+              case "complete":
+                this.complete();
+            }
+          },
+          isReady: false,
+        });
+      } else {
+        this._sourceConsumer = init?.source;
+        this._sourceConsumer.get("event").listen((event, self) => {
           switch (event.type) {
+            case "ready":
+              this._pulling = false;
+              break;
             case "abort":
               this.abort(event.error);
               break;
             case "complete":
               this.complete();
           }
-        },
-        isReady: false,
-      });
+          self.next();
+        });
+      }
     }
     if (init?.scope) {
       if (init.scope instanceof Smoker) {
@@ -92,6 +109,11 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
       }
     }
   }
+  protected ready(value: VALUE) {
+    this.push(value);
+    this._pulling = false;
+  }
+
   push(value: VALUE): void {
     for (const consumer of this._consumers.values()) {
       consumer.push(value);
@@ -99,11 +121,11 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
   }
   listen<ERROR>(
     handler: Consumer.Handler<VALUE, ERROR, NAME>,
-    init?: Prettify<Omit<Consumer.Init<VALUE, ERROR, NAME>, "handler">>,
-  ): Consumer<VALUE, ERROR, any>;
-  listen<ERROR>(init: Consumer.Init<VALUE, ERROR, NAME>): Consumer<VALUE, ERROR, NAME>;
+    init?: Prettify<Omit<Consumer.Init<VALUE, ERROR, NAME>, "handler" | "name">>,
+  ): Consumer<VALUE, ERROR, NAME>;
+  listen<ERROR>(init: Prettify<Omit<Consumer.Init<VALUE, ERROR, NAME>, "name">>): Consumer<VALUE, ERROR, NAME>;
   listen<ERROR>(
-    handlerOrInit: Consumer.Handler<VALUE, ERROR, NAME> | Consumer.Init<VALUE, ERROR, NAME>,
+    handlerOrInit: Consumer.Handler<VALUE, ERROR, NAME> | Prettify<Omit<Consumer.Init<VALUE, ERROR, NAME>, "name">>,
     _init?: Omit<Consumer.Init<VALUE, ERROR, NAME>, "handler">,
   ): Consumer<VALUE, ERROR, NAME> {
     const init = typeof handlerOrInit === "function" ? { handler: handlerOrInit, ..._init } : { ...handlerOrInit };
@@ -112,6 +134,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
 
     const consumer = new Consumer({
       ...init,
+      name: this.name,
       onEvent: (event) => {
         switch (event.type) {
           case "abort":
@@ -124,15 +147,9 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
             }
             break;
           case "ready":
-            if (!this._pulling) {
+            if (!this._pulling && this._sourceConsumer) {
               this._pulling = true;
-              this._sourceConsumer?.next();
-              this._fireEvent({
-                type: "pull",
-                ok: () => (this._pulling = false),
-                abort: (error) => this.abort(error),
-                complete: () => this.complete(),
-              });
+              this._sourceConsumer.next();
             }
             break;
           case "error":
@@ -148,15 +165,9 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     this._consumers.set(init.handler, consumer);
     this._fireEvent({ type: "consumer-join", consumer });
 
-    if (init.isReady !== false && !this._pulling) {
+    if (init.isReady !== false && !this._pulling && this._sourceConsumer) {
       this._pulling = true;
-      this._sourceConsumer?.next();
-      this._fireEvent({
-        type: "pull",
-        ok: () => (this._pulling = false),
-        abort: (error) => this.abort(error),
-        complete: () => this.complete(),
-      });
+      this._sourceConsumer.next();
     }
 
     return consumer;
@@ -204,7 +215,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> {
     : PROP extends "consumersCount"
       ? number
       : PROP extends "event"
-        ? Smoker<Smoker.Event<VALUE>, `${NAME}Event`>
+        ? Smoker<Smoker.Event<VALUE, NAME>, `${NAME}Event`>
         : PROP extends "queueFactory"
           ? Smoker.QueueFactory<VALUE>
           : never {
@@ -249,19 +260,18 @@ export namespace Smoker {
     | { any: [AnySmoker, ...AnySmoker[]]; all?: never }
     | { any?: never; all: [AnySmoker, ...AnySmoker[]] };
 
-  export type Event<VALUE> =
+  export type Event<VALUE, NAME extends string> =
     | EventShape<"drain" | "complete">
-    | EventShape<"pull", { ok: () => void; abort: (error?: any) => void; complete: () => void }>
     | EventShape<"abort" | "error", { error: any }>
-    | EventShape<"consumer-join" | "consumer-left", { consumer: Consumer<VALUE, any, any> }>;
+    | EventShape<"consumer-join" | "consumer-left", { consumer: Consumer<VALUE, any, NAME> }>;
 
-  export type OnEvent<VALUE> = (event: Event<VALUE>) => void;
+  export type OnEvent<VALUE, NAME extends string> = (event: Event<VALUE, NAME>) => void;
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Init<VALUE, NAME extends string> = {
     name?: NAME;
-    source?: Source<VALUE>;
+    source?: Smoker<VALUE, any> | Consumer<VALUE, any, any>;
     scope?: Scope;
-    onEvent?: OnEvent<VALUE>;
+    onEvent?: OnEvent<VALUE, NAME>;
     queueFactory?: QueueFactory<VALUE>;
   };
   export type ExtractValue<T extends AnySmoker | Transformer.AnyTransformer> =

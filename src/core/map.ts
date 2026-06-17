@@ -1,3 +1,4 @@
+import { Consumer } from "./consumer";
 import { Smoker } from "./smoker";
 import { Transformer } from "./transformer";
 
@@ -12,24 +13,19 @@ export class Map<
     input: INPUT,
     public readonly mapper: map.Mapper<VALUE, MAPPED>,
   ) {
-    let ok: () => void;
     const consumer = input.listen(
       (value) => {
-        this.push(mapper(value));
-        ok();
+        this.ready(mapper(value));
       },
       { isReady: false },
     );
-
     super(name, input, {
-      onEvent: (e) => {
-        switch (e.type) {
-          case "pull":
-            ok = e.ok;
-            consumer.next();
-        }
-      },
+      source: consumer,
     });
+
+    setTimeout(() => {
+      console.log("map", [...consumer.get("queue")]);
+    }, 100);
   }
 }
 export function map<

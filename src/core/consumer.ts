@@ -1,17 +1,19 @@
 import type { EventShape, Queue } from "./types";
 import { Smoker } from "./smoker";
-import { LinkedList } from "./queue";
+import { LinkedList } from "./linked-list";
 
 export class Consumer<VALUE, ERROR, NAME extends string> {
+  readonly name: Consumer.Name<NAME>;
   private _queue: Queue<VALUE>;
   private _isReady: boolean;
   private _isProcessing: boolean;
-  private _priority: number;
+
   private _state: Consumer.State;
   private _handler: Consumer.Handler<VALUE, ERROR, NAME>;
   private _fireEvent: Consumer.OnEvent;
-  private _event?: Smoker<Consumer.Event, `${NAME}ConsumerEvent`>;
+  private _event?: Smoker<Consumer.Event, `${Consumer.Name<NAME>}Event`>;
   constructor(init: Consumer.Init<VALUE, ERROR, NAME>) {
+    this.name = `${init.name}Consumer`;
     this._handler = init.handler;
     this._fireEvent = (event: Consumer.Event) => {
       init.onEvent?.(event);
@@ -22,7 +24,6 @@ export class Consumer<VALUE, ERROR, NAME extends string> {
     this._isReady = init.isReady === undefined ? true : init.isReady;
     this._isProcessing = false;
     this._state = "active";
-    this._priority = 0;
   }
   push(value: VALUE): void {
     if (this._isReady && !this._isProcessing) {
@@ -97,6 +98,10 @@ export class Consumer<VALUE, ERROR, NAME extends string> {
       this._fireEvent({ type: "error", error });
     } finally {
       this._isProcessing = false;
+      // if (this._queue.size === 0 && this._state === "active" && !this._isReady) {
+      //   this._isReady = true;
+      //   this._fireEvent({ type: "ready" });
+      // }
     }
   }
   private clean() {
@@ -107,7 +112,7 @@ export class Consumer<VALUE, ERROR, NAME extends string> {
     (this._handler as any) = this._event = undefined;
   }
 
-  get<PROP extends "handler" | "state" | "queue" | "isReady" | "isProcessing">(
+  get<PROP extends "handler" | "state" | "queue" | "isReady" | "isProcessing" | "event">(
     prop: PROP,
   ): PROP extends "handler"
     ? Consumer.Handler<VALUE, ERROR, NAME>
@@ -117,7 +122,9 @@ export class Consumer<VALUE, ERROR, NAME extends string> {
         ? Queue<VALUE>
         : PROP extends "isReady" | "isProcessing"
           ? boolean
-          : never {
+          : PROP extends "event"
+            ? Smoker<Consumer.Event, `${NAME}ConsumerEvent`>
+            : never {
     switch (prop) {
       case "handler":
         return this._handler as never;
@@ -129,11 +136,15 @@ export class Consumer<VALUE, ERROR, NAME extends string> {
         return this._isReady as never;
       case "isProcessing":
         return this._isProcessing as never;
+      case "event":
+        if (!this._event) this._event = new Smoker({ name: `${this.name}Event` });
+        return new Smoker({ name: this._event.name, source: this._event }) as never;
     }
   }
 }
 
 export namespace Consumer {
+  export type Name<NAME extends string> = `${NAME}Consumer`;
   export type State = "active" | "drain" | "aborted" | "completed";
   export type AnyConsumer = Consumer<any, any, any>;
   export type Handler<VALUE, ERROR, NAME extends string> = (
@@ -143,6 +154,7 @@ export namespace Consumer {
   export type Event = EventShape<"ready" | "complete" | "drain"> | EventShape<"abort" | "error", { error?: any }>;
   export type OnEvent = (event: Event) => void;
   export type Init<VALUE, ERROR, NAME extends string> = {
+    name: NAME;
     handler: Handler<VALUE, ERROR, NAME>;
     onEvent?: OnEvent;
     queue?: Queue<VALUE>;
