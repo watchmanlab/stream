@@ -16,14 +16,20 @@ export class Map<
     super(name, input, {
       source: {
         listen: (init) => {
-          return new Consumer<MAPPED, any>({
+          const inputConsumer = input.listen((value) => {
+            outputConsumer.push(mapper(value));
+          });
+          const outputConsumer = new Consumer<MAPPED, any>({
             ...init,
             event: (e) => {
               switch (e.type) {
-                case "ready":
+                case "next":
+                  inputConsumer.next();
               }
+              init.event?.(e);
             },
           });
+          return outputConsumer;
         },
       },
     });

@@ -6,19 +6,24 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
   private _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
   private _state: Stream.State;
   readonly name: NAME;
+  private _source?: Source<VALUE>;
   private _sourceConsumer?: Consumer<VALUE, any>;
+  private _scope?: Stream.Scope;
+  private _scopeConsumers?: Consumer<any, any>[];
   private _fireEvent!: Stream.EventsHandler<VALUE>;
   private _queue?: Stream.QueueFactory<VALUE>;
   private _event?: Stream<Stream.Event<VALUE>, `${NAME}Event`>;
   private _pulling = false;
+
   constructor(init?: Stream.Init<VALUE, NAME>) {
     this.name = init?.name ?? (Stream.NAME as NAME);
+    this._source = init?.source;
+    this._scope = init?.scope;
     this._queue = init?.queue;
     this._state = "active";
 
     this.bindEvent(init?.event);
-    this.bindSource(init?.source);
-    this.bindScope(init?.scope);
+    this.bindScope();
   }
   private bindEvent(event?: Stream.EventsHandler<VALUE>) {
     this._fireEvent = event
@@ -28,28 +33,27 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
         }
       : (e: Stream.Event<VALUE>) => this._event?.push(e);
   }
-  private bindSource(source?: Source<VALUE>) {
-    if (!source) return;
-    this._sourceConsumer = source.listen({
+  private bindSource() {
+    if (!this._source) return;
+
+    this._sourceConsumer = this._source.listen({
       handler: (value) => {
-        this.ready(value);
+        this._pulling = false;
+        this.push(value);
       },
-      event: (event) => {
-        switch (event.type) {
-          case "abort":
-            this.abort(event.error);
-            break;
-          case "complete":
-            this.complete();
-        }
-      },
+
       isReady: false,
     });
   }
-  private bindScope(scope?: Stream.Scope) {
-    if (!scope) return;
-    if (scope instanceof Stream) {
-      scope.event.listen((e) => {
+  private unbindSource() {
+    this._sourceConsumer?.complete();
+    this._sourceConsumer = undefined;
+  }
+  private bindScope() {
+    if (!this._scope) return;
+    this._scopeConsumers = [];
+    if (this._scope instanceof Stream) {
+      const scopeConsumer = this._scope.event.listen((e, self) => {
         switch (e.type) {
           case "abort":
             this.abort(e.error);
@@ -58,49 +62,53 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
             this.complete();
             break;
         }
+        self.next();
       });
-    } else if (scope.any) {
-      const others: Consumer.AnyConsumer[] = [];
-      new Set(scope.any).forEach((other) =>
-        others.push(
-          other.event.listen((e) => {
+      this._scopeConsumers.push(scopeConsumer);
+    } else if (this._scope.any) {
+      const scopes = new Set(this._scope.any);
+
+      scopes.forEach((scope) =>
+        this._scopeConsumers!.push(
+          scope.event.listen((e, self) => {
             switch (e.type) {
               case "abort":
                 this.abort(e.error);
+                scopes.clear();
                 break;
               case "complete":
                 this.complete();
+                scopes.clear();
                 break;
             }
-
-            others.length = 0;
+            self.next();
           }),
         ),
       );
     } else {
-      const others = new Set(scope.all);
-      let count = others.size;
-      others.forEach((other) => {
-        other.event.listen((e) => {
-          switch (e.type) {
-            case "abort":
-              this.abort(e.error);
-              others.clear();
-              break;
-            case "complete":
-              if (!count--) {
-                this.complete();
-                others.clear();
-              }
-              break;
-          }
-        });
+      const scopes = new Set(this._scope.all);
+      let count = scopes.size;
+
+      scopes.forEach((scope) => {
+        this._scopeConsumers!.push(
+          scope.event.listen((e, self) => {
+            switch (e.type) {
+              case "abort":
+                this.abort(e.error);
+                scopes.clear();
+                break;
+              case "complete":
+                if (!--count) {
+                  this.complete();
+                  scopes.clear();
+                }
+                break;
+            }
+            self.next();
+          }),
+        );
       });
     }
-  }
-  protected ready(value: VALUE) {
-    this._pulling = false;
-    this.push(value);
   }
 
   push(value: VALUE): void {
@@ -123,15 +131,17 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
 
     const consumer = new Consumer({
       ...init,
-      event: (event) => {
-        switch (event.type) {
+      event: (e) => {
+        switch (e.type) {
           case "abort":
           case "complete":
             this._consumers.delete(init.handler);
+
             this._fireEvent({ type: "consumer-left", consumer });
 
-            if (this._consumers.size === 0 && this._state === "drain") {
-              this.completed();
+            if (this._consumers.size === 0) {
+              this.unbindSource();
+              if (this._state === "drain") this.completed();
             }
             break;
           case "ready":
@@ -141,16 +151,19 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
             }
             break;
           case "error":
-            this._fireEvent({ type: "error", error: event.error });
+            this._fireEvent({ type: "error", error: e.error });
         }
 
-        init.event?.(event);
+        init.event?.(e);
       },
 
       queue: init.queue ? init.queue : this._queue?.(),
     });
 
     this._consumers.set(init.handler, consumer);
+
+    if (this._consumers.size === 1) this.bindSource();
+
     this._fireEvent({ type: "consumer-join", consumer });
 
     if (init.isReady !== false && !this._pulling && this._sourceConsumer) {
@@ -192,11 +205,18 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
     this.clean("completed");
   }
   private clean(reason: "aborted" | "completed", error?: any): void {
-    this._event?.complete();
-    reason === "aborted" ? this._sourceConsumer?.abort(error) : this._sourceConsumer?.complete();
-    this._event = this._queue = this._sourceConsumer = undefined;
-  }
+    if (reason === "aborted") {
+      this._event?.abort();
+      this._sourceConsumer?.abort(error);
+      this._scopeConsumers?.forEach((c) => c.abort());
+    } else {
+      this._event?.complete();
+      this._sourceConsumer?.complete();
+      this._scopeConsumers?.forEach((c) => c.complete());
+    }
 
+    this._event = this._queue = this._sourceConsumer = this._scopeConsumers = this._scope = this._source = undefined;
+  }
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
     transform: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT;
@@ -210,16 +230,18 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
   ): OUT {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-
-  get state() {
+  get state(): Stream.State {
     return this._state;
   }
-  get consumersCount() {
+  get consumersCount(): number {
     return this._consumers.size;
   }
-  get event() {
+  get event(): Stream<Stream.Event<VALUE>, `${NAME}Event`> {
     if (!this._event) this._event = new Stream({ name: `${this.name}Event` });
     return new Stream({ name: this._event.name, source: this._event });
+  }
+  get source(): Source<VALUE> | undefined {
+    return this._source;
   }
   static fromIterable<VALUE>(iterable: Iterable<VALUE>) {
     //TODO
@@ -281,7 +303,7 @@ function bench() {
 
   const start = performance.now();
   stream.listen((value, consumer) => {
-    if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+    if (value === MAX) console.log("moo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
 
     // if (value === 1000) {
     //   queueMicrotask(() => {
@@ -314,7 +336,7 @@ function bench() {
   }
 }
 
-bench(); //foo 10 000 000 275 ms
+// bench(); //foo 10 000 000 275 ms
 
 function sequential() {
   const smoker = new Stream<number>();

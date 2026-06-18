@@ -37,6 +37,7 @@ export class Consumer<VALUE, ERROR> {
     }
   }
   next(error?: ERROR): void {
+    this._fireEvent({ type: "next", error });
     if (error) this._fireEvent({ type: "error", error });
 
     if (this._isReady) return;
@@ -53,6 +54,26 @@ export class Consumer<VALUE, ERROR> {
     }
     this.drain();
   }
+  private drain(): void {
+    if (this._isProcessing) return;
+
+    this._isProcessing = true;
+
+    try {
+      while (this._isReady && this._queue.size) {
+        this._isReady = false;
+
+        const value = this._queue.dequeue() as VALUE;
+
+        this._handler(value, this);
+      }
+    } catch (error: any) {
+      this._fireEvent({ type: "error", error });
+    } finally {
+      this._isProcessing = false;
+    }
+  }
+
   abort(error?: ERROR): void {
     if (this._state === "aborted" || this._state === "completed") return;
     this._state = "aborted";
@@ -77,26 +98,6 @@ export class Consumer<VALUE, ERROR> {
         this._fireEvent({ type: "error", error: new Stream.Exception("push_not_allowed", "completed") });
     }
   }
-  private drain(): void {
-    if (this._isProcessing) return;
-
-    this._isProcessing = true;
-
-    try {
-      while (this._isReady && this._queue.size) {
-        this._isReady = false;
-
-        const value = this._queue.dequeue() as VALUE;
-
-        this._handler(value, this);
-      }
-    } catch (error: any) {
-      this._fireEvent({ type: "error", error });
-    } finally {
-      this._isProcessing = false;
-    }
-  }
-
   private clean() {
     this._isReady = false;
     this._isProcessing = true;
@@ -124,7 +125,9 @@ export namespace Consumer {
   export type State = "active" | "drain" | "aborted" | "completed";
   export type AnyConsumer = Consumer<any, any>;
   export type Handler<VALUE, ERROR> = (value: VALUE, consumer: Consumer<VALUE, ERROR>) => void;
-  export type Event = EventShape<"ready" | "complete" | "drain"> | EventShape<"abort" | "error", { error?: any }>;
+  export type Event =
+    | EventShape<"ready" | "complete" | "drain">
+    | EventShape<"next" | "abort" | "error", { error?: any }>;
   export type EventsHandler = (event: Event) => void;
   export type Init<VALUE, ERROR> = {
     handler: Handler<VALUE, ERROR>;
