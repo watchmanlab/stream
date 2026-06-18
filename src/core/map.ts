@@ -23,7 +23,7 @@ export class Map<
             ...init,
             event: (e) => {
               switch (e.type) {
-                case "next":
+                case "ready":
                   inputConsumer.next();
               }
               init.event?.(e);
