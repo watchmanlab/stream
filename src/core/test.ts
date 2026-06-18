@@ -4,7 +4,7 @@ import { Stream } from "./stream";
 const stream = new Stream<number>();
 
 const mapped = stream.pipe(map((v) => v * 2));
-mapped.listen((v, self) => {
+mapped.listen((self, v) => {
   console.log(v);
   self.next();
 });
