@@ -1,10 +1,10 @@
 import { Consumer } from "./consumer";
-import { Smoker } from "./smoker";
+import { Stream } from "./stream";
 import { Transformer } from "./transformer";
 
 export class Map<
-  INPUT extends Smoker.AnySmoker,
-  VALUE extends Smoker.ExtractValue<INPUT> = Smoker.ExtractValue<INPUT>,
+  INPUT extends Stream.AnySmoker,
+  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends string = map.Name,
 > extends Transformer<INPUT, MAPPED, NAME> {
@@ -18,7 +18,7 @@ export class Map<
         listen: (init) => {
           return new Consumer<MAPPED, any>({
             ...init,
-            onEvent: (e) => {
+            event: (e) => {
               switch (e.type) {
                 case "ready":
               }
@@ -30,11 +30,11 @@ export class Map<
   }
 }
 export function map<
-  INPUT extends Smoker.AnySmoker,
-  VALUE extends Smoker.ExtractValue<INPUT> = Smoker.ExtractValue<INPUT>,
+  INPUT extends Stream.AnySmoker,
+  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends string = map.Name,
->(mapper: map.Mapper<VALUE, MAPPED>): Smoker.Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
+>(mapper: map.Mapper<VALUE, MAPPED>): Stream.Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
   return (input, name) => new Map(name, input, mapper);
 }
 export namespace map {

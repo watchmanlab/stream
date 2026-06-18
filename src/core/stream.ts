@@ -2,31 +2,31 @@ import { Consumer } from "./consumer";
 import type { Prettify, Queue, Source, EventShape } from "./types";
 import type { Transformer } from "./transformer";
 
-export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<VALUE> {
+export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<VALUE> {
   private _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
-  private _state: Smoker.State;
+  private _state: Stream.State;
   readonly name: NAME;
   private _sourceConsumer?: Consumer<VALUE, any>;
-  private _fireEvent!: Smoker.OnEvent<VALUE>;
-  private _queueFactory?: Smoker.QueueFactory<VALUE>;
-  private _event?: Smoker<Smoker.Event<VALUE>, `${NAME}Event`>;
+  private _fireEvent!: Stream.EventsHandler<VALUE>;
+  private _queue?: Stream.QueueFactory<VALUE>;
+  private _event?: Stream<Stream.Event<VALUE>, `${NAME}Event`>;
   private _pulling = false;
-  constructor(init?: Smoker.Init<VALUE, NAME>) {
-    this.name = init?.name ?? (Smoker.NAME as NAME);
-    this._queueFactory = init?.queueFactory;
+  constructor(init?: Stream.Init<VALUE, NAME>) {
+    this.name = init?.name ?? (Stream.NAME as NAME);
+    this._queue = init?.queue;
     this._state = "active";
 
-    this.bindEvent(init?.onEvent);
+    this.bindEvent(init?.event);
     this.bindSource(init?.source);
     this.bindScope(init?.scope);
   }
-  private bindEvent(onEvent?: Smoker.OnEvent<VALUE>) {
-    this._fireEvent = onEvent
-      ? (event: Smoker.Event<VALUE>) => {
-          onEvent(event);
-          this._event?.push(event);
+  private bindEvent(event?: Stream.EventsHandler<VALUE>) {
+    this._fireEvent = event
+      ? (e: Stream.Event<VALUE>) => {
+          event(e);
+          this._event?.push(e);
         }
-      : (event: Smoker.Event<VALUE>) => this._event?.push(event);
+      : (e: Stream.Event<VALUE>) => this._event?.push(e);
   }
   private bindSource(source?: Source<VALUE>) {
     if (!source) return;
@@ -34,7 +34,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
       handler: (value) => {
         this.ready(value);
       },
-      onEvent: (event) => {
+      event: (event) => {
         switch (event.type) {
           case "abort":
             this.abort(event.error);
@@ -46,10 +46,10 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
       isReady: false,
     });
   }
-  private bindScope(scope?: Smoker.Scope) {
+  private bindScope(scope?: Stream.Scope) {
     if (!scope) return;
-    if (scope instanceof Smoker) {
-      scope.get("event").listen((e) => {
+    if (scope instanceof Stream) {
+      scope.event.listen((e) => {
         switch (e.type) {
           case "abort":
             this.abort(e.error);
@@ -63,7 +63,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
       const others: Consumer.AnyConsumer[] = [];
       new Set(scope.any).forEach((other) =>
         others.push(
-          other.get("event").listen((e) => {
+          other.event.listen((e) => {
             switch (e.type) {
               case "abort":
                 this.abort(e.error);
@@ -81,7 +81,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
       const others = new Set(scope.all);
       let count = others.size;
       others.forEach((other) => {
-        other.get("event").listen((e) => {
+        other.event.listen((e) => {
           switch (e.type) {
             case "abort":
               this.abort(e.error);
@@ -123,7 +123,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
 
     const consumer = new Consumer({
       ...init,
-      onEvent: (event) => {
+      event: (event) => {
         switch (event.type) {
           case "abort":
           case "complete":
@@ -144,10 +144,10 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
             this._fireEvent({ type: "error", error: event.error });
         }
 
-        init.onEvent?.(event);
+        init.event?.(event);
       },
 
-      queue: init.queue ? init.queue : this._queueFactory?.(),
+      queue: init.queue ? init.queue : this._queue?.(),
     });
 
     this._consumers.set(init.handler, consumer);
@@ -163,7 +163,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
   abort(error?: any): void {
     if (this._state === "aborted" || this._state === "completed") return;
     this._state = "aborted";
-    this.push = () => this._fireEvent({ type: "error", error: new Smoker.Exception("push_not_allowed", "aborted") });
+    this.push = () => this._fireEvent({ type: "error", error: new Stream.Exception("push_not_allowed", "aborted") });
     for (const consumer of this._consumers.values()) {
       consumer.abort(error);
     }
@@ -176,7 +176,7 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
 
     if (this._consumers.size) {
       this._state = "drain";
-      this.push = () => this._fireEvent({ type: "error", error: new Smoker.Exception("push_not_allowed", "drain") });
+      this.push = () => this._fireEvent({ type: "error", error: new Stream.Exception("push_not_allowed", "drain") });
       this._fireEvent({ type: "drain" });
     } else {
       this.completed();
@@ -187,62 +187,50 @@ export class Smoker<VALUE, NAME extends string = Smoker.Name> implements Source<
   }
   private completed(): void {
     this._state = "completed";
-    this.push = () => this._fireEvent({ type: "error", error: new Smoker.Exception("push_not_allowed", "completed") });
+    this.push = () => this._fireEvent({ type: "error", error: new Stream.Exception("push_not_allowed", "completed") });
     this._fireEvent({ type: "complete" });
     this.clean("completed");
   }
   private clean(reason: "aborted" | "completed", error?: any): void {
     this._event?.complete();
     reason === "aborted" ? this._sourceConsumer?.abort(error) : this._sourceConsumer?.complete();
-    this._event = this._queueFactory = this._sourceConsumer = undefined;
+    this._event = this._queue = this._sourceConsumer = undefined;
   }
-  get<PROP extends "state" | "consumersCount" | "event" | "queueFactory">(
-    prop: PROP,
-  ): PROP extends "state"
-    ? Smoker.State
-    : PROP extends "consumersCount"
-      ? number
-      : PROP extends "event"
-        ? Smoker<Smoker.Event<VALUE>, `${NAME}Event`>
-        : PROP extends "queueFactory"
-          ? Smoker.QueueFactory<VALUE>
-          : never {
-    switch (prop) {
-      case "state":
-        return this._state as never;
-      case "consumersCount":
-        return this._consumers.size as never;
-      case "event":
-        if (!this._event) this._event = new Smoker({ name: `${this.name}Event` });
-        return new Smoker({ name: this._event.name, source: this._event }) as never;
-      case "queueFactory":
-        return this._queueFactory as never;
-    }
-  }
+
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    transform: Smoker.Transform<this, OUT_NAME, OUT>,
+    transform: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT;
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
     name: OUT_NAME,
-    transform: Smoker.Transform<this, OUT_NAME, OUT>,
+    transform: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT;
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    nameOrTransform: OUT_NAME | Smoker.Transform<this, OUT_NAME, OUT>,
-    transform?: Smoker.Transform<this, OUT_NAME, OUT>,
+    nameOrTransform: OUT_NAME | Stream.Transform<this, OUT_NAME, OUT>,
+    transform?: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
 
+  get state() {
+    return this._state;
+  }
+  get consumersCount() {
+    return this._consumers.size;
+  }
+  get event() {
+    if (!this._event) this._event = new Stream({ name: `${this.name}Event` });
+    return new Stream({ name: this._event.name, source: this._event });
+  }
   static fromIterable<VALUE>(iterable: Iterable<VALUE>) {
     //TODO
   }
 }
 
-export namespace Smoker {
+export namespace Stream {
   export const NAME = "root";
   export type Name = typeof NAME;
   export type State = "active" | "drain" | "aborted" | "completed";
-  export type AnySmoker = Smoker<any, any>;
+  export type AnySmoker = Stream<any, any>;
   export type Scope =
     | AnySmoker
     | { any: [AnySmoker, ...AnySmoker[]]; all?: never }
@@ -253,17 +241,17 @@ export namespace Smoker {
     | EventShape<"abort" | "error", { error: any }>
     | EventShape<"consumer-join" | "consumer-left", { consumer: Consumer<VALUE, any> }>;
 
-  export type OnEvent<VALUE> = (event: Event<VALUE>) => void;
+  export type EventsHandler<VALUE> = (event: Event<VALUE>) => void;
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Init<VALUE, NAME extends string> = {
     name?: NAME;
     source?: Source<VALUE>;
     scope?: Scope;
-    onEvent?: OnEvent<VALUE>;
-    queueFactory?: QueueFactory<VALUE>;
+    event?: EventsHandler<VALUE>;
+    queue?: QueueFactory<VALUE>;
   };
   export type ExtractValue<T extends AnySmoker | Transformer.AnyTransformer> =
-    T extends Smoker<infer VALUE, any>
+    T extends Stream<infer VALUE, any>
       ? VALUE
       : Transformer.ExtractValue<T> extends never
         ? never
@@ -289,37 +277,47 @@ export namespace Smoker {
 
 function bench() {
   const MAX = 10_000_000;
-  const smoker = new Smoker<number>();
+  const stream = new Stream<number>();
 
-  const consumer = smoker.listen(
-    (value, consumer) => {
-      if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      const obj = { value, consumer };
-      obj.value++;
-      // if (value === 1000) {
-      //   queueMicrotask(() => {
-      //     console.log("promise resolved", value);
-      //     consumer.next();
-      //   });
-      //   return;
-      // }
+  const start = performance.now();
+  stream.listen((value, consumer) => {
+    if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
 
-      consumer.next();
-    },
-    { isReady: false },
-  );
+    // if (value === 1000) {
+    //   queueMicrotask(() => {
+    //     console.log("promise resolved", value);
+    //     consumer.next();
+    //   });
+    //   return;
+    // }
+
+    consumer.next();
+  });
+  stream.listen((value, consumer) => {
+    if (value === MAX) console.log("foo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+
+    consumer.next();
+  });
+  stream.listen((value, consumer) => {
+    if (value === MAX) console.log("bar", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+
+    consumer.next();
+  });
+  stream.listen((value, consumer) => {
+    if (value === MAX) console.log("baz", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+
+    consumer.next();
+  });
 
   for (let i = 0; i <= MAX; i++) {
-    smoker.push(i);
+    stream.push(i);
   }
-  const start = performance.now();
-  consumer.next();
 }
 
-// bench(); //foo 10 000 000 46 ms
+bench(); //foo 10 000 000 275 ms
 
 function sequential() {
-  const smoker = new Smoker<number>();
+  const smoker = new Stream<number>();
 
   smoker.listen(async (value, consumer) => {
     await new Promise((r) => setTimeout(r, Math.random() * 1000));
@@ -334,7 +332,7 @@ function sequential() {
 
 // sequential();
 function concurrent() {
-  const smoker = new Smoker<number>();
+  const smoker = new Stream<number>();
 
   smoker.listen(async (value, consumer) => {
     consumer.next();
@@ -352,10 +350,10 @@ function concurrent() {
 // concurrent();
 
 function errorHandling() {
-  const smoker = new Smoker<number>();
-  smoker.get("event").listen((e, consumer) => {
+  const smoker = new Stream<number>();
+  smoker.event.listen((e, consumer) => {
     if (e.type === "error") {
-      console.log(e.error);
+      console.log("error caugh:", e.error);
     }
     consumer.next();
   });

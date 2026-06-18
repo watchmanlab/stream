@@ -1,9 +1,9 @@
 import { map } from "./map";
-import { Smoker } from "./smoker";
+import { Stream } from "./stream";
 
-const smoker = new Smoker<number>();
+const stream = new Stream<number>();
 
-const consumer = smoker.pipe(map((v) => v * 2)).listen(
+const consumer = stream.pipe(map((v) => v * 2)).listen(
   (v, consumer) => {
     console.log(v);
     consumer.next();
@@ -11,8 +11,8 @@ const consumer = smoker.pipe(map((v) => v * 2)).listen(
   { isReady: true },
 );
 
-smoker.push(4);
-smoker.push(5);
-smoker.push(6);
+stream.push(4);
+stream.push(5);
+stream.push(6);
 
-console.log([...consumer.get("queue")]); // []
+console.log([...consumer.queue]); // []

@@ -1,17 +1,17 @@
-import { Smoker } from "./smoker";
+import { Stream } from "./stream";
 
-export abstract class Transformer<INPUT extends Smoker.AnySmoker, VALUE, NAME extends string> extends Smoker<
+export abstract class Transformer<INPUT extends Stream.AnySmoker, VALUE, NAME extends string> extends Stream<
   VALUE,
   NAME
 > {
   constructor(
     name: NAME,
     protected readonly input: INPUT,
-    init: Smoker.Init<VALUE, NAME>,
+    init: Stream.Init<VALUE, NAME>,
   ) {
-    let scope: Smoker.Scope | undefined = init.scope;
+    let scope: Stream.Scope | undefined = init.scope;
 
-    if (scope instanceof Smoker) {
+    if (scope instanceof Stream) {
       scope = { any: [input, scope] };
     } else if (scope) {
       if (scope.any) {
@@ -48,11 +48,11 @@ export abstract class Transformer<INPUT extends Smoker.AnySmoker, VALUE, NAME ex
 }
 
 export namespace Transformer {
-  export type AnyTransformer = Transformer<Smoker.AnySmoker, any, any>;
+  export type AnyTransformer = Transformer<Stream.AnySmoker, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;
   export type ExtractSmoker<T> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
-  export type Traversable<T extends Smoker.AnySmoker> =
+  export type Traversable<T extends Stream.AnySmoker> =
     ExtractSmoker<T> extends never
       ? T
       : Omit<T, "traversal"> & Record<ExtractSmoker<T>["name"] | (`$${string}` & {}), Traversable<ExtractSmoker<T>>>;
