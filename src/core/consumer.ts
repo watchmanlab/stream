@@ -25,8 +25,8 @@ export class Consumer<VALUE, ERROR> {
 
       try {
         this._init.handler(this, value);
-      } catch (error: any) {
-        this._init.error?.(this, error);
+      } catch (error) {
+        this.notifyError(error);
       } finally {
         this._isProcessing = false;
       }
@@ -34,6 +34,7 @@ export class Consumer<VALUE, ERROR> {
       this._queue.enqueue(value);
     }
   }
+
   next(error?: ERROR): void {
     if (error && this._init.error) this._init.error(this, error);
 
@@ -45,8 +46,7 @@ export class Consumer<VALUE, ERROR> {
         this._init.ready?.(this);
       } else {
         this._state = "completed";
-        this.clean();
-        this._init.complete?.(this);
+        throw new Consumer.CompleteException();
       }
     }
     this.drain();
@@ -65,33 +65,36 @@ export class Consumer<VALUE, ERROR> {
         this._init.handler(this, value);
       }
     } catch (error: any) {
-      this._init.error?.(this, error);
+      this.notifyError(error);
     } finally {
       this._isProcessing = false;
     }
   }
-
   abort(error?: ERROR): void {
     if (this._state === "aborted" || this._state === "completed") return;
     this._state = "aborted";
-    this.push = () => {};
 
-    this.clean();
-    this._init.abort?.(this, error);
-    if (error && this._init.error) this._init.error(this, error);
+    throw new Consumer.AbortException(error);
   }
   complete(): void {
     if (this._state !== "active") return;
     if (this._queue.size) {
       this._state = "drain";
-      this._init.drain?.(this);
-
       this.push = () => {};
+      this._init.drain?.(this);
     } else {
       this._state = "completed";
+      throw new Consumer.CompleteException();
+    }
+  }
+  private notifyError(error: any) {
+    if (error instanceof Consumer.AbortException) {
+      if (error.error) this._init.error?.(this, error.error);
       this.clean();
-      this._init.complete?.(this);
-      this.push = () => {};
+    } else if (error instanceof Consumer.CompleteException) {
+      this.clean();
+    } else {
+      this._init.error?.(this, error);
     }
   }
   private clean() {
@@ -99,6 +102,7 @@ export class Consumer<VALUE, ERROR> {
     this._isProcessing = true;
     this._queue.clear();
     this._init = null!;
+    this.push = () => {};
   }
   get init() {
     return { ...this._init };
@@ -132,4 +136,12 @@ export namespace Consumer {
     queue?: Queue<VALUE>;
     isReady?: boolean;
   };
+
+  export class AbortException {
+    private _abortException = Symbol.for("AbortException");
+    constructor(public readonly error?: any) {}
+  }
+  export class CompleteException {
+    private _completeExceptionBrand = Symbol.for("CompleteException");
+  }
 }

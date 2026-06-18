@@ -33,7 +33,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
         this._pulling = false;
         this.push(value);
       },
-
+      error: (self, error) => {
+        this._event?.push({ type: "error", error });
+      },
       isReady: false,
     });
   }
@@ -155,6 +157,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
         init.ready?.(self);
       },
       error: (self, error) => {
+        console.log(error);
         this._event?.push({ type: "error", error: error });
       },
 
@@ -326,7 +329,7 @@ function bench() {
   }
 }
 
-bench(); //foo 10 000 000 275 ms
+// bench(); //foo 10 000 000 275 ms
 
 function sequential() {
   const smoker = new Stream<number>();
