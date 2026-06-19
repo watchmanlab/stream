@@ -1,3 +1,5 @@
+import { fromAsyncIterable } from "../streams/from-async-iterable";
+import { fromIterable } from "../streams/from-iterable";
 import { filter } from "../transformers/filter";
 import { map } from "../transformers/map";
 import { Stream } from "./stream";
@@ -23,7 +25,7 @@ function filterTest() {
 
   const mapped = stream.pipe(filter((v) => v % 2 === 0)).pipe(map((value) => value.toFixed()));
 
-  mapped.traversal.filter.filtered.listen((self, value) => {
+  mapped.traversal.filter.events.filtered.listen((self, value) => {
     console.log("filtered", value);
     self.next();
   });
@@ -49,3 +51,22 @@ function filterTest() {
 // 4
 // filtered 5
 // 6
+
+function fromIterableTest() {
+  const stream = fromIterable([1, 2, 3, 4]);
+
+  stream.events.complete.listen(() => console.log("completed"));
+  stream.events.abort.listen(() => console.log("aborted"));
+
+  stream.listen((self, val) => {
+    if (val == 3) {
+      self.abort();
+
+      return;
+    }
+    console.log(val);
+    self.next();
+  });
+}
+
+fromIterableTest();

@@ -1,18 +1,17 @@
 import { Consumer } from "./consumer";
-import type { Prettify, Queue, Source, EventShape, AnyEventShape } from "./types";
+import type { Prettify, Queue, Source, EventShape } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceConsumer } from "./source-consumer";
 import { ScopeBinder } from "./scope-binder";
 
 export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<VALUE> {
+  readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
   protected _state: Stream.State;
-  readonly name: NAME;
   protected _sourceConsumer?: SourceConsumer<VALUE>;
   protected _scopeBinder?: ScopeBinder;
   protected _queue?: Stream.QueueFactory<VALUE>;
-  protected _event?: Stream<Stream.Event<VALUE>, `${NAME}Event`>;
-
+  protected _events?: Partial<Stream.Events<VALUE, NAME>>;
   constructor(init?: Stream.Init<VALUE, NAME>) {
     this.name = init?.name ?? (Stream.NAME as NAME);
     this._queue = init?.queue;
@@ -20,12 +19,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
 
     if (init?.source)
       this._sourceConsumer = new SourceConsumer(init.source, {
-        handler: (self, value) => {
-          this.push(value);
-        },
-        error: (self, error) => {
-          this._event?.push({ type: "error", error });
-        },
+        handler: (self, value) => this.push(value),
+        error: (self, error) => this._events?.error?.push(error),
+        complete: () => this.complete(),
+        abort: (self, error) => this.abort(error),
       });
     if (init?.scope) {
       this._scopeBinder = new ScopeBinder(this, init.scope);
@@ -54,7 +51,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
       abort: (self, error) => {
         this._consumers.delete(init.handler);
 
-        this._event?.push({ type: "consumer-left", consumer });
+        this._events?.consumerLeft?.push(consumer);
 
         if (this._consumers.size === 0) {
           if (this._state === "drain") this.completed();
@@ -65,7 +62,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
       complete: (self) => {
         this._consumers.delete(init.handler);
 
-        this._event?.push({ type: "consumer-left", consumer });
+        this._events?.consumerLeft?.push(consumer);
 
         if (this._consumers.size === 0) {
           if (this._state === "drain") this.completed();
@@ -79,7 +76,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
       },
       error: (self, error) => {
         console.log(error);
-        this._event?.push({ type: "error", error: error });
+        this._events?.error?.push(error);
       },
 
       queue: init.queue ? init.queue : this._queue?.(),
@@ -87,7 +84,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
 
     this._consumers.set(init.handler, consumer);
 
-    this._event?.push({ type: "consumer-join", consumer });
+    this._events?.consumerJoin?.push(consumer);
 
     if (init.isReady !== false && this._sourceConsumer) {
       this._sourceConsumer.next();
@@ -102,7 +99,8 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
     for (const consumer of this._consumers.values()) {
       consumer.abort(error);
     }
-    this._event?.push({ type: "abort", error });
+
+    this._events?.abort?.push(error);
 
     this.clean("aborted", error);
   }
@@ -112,7 +110,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
     if (this._consumers.size) {
       this._state = "drain";
       this.push = () => {};
-      this._event?.push({ type: "drain" });
+      this._events?.drain?.push();
     } else {
       this.completed();
     }
@@ -123,21 +121,21 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
   protected completed(): void {
     this._state = "completed";
     this.push = () => {};
-    this._event?.push({ type: "complete" });
+    this._events?.complete?.push();
     this.clean("completed");
   }
   protected clean(reason: "aborted" | "completed", error?: any): void {
     if (reason === "aborted") {
-      this._event?.abort();
+      for (const event of Object.values(this._events ?? {})) event.abort(error);
       this._sourceConsumer?.abort(error);
       this._scopeBinder?.abort(error);
     } else {
-      this._event?.complete();
+      for (const event of Object.values(this._events ?? {})) event.complete();
       this._sourceConsumer?.complete();
       this._scopeBinder?.complete();
     }
 
-    this._event = this._queue = this._sourceConsumer = this._scopeBinder = undefined;
+    this._events = this._queue = this._sourceConsumer = this._scopeBinder = undefined;
   }
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
     transform: Stream.Transform<this, OUT_NAME, OUT>,
@@ -158,18 +156,23 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
   get consumersCount(): number {
     return this._consumers.size;
   }
-  get event(): Stream<Stream.Event<VALUE>, `${NAME}Event`> {
-    if (!this._event) this._event = new Stream({ name: `${this.name}Event` });
-    return new Stream({ name: this._event.name, source: this._event });
+  get events(): Stream.Events<VALUE, NAME> {
+    if (!this._events) this._events = {};
+
+    return new Proxy(this._events as Stream.Events<VALUE, NAME>, {
+      get: (target, p: string, receiver) => {
+        if (p in target) return Reflect.get(target, p, receiver);
+        const stream = new Stream({ name: this.name + p[0].toUpperCase() + p.slice(1) });
+        (this._events as any)[p] = stream;
+        return stream;
+      },
+    });
   }
   get source(): Source<VALUE> | undefined {
     return this._sourceConsumer?.source;
   }
   get scope(): ScopeBinder.Scope | undefined {
     return this._scopeBinder?.scope;
-  }
-  static fromIterable<VALUE>(iterable: Iterable<VALUE>) {
-    //TODO
   }
 }
 
@@ -179,11 +182,14 @@ export namespace Stream {
   export type State = "active" | "drain" | "aborted" | "completed";
   export type AnyStream = Stream<any, any>;
 
-  export type Event<VALUE> =
-    | EventShape<"drain" | "complete">
-    | EventShape<"abort" | "error", { error: any }>
-    | EventShape<"consumer-join" | "consumer-left", { consumer: Consumer<VALUE, any> }>;
-
+  export type Events<VALUE, NAME extends string> = {
+    drain: Stream<void, `${NAME}Drain`>;
+    complete: Stream<void, `${NAME}Complete`>;
+    abort: Stream<any, `${NAME}Abort`>;
+    error: Stream<any, `${NAME}Error`>;
+    consumerJoin: Stream<Consumer<VALUE, any>, `${NAME}ConsumerJoin`>;
+    consumerLeft: Stream<Consumer<VALUE, any>, `${NAME}ConsumerLeft`>;
+  };
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Init<VALUE, NAME extends string> = {
     name?: NAME;
@@ -231,7 +237,7 @@ function bench() {
   }
 }
 
-bench(); //moo 10 000 000 727 ms
+// bench(); //moo 10 000 000 727 ms
 
 function sequential() {
   const smoker = new Stream<number>();
@@ -268,10 +274,9 @@ function concurrent() {
 
 function errorHandling() {
   const smoker = new Stream<number>();
-  smoker.event.listen((self, e) => {
-    if (e.type === "error") {
-      console.log("error caugh:", e.error);
-    }
+  smoker.events.error.listen((self, e) => {
+    console.log("error caugh:", e.error);
+
     self.next();
   });
 

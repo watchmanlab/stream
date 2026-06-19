@@ -8,8 +8,15 @@ export class Consumer<VALUE, ERROR> {
   private _state: Consumer.State;
   private _init: Consumer.Init<VALUE, ERROR>;
 
-  constructor(init: Consumer.Init<VALUE, ERROR>) {
-    this._init = { ...init };
+  constructor(init: Consumer.Init<VALUE, ERROR>, mergeInit?: Partial<Consumer.Init<VALUE, ERROR>>) {
+    this._init = {
+      ...init,
+      ...Object.entries(mergeInit ?? {}).map(([key, val]) =>
+        typeof val === "function"
+          ? [key, (...args: any) => ((val as Function)(...args), (init as any)[key](...args))]
+          : [key, val],
+      ),
+    };
 
     this._queue = this._init.queue ? this._init.queue : new LinkedList();
     this._isReady = this._init.isReady === undefined ? true : this._init.isReady;
@@ -24,8 +31,8 @@ export class Consumer<VALUE, ERROR> {
 
       try {
         this._init.handler(this, value);
-      } catch (error) {
-        this.notifyError(error);
+      } catch (error: any) {
+        this._init.error?.(this, error);
       } finally {
         this._isProcessing = false;
       }
@@ -45,7 +52,8 @@ export class Consumer<VALUE, ERROR> {
         this._init.ready?.(this);
       } else {
         this._state = "completed";
-        throw new Consumer.CompleteException();
+        this._init.complete?.(this);
+        this.clean();
       }
     }
     this.drain();
@@ -64,7 +72,7 @@ export class Consumer<VALUE, ERROR> {
         this._init.handler(this, value);
       }
     } catch (error: any) {
-      this.notifyError(error);
+      this._init.error?.(this, error);
     } finally {
       this._isProcessing = false;
     }
@@ -73,7 +81,8 @@ export class Consumer<VALUE, ERROR> {
     if (this._state === "aborted" || this._state === "completed") return;
     this._state = "aborted";
 
-    throw new Consumer.AbortException(error);
+    this._init.abort?.(this, error);
+    this.clean();
   }
   complete(): void {
     if (this._state !== "active") return;
@@ -83,19 +92,11 @@ export class Consumer<VALUE, ERROR> {
       this._init.drain?.(this);
     } else {
       this._state = "completed";
-      throw new Consumer.CompleteException();
+      this._init.complete?.(this);
+      this.clean();
     }
   }
-  private notifyError(error: any) {
-    if (error instanceof Consumer.AbortException) {
-      if (error.error) this._init.error?.(this, error.error);
-      this.clean();
-    } else if (error instanceof Consumer.CompleteException) {
-      this.clean();
-    } else {
-      this._init.error?.(this, error);
-    }
-  }
+
   private clean() {
     this._isReady = false;
     this._isProcessing = true;

@@ -9,7 +9,7 @@ export class Filter<
   FILTERED extends VALUE = VALUE,
   NAME extends string = filter.Name,
 > extends Transformer<INPUT, FILTERED, NAME> {
-  private _filtered?: Stream<VALUE, `${NAME}Filtered`>;
+  protected override _events?: Partial<Stream.Events<FILTERED, NAME> & { filtered: Stream<VALUE, `${NAME}Filtered`> }>;
 
   constructor(
     name = filter.NAME as NAME,
@@ -23,7 +23,7 @@ export class Filter<
             if (predicate(value)) {
               outputConsumer.push(value);
             } else {
-              this._filtered?.push(value);
+              this._events?.filtered?.push(value);
               self.next();
             }
           });
@@ -41,9 +41,8 @@ export class Filter<
     });
   }
 
-  get filtered() {
-    if (!this._filtered) this._filtered = new Stream({ name: `${this.name}Filtered` });
-    return this._filtered;
+  override get events(): Stream.Events<FILTERED, NAME> & { filtered: Stream<VALUE, `${NAME}Filtered`> } {
+    return super.events as never;
   }
 }
 

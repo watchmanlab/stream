@@ -19,36 +19,23 @@ export class ScopeBinder {
   }
 
   private one(source: Stream.AnyStream): void {
-    const consumer = source.event.listen((self, e) => {
-      switch (e.type) {
-        case "abort":
-          this.target.abort(e.error);
-          break;
-        case "complete":
-          this.target.complete();
-          break;
-      }
-      self.next();
-    });
-    this._consumers.push(consumer);
+    this._consumers.push(
+      source.events.abort.listen((self, e) => this.target.abort(e.error)),
+      source.events.complete.listen(() => this.target.complete()),
+    );
   }
   private any(scopes: Stream.AnyStream[]): void {
     const set = new Set(scopes);
 
     scopes.forEach((scope) =>
       this._consumers!.push(
-        scope.event.listen((self, e) => {
-          switch (e.type) {
-            case "abort":
-              this.target.abort(e.error);
-              set.clear();
-              break;
-            case "complete":
-              this.target.complete();
-              set.clear();
-              break;
-          }
-          self.next();
+        scope.events.abort.listen((self, e) => {
+          this.target.abort(e);
+          set.clear();
+        }),
+        scope.events.complete.listen((self) => {
+          this.target.complete();
+          set.clear();
         }),
       ),
     );
@@ -59,20 +46,15 @@ export class ScopeBinder {
 
     scopes.forEach((scope) => {
       this._consumers!.push(
-        scope.event.listen((self, e) => {
-          switch (e.type) {
-            case "abort":
-              this.target.abort(e.error);
-              set.clear();
-              break;
-            case "complete":
-              if (!--count) {
-                this.target.complete();
-                set.clear();
-              }
-              break;
+        scope.events.abort.listen((self, e) => {
+          this.target.abort(e);
+          set.clear();
+        }),
+        scope.events.complete.listen(() => {
+          if (!--count) {
+            this.target.complete();
+            set.clear();
           }
-          self.next();
         }),
       );
     });
