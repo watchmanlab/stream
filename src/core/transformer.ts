@@ -1,6 +1,7 @@
+import type { ScopeBinder } from "./scope-binder";
 import { Stream } from "./stream";
 
-export abstract class Transformer<INPUT extends Stream.AnySmoker, VALUE, NAME extends string> extends Stream<
+export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME extends string> extends Stream<
   VALUE,
   NAME
 > {
@@ -9,7 +10,7 @@ export abstract class Transformer<INPUT extends Stream.AnySmoker, VALUE, NAME ex
     protected readonly input: INPUT,
     init: Stream.Init<VALUE, NAME>,
   ) {
-    let scope: Stream.Scope | undefined = init.scope;
+    let scope: ScopeBinder.Scope | undefined = init.scope;
 
     if (scope instanceof Stream) {
       scope = { any: [input, scope] };
@@ -48,11 +49,11 @@ export abstract class Transformer<INPUT extends Stream.AnySmoker, VALUE, NAME ex
 }
 
 export namespace Transformer {
-  export type AnyTransformer = Transformer<Stream.AnySmoker, any, any>;
+  export type AnyTransformer = Transformer<Stream.AnyStream, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;
   export type ExtractSmoker<T> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
-  export type Traversable<T extends Stream.AnySmoker> =
+  export type Traversable<T extends Stream.AnyStream> =
     ExtractSmoker<T> extends never
       ? T
       : Omit<T, "traversal"> & Record<ExtractSmoker<T>["name"] | (`$${string}` & {}), Traversable<ExtractSmoker<T>>>;

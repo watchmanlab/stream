@@ -1,5 +1,4 @@
-import type { EventShape, Queue } from "./types";
-import { Stream } from "./stream";
+import type { Queue } from "./types";
 import { LinkedList } from "./linked-list";
 
 export class Consumer<VALUE, ERROR> {

@@ -3,7 +3,7 @@ import { Stream } from "./stream";
 import { Transformer } from "./transformer";
 
 export class Map<
-  INPUT extends Stream.AnySmoker,
+  INPUT extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends string = map.Name,
@@ -33,7 +33,7 @@ export class Map<
   }
 }
 export function map<
-  INPUT extends Stream.AnySmoker,
+  INPUT extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends string = map.Name,
