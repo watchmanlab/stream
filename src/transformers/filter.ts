@@ -1,75 +1,65 @@
-import { Stream, Transformer } from "../core/index.ts";
-import { each } from "./each.ts";
+import { Consumer } from "../core/consumer";
+import { Stream } from "../core/stream";
+import { Transformer } from "../core/transformer";
+import type { EventShape } from "../core/types";
 
-const NAME = "filter";
 export class Filter<
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
+  INPUT extends Stream.AnyStream,
+  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
-  CTX = {},
   NAME extends string = filter.Name,
-> extends Transformer<INPUT_STREAM, FILTERED, NAME> {
+> extends Transformer<INPUT, FILTERED, NAME> {
+  private _filtered?: Stream<VALUE, `${NAME}Filtered`>;
+
   constructor(
-    name = NAME as NAME,
-    inputStream: INPUT_STREAM,
-    predicate: filter.Predicate<VALUE, FILTERED, CTX>,
-    ctx = {} as CTX,
+    name = filter.NAME as NAME,
+    input: INPUT,
+    public readonly predicate: filter.Predicate<VALUE, FILTERED>,
   ) {
-    super(
-      name,
-      inputStream,
-      inputStream.consumers.get({
-        next: (batch) => {
-          this.batch(batch.filter((value) => predicate(value, ctx)));
-          this.source?.ready();
+    super(name, input, {
+      source: {
+        listen: (init) => {
+          const inputConsumer = input.listen((self, value) => {
+            if (predicate(value)) {
+              outputConsumer.push(value);
+            } else {
+              this._filtered?.push(value);
+              self.next();
+            }
+          });
+
+          const outputConsumer = new Consumer<FILTERED, any>({
+            ...init,
+            ready: (self) => {
+              inputConsumer.next();
+              init.ready?.(self);
+            },
+          });
+          return outputConsumer;
         },
-        return: () => this.source?.return(),
-      }),
-    );
+      },
+    });
+  }
+
+  get filtered() {
+    if (!this._filtered) this._filtered = new Stream({ name: `${this.name}Filtered` });
+    return this._filtered;
   }
 }
-export function filter<
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  FILTERED extends VALUE = VALUE,
-  NAME extends string = filter.Name,
->(
-  predicate: filter.Predicate<VALUE, FILTERED, {}>,
-): Stream.Transform<INPUT_STREAM, NAME, Filter<INPUT_STREAM, VALUE, FILTERED, {}, NAME>>;
-export function filter<
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
-  FILTERED extends VALUE = VALUE,
-  CTX = {},
-  NAME extends string = filter.Name,
->(
-  ctx: CTX,
-  predicate: filter.Predicate<VALUE, FILTERED, CTX>,
-): Stream.Transform<INPUT_STREAM, NAME, Filter<INPUT_STREAM, VALUE, FILTERED, CTX, NAME>>;
 
 export function filter<
-  INPUT_STREAM extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT_STREAM> = Stream.ExtractValue<INPUT_STREAM>,
+  INPUT extends Stream.AnyStream,
+  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
-  CTX = {},
   NAME extends string = filter.Name,
->(
-  ctxOrFilter: filter.Predicate<VALUE, FILTERED, CTX> | CTX,
-  predicate?: filter.Predicate<VALUE, FILTERED, CTX>,
-): Stream.Transform<INPUT_STREAM, NAME, Filter<INPUT_STREAM, VALUE, FILTERED, CTX, NAME>> {
-  return (inputStream, name) => {
-    return new Filter(
-      name,
-      inputStream,
-      predicate ?? (ctxOrFilter as filter.Predicate<VALUE, FILTERED, CTX>),
-      predicate ? (ctxOrFilter as CTX) : undefined,
-    );
-  };
+>(predicate: filter.Predicate<VALUE, FILTERED>): Stream.Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
+  return (input, name) => new Filter(name, input, predicate);
 }
 
 export namespace filter {
+  export const NAME = "filter";
   export type Name = typeof NAME;
-  export type Predicate<VALUE, FILTERED extends VALUE, CTX> =
-    | ((value: VALUE, ctx: CTX) => value is FILTERED)
-    | ((value: VALUE, ctx: CTX) => boolean);
+  export type Predicate<VALUE, FILTERED extends VALUE> =
+    | ((value: VALUE) => value is FILTERED)
+    | ((value: VALUE) => boolean);
 }
