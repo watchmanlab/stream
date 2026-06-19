@@ -1,4 +1,4 @@
-import { Stream } from "./stream";
+import { Stream } from "./stream.ts";
 import { Channel } from "./channel.ts";
 
 async function bench() {

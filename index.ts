@@ -1,4 +1,4 @@
-import { Mitto } from "./src/mitto";
+import { Mitto } from "./branch/src/mitto";
 const m1 = new Mitto({
   source: function* () {
     yield 1;
