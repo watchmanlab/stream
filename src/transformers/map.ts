@@ -1,6 +1,6 @@
-import { Consumer } from "./consumer";
-import { Stream } from "./stream";
-import { Transformer } from "./transformer";
+import { Consumer } from "../core/consumer";
+import { Stream } from "../core/stream";
+import { Transformer } from "../core/transformer";
 
 export class Map<
   INPUT extends Stream.AnyStream,

@@ -1,17 +1,17 @@
 import { Consumer } from "./consumer";
-import type { Prettify, Queue, Source, EventShape } from "./types";
+import type { Prettify, Queue, Source, EventShape, AnyEventShape } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceConsumer } from "./source-consumer";
 import { ScopeBinder } from "./scope-binder";
 
 export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<VALUE> {
-  private _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
-  private _state: Stream.State;
+  protected _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
+  protected _state: Stream.State;
   readonly name: NAME;
-  private _sourceConsumer?: SourceConsumer<VALUE>;
-  private _scopeBinder?: ScopeBinder;
-  private _queue?: Stream.QueueFactory<VALUE>;
-  private _event?: Stream<Stream.Event<VALUE>, `${NAME}Event`>;
+  protected _sourceConsumer?: SourceConsumer<VALUE>;
+  protected _scopeBinder?: ScopeBinder;
+  protected _queue?: Stream.QueueFactory<VALUE>;
+  protected _event?: Stream<Stream.Event<VALUE>, `${NAME}Event`>;
 
   constructor(init?: Stream.Init<VALUE, NAME>) {
     this.name = init?.name ?? (Stream.NAME as NAME);
@@ -31,7 +31,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
       this._scopeBinder = new ScopeBinder(this, init.scope);
     }
   }
-
   push(value: VALUE): void {
     for (const consumer of this._consumers.values()) {
       consumer.push(value);
@@ -121,13 +120,13 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
       consumer.complete();
     }
   }
-  private completed(): void {
+  protected completed(): void {
     this._state = "completed";
     this.push = () => {};
     this._event?.push({ type: "complete" });
     this.clean("completed");
   }
-  private clean(reason: "aborted" | "completed", error?: any): void {
+  protected clean(reason: "aborted" | "completed", error?: any): void {
     if (reason === "aborted") {
       this._event?.abort();
       this._sourceConsumer?.abort(error);
@@ -232,7 +231,7 @@ function bench() {
   }
 }
 
-// bench(); //foo 10 000 000 242 ms
+bench(); //moo 10 000 000 727 ms
 
 function sequential() {
   const smoker = new Stream<number>();
