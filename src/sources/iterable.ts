@@ -16,6 +16,7 @@ export class Iterable<VALUE> implements Source<VALUE> {
         } else {
           self.push(result.value);
         }
+
         init.ready?.(self);
       },
     });

@@ -6,7 +6,7 @@ export class Consumer<VALUE, ERROR> {
   private _isReady: boolean;
   private _isProcessing: boolean;
   private _state: Consumer.State;
-  private _init: Consumer.Init<VALUE, ERROR>;
+  private _init?: Consumer.Init<VALUE, ERROR>;
 
   constructor(init: Consumer.Init<VALUE, ERROR>, mergeInit?: Partial<Consumer.Init<VALUE, ERROR>>) {
     this._init = {
@@ -30,9 +30,9 @@ export class Consumer<VALUE, ERROR> {
       this._isReady = false;
 
       try {
-        this._init.handler(this, value);
+        this._init?.handler(this, value);
       } catch (error: any) {
-        this._init.error?.(this, error);
+        this._init?.error?.(this, error);
       } finally {
         this._isProcessing = false;
       }
@@ -48,12 +48,16 @@ export class Consumer<VALUE, ERROR> {
     this._isReady = true;
 
     if (this._queue.size === 0) {
-      if (this._state === "active") {
-        this._init?.ready?.(this);
-      } else {
-        this._state = "completed";
-        this._init?.complete?.(this);
-        this.clean();
+      try {
+        if (this._state === "active") {
+          this._init?.ready?.(this);
+        } else {
+          this._state = "completed";
+          this._init?.complete?.(this);
+          this.clean();
+        }
+      } catch (error: any) {
+        this._init?.error?.(this, error);
       }
     }
     this.drain();
@@ -69,7 +73,7 @@ export class Consumer<VALUE, ERROR> {
 
         const value = this._queue.dequeue() as VALUE;
 
-        this._init.handler(this, value);
+        this._init?.handler(this, value);
       }
     } catch (error: any) {
       this._init?.error?.(this, error);
@@ -81,18 +85,28 @@ export class Consumer<VALUE, ERROR> {
     if (this._state === "aborted" || this._state === "completed") return;
     this._state = "aborted";
 
-    this._init?.abort?.(this, error);
-    this.clean();
+    try {
+      this._init?.abort?.(this, error);
+    } catch (error: any) {
+      this._init?.error?.(this, error);
+    } finally {
+      this.clean();
+    }
   }
   complete(): void {
     if (this._state !== "active") return;
-    if (this._queue.size) {
-      this._state = "drain";
-      this.push = () => {};
-      this._init.drain?.(this);
-    } else {
-      this._state = "completed";
-      this._init.complete?.(this);
+    try {
+      if (this._queue.size) {
+        this._state = "drain";
+        this.push = () => {};
+        this._init?.drain?.(this);
+      } else {
+        this._state = "completed";
+        this._init?.complete?.(this);
+      }
+    } catch (error: any) {
+      this._init?.error?.(this, error);
+    } finally {
       this.clean();
     }
   }

@@ -237,7 +237,7 @@ function bench() {
   }
 }
 
-// bench(); //moo 10 000 000 727 ms
+bench(); //moo 10 000 000 245 ms
 
 function sequential() {
   const smoker = new Stream<number>();
