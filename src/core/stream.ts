@@ -1,5 +1,5 @@
 import { Consumer } from "./consumer";
-import type { Prettify, Queue, Source, EventShape } from "./types";
+import type { Prettify, Queue, Source } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceConsumer } from "./source-consumer";
 import { ScopeBinder } from "./scope-binder";
@@ -20,10 +20,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
 
     if (init?.source)
       this._sourceConsumer = new SourceConsumer(init.source, {
-        handler: (self, value) => this.push(value),
-        error: (self, error) => this._events?.error?.push(error),
+        handler: (_, value) => this.push(value),
+        error: (_, error) => this._events?.error?.push(error),
+        abort: (_, error) => this.abort(error),
         complete: () => this.complete(),
-        abort: (self, error) => this.abort(error),
       });
     if (init?.scope) {
       this._scopeBinder = new ScopeBinder(this, init.scope);
@@ -238,13 +238,14 @@ function bench() {
   stream.listen((self, value) => {
     if (value === MAX) console.log("moo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
 
-    // if (value === 1000) {
-    //   queueMicrotask(() => {
-    //     console.log("promise resolved", value);
-    //     self.next();
-    //   });
-    //   return;
-    // }
+    if (value === 1000) {
+      value++;
+      // queueMicrotask(() => {
+      //   console.log("promise resolved", value);
+      //   self.next();
+      // });
+      // return;
+    }
 
     self.next();
   });

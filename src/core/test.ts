@@ -1,3 +1,4 @@
+import { AsyncGenerator } from "../sources/async-generator";
 import { AsyncIterable } from "../sources/async-iterable";
 import { Iterable } from "../sources/iterable";
 import { Iterator } from "../sources/iterator";
@@ -54,14 +55,34 @@ function filterTest() {
 // 6
 
 function fromIterableTest() {
-  const iter = new Iterator([1, 2, 3, 4][Symbol.iterator]());
+  const source = new AsyncGenerator(async function* () {
+    await new Promise((r) => setTimeout(r, 500));
+    yield 1;
+    await new Promise((r) => setTimeout(r, 500));
+    yield 2;
+    await new Promise((r) => setTimeout(r, 500));
+    yield 3;
+  });
+  source
+    .listen({
+      handler: (self, value) => {
+        console.log(value);
+        self.next();
+      },
+    })
+    .next();
+  const streamA = new Stream({ source });
+  const streamB = new Stream({ source });
 
-  const stream = new Stream({ source: iter });
+  // streamA.listen((self, v) => {
+  //   console.log("A:", v);
+  //   self.next();
+  // });
 
-  stream.listen((self, v) => {
-    console.log(v);
-    self.next();
-  }); // A1: 1
+  // streamB.listen((self, v) => {
+  //   console.log("B:", v);
+  //   self.next();
+  // });
 }
 
 fromIterableTest();

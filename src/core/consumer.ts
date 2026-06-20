@@ -1,4 +1,4 @@
-import type { Queue } from "./types";
+import type { Queue, Source } from "./types";
 import { LinkedList } from "./linked-list";
 
 export class Consumer<VALUE, ERROR> {
@@ -40,7 +40,6 @@ export class Consumer<VALUE, ERROR> {
       this._queue.enqueue(value);
     }
   }
-
   next(error?: ERROR): void {
     if (error && this._init?.error) this._init.error(this, error);
 
@@ -110,7 +109,6 @@ export class Consumer<VALUE, ERROR> {
       this.clean();
     }
   }
-
   private clean() {
     this._isReady = false;
     this._isProcessing = true;

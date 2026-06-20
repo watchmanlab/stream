@@ -25,13 +25,9 @@ export namespace Queue {
 
 export interface Source<VALUE> {
   listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer<VALUE, ERROR>;
-  abort(error?: any): void;
-  complete(): void;
 }
 export namespace Source {}
 
-export type EventShape<TYPE extends string, PROPS extends Record<string, any> = {}> = { type: TYPE } & PROPS;
-export type AnyEventShape = EventShape<any, any>;
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR

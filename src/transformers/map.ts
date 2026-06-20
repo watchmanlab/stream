@@ -24,12 +24,12 @@ export class Map<
               inputConsumer.next();
               init.ready?.(self);
             },
+            abort: (error) => inputConsumer.abort(error),
+            complete: () => inputConsumer.complete(),
           });
 
           return outputConsumer;
         },
-        abort: (error) => {},
-        complete: () => {},
       },
     });
   }

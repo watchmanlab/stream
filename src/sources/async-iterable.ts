@@ -2,18 +2,16 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/types";
 
 export class AsyncIterable<VALUE> implements Source<VALUE> {
-  private _asyncIterator: AsyncIterator<VALUE, any, any>;
-  constructor(asyncIterable: globalThis.AsyncIterable<VALUE> | (() => globalThis.AsyncIterable<VALUE>)) {
-    this._asyncIterator =
-      typeof asyncIterable === "function"
-        ? asyncIterable()[Symbol.asyncIterator]()
-        : asyncIterable[Symbol.asyncIterator]();
-  }
+  constructor(private asyncIterable: globalThis.AsyncIterable<VALUE> | (() => globalThis.AsyncIterable<VALUE>)) {}
   listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer<VALUE, ERROR> {
+    const iterator =
+      typeof this.asyncIterable === "function"
+        ? this.asyncIterable()[Symbol.asyncIterator]()
+        : this.asyncIterable[Symbol.asyncIterator]();
     const outputConsumer = new Consumer<VALUE, ERROR>({
       ...init,
       ready: (self) => {
-        this._asyncIterator.next().then((result) => {
+        iterator.next().then((result) => {
           if (result.done) {
             self.complete();
           } else {
@@ -22,6 +20,8 @@ export class AsyncIterable<VALUE> implements Source<VALUE> {
         });
         init.ready?.(self);
       },
+      abort: (error) => iterator.return?.(error),
+      complete: () => iterator.return?.(),
     });
     return outputConsumer;
   }
