@@ -1,10 +1,10 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/types";
 
-export class Iterable<VALUE> implements Source<VALUE> {
-  private _iterator: Iterator<VALUE, any, any>;
-  constructor(iterable: globalThis.Iterable<VALUE> | (() => globalThis.Iterable<VALUE>)) {
-    this._iterator = typeof iterable === "function" ? iterable()[Symbol.iterator]() : iterable[Symbol.iterator]();
+export class Iterator<VALUE> implements Source<VALUE> {
+  private _iterator: globalThis.Iterator<VALUE, any, any>;
+  constructor(iterator: globalThis.Iterator<VALUE> | (() => globalThis.Iterator<VALUE>)) {
+    this._iterator = typeof iterator === "function" ? iterator() : iterator;
   }
   listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer<VALUE, ERROR> {
     return new Consumer<VALUE, ERROR>({
