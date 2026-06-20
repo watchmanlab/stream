@@ -25,6 +25,8 @@ export namespace Queue {
 
 export interface Source<VALUE> {
   listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer<VALUE, ERROR>;
+  abort(error?: any): void;
+  complete(): void;
 }
 export namespace Source {}
 
