@@ -42,17 +42,17 @@ export class Consumer<VALUE, ERROR> {
   }
 
   next(error?: ERROR): void {
-    if (error && this._init.error) this._init.error(this, error);
+    if (error && this._init?.error) this._init.error(this, error);
 
     if (this._isReady) return;
     this._isReady = true;
 
     if (this._queue.size === 0) {
       if (this._state === "active") {
-        this._init.ready?.(this);
+        this._init?.ready?.(this);
       } else {
         this._state = "completed";
-        this._init.complete?.(this);
+        this._init?.complete?.(this);
         this.clean();
       }
     }
@@ -72,7 +72,7 @@ export class Consumer<VALUE, ERROR> {
         this._init.handler(this, value);
       }
     } catch (error: any) {
-      this._init.error?.(this, error);
+      this._init?.error?.(this, error);
     } finally {
       this._isProcessing = false;
     }
@@ -81,7 +81,7 @@ export class Consumer<VALUE, ERROR> {
     if (this._state === "aborted" || this._state === "completed") return;
     this._state = "aborted";
 
-    this._init.abort?.(this, error);
+    this._init?.abort?.(this, error);
     this.clean();
   }
   complete(): void {

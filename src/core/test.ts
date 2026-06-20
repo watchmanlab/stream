@@ -1,5 +1,5 @@
-import { fromAsyncIterable } from "../streams/from-async-iterable";
-import { fromIterable } from "../streams/from-iterable";
+import { AsyncIterable } from "../sources/async-iterable";
+import { Iterable } from "../sources/iterable";
 import { filter } from "../transformers/filter";
 import { map } from "../transformers/map";
 import { Stream } from "./stream";
@@ -53,20 +53,14 @@ function filterTest() {
 // 6
 
 function fromIterableTest() {
-  const stream = fromIterable([1, 2, 3, 4]);
+  const iter = new Iterable([1, 2, 3]);
 
-  stream.events.complete.listen(() => console.log("completed"));
-  stream.events.abort.listen(() => console.log("aborted"));
+  const stream = new Stream({ source: iter });
 
-  stream.listen((self, val) => {
-    if (val == 3) {
-      self.abort();
-
-      return;
-    }
-    console.log(val);
+  stream.listen((self, v) => {
+    console.log("A1:", v);
     self.next();
-  });
+  }); // A1: 1
 }
 
 fromIterableTest();
