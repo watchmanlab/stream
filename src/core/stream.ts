@@ -3,6 +3,7 @@ import type { Prettify, Queue, Source, EventShape } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceConsumer } from "./source-consumer";
 import { ScopeBinder } from "./scope-binder";
+import { map } from "../transformers/map";
 
 export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<VALUE> {
   readonly name: NAME;
@@ -28,11 +29,24 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
       this._scopeBinder = new ScopeBinder(this, init.scope);
     }
   }
-  push(value: VALUE): void {
-    for (const consumer of this._consumers.values()) {
-      consumer.push(value);
+  protected optimizePush(): void {
+    switch (this._consumers.size) {
+      case 0:
+        this.push = () => {};
+        break;
+      case 1:
+        const consumer = this._consumers.values().next().value!;
+        this.push = (value: VALUE) => consumer.push(value);
+        break;
+      default:
+        this.push = (value: VALUE) => {
+          for (const consumer of this._consumers.values()) {
+            consumer.push(value);
+          }
+        };
     }
   }
+  push(value: VALUE): void {}
   listen<ERROR>(
     handler: Consumer.Handler<VALUE, ERROR>,
     init?: Prettify<Omit<Consumer.Init<VALUE, ERROR>, "handler">>,
@@ -50,6 +64,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
       ...init,
       abort: (self, error) => {
         this._consumers.delete(init.handler);
+        this.optimizePush();
 
         this._events?.consumerLeft?.push(consumer);
 
@@ -61,6 +76,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
       },
       complete: (self) => {
         this._consumers.delete(init.handler);
+        this.optimizePush();
 
         this._events?.consumerLeft?.push(consumer);
 
@@ -83,6 +99,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
     });
 
     this._consumers.set(init.handler, consumer);
+    this.optimizePush();
 
     this._events?.consumerJoin?.push(consumer);
 
@@ -214,7 +231,7 @@ export namespace Stream {
 }
 
 function bench() {
-  const MAX = 10_000_000;
+  const MAX = 70_000_000;
   const stream = new Stream<number>();
 
   const start = performance.now();
@@ -237,7 +254,7 @@ function bench() {
   }
 }
 
-bench(); //moo 10 000 000 245 ms
+bench(); //moo 70 000 000 997 ms
 
 function sequential() {
   const smoker = new Stream<number>();
