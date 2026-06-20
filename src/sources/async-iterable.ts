@@ -20,8 +20,14 @@ export class AsyncIterable<VALUE> implements Source<VALUE> {
         });
         init.ready?.(self);
       },
-      abort: (error) => iterator.return?.(error),
-      complete: () => iterator.return?.(),
+      abort: (self, error) => {
+        iterator.return?.(error);
+        init.abort?.(self, error);
+      },
+      complete: (self) => {
+        iterator.return?.(undefined);
+        init.complete?.(self);
+      },
     });
     return outputConsumer;
   }

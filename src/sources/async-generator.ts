@@ -18,8 +18,14 @@ export class AsyncGenerator<VALUE> implements Source<VALUE> {
         });
         init.ready?.(self);
       },
-      abort: (error) => iterator.return?.(error),
-      complete: () => iterator.return?.(undefined),
+      abort: (self, error) => {
+        iterator.return(error);
+        init.abort?.(self, error);
+      },
+      complete: (self) => {
+        iterator.return(undefined);
+        init.complete?.(self);
+      },
     });
   }
 }

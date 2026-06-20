@@ -16,7 +16,7 @@ export class Map<
     super(name, input, {
       source: {
         listen: (init) => {
-          const inputConsumer = input.listen((self, value) => outputConsumer.push(mapper(value)));
+          const inputConsumer = input.listen((_, value) => outputConsumer.push(mapper(value)));
 
           const outputConsumer = new Consumer<MAPPED, any>({
             ...init,
@@ -24,8 +24,14 @@ export class Map<
               inputConsumer.next();
               init.ready?.(self);
             },
-            abort: (error) => inputConsumer.abort(error),
-            complete: () => inputConsumer.complete(),
+            abort: (self, error) => {
+              inputConsumer.abort(error);
+              init.abort?.(self, error);
+            },
+            complete: (self) => {
+              inputConsumer.complete();
+              init.complete?.(self);
+            },
           });
 
           return outputConsumer;

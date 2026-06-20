@@ -1,7 +1,6 @@
 import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import type { EventShape } from "../core/types";
 
 export class Filter<
   INPUT extends Stream.AnyStream,
@@ -33,6 +32,14 @@ export class Filter<
             ready: (self) => {
               inputConsumer.next();
               init.ready?.(self);
+            },
+            abort: (self, error) => {
+              inputConsumer.abort(error);
+              init.abort?.(self, error);
+            },
+            complete: (self) => {
+              inputConsumer.complete();
+              init.complete?.(self);
             },
           });
           return outputConsumer;

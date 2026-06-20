@@ -1,7 +1,7 @@
 import type { Queue, Source } from "./types";
 import { LinkedList } from "./linked-list";
 
-export class Consumer<VALUE, ERROR> {
+export class Consumer<VALUE, ERROR = never> {
   private _queue: Queue<VALUE>;
   private _isReady: boolean;
   private _isProcessing: boolean;
@@ -43,7 +43,10 @@ export class Consumer<VALUE, ERROR> {
   next(error?: ERROR): void {
     if (error && this._init?.error) this._init.error(this, error);
 
-    if (this._isReady) return;
+    if (this._isReady) {
+      this._init?.ready?.(this);
+      return;
+    }
     this._isReady = true;
 
     if (this._queue.size === 0) {
