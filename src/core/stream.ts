@@ -62,6 +62,16 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
 
     const consumer = new Consumer({
       ...init,
+      ready: this._sourceConsumer
+        ? init.ready
+          ? (self) => {
+              this._sourceConsumer!.next();
+              init.ready!(self);
+            }
+          : (_) => {
+              this._sourceConsumer!.next();
+            }
+        : init.ready,
       abort: (self, error) => {
         this._consumers.delete(init.handler);
         this.optimizePush();
@@ -86,10 +96,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
 
         init.complete?.(self);
       },
-      ready: (self) => {
-        this._sourceConsumer?.next();
-        init.ready?.(self);
-      },
+
       error: (self, error) => {
         console.log(error);
         this._events?.error?.push(error);
@@ -167,6 +174,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
   ): OUT {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
+  compose() {}
   get state(): Stream.State {
     return this._state;
   }

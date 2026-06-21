@@ -30,10 +30,9 @@ function mapTest() {
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);
   }
-  consumer.next();
 }
 
-mapTest();
+mapTest(); //7 000 000 1296
 function filterTest() {
   const stream = new Stream<number>();
 

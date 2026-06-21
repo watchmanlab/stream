@@ -1,4 +1,4 @@
-import type { Queue, Source } from "./types";
+import type { Queue } from "./types";
 import { LinkedList } from "./linked-list";
 
 export class Consumer<VALUE, ERROR = never> {
@@ -6,17 +6,13 @@ export class Consumer<VALUE, ERROR = never> {
   private _isReady: boolean;
   private _isProcessing: boolean;
   private _state: Consumer.State;
-  private _init?: Consumer.Init<VALUE, ERROR>;
-
-  constructor(init: Consumer.Init<VALUE, ERROR>, mergeInit?: Partial<Consumer.Init<VALUE, ERROR>>) {
-    this._init = {
-      ...init,
-      ...Object.entries(mergeInit ?? {}).map(([key, val]) =>
-        typeof val === "function"
-          ? [key, (...args: any) => ((val as Function)(...args), (init as any)[key](...args))]
-          : [key, val],
-      ),
-    };
+  private _init: Consumer.Init<VALUE, ERROR>;
+  private _handler: Consumer.Handler<VALUE, ERROR>;
+  private _ready: (self: Consumer<VALUE, ERROR>) => void;
+  constructor(init: Consumer.Init<VALUE, ERROR>) {
+    this._init = { ...init };
+    this._handler = init.handler;
+    this._ready = init.ready ?? (() => {});
 
     this._queue = this._init.queue ? this._init.queue : new LinkedList();
     this._isReady = this._init.isReady === undefined ? true : this._init.isReady;
@@ -30,7 +26,7 @@ export class Consumer<VALUE, ERROR = never> {
       this._isReady = false;
 
       try {
-        this._init?.handler(this, value);
+        this._handler(this, value);
       } catch (error: any) {
         this._init?.error?.(this, error);
       } finally {
@@ -40,11 +36,12 @@ export class Consumer<VALUE, ERROR = never> {
       this._queue.enqueue(value);
     }
   }
+
   next(error?: ERROR): void {
     if (error && this._init?.error) this._init.error(this, error);
 
     if (this._isReady) {
-      this._init?.ready?.(this);
+      this._ready(this);
       return;
     }
     this._isReady = true;
@@ -52,7 +49,7 @@ export class Consumer<VALUE, ERROR = never> {
     if (this._queue.size === 0) {
       try {
         if (this._state === "active") {
-          this._init?.ready?.(this);
+          this._ready(this);
         } else {
           this._state = "completed";
           this._init?.complete?.(this);
@@ -75,7 +72,7 @@ export class Consumer<VALUE, ERROR = never> {
 
         const value = this._queue.dequeue() as VALUE;
 
-        this._init?.handler(this, value);
+        this._handler(this, value);
       }
     } catch (error: any) {
       this._init?.error?.(this, error);
@@ -117,11 +114,9 @@ export class Consumer<VALUE, ERROR = never> {
     this._isProcessing = true;
     this._queue.clear();
     this._init = null!;
-    this.push = () => {};
+    this.push = this.next = this.drain = () => {};
   }
-  get init() {
-    return { ...this._init };
-  }
+
   get state() {
     return this._state;
   }
