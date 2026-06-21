@@ -174,7 +174,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
   ): OUT {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-  compose() {}
+
   get state(): Stream.State {
     return this._state;
   }

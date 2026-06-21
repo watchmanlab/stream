@@ -39,6 +39,11 @@ export class Map<
       },
     });
   }
+  override apply: Transformer.Apply<VALUE, MAPPED> = <ROOT extends Stream.AnyStream, OUTPUT extends Stream.AnyStream>(
+    init: Transformer.ApplyInit<VALUE, MAPPED, ROOT, OUTPUT>,
+  ) => {
+    init.continue(this.mapper(init.value));
+  };
 }
 export function map<
   INPUT extends Stream.AnyStream,
