@@ -16,8 +16,7 @@ export class GCSignalStream<VALUE extends void, NAME extends string> extends Str
 
           new Promise<void>((resolve) => {
             if (!ref.deref()) {
-              consumer.push();
-              return consumer;
+              resolve();
             }
             registry = new FinalizationRegistry(() => {
               resolve();
