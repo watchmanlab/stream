@@ -1,6 +1,5 @@
 import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
-import { Source } from "../core/types";
 
 export class AsyncGeneratorStream<VALUE, NAME extends string> extends Stream<VALUE, NAME> {
   constructor(
