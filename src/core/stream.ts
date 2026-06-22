@@ -47,6 +47,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
     }
   }
   push(value: VALUE): void {}
+
   listen<ERROR>(
     handler: Consumer.Handler<VALUE, ERROR>,
     init?: Prettify<Omit<Consumer.Init<VALUE, ERROR>, "handler">>,
@@ -68,7 +69,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
               this._sourceConsumer!.next();
               init.ready!(self);
             }
-          : (_) => {
+          : () => {
               this._sourceConsumer!.next();
             }
         : init.ready,

@@ -65,7 +65,6 @@ export class Consumer<VALUE, ERROR = never> {
     if (this._isProcessing) return;
 
     this._isProcessing = true;
-
     try {
       while (this._isReady && this._queue.size) {
         this._isReady = false;

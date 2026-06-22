@@ -29,10 +29,14 @@ export class Filter<
 
           const outputConsumer = new Consumer<FILTERED, any>({
             ...init,
-            ready: (self) => {
-              inputConsumer.next();
-              init.ready?.(self);
-            },
+            ready: init.ready
+              ? (self) => {
+                  inputConsumer.next();
+                  init.ready!(self);
+                }
+              : () => {
+                  inputConsumer.next();
+                },
             abort: (self, error) => {
               inputConsumer.abort(error);
               init.abort?.(self, error);
