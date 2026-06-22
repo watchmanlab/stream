@@ -1,11 +1,7 @@
-import { AsyncGenerator } from "./sources/async-generator";
-import { AsyncIterable } from "./sources/async-iterable";
-import { Iterable } from "./sources/iterable";
-import { Iterator } from "./sources/iterator";
 import { filter } from "./transformers/filter";
 import { map } from "./transformers/map";
 import { Stream } from "./core/stream";
-import { Source } from "./core/types";
+import { IterableStream } from "./streams/iterable-stream";
 
 function mapTest() {
   const MAX = 7_000_000;
@@ -80,7 +76,7 @@ function mapTest() {
   //. ^?
 }
 
-mapTest();
+// mapTest();
 // 7 000 000 2172 ms
 // 7 000 000 2173 ms
 // 7 000 000 2173 ms
@@ -119,34 +115,18 @@ function filterTest() {
 // 6
 
 function fromIterableTest() {
-  const source: Source<number> = new AsyncGenerator<number>(async function* () {
-    await new Promise((r) => setTimeout(r, 500));
-    yield 1;
-    await new Promise((r) => setTimeout(r, 500));
-    yield 2;
-    await new Promise((r) => setTimeout(r, 500));
-    yield 3;
-  });
-  source
-    .listen({
-      handler: (self, value) => {
-        console.log("source", value);
-        self.next();
-      },
-    })
-    .next();
-  const streamA = new Stream({ source });
-  const streamB = new Stream({ source });
+  const stream = new IterableStream([1, 2, 3, 4]);
 
-  streamA.listen((self, v) => {
+  stream.listen((self, v) => {
     console.log("A:", v);
-    self.next();
+    queueMicrotask(() => {
+      self.next();
+    });
   });
-
-  streamB.listen((self, v) => {
+  stream.listen((self, v) => {
     console.log("B:", v);
     self.next();
   });
 }
 
-// fromIterableTest();
+fromIterableTest();
