@@ -27,9 +27,11 @@ export class Filter<
             }
           });
 
+          const { ready, abort, complete } = init;
+
           const outputConsumer = new Consumer<FILTERED, any>({
             ...init,
-            ready: init.ready
+            ready: ready
               ? (self) => {
                   inputConsumer.next();
                   init.ready!(self);
@@ -39,11 +41,11 @@ export class Filter<
                 },
             abort: (self, error) => {
               inputConsumer.abort(error);
-              init.abort?.(self, error);
+              abort?.(self, error);
             },
             complete: (self) => {
               inputConsumer.complete();
-              init.complete?.(self);
+              complete?.(self);
             },
           });
           return outputConsumer;

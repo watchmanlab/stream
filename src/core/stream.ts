@@ -59,39 +59,41 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
   ): Consumer<VALUE, ERROR> {
     const init = typeof handlerOrInit === "function" ? { handler: handlerOrInit, ..._init } : { ...handlerOrInit };
 
-    if (this._consumers.has(init.handler)) return this._consumers.get(init.handler)!;
+    const { _consumers, _sourceConsumer, _events } = this;
+
+    if (_consumers.has(init.handler)) return _consumers.get(init.handler)!;
 
     const consumer = new Consumer({
       ...init,
-      ready: this._sourceConsumer
+      ready: _sourceConsumer
         ? init.ready
           ? (self) => {
-              this._sourceConsumer!.next();
+              _sourceConsumer!.next();
               init.ready!(self);
             }
           : () => {
-              this._sourceConsumer!.next();
+              _sourceConsumer!.next();
             }
         : init.ready,
       abort: (self, error) => {
-        this._consumers.delete(init.handler);
+        _consumers.delete(init.handler);
         this.optimizePush();
 
-        this._events?.consumerLeft?.push(consumer);
+        _events?.consumerLeft?.push(consumer);
 
-        if (this._consumers.size === 0) {
+        if (_consumers.size === 0) {
           if (this._state === "drain") this.completed();
         }
 
         init.abort?.(self, error);
       },
       complete: (self) => {
-        this._consumers.delete(init.handler);
+        _consumers.delete(init.handler);
         this.optimizePush();
 
-        this._events?.consumerLeft?.push(consumer);
+        _events?.consumerLeft?.push(consumer);
 
-        if (this._consumers.size === 0) {
+        if (_consumers.size === 0) {
           if (this._state === "drain") this.completed();
         }
 
@@ -100,19 +102,19 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
 
       error: (self, error) => {
         console.log(error);
-        this._events?.error?.push(error);
+        _events?.error?.push(error);
       },
 
       queue: init.queue ? init.queue : this._queue?.(),
     });
 
-    this._consumers.set(init.handler, consumer);
+    _consumers.set(init.handler, consumer);
     this.optimizePush();
 
-    this._events?.consumerJoin?.push(consumer);
+    _events?.consumerJoin?.push(consumer);
 
-    if (init.isReady !== false && this._sourceConsumer) {
-      this._sourceConsumer.next();
+    if (init.isReady !== false && _sourceConsumer) {
+      _sourceConsumer.next();
     }
 
     return consumer;
