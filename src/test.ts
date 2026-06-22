@@ -21,11 +21,11 @@ function mapTest() {
     .pipe(
       "filter1",
       filter((v) => v <= MAX * 2),
-    )
-    .pipe(
-      "filter2",
-      filter((v) => v <= MAX * 2),
     );
+  // .pipe(
+  //   "filter2",
+  //   filter((v) => v <= MAX * 2),
+  // );
 
   s.listen((self, v) => {
     if (v === MAX * 2) {
@@ -36,42 +36,42 @@ function mapTest() {
 
     self.next();
   });
-  s.listen((self, v) => {
-    if (v === MAX * 2) {
-      console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      self.abort();
-      return;
-    }
+  // s.listen((self, v) => {
+  //   if (v === MAX * 2) {
+  //     console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+  //     self.abort();
+  //     return;
+  //   }
 
-    self.next();
-  });
-  s.listen((self, v) => {
-    if (v === MAX * 2) {
-      console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      self.abort();
-      return;
-    }
+  //   self.next();
+  // });
+  // s.listen((self, v) => {
+  //   if (v === MAX * 2) {
+  //     console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+  //     self.abort();
+  //     return;
+  //   }
 
-    self.next();
-  });
-  s.listen((self, v) => {
-    if (v === MAX * 2) {
-      console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      self.abort();
-      return;
-    }
+  //   self.next();
+  // });
+  // s.listen((self, v) => {
+  //   if (v === MAX * 2) {
+  //     console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+  //     self.abort();
+  //     return;
+  //   }
 
-    self.next();
-  });
-  s.listen((self, v) => {
-    if (v === MAX * 2) {
-      console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      self.abort();
-      return;
-    }
+  //   self.next();
+  // });
+  // s.listen((self, v) => {
+  //   if (v === MAX * 2) {
+  //     console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+  //     self.abort();
+  //     return;
+  //   }
 
-    self.next();
-  });
+  //   self.next();
+  // });
 
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);

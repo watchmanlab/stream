@@ -36,7 +36,6 @@ export class Consumer<VALUE, ERROR = never> {
       this._queue.enqueue(value);
     }
   }
-
   next(error?: ERROR): void {
     if (error && this._init?.error) this._init.error(this, error);
 
@@ -60,24 +59,6 @@ export class Consumer<VALUE, ERROR = never> {
       }
     }
     this.drain();
-  }
-  private drain(): void {
-    if (this._isProcessing) return;
-
-    this._isProcessing = true;
-    try {
-      while (this._isReady && this._queue.size) {
-        this._isReady = false;
-
-        const value = this._queue.dequeue() as VALUE;
-
-        this._handler(this, value);
-      }
-    } catch (error: any) {
-      this._init?.error?.(this, error);
-    } finally {
-      this._isProcessing = false;
-    }
   }
   abort(error?: ERROR): void {
     if (this._state === "aborted" || this._state === "completed") return;
@@ -108,24 +89,41 @@ export class Consumer<VALUE, ERROR = never> {
       this.clean();
     }
   }
-  private clean() {
+  private drain(): void {
+    if (this._isProcessing) return;
+
+    this._isProcessing = true;
+    try {
+      while (this._isReady && this._queue.size) {
+        this._isReady = false;
+
+        const value = this._queue.dequeue() as VALUE;
+
+        this._handler(this, value);
+      }
+    } catch (error: any) {
+      this._init?.error?.(this, error);
+    } finally {
+      this._isProcessing = false;
+    }
+  }
+  private clean(): void {
     this._isReady = false;
     this._isProcessing = true;
     this._queue.clear();
     this._init = null!;
     this.push = this.next = this.drain = () => {};
   }
-
-  get state() {
+  get state(): Consumer.State {
     return this._state;
   }
-  get queue() {
+  get queue(): Queue<VALUE> {
     return this._queue;
   }
-  get isReady() {
+  get isReady(): boolean {
     return this._isReady;
   }
-  get isProcessing() {
+  get isProcessing(): boolean {
     return this._isProcessing;
   }
 }
@@ -145,12 +143,4 @@ export namespace Consumer {
     queue?: Queue<VALUE>;
     isReady?: boolean;
   };
-
-  export class AbortException {
-    private _abortException = Symbol.for("AbortException");
-    constructor(public readonly error?: any) {}
-  }
-  export class CompleteException {
-    private _completeExceptionBrand = Symbol.for("CompleteException");
-  }
 }

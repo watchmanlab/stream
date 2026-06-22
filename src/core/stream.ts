@@ -3,7 +3,6 @@ import type { Prettify, Queue, Source } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceConsumer } from "./source-consumer";
 import { ScopeBinder } from "./scope-binder";
-import { map } from "../transformers/map";
 
 export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<VALUE> {
   readonly name: NAME;
@@ -60,21 +59,22 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
     const init = typeof handlerOrInit === "function" ? { handler: handlerOrInit, ..._init } : { ...handlerOrInit };
 
     const { _consumers, _sourceConsumer, _events } = this;
+    const { ready } = init;
 
     if (_consumers.has(init.handler)) return _consumers.get(init.handler)!;
 
     const consumer = new Consumer({
       ...init,
       ready: _sourceConsumer
-        ? init.ready
+        ? ready
           ? (self) => {
               _sourceConsumer!.next();
-              init.ready!(self);
+              ready(self);
             }
           : () => {
               _sourceConsumer!.next();
             }
-        : init.ready,
+        : ready,
       abort: (self, error) => {
         _consumers.delete(init.handler);
         this.optimizePush();

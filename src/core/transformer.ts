@@ -60,8 +60,9 @@ export namespace Transformer {
     T["name"] | (`$${string}` & {}),
     Transformer.Traversable<T>
   >;
-  export type Traversable<T extends Stream.AnyStream> =
-    ExtractInputStream<T> extends never ? T : Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>;
+  export type Traversable<T extends Stream.AnyStream> = [ExtractInputStream<T>] extends [never]
+    ? T
+    : Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>;
 
   export type ApplyInit<IN_VALUE, OUT_VALUE, ROOT extends Stream.AnyStream, OUTPUT extends Stream.AnyStream> = {
     value: IN_VALUE;

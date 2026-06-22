@@ -34,7 +34,7 @@ export class Filter<
             ready: ready
               ? (self) => {
                   inputConsumer.next();
-                  init.ready!(self);
+                  ready(self);
                 }
               : () => {
                   inputConsumer.next();

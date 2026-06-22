@@ -20,7 +20,6 @@ export class SourceConsumer<VALUE> {
       isReady: false,
     });
   }
-
   next(): void {
     if (!this._pulling) {
       this._pulling = true;

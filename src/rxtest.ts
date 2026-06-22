@@ -1,5 +1,5 @@
-import { Subject } from "rxjs";
-import { map, filter, share } from "rxjs/operators";
+import { Subject, asyncScheduler } from "rxjs";
+import { map, filter, share, observeOn } from "rxjs/operators";
 
 const v = filter(() => true)(new Subject<number>());
 
@@ -9,6 +9,7 @@ function rxjsBench() {
   const start = performance.now();
 
   const s = subject.pipe(
+    observeOn(asyncScheduler),
     map((v) => v * 2),
     filter((v) => v <= MAX * 2),
     filter((v) => v <= MAX * 2),
