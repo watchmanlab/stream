@@ -6,7 +6,7 @@ import { IterableStream } from "./streams/iterable-stream";
 function bench() {
   const MAX = 7_000_000;
 
-  const stream = new Stream<number>("root");
+  const stream = new Stream<number>();
   const start = performance.now();
 
   const s = stream
@@ -99,6 +99,10 @@ function filterTest() {
 
   const mapped = stream.pipe(filter((v) => v % 2 === 0)).pipe(map((value) => value.toFixed()));
 
+  mapped.traversal.filter.events.consumerJoin.listen((self) => {
+    console.log("consumer join");
+    self.next();
+  });
   mapped.traversal.filter.events.filtered.listen((self, value) => {
     console.log("filtered", value);
     self.next();
@@ -118,7 +122,7 @@ function filterTest() {
   stream.push(6);
 }
 
-// filterTest();
+filterTest();
 // filtered 1
 // 2
 // filtered 3

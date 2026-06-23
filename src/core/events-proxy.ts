@@ -1,30 +1,29 @@
 import { Stream } from "./stream";
 import { Evented } from "./types";
 
-export class EventsProxy<
-  EVENTS extends Record<string, unknown>,
-  NAME extends string,
-  SELF extends Evented<any> | undefined = undefined,
-> {
+export class EventsProxy<EVENTS extends Record<string, unknown>, NAME extends string, SELF extends Evented<any>> {
   protected _events?: Partial<EventsProxy.EventsStream<EVENTS, NAME>>;
   constructor(
     private name: NAME,
+    self?: SELF,
     hooks?: EventsProxy.Hooks<EVENTS, SELF>,
   ) {
-    if (hooks) {
-      this.push = (eventName, value) => {
-        hooks.handlers[eventName](hooks.self, value);
+    if (hooks && self) {
+      this.emit = (eventName, value) => {
+        hooks[eventName]?.(self, value);
         this._events?.[eventName]?.push?.(value);
       };
     } else {
-      this.push = (eventName, value) => {
+      this.emit = (eventName, value) => {
         this._events?.[eventName]?.push?.(value);
       };
     }
   }
 
-  push<KEY extends keyof EVENTS, VALUE extends EVENTS[KEY]>(eventName: KEY, value: VALUE) {}
-
+  emit<KEY extends keyof EVENTS, VALUE extends EVENTS[KEY]>(eventName: KEY, value: VALUE): void {}
+  has<KEY extends keyof EVENTS>(eventName: KEY): boolean {
+    return this._events?.[eventName] !== undefined;
+  }
   get events(): EventsProxy.EventsStream<EVENTS, NAME> {
     if (!this._events) this._events = {};
     const { _events } = this;
@@ -50,7 +49,6 @@ export namespace EventsProxy {
     [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
   };
   export type Hooks<EVENTS extends Record<string, unknown>, SELF> = {
-    self: SELF;
-    handlers: { [K in keyof EVENTS]: (self: SELF, value: EVENTS[K]) => void };
+    [K in keyof EVENTS]?: (self: SELF, value: EVENTS[K]) => void;
   };
 }
