@@ -1,10 +1,10 @@
 import { Consumer } from "../core/consumer";
-import { Stream } from "../core/stream";
+import { Stream, type stream } from "../core/stream";
 
 export class AsyncIteratorStream<VALUE, NAME extends string> extends Stream<VALUE, NAME> {
   constructor(
     public readonly asyncItrator: AsyncIterator<VALUE> | (() => AsyncIterator<VALUE>),
-    init?: Omit<Stream.Init<VALUE, NAME>, "source">,
+    init?: Omit<stream.Init<VALUE, NAME>, "source">,
   ) {
     super({
       ...init,

@@ -1,14 +1,13 @@
-import { Consumer } from "../core/consumer";
-import { Stream } from "../core/stream";
+import { Stream, stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
 
 export class Filter<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends stream.AnyStream,
+  VALUE extends stream.ExtractValue<INPUT> = stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends string = filter.Name,
 > extends Transformer<INPUT, FILTERED, NAME> {
-  protected override _events?: Partial<Stream.Events<FILTERED, NAME> & { filtered: Stream<VALUE, `${NAME}Filtered`> }>;
+  protected override _events?: Partial<stream.Events<FILTERED, NAME> & { filtered: Stream<VALUE, `${NAME}Filtered`> }>;
 
   constructor(
     name = filter.NAME as NAME,
@@ -34,17 +33,17 @@ export class Filter<
     });
   }
 
-  override get events(): Stream.Events<FILTERED, NAME> & { filtered: Stream<VALUE, `${NAME}Filtered`> } {
+  override get events(): stream.Events<FILTERED, NAME> & { filtered: Stream<VALUE, `${NAME}Filtered`> } {
     return super.events as never;
   }
 }
 
 export function filter<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends stream.AnyStream,
+  VALUE extends stream.ExtractValue<INPUT> = stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends string = filter.Name,
->(predicate: filter.Predicate<VALUE, FILTERED>): Stream.Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
+>(predicate: filter.Predicate<VALUE, FILTERED>): stream.Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
   return (input, name) => new Filter(name, input, predicate);
 }
 

@@ -1,11 +1,11 @@
 import { Consumer } from "../core/consumer";
-import { Stream } from "../core/stream";
+import { Stream, type stream } from "../core/stream";
 
 export class AbortSignalStream<VALUE extends void, NAME extends string> extends Stream<void, NAME> {
   constructor(
     public readonly signal: AbortSignal,
 
-    init?: Omit<Stream.Init<void, NAME>, "source">,
+    init?: Omit<stream.Init<void, NAME>, "source">,
   ) {
     super({
       ...init,

@@ -1,5 +1,5 @@
 import { Consumer } from "../core/consumer";
-import { Stream } from "../core/stream";
+import { Stream, type stream } from "../core/stream";
 
 export class EventTargetStream<
   EVENT_TYPE extends keyof HTMLElementEventMap | (string & {}),
@@ -9,7 +9,7 @@ export class EventTargetStream<
     public readonly target: EventTarget,
     public readonly eventType: EVENT_TYPE,
     init?: Omit<
-      Stream.Init<EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event, NAME>,
+      stream.Init<EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event, NAME>,
       "source"
     >,
   ) {

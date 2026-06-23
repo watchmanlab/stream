@@ -1,10 +1,10 @@
-import { Stream } from "./stream";
+import { Stream, stream } from "./stream";
 import type { Consumer } from "./consumer";
 
 export class ScopeBinder {
   private _consumers: Consumer.AnyConsumer[];
   constructor(
-    private target: Stream.AnyStream,
+    private target: stream.AnyStream,
     public readonly scope: ScopeBinder.Scope,
   ) {
     this._consumers = [];
@@ -18,13 +18,13 @@ export class ScopeBinder {
     }
   }
 
-  private one(source: Stream.AnyStream): void {
+  private one(source: stream.AnyStream): void {
     this._consumers.push(
       source.events.abort.listen((self, e) => this.target.abort(e.error)),
       source.events.complete.listen(() => this.target.complete()),
     );
   }
-  private any(scopes: Stream.AnyStream[]): void {
+  private any(scopes: stream.AnyStream[]): void {
     const set = new Set(scopes);
 
     scopes.forEach((scope) =>
@@ -40,7 +40,7 @@ export class ScopeBinder {
       ),
     );
   }
-  private all(scopes: Stream.AnyStream[]): void {
+  private all(scopes: stream.AnyStream[]): void {
     const set = new Set(scopes);
     let count = set.size;
 
@@ -75,7 +75,7 @@ export class ScopeBinder {
 
 export namespace ScopeBinder {
   export type Scope =
-    | Stream.AnyStream
-    | { any: [Stream.AnyStream, ...Stream.AnyStream[]]; all?: never }
-    | { any?: never; all: [Stream.AnyStream, ...Stream.AnyStream[]] };
+    | stream.AnyStream
+    | { any: [stream.AnyStream, ...stream.AnyStream[]]; all?: never }
+    | { any?: never; all: [stream.AnyStream, ...stream.AnyStream[]] };
 }

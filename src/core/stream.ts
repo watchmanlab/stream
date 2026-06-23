@@ -1,19 +1,19 @@
 import { Consumer } from "./consumer";
 import type { Prettify, Queue, Source } from "./types";
-import type { Transformer } from "./transformer";
+import type { Transformer, transformer } from "./transformer";
 import { SourceConsumer } from "./source-consumer";
 import { ScopeBinder } from "./scope-binder";
 
-export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<VALUE> {
+export class Stream<VALUE, NAME extends string = stream.Name> implements Source<VALUE> {
   readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
-  protected _state: Stream.State;
+  protected _state: stream.State;
   protected _sourceConsumer?: SourceConsumer<VALUE>;
   protected _scopeBinder?: ScopeBinder;
-  protected _queueFactory?: Stream.QueueFactory<VALUE>;
-  protected _events?: Partial<Stream.Events<VALUE, NAME>>;
-  constructor(private init?: Stream.Init<VALUE, NAME>) {
-    this.name = init?.name ?? (Stream.NAME as NAME);
+  protected _queueFactory?: stream.QueueFactory<VALUE>;
+  protected _events?: Partial<stream.Events<VALUE, NAME>>;
+  constructor(private init?: stream.Init<VALUE, NAME>) {
+    this.name = init?.name ?? (stream.NAME as NAME);
     this._queueFactory = init?.queueFactory;
     this._state = "active";
 
@@ -191,29 +191,29 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
     this._events = this.init = this._queueFactory = this._sourceConsumer = this._scopeBinder = undefined;
   }
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    transform: Stream.Transform<this, OUT_NAME, OUT>,
+    transform: stream.Transform<this, OUT_NAME, OUT>,
   ): OUT;
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
     name: OUT_NAME,
-    transform: Stream.Transform<this, OUT_NAME, OUT>,
+    transform: stream.Transform<this, OUT_NAME, OUT>,
   ): OUT;
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    nameOrTransform: OUT_NAME | Stream.Transform<this, OUT_NAME, OUT>,
-    transform?: Stream.Transform<this, OUT_NAME, OUT>,
+    nameOrTransform: OUT_NAME | stream.Transform<this, OUT_NAME, OUT>,
+    transform?: stream.Transform<this, OUT_NAME, OUT>,
   ): OUT {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
 
-  get state(): Stream.State {
+  get state(): stream.State {
     return this._state;
   }
   get consumersCount(): number {
     return this._consumers.size;
   }
-  get events(): Stream.Events<VALUE, NAME> {
+  get events(): stream.Events<VALUE, NAME> {
     if (!this._events) this._events = {};
 
-    return new Proxy(this._events as Stream.Events<VALUE, NAME>, {
+    return new Proxy(this._events as stream.Events<VALUE, NAME>, {
       get: (target, p: string, receiver) => {
         if (p in target) return Reflect.get(target, p, receiver);
         const stream = new Stream({ name: this.name + p[0].toUpperCase() + p.slice(1) });
@@ -229,8 +229,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
     return this._scopeBinder?.scope;
   }
 }
-
-export namespace Stream {
+export function stream<VALUE, NAME extends string>(init?: stream.Init<VALUE, NAME>): Stream<VALUE, NAME> {
+  return new Stream(init);
+}
+export namespace stream {
   export const NAME = "root";
   export type Name = typeof NAME;
   export type State = "active" | "drain" | "aborted" | "completed";
@@ -258,12 +260,12 @@ export namespace Stream {
     consumerJoin?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, any>) => void;
     consumerLeft?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, any>) => void;
   };
-  export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
+  export type ExtractValue<T extends AnyStream | transformer.AnyTransformer> =
     T extends Stream<infer VALUE, any>
       ? VALUE
-      : Transformer.ExtractValue<T> extends never
+      : transformer.ExtractValue<T> extends never
         ? never
-        : Transformer.ExtractValue<T>;
+        : transformer.ExtractValue<T>;
 
   export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
 
@@ -273,85 +275,3 @@ export namespace Stream {
     OUT extends Transformer<IN, any, OUT_NAME> | IN,
   > = (inputStream: IN, name?: OUT_NAME) => OUT;
 }
-
-function bench() {
-  const MAX = 70_000_000;
-  const stream = new Stream<number>();
-
-  const start = performance.now();
-  stream.listen((self, value) => {
-    if (value === MAX) console.log("moo", value.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-
-    if (value === 1000) {
-      value++;
-      // queueMicrotask(() => {
-      //   console.log("promise resolved", value);
-      //   self.next();
-      // });
-      // return;
-    }
-
-    self.next();
-  });
-
-  for (let i = 0; i <= MAX; i++) {
-    stream.push(i);
-  }
-}
-
-// bench(); //moo 70 000 000 997 ms
-
-function sequential() {
-  const smoker = new Stream<number>();
-
-  smoker.listen(async (self, value) => {
-    await new Promise((r) => setTimeout(r, Math.random() * 1000));
-    console.log("sequential", value);
-    self.next();
-  });
-
-  smoker.push(1);
-  smoker.push(2);
-  smoker.push(3);
-}
-
-// sequential();
-function concurrent() {
-  const smoker = new Stream<number>();
-
-  smoker.listen(async (self, value) => {
-    self.next();
-    await new Promise((r) => setTimeout(r, Math.random() * 1000));
-    console.log("concurrent", value);
-  });
-
-  // consumer.next();
-
-  smoker.push(1);
-  smoker.push(2);
-  smoker.push(3);
-}
-
-// concurrent();
-
-function errorHandling() {
-  const smoker = new Stream<number>();
-  smoker.events.error.listen((self, e) => {
-    console.log("error caugh:", e.error);
-
-    self.next();
-  });
-
-  smoker.listen((self, value) => {
-    if (value === 3) throw "kechmahaja";
-    console.log(value);
-
-    self.next();
-  });
-
-  smoker.push(1);
-  smoker.push(2);
-  smoker.push(3);
-}
-
-// errorHandling();

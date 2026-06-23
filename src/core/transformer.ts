@@ -1,14 +1,14 @@
 import type { ScopeBinder } from "./scope-binder";
-import { Stream } from "./stream";
+import { Stream, stream } from "./stream";
 
-export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME extends string> extends Stream<
+export abstract class Transformer<INPUT extends stream.AnyStream, VALUE, NAME extends string> extends Stream<
   VALUE,
   NAME
 > {
   constructor(
     name: NAME,
     protected readonly input: INPUT,
-    init: Omit<Stream.Init<VALUE, NAME>, "name">,
+    init: transformer.Init<VALUE, NAME>,
   ) {
     let scope: ScopeBinder.Scope | undefined = init.scope;
 
@@ -35,7 +35,7 @@ export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME ex
       },
     });
   }
-  get traversal(): Transformer.Traversal<INPUT> {
+  get traversal(): transformer.Traversal<INPUT> {
     const self = this;
     return new Proxy(
       {},
@@ -48,18 +48,15 @@ export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME ex
   }
 }
 
-export namespace Transformer {
-  export type Init<VALUE, NAME extends string> = Omit<Stream.Init<VALUE, NAME>, "name">;
-  export type AnyTransformer = Transformer<Stream.AnyStream, any, any>;
+export namespace transformer {
+  export type Init<VALUE, NAME extends string> = Omit<stream.Init<VALUE, NAME>, "name">;
+  export type AnyTransformer = Transformer<stream.AnyStream, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;
   export type ExtractInputStream<T> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
 
-  export type Traversal<T extends Stream.AnyStream> = Record<
-    T["name"] | (`$${string}` & {}),
-    Transformer.Traversable<T>
-  >;
-  export type Traversable<T extends Stream.AnyStream> = [ExtractInputStream<T>] extends [never]
+  export type Traversal<T extends stream.AnyStream> = Record<T["name"] | (`$${string}` & {}), Traversable<T>>;
+  export type Traversable<T extends stream.AnyStream> = [ExtractInputStream<T>] extends [never]
     ? T
     : Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>;
 }

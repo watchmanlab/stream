@@ -1,10 +1,10 @@
 import { Consumer } from "../core/consumer";
-import { Stream } from "../core/stream";
+import { Stream, type stream } from "../core/stream";
 
 const NAME = "gc-signal-stream";
 
 export class GCSignalStream<VALUE extends void, NAME extends string> extends Stream<void, NAME> {
-  constructor(token: object, init?: Omit<Stream.Init<void, NAME>, "source">) {
+  constructor(token: object, init?: Omit<stream.Init<void, NAME>, "source">) {
     const ref = new WeakRef(token);
     const unregisterToken = {};
 

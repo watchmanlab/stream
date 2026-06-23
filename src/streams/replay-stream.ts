@@ -1,7 +1,7 @@
-import { Stream } from "../core/stream";
+import { Stream, type stream } from "../core/stream";
 
 export class ReplayStream<VALUE, NAME extends string> extends Stream<VALUE, NAME> {
-  constructor(values: [VALUE, ...VALUE[]], init?: Stream.Init<VALUE, NAME>) {
+  constructor(values: [VALUE, ...VALUE[]], init?: stream.Init<VALUE, NAME>) {
     super({
       ...init,
       consumerJoin(self, consumer) {

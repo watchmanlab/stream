@@ -1,10 +1,9 @@
-import { Consumer } from "../core/consumer";
-import { Stream } from "../core/stream";
+import { stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
 
 export class Map<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends stream.AnyStream,
+  VALUE extends stream.ExtractValue<INPUT> = stream.ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends string = map.Name,
 > extends Transformer<INPUT, MAPPED, NAME> {
@@ -28,11 +27,11 @@ export class Map<
   }
 }
 export function map<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends stream.AnyStream,
+  VALUE extends stream.ExtractValue<INPUT> = stream.ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends string = map.Name,
->(mapper: map.Mapper<VALUE, MAPPED>): Stream.Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
+>(mapper: map.Mapper<VALUE, MAPPED>): stream.Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
   return (input, name) => new Map(name, input, mapper);
 }
 export namespace map {
