@@ -24,9 +24,15 @@ export namespace Queue {
 }
 
 export interface Source<VALUE> {
-  listen<ERROR>(init: Consumer.Init<VALUE, ERROR>): Consumer<VALUE, ERROR>;
+  listen<ERROR>(
+    handler: Consumer.Handler<VALUE, ERROR>,
+    options?: Consumer.Options<VALUE, ERROR>,
+  ): Consumer<VALUE, ERROR>;
 }
-export namespace Source {}
+export interface Closable<ERROR = any> {
+  abort(error?: ERROR): void;
+  complete(): void;
+}
 
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE

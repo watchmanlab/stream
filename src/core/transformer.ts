@@ -1,16 +1,14 @@
 import type { ScopeBinder } from "./scope-binder";
 import { Stream, stream } from "./stream";
+import { Prettify } from "./types";
 
 export abstract class Transformer<INPUT extends stream.AnyStream, VALUE, NAME extends string> extends Stream<
   VALUE,
   NAME
 > {
-  constructor(
-    name: NAME,
-    protected readonly input: INPUT,
-    init: transformer.Init<VALUE, NAME>,
-  ) {
-    let scope: ScopeBinder.Scope | undefined = init.scope;
+  protected _input: INPUT;
+  constructor(input: INPUT, options?: transformer.Options<VALUE, NAME>) {
+    let scope: ScopeBinder.Scope | undefined = options?.scope;
 
     if (scope instanceof Stream) {
       scope = { any: [input, scope] };
@@ -24,9 +22,9 @@ export abstract class Transformer<INPUT extends stream.AnyStream, VALUE, NAME ex
       scope = input;
     }
 
-    super(name, { ...init, scope });
+    super({ ...options, scope });
 
-    this.input = input;
+    this._input = input;
 
     return new Proxy(this, {
       get(target, p, receiver) {
@@ -36,12 +34,12 @@ export abstract class Transformer<INPUT extends stream.AnyStream, VALUE, NAME ex
     });
   }
   get traversal(): transformer.Traversal<INPUT> {
-    const self = this;
+    const input = this._input;
     return new Proxy(
       {},
       {
         get() {
-          return self.input;
+          return input;
         },
       },
     ) as never;
@@ -49,7 +47,7 @@ export abstract class Transformer<INPUT extends stream.AnyStream, VALUE, NAME ex
 }
 
 export namespace transformer {
-  export type Init<VALUE, NAME extends string> = Omit<stream.Init<VALUE, NAME>, "name">;
+  export type Options<VALUE, NAME extends string> = stream.Options<VALUE, NAME>;
   export type AnyTransformer = Transformer<stream.AnyStream, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;

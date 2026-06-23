@@ -72,7 +72,7 @@ function bench() {
 // 7 000 000 1150 ms
 // 7 000 000 1150 ms
 function mapTest() {
-  const stream = new Stream<number>("root");
+  const stream = new Stream<number>();
 
   const mapped = stream.pipe(map((value) => value.toFixed() + " mapped"));
 
@@ -95,7 +95,7 @@ function mapTest() {
 }
 // mapTest();
 function filterTest() {
-  const stream = new Stream<number>("root");
+  const stream = new Stream<number>();
 
   const mapped = stream.pipe(filter((v) => v % 2 === 0)).pipe(map((value) => value.toFixed()));
 

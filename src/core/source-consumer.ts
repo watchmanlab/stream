@@ -7,18 +7,21 @@ export class SourceConsumer<VALUE> {
 
   constructor(
     public readonly source: Source<VALUE>,
-    init: Consumer.Init<VALUE, any>,
+    public readonly handler: Consumer.Handler<VALUE, ErrnoException>,
+    options?: Consumer.Options<VALUE, any>,
   ) {
     this._pulling = false;
 
-    this._consumer = source.listen({
-      ...init,
-      handler: (self, value) => {
+    this._consumer = source.listen(
+      (self, value) => {
         this._pulling = false;
-        init.handler(self, value);
+        handler(self, value);
       },
-      isReady: false,
-    });
+      {
+        ...options,
+        isReady: false,
+      },
+    );
   }
   next(): void {
     if (!this._pulling) {
