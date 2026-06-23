@@ -3,85 +3,97 @@ import { map } from "./transformers/map";
 import { Stream } from "./core/stream";
 import { IterableStream } from "./streams/iterable-stream";
 
-function mapTest() {
+function bench() {
   const MAX = 7_000_000;
 
   const stream = new Stream<number>();
   const start = performance.now();
 
   const s = stream
-    .pipe(
-      "mapped",
-      map((v) => v * 2),
-    )
-    .pipe(
-      "filter1",
-      filter((v) => v <= MAX * 2),
-    );
-  // .pipe(
-  //   "filter2",
-  //   filter((v) => v <= MAX * 2),
-  // );
+    .pipe(map((v) => v * 2))
+    .pipe(filter((v) => v <= MAX * 2))
+    .pipe(filter((v) => v <= MAX * 2));
 
   s.listen((self, v) => {
-    if (v === MAX * 2) {
-      console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       self.abort();
       return;
     }
 
     self.next();
   });
-  // s.listen((self, v) => {
-  //   if (v === MAX * 2) {
-  //     console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-  //     self.abort();
-  //     return;
-  //   }
+  s.listen((self, v) => {
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      self.abort();
+      return;
+    }
 
-  //   self.next();
-  // });
-  // s.listen((self, v) => {
-  //   if (v === MAX * 2) {
-  //     console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-  //     self.abort();
-  //     return;
-  //   }
+    self.next();
+  });
+  s.listen((self, v) => {
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      self.abort();
+      return;
+    }
 
-  //   self.next();
-  // });
-  // s.listen((self, v) => {
-  //   if (v === MAX * 2) {
-  //     console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-  //     self.abort();
-  //     return;
-  //   }
+    self.next();
+  });
+  s.listen((self, v) => {
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      self.abort();
+      return;
+    }
 
-  //   self.next();
-  // });
-  // s.listen((self, v) => {
-  //   if (v === MAX * 2) {
-  //     console.log((v / 2).toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-  //     self.abort();
-  //     return;
-  //   }
+    self.next();
+  });
+  s.listen((self, v) => {
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      self.abort();
+      return;
+    }
 
-  //   self.next();
-  // });
+    self.next();
+  });
 
   for (let i = 0; i <= MAX; i++) {
-    stream.push(i);
+    stream.push(i, true);
   }
-  s.name;
-  //. ^?
 }
 
+bench();
+// 7 000 000 598 ms
+// 7 000 000 598 ms
+// 7 000 000 598 ms
+// 7 000 000 598 ms
+// 7 000 000 599 ms
+function mapTest() {
+  const stream = new Stream<number>();
+
+  const mapped = stream.pipe(map((value) => value.toFixed() + " mapped"));
+
+  mapped.listen((self, v) => {
+    if (v === "2 mapped") {
+      setTimeout(() => {
+        console.log("asynccc ", v);
+        self.next();
+      }, 1000);
+      self.next();
+      return;
+    }
+    console.log(v);
+    self.next();
+  });
+
+  stream.push(1, true);
+  stream.push(2, true);
+  stream.push(3, true);
+}
 // mapTest();
-// 7 000 000 2172 ms
-// 7 000 000 2173 ms
-// 7 000 000 2173 ms
-// 7 000 000 2173 ms
-// 7 000 000 2173 ms
 function filterTest() {
   const stream = new Stream<number>();
 
@@ -129,4 +141,4 @@ function fromIterableTest() {
   });
 }
 
-fromIterableTest();
+// fromIterableTest();

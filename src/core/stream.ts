@@ -35,17 +35,19 @@ export class Stream<VALUE, NAME extends string = Stream.Name> implements Source<
         break;
       case 1:
         const consumer = this._consumers.values().next().value!;
-        this.push = (value: VALUE) => consumer.push(value);
+        this.push = (value) => {
+          consumer.push(value);
+        };
         break;
       default:
-        this.push = (value: VALUE) => {
+        this.push = (value) => {
           for (const consumer of this._consumers.values()) {
             consumer.push(value);
           }
         };
     }
   }
-  push(value: VALUE): void {}
+  push(value: VALUE, hot = false): void {}
 
   listen<ERROR>(
     handler: Consumer.Handler<VALUE, ERROR>,

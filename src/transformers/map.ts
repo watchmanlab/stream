@@ -16,38 +16,16 @@ export class Map<
     super(name, input, {
       source: {
         listen: (init) => {
-          const inputConsumer = input.listen((_, value) => outputConsumer.push(mapper(value)));
-          const { ready, abort, complete } = init;
-          const outputConsumer = new Consumer<MAPPED, any>({
+          return input.listen({
             ...init,
-            ready: ready
-              ? (self) => {
-                  inputConsumer.next();
-                  ready(self);
-                }
-              : () => {
-                  inputConsumer.next();
-                },
-            abort: (self, error) => {
-              inputConsumer.abort(error);
-              abort?.(self, error);
-            },
-            complete: (self) => {
-              inputConsumer.complete();
-              complete?.(self);
+            handler: (self, value) => {
+              init.handler(self, mapper(value));
             },
           });
-
-          return outputConsumer;
         },
       },
     });
   }
-  // override apply: Transformer.Apply<VALUE, MAPPED> = <ROOT extends Stream.AnyStream, OUTPUT extends Stream.AnyStream>(
-  //   init: Transformer.ApplyInit<VALUE, MAPPED, ROOT, OUTPUT>,
-  // ) => {
-  //   init.yield(this.mapper(init.value));
-  // };
 }
 export function map<
   INPUT extends Stream.AnyStream,

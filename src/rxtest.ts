@@ -9,38 +9,36 @@ function rxjsBench() {
   const start = performance.now();
 
   const s = subject.pipe(
-    observeOn(asyncScheduler),
     map((v) => v * 2),
     filter((v) => v <= MAX * 2),
     filter((v) => v <= MAX * 2),
-
-    share(),
+    // share(),
   );
   s.subscribe((v) => {
-    if (v === MAX * 2) {
-      console.log((v / 2).toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
     }
   });
-  // s.subscribe((v) => {
-  //   if (v === MAX * 2) {
-  //     console.log((v / 2).toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
-  //   }
-  // });
-  // s.subscribe((v) => {
-  //   if (v === MAX * 2) {
-  //     console.log((v / 2).toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
-  //   }
-  // });
-  // s.subscribe((v) => {
-  //   if (v === MAX * 2) {
-  //     console.log((v / 2).toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
-  //   }
-  // });
-  // s.subscribe((v) => {
-  //   if (v === MAX * 2) {
-  //     console.log((v / 2).toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
-  //   }
-  // });
+  s.subscribe((v) => {
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
+    }
+  });
+  s.subscribe((v) => {
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
+    }
+  });
+  s.subscribe((v) => {
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
+    }
+  });
+  s.subscribe((v) => {
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), "RxJS:", Math.round(performance.now() - start), "ms");
+    }
+  });
 
   for (let i = 0; i <= MAX; i++) {
     subject.next(i);
@@ -48,8 +46,8 @@ function rxjsBench() {
 }
 
 rxjsBench();
-// 7 000 000 RxJS: 961 ms
-// 7 000 000 RxJS: 961 ms
-// 7 000 000 RxJS: 962 ms
-// 7 000 000 RxJS: 962 ms
-// 7 000 000 RxJS: 962 ms
+// 7 000 000 RxJS: 556 ms
+// 7 000 000 RxJS: 556 ms
+// 7 000 000 RxJS: 556 ms
+// 7 000 000 RxJS: 556 ms
+// 7 000 000 RxJS: 556 ms

@@ -57,8 +57,9 @@ export class Consumer<VALUE, ERROR = never> {
       } catch (error: any) {
         this._init?.error?.(this, error);
       }
+    } else {
+      this.drain();
     }
-    this.drain();
   }
   abort(error?: ERROR): void {
     if (this._state === "aborted" || this._state === "completed") return;
@@ -125,6 +126,9 @@ export class Consumer<VALUE, ERROR = never> {
   }
   get isProcessing(): boolean {
     return this._isProcessing;
+  }
+  get handler(): Consumer.Handler<VALUE, ERROR> {
+    return this._handler;
   }
 }
 

@@ -18,37 +18,17 @@ export class Filter<
     super(name, input, {
       source: {
         listen: (init) => {
-          const inputConsumer = input.listen((self, value) => {
-            if (predicate(value)) {
-              outputConsumer.push(value);
-            } else {
-              this._events?.filtered?.push(value);
-              self.next();
-            }
-          });
-
-          const { ready, abort, complete } = init;
-
-          const outputConsumer = new Consumer<FILTERED, any>({
+          return input.listen({
             ...init,
-            ready: ready
-              ? (self) => {
-                  inputConsumer.next();
-                  ready(self);
-                }
-              : () => {
-                  inputConsumer.next();
-                },
-            abort: (self, error) => {
-              inputConsumer.abort(error);
-              abort?.(self, error);
-            },
-            complete: (self) => {
-              inputConsumer.complete();
-              complete?.(self);
+            handler: (self, value) => {
+              if (predicate(value)) {
+                init.handler(self, value);
+              } else {
+                this._events?.filtered?.push(value);
+                self.next();
+              }
             },
           });
-          return outputConsumer;
         },
       },
     });
