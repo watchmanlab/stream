@@ -1,4 +1,5 @@
 import type { Consumer } from "./consumer";
+import { Stream, type stream } from "./stream";
 
 export interface Queue<VALUE> extends Iterable<VALUE>, Disposable {
   enqueue(value: VALUE): void;
@@ -29,11 +30,14 @@ export interface Source<VALUE> {
     options?: Consumer.Options<VALUE, ERROR>,
   ): Consumer<VALUE, ERROR>;
 }
-export interface Closable<ERROR = any> {
-  abort(error?: ERROR): void;
+export interface Evented<EVENTS extends Record<string, stream.AnyStream>> {
+  readonly events: EVENTS;
+}
+export type CloseEvents = { abort: stream.AnyStream; complete: Stream<void, any> };
+export interface Closable<EVENTS extends CloseEvents = CloseEvents> extends Evented<EVENTS> {
+  abort(error?: any): void;
   complete(): void;
 }
-
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR

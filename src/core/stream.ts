@@ -1,10 +1,12 @@
 import { Consumer } from "./consumer";
-import type { Prettify, Queue, Source } from "./types";
+import type { Closable, Queue, Source } from "./types";
 import type { Transformer, transformer } from "./transformer";
 import { SourceConsumer } from "./source-consumer";
 import { ScopeBinder } from "./scope-binder";
 
-export class Stream<VALUE, NAME extends string = stream.Name> implements Source<VALUE> {
+export class Stream<VALUE, NAME extends string = stream.Name>
+  implements Source<VALUE>, Closable<stream.Events<VALUE, NAME>>
+{
   public readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
   protected _state: stream.State;

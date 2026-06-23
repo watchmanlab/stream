@@ -1,10 +1,11 @@
 import { Stream, stream } from "./stream";
 import type { Consumer } from "./consumer";
+import { Closable } from "./types";
 
 export class ScopeBinder {
   private _consumers: Consumer.AnyConsumer[];
   constructor(
-    private target: stream.AnyStream,
+    private target: Closable,
     public readonly scope: ScopeBinder.Scope,
   ) {
     this._consumers = [];

@@ -140,6 +140,8 @@ export namespace Consumer {
 
   export type Options<VALUE, ERROR> = {
     ready?: (self: Consumer<VALUE, ERROR>) => void;
+    enqueue?: (self: Consumer<VALUE, ERROR>, value: VALUE) => void;
+    dequeue?: (self: Consumer<VALUE, ERROR>, value: VALUE) => void;
     drain?: (self: Consumer<VALUE, ERROR>) => void;
     complete?: (self: Consumer<VALUE, ERROR>) => void;
     abort?: (self: Consumer<VALUE, ERROR>, error?: ERROR) => void;
@@ -149,7 +151,10 @@ export namespace Consumer {
   };
 
   export type Events<VALUE, NAME extends string> = {
+    push: Stream<VALUE, `${NAME}Push`>;
     ready: Stream<Consumer<VALUE, any>, `${NAME}Ready`>;
+    enqueue: Stream<VALUE, `${NAME}Enqueue`>;
+    dequeue: Stream<VALUE, `${NAME}Dequeue`>;
     drain: Stream<void, `${NAME}Drain`>;
     complete: Stream<void, `${NAME}Complete`>;
     abort: Stream<any, `${NAME}Abort`>;
