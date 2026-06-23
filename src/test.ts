@@ -65,12 +65,12 @@ function bench() {
   }
 }
 
-// bench();
-// 7 000 000 598 ms
-// 7 000 000 598 ms
-// 7 000 000 598 ms
-// 7 000 000 598 ms
-// 7 000 000 599 ms
+bench();
+// 7 000 000 1149 ms
+// 7 000 000 1150 ms
+// 7 000 000 1150 ms
+// 7 000 000 1150 ms
+// 7 000 000 1150 ms
 function mapTest() {
   const stream = new Stream<number>();
 
@@ -118,7 +118,7 @@ function filterTest() {
   stream.push(6);
 }
 
-filterTest();
+// filterTest();
 // filtered 1
 // 2
 // filtered 3

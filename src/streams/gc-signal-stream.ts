@@ -17,10 +17,9 @@ export class GCSignalStream<VALUE extends void, NAME extends string> extends Str
           new Promise<void>((resolve) => {
             if (!ref.deref()) {
               resolve();
+              return;
             }
-            registry = new FinalizationRegistry(() => {
-              resolve();
-            });
+            registry = new FinalizationRegistry(resolve);
 
             const obj = ref.deref();
             if (obj) {
@@ -36,7 +35,17 @@ export class GCSignalStream<VALUE extends void, NAME extends string> extends Str
               registry?.unregister(unregisterToken);
             });
 
-          const consumer = new Consumer<void, any>(init);
+          const consumer = new Consumer<void, any>({
+            ...init,
+            abort(self, error) {
+              registry?.unregister(unregisterToken);
+              init.abort?.(self, error);
+            },
+            complete(self) {
+              registry?.unregister(unregisterToken);
+              init.complete?.(self);
+            },
+          });
           return consumer;
         },
       },

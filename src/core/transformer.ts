@@ -46,7 +46,6 @@ export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME ex
       },
     ) as never;
   }
-  // apply?: Transformer.Apply<Stream.ExtractValue<INPUT>, VALUE>;
 }
 
 export namespace Transformer {
@@ -63,14 +62,4 @@ export namespace Transformer {
   export type Traversable<T extends Stream.AnyStream> = [ExtractInputStream<T>] extends [never]
     ? T
     : Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>;
-
-  export type ApplyInit<IN_VALUE, OUT_VALUE, ROOT extends Stream.AnyStream, OUTPUT extends Stream.AnyStream> = {
-    value: IN_VALUE;
-    yield: (value: OUT_VALUE) => void;
-    root: ROOT;
-    output: OUTPUT;
-  };
-  export type Apply<IN_VALUE, OUT_VALUE> = <ROOT extends Stream.AnyStream, OUTPUT extends Stream.AnyStream>(
-    init: ApplyInit<IN_VALUE, OUT_VALUE, ROOT, OUTPUT>,
-  ) => void;
 }
