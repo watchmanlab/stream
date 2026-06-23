@@ -6,7 +6,7 @@ import { IterableStream } from "./streams/iterable-stream";
 function bench() {
   const MAX = 7_000_000;
 
-  const stream = new Stream<number>();
+  const stream = new Stream<number>("root");
   const start = performance.now();
 
   const s = stream
@@ -72,7 +72,7 @@ function bench() {
 // 7 000 000 1150 ms
 // 7 000 000 1150 ms
 function mapTest() {
-  const stream = new Stream<number>();
+  const stream = new Stream<number>("root");
 
   const mapped = stream.pipe(map((value) => value.toFixed() + " mapped"));
 
@@ -95,7 +95,7 @@ function mapTest() {
 }
 // mapTest();
 function filterTest() {
-  const stream = new Stream<number>();
+  const stream = new Stream<number>("root");
 
   const mapped = stream.pipe(filter((v) => v % 2 === 0)).pipe(map((value) => value.toFixed()));
 
@@ -131,9 +131,9 @@ function fromIterableTest() {
 
   stream.listen((self, v) => {
     console.log("A:", v);
-    queueMicrotask(() => {
+    setTimeout(() => {
       self.next();
-    });
+    }, 1000);
   });
   stream.listen((self, v) => {
     console.log("B:", v);

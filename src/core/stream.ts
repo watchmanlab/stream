@@ -5,15 +5,16 @@ import { SourceConsumer } from "./source-consumer";
 import { ScopeBinder } from "./scope-binder";
 
 export class Stream<VALUE, NAME extends string = stream.Name> implements Source<VALUE> {
-  readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
   protected _state: stream.State;
   protected _sourceConsumer?: SourceConsumer<VALUE>;
   protected _scopeBinder?: ScopeBinder;
   protected _queueFactory?: stream.QueueFactory<VALUE>;
   protected _events?: Partial<stream.Events<VALUE, NAME>>;
-  constructor(private init?: stream.Init<VALUE, NAME>) {
-    this.name = init?.name ?? (stream.NAME as NAME);
+  constructor(
+    public readonly name: NAME,
+    private init?: stream.Init<VALUE, NAME>,
+  ) {
     this._queueFactory = init?.queueFactory;
     this._state = "active";
 
@@ -216,7 +217,7 @@ export class Stream<VALUE, NAME extends string = stream.Name> implements Source<
     return new Proxy(this._events as stream.Events<VALUE, NAME>, {
       get: (target, p: string, receiver) => {
         if (p in target) return Reflect.get(target, p, receiver);
-        const stream = new Stream({ name: this.name + p[0].toUpperCase() + p.slice(1) });
+        const stream = new Stream(this.name + p[0].toUpperCase() + p.slice(1));
         (this._events as any)[p] = stream;
         return stream;
       },
@@ -229,8 +230,13 @@ export class Stream<VALUE, NAME extends string = stream.Name> implements Source<
     return this._scopeBinder?.scope;
   }
 }
-export function stream<VALUE, NAME extends string>(init?: stream.Init<VALUE, NAME>): Stream<VALUE, NAME> {
-  return new Stream(init);
+export function stream<VALUE, NAME extends string>(name: NAME, init?: stream.Init<VALUE, NAME>): Stream<VALUE, NAME>;
+export function stream<VALUE, NAME extends string>(init?: stream.Init<VALUE, NAME>): Stream<VALUE, NAME>;
+export function stream<VALUE, NAME extends string>(
+  nameOrInit: NAME | stream.Init<VALUE, NAME>,
+  init?: stream.Init<VALUE, NAME>,
+): Stream<VALUE, NAME> {
+  return typeof nameOrInit === "string" ? new Stream(nameOrInit, init) : new Stream(stream.NAME as NAME, init);
 }
 export namespace stream {
   export const NAME = "root";
@@ -248,7 +254,6 @@ export namespace stream {
   };
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Init<VALUE, NAME extends string> = {
-    name?: NAME;
     source?: Source<VALUE>;
     scope?: ScopeBinder.Scope;
     queueFactory?: QueueFactory<VALUE>;

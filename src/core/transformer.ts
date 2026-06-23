@@ -24,7 +24,7 @@ export abstract class Transformer<INPUT extends stream.AnyStream, VALUE, NAME ex
       scope = input;
     }
 
-    super({ ...init, name, scope });
+    super(name, { ...init, scope });
 
     this.input = input;
 

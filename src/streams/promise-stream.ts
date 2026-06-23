@@ -3,10 +3,11 @@ import { Stream, type stream } from "../core/stream";
 
 export class PromiseStream<VALUE, NAME extends string> extends Stream<VALUE, NAME> {
   constructor(
+    name = promiseStream.NAME as NAME,
     public readonly promise: Promise<VALUE>,
-    init?: Omit<stream.Init<VALUE, NAME>, "source">,
+    init?: promiseStream.Init<VALUE, NAME>,
   ) {
-    super({
+    super(name, {
       ...init,
       source: {
         listen: (init) => {
@@ -21,4 +22,10 @@ export class PromiseStream<VALUE, NAME extends string> extends Stream<VALUE, NAM
       },
     });
   }
+}
+
+export namespace promiseStream {
+  export const NAME = "promiseStream";
+  export type Name = typeof NAME;
+  export type Init<VALUE, NAME extends string> = Omit<stream.Init<VALUE, NAME>, "source">;
 }
