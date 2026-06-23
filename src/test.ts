@@ -10,9 +10,9 @@ function bench() {
   const start = performance.now();
 
   const s = stream
-    .pipe(map((v) => v * 2))
-    .pipe(filter((v) => v <= MAX * 2))
-    .pipe(filter((v) => v <= MAX * 2));
+    .pipe(map((v) => v))
+    .pipe(filter((v) => v <= MAX))
+    .pipe(filter((v) => v <= MAX));
 
   s.listen((self, v) => {
     if (v === MAX) {
@@ -65,7 +65,7 @@ function bench() {
   }
 }
 
-bench();
+// bench();
 // 7 000 000 598 ms
 // 7 000 000 598 ms
 // 7 000 000 598 ms
@@ -118,7 +118,7 @@ function filterTest() {
   stream.push(6);
 }
 
-// filterTest();
+filterTest();
 // filtered 1
 // 2
 // filtered 3

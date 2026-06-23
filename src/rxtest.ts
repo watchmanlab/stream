@@ -9,10 +9,10 @@ function rxjsBench() {
   const start = performance.now();
 
   const s = subject.pipe(
-    map((v) => v * 2),
-    filter((v) => v <= MAX * 2),
-    filter((v) => v <= MAX * 2),
-    // share(),
+    map((v) => v),
+    filter((v) => v <= MAX),
+    filter((v) => v <= MAX),
+    share(),
   );
   s.subscribe((v) => {
     if (v === MAX) {
