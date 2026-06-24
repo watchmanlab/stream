@@ -30,10 +30,10 @@ export interface Source<VALUE> {
     options?: Consumer.Options<VALUE, ERROR>,
   ): Consumer<VALUE, ERROR>;
 }
-export interface Evented<EVENTS extends Record<string, stream.AnyStream>> {
+export interface Evented<EVENTS extends Record<string, Stream.AnyStream>> {
   readonly events: EVENTS;
 }
-export type CloseEvents = { abort: stream.AnyStream; complete: Stream<void, any> };
+export type CloseEvents = { abort: Stream.AnyStream; complete: Stream<void, any> };
 export interface Closable<EVENTS extends CloseEvents = CloseEvents> extends Evented<EVENTS> {
   abort(error?: any): void;
   complete(): void;

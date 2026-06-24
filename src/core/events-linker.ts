@@ -1,16 +1,16 @@
 import { Stream } from "./stream";
 import { Evented } from "./types";
 
-export class EventsProxy<EVENTS extends Record<string, unknown>, NAME extends string, SELF extends Evented<any>> {
-  protected _events?: Partial<EventsProxy.EventsStream<EVENTS, NAME>>;
+export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends string, TARGET extends Evented<any>> {
+  protected _events?: Partial<EventsLinker.EventsStream<EVENTS, NAME>>;
   constructor(
     private name: NAME,
-    self?: SELF,
-    hooks?: EventsProxy.Hooks<EVENTS, SELF>,
+    target?: TARGET,
+    functions?: EventsLinker.EventsFunctions<EVENTS, TARGET>,
   ) {
-    if (hooks && self) {
+    if (functions && target) {
       this.emit = (eventName, value) => {
-        hooks[eventName]?.(self, value);
+        functions[eventName]?.(target, value);
         this._events?.[eventName]?.push?.(value);
       };
     } else {
@@ -24,11 +24,11 @@ export class EventsProxy<EVENTS extends Record<string, unknown>, NAME extends st
   has<KEY extends keyof EVENTS>(eventName: KEY): boolean {
     return this._events?.[eventName] !== undefined;
   }
-  get events(): EventsProxy.EventsStream<EVENTS, NAME> {
+  get events(): EventsLinker.EventsStream<EVENTS, NAME> {
     if (!this._events) this._events = {};
     const { _events } = this;
 
-    return new Proxy(_events as EventsProxy.EventsStream<EVENTS, NAME>, {
+    return new Proxy(_events as EventsLinker.EventsStream<EVENTS, NAME>, {
       get: (target, p: string, receiver) => {
         if (p in target) return Reflect.get(target, p, receiver);
         const stream = new Stream({
@@ -44,11 +44,12 @@ export class EventsProxy<EVENTS extends Record<string, unknown>, NAME extends st
   }
 }
 
-export namespace EventsProxy {
+export namespace EventsLinker {
+  export type AnyEventsLinker = EventsLinker<any, any, any>;
   export type EventsStream<EVENTS extends Record<string, unknown>, NAME extends string> = {
     [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
   };
-  export type Hooks<EVENTS extends Record<string, unknown>, SELF> = {
-    [K in keyof EVENTS]?: (self: SELF, value: EVENTS[K]) => void;
+  export type EventsFunctions<EVENTS extends Record<string, unknown>, TARGET> = {
+    [K in keyof EVENTS]?: (self: TARGET, value: EVENTS[K]) => void;
   };
 }

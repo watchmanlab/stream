@@ -1,15 +1,15 @@
-import { EventsProxy } from "../core/events-proxy";
+import { EventsLinker } from "../core/events-linker";
 import { Stream, stream } from "../core/stream";
 import { transformer, Transformer } from "../core/transformer";
 import { Prettify } from "../core/types";
 
 export class Filter<
-  INPUT extends stream.AnyStream,
-  VALUE extends stream.ExtractValue<INPUT> = stream.ExtractValue<INPUT>,
+  INPUT extends Stream.AnyStream,
+  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends string = filter.Name,
 > extends Transformer<INPUT, FILTERED, NAME> {
-  protected override _eventsProxy: EventsProxy<stream.Events<FILTERED> & { filtered: VALUE }, NAME, this>;
+  protected override _eventsProxy: EventsLinker<filter.Events<FILTERED>, NAME, this>;
 
   constructor(
     input: INPUT,
@@ -34,23 +34,23 @@ export class Filter<
         },
       },
     });
-    this._eventsProxy = new EventsProxy(name, this, hooks);
+    this._eventsProxy = new EventsLinker(name, this, hooks);
     const { _eventsProxy } = this;
   }
-  override get events(): EventsProxy.EventsStream<stream.Events<FILTERED> & { filtered: VALUE }, NAME> {
+  override get events(): EventsLinker.EventsStream<filter.Events<FILTERED>, NAME> {
     return this._eventsProxy.events;
   }
 }
 
 export function filter<
-  INPUT extends stream.AnyStream,
-  VALUE extends stream.ExtractValue<INPUT> = stream.ExtractValue<INPUT>,
+  INPUT extends Stream.AnyStream,
+  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends string = filter.Name,
 >(
   predicate: filter.Predicate<VALUE, FILTERED>,
   options?: filter.Options<INPUT, VALUE, FILTERED, NAME>,
-): stream.Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
+): Stream.Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
   return (input, name) => new Filter(input, predicate, { ...options, name });
 }
 
@@ -61,11 +61,12 @@ export namespace filter {
     | ((value: VALUE) => value is FILTERED)
     | ((value: VALUE) => boolean);
 
-  export type Events<VALUE> = stream.Events<VALUE> & { filtered: VALUE };
+  export type Events<VALUE> = Stream.Events<VALUE> & { filtered: VALUE };
   export type Options<
-    INPUT extends stream.AnyStream,
-    VALUE extends stream.ExtractValue<INPUT>,
+    INPUT extends Stream.AnyStream,
+    VALUE extends Stream.ExtractValue<INPUT>,
     FILTERED extends VALUE,
     NAME extends string,
-  > = transformer.Options<FILTERED, NAME> & EventsProxy.Hooks<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
+  > = transformer.Options<FILTERED, NAME> &
+    EventsLinker.EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
 }

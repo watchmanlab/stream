@@ -1,7 +1,7 @@
 import type { Consumer } from "./consumer";
 import type { Source } from "./types";
 
-export class SourceConsumer<VALUE> {
+export class SourceLinker<VALUE> {
   private _consumer: Consumer<VALUE, any>;
   private _pulling: boolean;
 
@@ -34,5 +34,8 @@ export class SourceConsumer<VALUE> {
   }
   complete(): void {
     this._consumer.complete();
+  }
+  get pulling(): boolean {
+    return this._pulling;
   }
 }

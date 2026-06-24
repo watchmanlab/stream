@@ -1,14 +1,14 @@
-import type { ScopeBinder } from "./scope-binder";
+import type { ScopeLinker } from "./scope-linker";
 import { Stream, stream } from "./stream";
 import { Prettify } from "./types";
 
-export abstract class Transformer<INPUT extends stream.AnyStream, VALUE, NAME extends string> extends Stream<
+export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME extends string> extends Stream<
   VALUE,
   NAME
 > {
   protected _input: INPUT;
   constructor(input: INPUT, options?: transformer.Options<VALUE, NAME>) {
-    let scope: ScopeBinder.Scope | undefined = options?.scope;
+    let scope: ScopeLinker.Scope | undefined = options?.scope;
 
     if (scope instanceof Stream) {
       scope = { any: [input, scope] };
@@ -47,14 +47,14 @@ export abstract class Transformer<INPUT extends stream.AnyStream, VALUE, NAME ex
 }
 
 export namespace transformer {
-  export type Options<VALUE, NAME extends string> = stream.Options<VALUE, NAME>;
-  export type AnyTransformer = Transformer<stream.AnyStream, any, any>;
+  export type Options<VALUE, NAME extends string> = Stream.Options<VALUE, NAME>;
+  export type AnyTransformer = Transformer<Stream.AnyStream, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;
   export type ExtractInputStream<T> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
 
-  export type Traversal<T extends stream.AnyStream> = Record<T["name"] | (`$${string}` & {}), Traversable<T>>;
-  export type Traversable<T extends stream.AnyStream> = [ExtractInputStream<T>] extends [never]
+  export type Traversal<T extends Stream.AnyStream> = Record<T["name"] | (`$${string}` & {}), Traversable<T>>;
+  export type Traversable<T extends Stream.AnyStream> = [ExtractInputStream<T>] extends [never]
     ? T
     : Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>;
 }

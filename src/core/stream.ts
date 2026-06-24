@@ -1,32 +1,32 @@
 import { Consumer } from "./consumer";
 import type { Closable, Queue, Source } from "./types";
 import type { Transformer, transformer } from "./transformer";
-import { SourceConsumer } from "./source-consumer";
-import { ScopeBinder } from "./scope-binder";
-import { EventsProxy } from "./events-proxy";
+import { SourceLinker } from "./source-linker";
+import { ScopeLinker } from "./scope-linker";
+import { EventsLinker } from "./events-linker";
 
-export class Stream<VALUE, NAME extends string = stream.Name>
-  implements Source<VALUE>, Closable<EventsProxy.EventsStream<stream.Events<VALUE>, NAME>>
+export class Stream<VALUE, NAME extends string = Stream.Name>
+  implements Source<VALUE>, Closable<EventsLinker.EventsStream<Stream.Events<VALUE>, NAME>>
 {
   public readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
-  protected _state: stream.State;
-  protected _sourceConsumer?: SourceConsumer<VALUE>;
-  protected _scopeBinder?: ScopeBinder;
-  protected _queueFactory?: stream.QueueFactory<VALUE>;
-  protected _eventsProxy: EventsProxy<stream.Events<VALUE>, NAME, this>;
+  protected _state: Stream.State;
+  protected _sourceConsumer?: SourceLinker<VALUE>;
+  protected _scopeBinder?: ScopeLinker;
+  protected _queueFactory?: Stream.QueueFactory<VALUE>;
+  protected _eventsProxy: EventsLinker<Stream.Events<VALUE>, NAME, this>;
 
-  constructor(options?: stream.Options<VALUE, NAME>) {
+  constructor(options?: Stream.Options<VALUE, NAME>) {
     const { name, scope, source, queueFactory, ...hooks } = { ...options };
 
-    this.name = name ?? (stream.NAME as NAME);
+    this.name = name ?? (Stream.NAME as NAME);
     this._queueFactory = queueFactory;
     this._state = "active";
-    this._eventsProxy = new EventsProxy(this.name, this, hooks);
+    this._eventsProxy = new EventsLinker(this.name, this, hooks);
 
     const { _eventsProxy } = this;
     if (source)
-      this._sourceConsumer = new SourceConsumer(source, (_, value) => this.push(value), {
+      this._sourceConsumer = new SourceLinker(source, (_, value) => this.push(value), {
         error: (_, error) => {
           _eventsProxy.emit("error", error);
         },
@@ -34,7 +34,7 @@ export class Stream<VALUE, NAME extends string = stream.Name>
         complete: () => this.complete(),
       });
     if (scope) {
-      this._scopeBinder = new ScopeBinder(this, scope);
+      this._scopeBinder = new ScopeLinker(this, scope);
     }
   }
   protected _optimizePush(): void {
@@ -122,6 +122,7 @@ export class Stream<VALUE, NAME extends string = stream.Name>
         console.log(error);
 
         _eventsProxy.emit("error", error);
+
         options?.error?.(self, error);
       },
 
@@ -187,40 +188,39 @@ export class Stream<VALUE, NAME extends string = stream.Name>
     (this._eventsProxy as any) = this._queueFactory = this._sourceConsumer = this._scopeBinder = undefined;
   }
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    transform: stream.Transform<this, OUT_NAME, OUT>,
+    transform: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT;
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
     name: OUT_NAME,
-    transform: stream.Transform<this, OUT_NAME, OUT>,
+    transform: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT;
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    nameOrTransform: OUT_NAME | stream.Transform<this, OUT_NAME, OUT>,
-    transform?: stream.Transform<this, OUT_NAME, OUT>,
+    nameOrTransform: OUT_NAME | Stream.Transform<this, OUT_NAME, OUT>,
+    transform?: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-
-  get state(): stream.State {
+  get state(): Stream.State {
     return this._state;
   }
   get consumersCount(): number {
     return this._consumers.size;
   }
-  get events() {
+  get events(): EventsLinker.EventsStream<Stream.Events<VALUE>, NAME> {
     return this._eventsProxy.events;
   }
   get source(): Source<VALUE> | undefined {
     return this._sourceConsumer?.source;
   }
-  get scope(): ScopeBinder.Scope | undefined {
+  get scope(): ScopeLinker.Scope | undefined {
     return this._scopeBinder?.scope;
   }
 }
 
-export function stream<VALUE, NAME extends string>(options?: stream.Options<VALUE, NAME>): Stream<VALUE, NAME> {
+export function stream<VALUE, NAME extends string>(options?: Stream.Options<VALUE, NAME>): Stream<VALUE, NAME> {
   return new Stream(options);
 }
-export namespace stream {
+export namespace Stream {
   export const NAME = "root";
   export type Name = typeof NAME;
   export type State = "active" | "drain" | "aborted" | "completed";
@@ -239,9 +239,9 @@ export namespace stream {
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
     source?: Source<VALUE>;
-    scope?: ScopeBinder.Scope;
+    scope?: ScopeLinker.Scope;
     queueFactory?: QueueFactory<VALUE>;
-  } & EventsProxy.Hooks<Events<VALUE>, Stream<VALUE, NAME>>;
+  } & EventsLinker.EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
   export type ExtractValue<T extends AnyStream | transformer.AnyTransformer> =
     T extends Stream<infer VALUE, any>
       ? VALUE

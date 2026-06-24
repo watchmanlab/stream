@@ -2,11 +2,11 @@ import { Stream, stream } from "./stream";
 import type { Consumer } from "./consumer";
 import { Closable } from "./types";
 
-export class ScopeBinder {
+export class ScopeLinker {
   private _consumers: Consumer.AnyConsumer[];
   constructor(
     private target: Closable,
-    public readonly scope: ScopeBinder.Scope,
+    public readonly scope: ScopeLinker.Scope,
   ) {
     this._consumers = [];
 
@@ -74,7 +74,7 @@ export class ScopeBinder {
   }
 }
 
-export namespace ScopeBinder {
+export namespace ScopeLinker {
   export type Scope =
     | stream.AnyStream
     | { any: [stream.AnyStream, ...stream.AnyStream[]]; all?: never }
