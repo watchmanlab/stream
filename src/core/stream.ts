@@ -1,5 +1,5 @@
 import { Consumer } from "./consumer";
-import type { Closable, Evented, EventsFunctions, EventsStreams, Named, Queue, Source } from "./types";
+import type { Closable, Evented, EventsFunctions, EventsStreams, Hooks, Named, Queue, Source } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceLinker } from "./source-linker";
 import { ScopeLinker } from "./scope-linker";
@@ -15,14 +15,16 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
   protected _scopeLinker?: ScopeLinker;
   protected _eventsLinker: EventsLinker<Stream.Events<VALUE>, NAME, this>;
   protected _queueFactory?: Stream.QueueFactory<VALUE>;
+  protected _hooks?: Hooks<Stream.Events<VALUE>, this>;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
-    const { name, scope, source, queueFactory, ...hooks } = { ...options };
+    const { name, scope, source, queueFactory, events, hooks } = { ...options };
 
     this.name = name ?? (Stream.NAME as NAME);
     this._queueFactory = queueFactory;
     this._state = "active";
-    this._eventsLinker = new EventsLinker(this, hooks);
+    this._eventsLinker = new EventsLinker(this, events);
+    this._hooks = hooks;
 
     const { _eventsLinker } = this;
     if (source)
@@ -80,10 +82,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
 
     if (_consumers.has(handler)) return _consumers.get(handler)!;
 
-    const { ready, abort, complete, error } = options ?? {};
+    const { ready, abort, complete, error, ...restOptions } = options ?? {};
 
     const consumer = new Consumer(handler, {
-      ...options,
+      ...restOptions,
       ready: _sourceLinker
         ? ready
           ? (self) => {
@@ -94,7 +96,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
               _sourceLinker!.next();
             }
         : ready,
-      abort: (self, error) => {
+      abort: this._hooks?.abort?.(this, (self, error) => {
         _consumers.delete(handler);
         this._optimizePush();
 
@@ -105,7 +107,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
         }
 
         abort?.(self, error);
-      },
+      }),
       complete: (self) => {
         _consumers.delete(handler);
         this._optimizePush();
@@ -233,7 +235,9 @@ export namespace Stream {
     source?: Source<VALUE>;
     scope?: ScopeLinker.Scope;
     queueFactory?: QueueFactory<VALUE>;
-  } & EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
+    events?: EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
+    hooks?: Hooks<Events<VALUE>, Stream<VALUE, NAME>>;
+  };
   export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
     T extends Stream<infer VALUE, any>
       ? VALUE
@@ -249,3 +253,11 @@ export namespace Stream {
     OUT extends Transformer<IN, any, OUT_NAME> | IN,
   > = (inputStream: IN, name?: OUT_NAME) => OUT;
 }
+
+new Stream({
+  hooks: {
+    abort: (self, fn) => {
+      return fn;
+    },
+  },
+});

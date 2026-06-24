@@ -36,8 +36,10 @@ export class EventsLinker<
         if (p in target) return Reflect.get(target, p, receiver);
         const stream = new Stream({
           name: this.target.name + p[0].toUpperCase() + p.slice(1),
-          consumerLeft(self) {
-            if (self.consumersCount === 0) delete (_events as any)[p];
+          events: {
+            consumerLeft(self) {
+              if (self.consumersCount === 0) delete (_events as any)[p];
+            },
           },
         });
         (_events as any)[p] = stream;
@@ -45,8 +47,4 @@ export class EventsLinker<
       },
     });
   }
-}
-
-export namespace EventsLinker {
-  export type AnyEventsLinker = EventsLinker<any, any, any>;
 }

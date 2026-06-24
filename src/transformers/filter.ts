@@ -16,7 +16,7 @@ export class Filter<
     predicate: filter.Predicate<VALUE, FILTERED>,
     options?: filter.Options<INPUT, VALUE, FILTERED, NAME>,
   ) {
-    const { name = filter.NAME as NAME, scope, source, queueFactory, ...hooks } = { ...options };
+    const { name = filter.NAME as NAME, scope, source, queueFactory, events, hooks } = { ...options };
 
     super(input, {
       ...options,
@@ -34,7 +34,7 @@ export class Filter<
         },
       },
     });
-    this._eventsLinker = new EventsLinker(this, hooks);
+    this._eventsLinker = new EventsLinker(this, events);
     const { _eventsLinker } = this;
   }
   override get events(): EventsStreams<filter.Events<FILTERED>, NAME> {
@@ -67,5 +67,7 @@ export namespace filter {
     VALUE extends Stream.ExtractValue<INPUT>,
     FILTERED extends VALUE,
     NAME extends string,
-  > = Transformer.Options<FILTERED, NAME> & EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
+  > = Transformer.Options<FILTERED, NAME> & {
+    events?: EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
+  };
 }
