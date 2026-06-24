@@ -9,7 +9,7 @@ export class Filter<
   FILTERED extends VALUE = VALUE,
   NAME extends string = filter.Name,
 > extends Transformer<INPUT, FILTERED, NAME> {
-  protected override _eventsProxy: EventsLinker<filter.Events<FILTERED>, NAME, this>;
+  protected override _eventsLinker: EventsLinker<filter.Events<FILTERED>, NAME, this>;
 
   constructor(
     input: INPUT,
@@ -27,18 +27,18 @@ export class Filter<
             if (predicate(value)) {
               handler(self, value);
             } else {
-              _eventsProxy.emit("filtered", value);
+              _eventsLinker.emit("filtered", value);
               self.next();
             }
           }, options);
         },
       },
     });
-    this._eventsProxy = new EventsLinker(name, this, hooks);
-    const { _eventsProxy } = this;
+    this._eventsLinker = new EventsLinker(name, this, hooks);
+    const { _eventsLinker } = this;
   }
   override get events(): EventsLinker.EventsStream<filter.Events<FILTERED>, NAME> {
-    return this._eventsProxy.events;
+    return this._eventsLinker.events;
   }
 }
 
