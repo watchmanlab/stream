@@ -1,7 +1,7 @@
 import { EventsLinker } from "../core/events-linker";
-import { Stream, stream } from "../core/stream";
-import { transformer, Transformer } from "../core/transformer";
-import { Prettify } from "../core/types";
+import { Stream } from "../core/stream";
+import { Transformer } from "../core/transformer";
+import { EventsFunctions, EventsStreams } from "../core/types";
 
 export class Filter<
   INPUT extends Stream.AnyStream,
@@ -34,10 +34,10 @@ export class Filter<
         },
       },
     });
-    this._eventsLinker = new EventsLinker(name, this, hooks);
+    this._eventsLinker = new EventsLinker(this, hooks);
     const { _eventsLinker } = this;
   }
-  override get events(): EventsLinker.EventsStream<filter.Events<FILTERED>, NAME> {
+  override get events(): EventsStreams<filter.Events<FILTERED>, NAME> {
     return this._eventsLinker.events;
   }
 }
@@ -67,6 +67,5 @@ export namespace filter {
     VALUE extends Stream.ExtractValue<INPUT>,
     FILTERED extends VALUE,
     NAME extends string,
-  > = transformer.Options<FILTERED, NAME> &
-    EventsLinker.EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
+  > = Transformer.Options<FILTERED, NAME> & EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
 }

@@ -1,13 +1,12 @@
 import type { ScopeLinker } from "./scope-linker";
-import { Stream, stream } from "./stream";
-import { Prettify } from "./types";
+import { Stream } from "./stream";
 
 export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME extends string> extends Stream<
   VALUE,
   NAME
 > {
   protected _input: INPUT;
-  constructor(input: INPUT, options?: transformer.Options<VALUE, NAME>) {
+  constructor(input: INPUT, options?: Transformer.Options<VALUE, NAME>) {
     let scope: ScopeLinker.Scope | undefined = options?.scope;
 
     if (scope instanceof Stream) {
@@ -33,7 +32,7 @@ export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME ex
       },
     });
   }
-  get traversal(): transformer.Traversal<INPUT> {
+  get traversal(): Transformer.Traversal<INPUT> {
     const input = this._input;
     return new Proxy(
       {},
@@ -46,7 +45,7 @@ export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME ex
   }
 }
 
-export namespace transformer {
+export namespace Transformer {
   export type Options<VALUE, NAME extends string> = Stream.Options<VALUE, NAME>;
   export type AnyTransformer = Transformer<Stream.AnyStream, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;

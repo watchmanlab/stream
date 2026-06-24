@@ -1,12 +1,15 @@
 import { Stream } from "./stream";
-import { Evented } from "./types";
+import { Evented, EventsFunctions, EventsStreams, Named } from "./types";
 
-export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends string, TARGET extends Evented<any>> {
-  protected _events?: Partial<EventsLinker.EventsStream<EVENTS, NAME>>;
+export class EventsLinker<
+  EVENTS extends Record<string, unknown>,
+  NAME extends string,
+  TARGET extends Evented<any> & Named,
+> {
+  protected _events?: Partial<EventsStreams<EVENTS, NAME>>;
   constructor(
-    private name: NAME,
-    target?: TARGET,
-    functions?: EventsLinker.EventsFunctions<EVENTS, TARGET>,
+    private target: TARGET,
+    functions?: EventsFunctions<EVENTS, TARGET>,
   ) {
     if (functions && target) {
       this.emit = (eventName, value) => {
@@ -24,15 +27,15 @@ export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends s
   has<KEY extends keyof EVENTS>(eventName: KEY): boolean {
     return this._events?.[eventName] !== undefined;
   }
-  get events(): EventsLinker.EventsStream<EVENTS, NAME> {
+  get events(): EventsStreams<EVENTS, NAME> {
     if (!this._events) this._events = {};
     const { _events } = this;
 
-    return new Proxy(_events as EventsLinker.EventsStream<EVENTS, NAME>, {
+    return new Proxy(_events as EventsStreams<EVENTS, NAME>, {
       get: (target, p: string, receiver) => {
         if (p in target) return Reflect.get(target, p, receiver);
         const stream = new Stream({
-          name: this.name + p[0].toUpperCase() + p.slice(1),
+          name: this.target.name + p[0].toUpperCase() + p.slice(1),
           consumerLeft(self) {
             if (self.consumersCount === 0) delete (_events as any)[p];
           },
@@ -46,10 +49,4 @@ export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends s
 
 export namespace EventsLinker {
   export type AnyEventsLinker = EventsLinker<any, any, any>;
-  export type EventsStream<EVENTS extends Record<string, unknown>, NAME extends string> = {
-    [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
-  };
-  export type EventsFunctions<EVENTS extends Record<string, unknown>, TARGET> = {
-    [K in keyof EVENTS]?: (self: TARGET, value: EVENTS[K]) => void;
-  };
 }

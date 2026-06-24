@@ -1,9 +1,8 @@
-import { EventsLinker } from "./events-linker";
-
-export class HooksLinker<EVENT_LINKER extends EventsLinker.AnyEventsLinker> {
-  constructor(eventsLinker: EVENT_LINKER) {
-    //
-  }
+export class HooksLinker<HOOKS extends Record<string, (...args: any[]) => void>, TARGET> {
+  constructor(
+    private targer: TARGET,
+    private hooks: HOOKS,
+  ) {}
 }
 
 export namespace HooksLinker {}

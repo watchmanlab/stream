@@ -1,12 +1,12 @@
 import { Consumer } from "./consumer";
-import type { Closable, Queue, Source } from "./types";
-import type { Transformer, transformer } from "./transformer";
+import type { Closable, Evented, EventsFunctions, EventsStreams, Named, Queue, Source } from "./types";
+import type { Transformer } from "./transformer";
 import { SourceLinker } from "./source-linker";
 import { ScopeLinker } from "./scope-linker";
 import { EventsLinker } from "./events-linker";
 
 export class Stream<VALUE, NAME extends string = Stream.Name>
-  implements Source<VALUE>, Closable<EventsLinker.EventsStream<Stream.Events<VALUE>, NAME>>
+  implements Source<VALUE>, Evented<EventsStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
 {
   public readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
@@ -22,7 +22,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     this.name = name ?? (Stream.NAME as NAME);
     this._queueFactory = queueFactory;
     this._state = "active";
-    this._eventsLinker = new EventsLinker(this.name, this, hooks);
+    this._eventsLinker = new EventsLinker(this, hooks);
 
     const { _eventsLinker } = this;
     if (source)
@@ -201,7 +201,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
   get consumersCount(): number {
     return this._consumers.size;
   }
-  get events(): EventsLinker.EventsStream<Stream.Events<VALUE>, NAME> {
+  get events(): EventsStreams<Stream.Events<VALUE>, NAME> {
     return this._eventsLinker.events;
   }
   get source(): Source<VALUE> | undefined {
@@ -212,9 +212,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
   }
 }
 
-export function stream<VALUE, NAME extends string>(options?: Stream.Options<VALUE, NAME>): Stream<VALUE, NAME> {
-  return new Stream(options);
-}
 export namespace Stream {
   export const NAME = "root";
   export type Name = typeof NAME;
@@ -236,13 +233,13 @@ export namespace Stream {
     source?: Source<VALUE>;
     scope?: ScopeLinker.Scope;
     queueFactory?: QueueFactory<VALUE>;
-  } & EventsLinker.EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
-  export type ExtractValue<T extends AnyStream | transformer.AnyTransformer> =
+  } & EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
+  export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
     T extends Stream<infer VALUE, any>
       ? VALUE
-      : transformer.ExtractValue<T> extends never
+      : Transformer.ExtractValue<T> extends never
         ? never
-        : transformer.ExtractValue<T>;
+        : Transformer.ExtractValue<T>;
 
   export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
 

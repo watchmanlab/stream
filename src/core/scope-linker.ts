@@ -1,11 +1,11 @@
-import { Stream, stream } from "./stream";
+import { Stream } from "./stream";
 import type { Consumer } from "./consumer";
-import { Closable } from "./types";
+import { Closable, CloseEvents, Evented } from "./types";
 
 export class ScopeLinker {
   private _consumers: Consumer.AnyConsumer[];
   constructor(
-    private target: Closable,
+    private target: Closable & Evented<CloseEvents>,
     public readonly scope: ScopeLinker.Scope,
   ) {
     this._consumers = [];
@@ -19,13 +19,13 @@ export class ScopeLinker {
     }
   }
 
-  private one(source: stream.AnyStream): void {
+  private one(source: Stream.AnyStream): void {
     this._consumers.push(
       source.events.abort.listen((self, e) => this.target.abort(e.error)),
       source.events.complete.listen(() => this.target.complete()),
     );
   }
-  private any(scopes: stream.AnyStream[]): void {
+  private any(scopes: Stream.AnyStream[]): void {
     const set = new Set(scopes);
 
     scopes.forEach((scope) =>
@@ -41,7 +41,7 @@ export class ScopeLinker {
       ),
     );
   }
-  private all(scopes: stream.AnyStream[]): void {
+  private all(scopes: Stream.AnyStream[]): void {
     const set = new Set(scopes);
     let count = set.size;
 
@@ -76,7 +76,7 @@ export class ScopeLinker {
 
 export namespace ScopeLinker {
   export type Scope =
-    | stream.AnyStream
-    | { any: [stream.AnyStream, ...stream.AnyStream[]]; all?: never }
-    | { any?: never; all: [stream.AnyStream, ...stream.AnyStream[]] };
+    | Stream.AnyStream
+    | { any: [Stream.AnyStream, ...Stream.AnyStream[]]; all?: never }
+    | { any?: never; all: [Stream.AnyStream, ...Stream.AnyStream[]] };
 }
