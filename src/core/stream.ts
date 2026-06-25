@@ -1,9 +1,10 @@
 import { Consumer } from "./consumer";
-import type { Closable, Evented, EventsFunctions, EventsStreams, Hooks, Named, Queue, Source } from "./types";
+import type { Closable, Evented, EventsFunctions, EventsStreams, Named, Queue, Source } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceLinker } from "./source-linker";
 import { ScopeLinker } from "./scope-linker";
 import { EventsLinker } from "./events-linker";
+import { HooksLinker } from "./hooks-linker";
 
 export class Stream<VALUE, NAME extends string = Stream.Name>
   implements Source<VALUE>, Evented<EventsStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
@@ -13,9 +14,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
   protected _state: Stream.State;
   protected _sourceLinker?: SourceLinker<VALUE>;
   protected _scopeLinker?: ScopeLinker;
-  protected _eventsLinker: EventsLinker<Stream.Events<VALUE>, NAME, this>;
+  protected _events: EventsLinker<Stream.Events<VALUE>, NAME, this>;
+  protected _hooks: HooksLinker<Stream.Trapped<VALUE, this>>;
   protected _queueFactory?: Stream.QueueFactory<VALUE>;
-  protected _hooks?: Hooks<Stream.Events<VALUE>, this>;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
     const { name, scope, source, queueFactory, events, hooks } = { ...options };
@@ -23,14 +24,14 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     this.name = name ?? (Stream.NAME as NAME);
     this._queueFactory = queueFactory;
     this._state = "active";
-    this._eventsLinker = new EventsLinker(this, events);
-    this._hooks = hooks;
+    this._events = new EventsLinker(this, events);
+    this._hooks = new HooksLinker(hooks);
 
-    const { _eventsLinker } = this;
+    const { _events } = this;
     if (source)
       this._sourceLinker = new SourceLinker(source, (_, value) => this.push(value), {
         error: (_, error) => {
-          _eventsLinker.emit("error", error);
+          _events.emit("error", error);
         },
         abort: (_, error) => this.abort(error),
         complete: () => this.complete(),
@@ -40,7 +41,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     }
   }
   protected _optimizePush(): void {
-    const { _eventsLinker } = this;
+    const { _events } = this;
     switch (this._consumers.size) {
       case 0:
         this.push = () => {};
@@ -48,9 +49,9 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
       case 1:
         const consumer = this._consumers.values().next().value!;
 
-        this.push = _eventsLinker.has("push")
+        this.push = _events.has("push")
           ? (value) => {
-              _eventsLinker.emit("push", value);
+              _events.emit("push", value);
               consumer.push(value);
             }
           : (value) => {
@@ -58,10 +59,10 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
             };
         break;
       default:
-        this.push = _eventsLinker.has("push")
+        this.push = _events.has("push")
           ? (value) => {
               for (const consumer of this._consumers.values()) {
-                _eventsLinker.emit("push", value);
+                _events.emit("push", value);
                 consumer.push(value);
               }
             }
@@ -78,11 +79,11 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     handler: Consumer.Handler<VALUE, ERROR>,
     options?: Consumer.Options<VALUE, ERROR>,
   ): Consumer<VALUE, ERROR> {
-    const { _consumers, _sourceLinker, _eventsLinker } = this;
+    const { _consumers, _sourceLinker, _events } = this;
 
     if (_consumers.has(handler)) return _consumers.get(handler)!;
 
-    const { ready, abort, complete, error, ...restOptions } = options ?? {};
+    const { ready, abort, complete, error, queue, ...restOptions } = options ?? {};
 
     const consumer = new Consumer(handler, {
       ...restOptions,
@@ -96,11 +97,11 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
               _sourceLinker!.next();
             }
         : ready,
-      abort: this._hooks?.abort?.(this, (self, error) => {
+      abort: this._hooks?.hook("abort", (self, error) => {
         _consumers.delete(handler);
         this._optimizePush();
 
-        _eventsLinker.emit("consumerLeft", consumer);
+        _events.emit("consumerLeft", consumer);
 
         if (_consumers.size === 0) {
           if (this._state === "drain") this._completed();
@@ -112,27 +113,25 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
         _consumers.delete(handler);
         this._optimizePush();
 
-        _eventsLinker.emit("consumerLeft", consumer);
+        _events.emit("consumerLeft", consumer);
 
         if (_consumers.size === 0) if (this._state === "drain") this._completed();
 
         complete?.(self);
       },
-
       error: (self, err) => {
-        _eventsLinker.emit("error", err);
+        _events.emit("error", err);
 
         error?.(self, err);
       },
-
-      queue: options?.queue ? options.queue : this._queueFactory?.(),
+      queue: queue ? queue : this._queueFactory?.(),
     });
 
     _consumers.set(handler, consumer);
 
     this._optimizePush();
 
-    _eventsLinker.emit("consumerJoin", consumer);
+    _events.emit("consumerJoin", consumer);
 
     if (options?.isReady !== false && _sourceLinker) _sourceLinker.next();
 
@@ -146,7 +145,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
       consumer.abort(error);
     }
 
-    this._eventsLinker.emit("abort", error);
+    this._events.emit("abort", error);
 
     this._clean("aborted", error);
   }
@@ -156,7 +155,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     if (this._consumers.size) {
       this._state = "drain";
       this.push = () => {};
-      this._eventsLinker.emit("drain", undefined);
+      this._events.emit("drain", undefined);
     } else {
       this._completed();
     }
@@ -168,21 +167,21 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     this._state = "completed";
     this.push = () => {};
 
-    this._eventsLinker.emit("complete", undefined);
+    this._events.emit("complete", undefined);
     this._clean("_completed");
   }
   protected _clean(reason: "aborted" | "_completed", error?: any): void {
     if (reason === "aborted") {
-      for (const event of Object.values(this._eventsLinker ?? {})) event.abort(error);
+      for (const event of Object.values(this._events ?? {})) event.abort(error);
       this._sourceLinker?.abort(error);
       this._scopeLinker?.abort(error);
     } else {
-      for (const event of Object.values(this._eventsLinker ?? {})) event.complete();
+      for (const event of Object.values(this._events ?? {})) event.complete();
       this._sourceLinker?.complete();
       this._scopeLinker?.complete();
     }
 
-    (this._eventsLinker as any) = this._queueFactory = this._sourceLinker = this._scopeLinker = undefined;
+    (this._events as any) = this._queueFactory = this._sourceLinker = this._scopeLinker = undefined;
   }
   pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
     transform: Stream.Transform<this, OUT_NAME, OUT>,
@@ -204,7 +203,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     return this._consumers.size;
   }
   get events(): EventsStreams<Stream.Events<VALUE>, NAME> {
-    return this._eventsLinker.events;
+    return this._events.events;
   }
   get source(): Source<VALUE> | undefined {
     return this._sourceLinker?.source;
@@ -229,6 +228,19 @@ export namespace Stream {
     consumerJoin: Consumer<VALUE, any>;
     consumerLeft: Consumer<VALUE, any>;
   };
+  export type Trapped<VALUE, SELF extends AnyStream> = HooksLinker.TrappedFromEvents<
+    Events<VALUE>,
+    {
+      abort: (self: SELF, error?: any) => void;
+      complete: (self: SELF) => void;
+      consumerJoin: (self: SELF, consumer: Consumer<VALUE>) => void;
+      consumerLeft: (self: SELF, consumer: Consumer<VALUE>) => void;
+      drain: (self: SELF) => void;
+      error: (self: SELF, error: any) => void;
+      push: (self: SELF, value: VALUE) => void;
+    }
+  >;
+
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
@@ -236,7 +248,7 @@ export namespace Stream {
     scope?: ScopeLinker.Scope;
     queueFactory?: QueueFactory<VALUE>;
     events?: EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
-    hooks?: Hooks<Events<VALUE>, Stream<VALUE, NAME>>;
+    hooks?: HooksLinker.Hooks<Trapped<VALUE, Stream<VALUE, NAME>>>;
   };
   export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
     T extends Stream<infer VALUE, any>
@@ -254,10 +266,10 @@ export namespace Stream {
   > = (inputStream: IN, name?: OUT_NAME) => OUT;
 }
 
-new Stream({
-  hooks: {
-    abort: (self, fn) => {
-      return fn;
-    },
-  },
-});
+// new Stream({
+//   hooks: {
+//     abort: (self, fn) => {
+//       return (self, error) => {};
+//     },
+//   },
+// });

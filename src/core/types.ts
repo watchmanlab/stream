@@ -48,9 +48,6 @@ export interface Closable {
   complete(): void;
 }
 
-export type Hooks<EVENTS extends Record<string, unknown>, TARGET> = {
-  [K in keyof EVENTS]?: <ARGS extends [...any[]], FN extends (...args: ARGS) => void>(target: TARGET, fn: FN) => FN;
-};
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR

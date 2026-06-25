@@ -2,7 +2,7 @@ import type { Queue } from "./types";
 import { LinkedList } from "./linked-list";
 import { Stream } from "./stream";
 
-export class Consumer<VALUE, ERROR = never> {
+export class Consumer<VALUE, ERROR = any> {
   private _queue: Queue<VALUE>;
   private _isReady: boolean;
   private _isProcessing: boolean;
