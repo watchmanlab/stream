@@ -36,12 +36,7 @@ export interface Named<NAME extends string = any> {
 export interface Evented<EVENTS extends Record<string, Stream.AnyStream> = any> {
   readonly events: EVENTS;
 }
-export type EventsStreams<EVENTS extends Record<string, unknown>, NAME extends string> = {
-  [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
-};
-export type EventsFunctions<EVENTS extends Record<string, unknown>, TARGET> = {
-  [K in keyof EVENTS]?: (self: TARGET, value: EVENTS[K]) => void;
-};
+
 export type CloseEvents = { abort: Stream.AnyStream; complete: Stream<void, any> };
 export interface Closable {
   abort(error?: any): void;
