@@ -97,20 +97,18 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
               _sourceLinker!.next();
             }
         : ready,
-      abort: (self, error) => {
-        _hooks.hook("consumerLeft", () => {
-          _consumers.delete(handler);
-          this._optimizePush();
+      abort: _hooks.hook("consumerLeft", (c) => {
+        _consumers.delete(handler);
+        this._optimizePush();
 
-          _events.emit("consumerLeft", consumer);
+        _events.emit("consumerLeft", consumer);
 
-          if (_consumers.size === 0) {
-            if (this._state === "drain") this._completed();
-          }
+        if (_consumers.size === 0) {
+          if (this._state === "drain") this._completed();
+        }
 
-          abort?.(self, error);
-        });
-      },
+        abort?.(self, error);
+      }),
       complete: (self) => {
         _consumers.delete(handler);
         this._optimizePush();
@@ -230,18 +228,7 @@ export namespace Stream {
     consumerJoin: Consumer<VALUE, any>;
     consumerLeft: Consumer<VALUE, any>;
   };
-  export type Trapped<VALUE> = HooksLinker.TrappedFromEvents<
-    Events<VALUE>,
-    {
-      abort: (error?: any) => void;
-      complete: () => void;
-      consumerJoin: (consumer: Consumer<VALUE>) => void;
-      consumerLeft: (consumer: Consumer<VALUE>) => void;
-      drain: () => void;
-      error: (error: any) => void;
-      push: (value: VALUE) => void;
-    }
-  >;
+  export type Trapped<VALUE> = HooksLinker.TrappedFromEvents<Events<VALUE>>;
 
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Options<VALUE, NAME extends string, SELF extends AnyStream> = {
@@ -270,8 +257,10 @@ export namespace Stream {
 
 new Stream<number>({
   hooks: {
-    consumerJoin: (self, fn, consumer) => {
-      return (consumer) => {};
+    consumerJoin: (self, fn) => {
+      return (consumer) => {
+        fn(consumer);
+      };
     },
   },
 });
