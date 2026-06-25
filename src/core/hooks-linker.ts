@@ -1,6 +1,4 @@
-import { Stream } from "./stream";
-
-export class HooksLinker<FNS extends Record<string, any[]>, SELF extends Stream.AnyStream> {
+export class HooksLinker<FNS extends Record<string, any[]>, SELF> {
   constructor(
     private self: SELF,
     private hooks?: HooksLinker.Hooks<FNS, SELF>,
@@ -12,7 +10,7 @@ export class HooksLinker<FNS extends Record<string, any[]>, SELF extends Stream.
 }
 
 export namespace HooksLinker {
-  export type Hooks<FNS extends Record<string, any[]>, SELF extends Stream.AnyStream> = {
+  export type Hooks<FNS extends Record<string, any[]>, SELF> = {
     [K in keyof FNS]?: (self: SELF, next: () => void, ...args: FNS[K]) => void;
   };
 

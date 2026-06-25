@@ -1,25 +1,24 @@
 import { EventsLinker } from "../core/events-linker";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { EventsFunctions, EventsStreams } from "../core/types";
 
 export class Filter<
   INPUT extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends string = filter.Name,
-> extends Transformer<INPUT, FILTERED, NAME> {
-  protected override _eventsLinker: EventsLinker<filter.Events<FILTERED>, NAME, this>;
+> extends Transformer<INPUT, FILTERED, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
+  protected override _eventsLinker: EventsLinker<filter.Events<FILTERED>, NAME, Filter<INPUT, VALUE, FILTERED, NAME>>;
 
   constructor(
     input: INPUT,
     predicate: filter.Predicate<VALUE, FILTERED>,
     options?: filter.Options<INPUT, VALUE, FILTERED, NAME>,
   ) {
-    const { name = filter.NAME as NAME, scope, source, queueFactory, events, hooks } = { ...options };
+    const { name = filter.NAME as NAME, events, ...restOptions } = { ...options };
 
     super(input, {
-      ...options,
+      ...restOptions,
       name,
       source: {
         listen: (handler, options) => {
@@ -37,7 +36,7 @@ export class Filter<
     this._eventsLinker = new EventsLinker(this, events);
     const { _eventsLinker } = this;
   }
-  override get events(): EventsStreams<filter.Events<FILTERED>, NAME> {
+  override get events(): EventsLinker.EventsStreams<filter.Events<FILTERED>, NAME> {
     return this._eventsLinker.events;
   }
 }
@@ -67,7 +66,7 @@ export namespace filter {
     VALUE extends Stream.ExtractValue<INPUT>,
     FILTERED extends VALUE,
     NAME extends string,
-  > = Transformer.Options<FILTERED, NAME> & {
-    events?: EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
+  > = Transformer.Options<FILTERED, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> & {
+    events?: EventsLinker.EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
   };
 }

@@ -1,19 +1,15 @@
 import { Stream } from "./stream";
-import { Evented, Named } from "./types";
+import { Named } from "./types";
 
-export class EventsLinker<
-  EVENTS extends Record<string, unknown>,
-  NAME extends string,
-  TARGET extends Evented<any> & Named,
-> {
+export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends string, SELF extends Named> {
   protected _events?: Partial<EventsLinker.EventsStreams<EVENTS, NAME>>;
   constructor(
-    private target: TARGET,
-    functions?: EventsLinker.EventsFunctions<EVENTS, TARGET>,
+    private self: SELF,
+    functions?: EventsLinker.EventsFunctions<EVENTS, SELF>,
   ) {
-    if (functions && target) {
+    if (functions) {
       this.emit = (eventName, value) => {
-        functions[eventName]?.(target, value);
+        functions[eventName]?.(self, value);
         this._events?.[eventName]?.push?.(value);
       };
     } else {
@@ -35,7 +31,7 @@ export class EventsLinker<
       get: (target, p: string, receiver) => {
         if (p in target) return Reflect.get(target, p, receiver);
         const stream = new Stream({
-          name: this.target.name + p[0].toUpperCase() + p.slice(1),
+          name: this.self.name + p[0].toUpperCase() + p.slice(1),
           events: {
             consumerLeft(self) {
               if (self.consumersCount === 0) delete (_events as any)[p];
@@ -53,7 +49,7 @@ export namespace EventsLinker {
   export type EventsStreams<EVENTS extends Record<string, unknown>, NAME extends string> = {
     [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
   };
-  export type EventsFunctions<EVENTS extends Record<string, unknown>, TARGET> = {
-    [K in keyof EVENTS]?: (self: TARGET, value: EVENTS[K]) => void;
+  export type EventsFunctions<EVENTS extends Record<string, unknown>, SELF> = {
+    [K in keyof EVENTS]?: (self: SELF, value: EVENTS[K]) => void;
   };
 }

@@ -74,7 +74,7 @@ function bench() {
 function mapTest() {
   const stream = new Stream<number>();
 
-  const mapped = stream.pipe(map((value) => value.toFixed() + " mapped"));
+  const mapped = stream.pipe(map((value) => value.toFixed() + " mapped", { events: { abort(self, value) {} } }));
 
   mapped.listen((self, v) => {
     if (v === "2 mapped") {
@@ -97,13 +97,14 @@ function mapTest() {
 function filterTest() {
   const stream = new Stream<number>();
 
-  const mapped = stream.pipe(filter((v) => v % 2 === 0)).pipe(map((value) => value.toFixed()));
+  const mapped = stream.pipe(filter((v) => v % 2 === 0));
 
-  mapped.traversal.filter.events.consumerJoin.listen((self) => {
+  mapped.events.consumerJoin.listen((self) => {
     console.log("consumer join");
+
     self.next();
   });
-  mapped.traversal.filter.events.filtered.listen((self, value) => {
+  mapped.events.filtered.listen((self, value) => {
     console.log("filtered", value);
     self.next();
   });

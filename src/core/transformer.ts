@@ -1,12 +1,15 @@
 import type { ScopeLinker } from "./scope-linker";
 import { Stream } from "./stream";
+import { Named } from "./types";
 
-export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME extends string> extends Stream<
+export abstract class Transformer<
+  INPUT extends Stream.AnyStream,
   VALUE,
-  NAME
-> {
+  NAME extends string,
+  SELF extends Named<NAME>,
+> extends Stream<VALUE, NAME, SELF> {
   protected _input: INPUT;
-  constructor(input: INPUT, options?: Transformer.Options<VALUE, NAME>) {
+  constructor(input: INPUT, options?: Transformer.Options<VALUE, NAME, SELF>) {
     let scope: ScopeLinker.Scope | undefined = options?.scope;
 
     if (scope instanceof Stream) {
@@ -46,11 +49,11 @@ export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME ex
 }
 
 export namespace Transformer {
-  export type Options<VALUE, NAME extends string> = Stream.Options<VALUE, NAME>;
-  export type AnyTransformer = Transformer<Stream.AnyStream, any, any>;
-  export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
+  export type Options<VALUE, NAME extends string, SELF> = Stream.Options<VALUE, NAME, SELF>;
+  export type AnyTransformer = Transformer<Stream.AnyStream, any, any, any>;
+  export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;
-  export type ExtractInputStream<T> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
+  export type ExtractInputStream<T> = T extends Transformer<infer INPUT, any, any, any> ? INPUT : never;
 
   export type Traversal<T extends Stream.AnyStream> = Record<T["name"] | (`$${string}` & {}), Traversable<T>>;
   export type Traversable<T extends Stream.AnyStream> = [ExtractInputStream<T>] extends [never]
