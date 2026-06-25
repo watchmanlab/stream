@@ -97,18 +97,24 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
               _sourceLinker!.next();
             }
         : ready,
-      abort: _hooks.hook("consumerLeft", (c) => {
-        _consumers.delete(handler);
-        this._optimizePush();
+      abort: (self, error) => {
+        _hooks.hook(
+          "consumerLeft",
+          () => {
+            _consumers.delete(handler);
+            this._optimizePush();
 
-        _events.emit("consumerLeft", consumer);
+            _events.emit("consumerLeft", consumer);
 
-        if (_consumers.size === 0) {
-          if (this._state === "drain") this._completed();
-        }
+            if (_consumers.size === 0) {
+              if (this._state === "drain") this._completed();
+            }
 
-        abort?.(self, error);
-      }),
+            abort?.(self, error);
+          },
+          self,
+        );
+      },
       complete: (self) => {
         _consumers.delete(handler);
         this._optimizePush();
@@ -257,10 +263,8 @@ export namespace Stream {
 
 new Stream<number>({
   hooks: {
-    consumerJoin: (self, fn) => {
-      return (consumer) => {
-        fn(consumer);
-      };
+    consumerJoin: (self, next, consumer) => {
+      next();
     },
   },
 });
