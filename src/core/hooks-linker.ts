@@ -1,23 +1,21 @@
-export class HooksLinker<FNS extends Record<string, any[]>, SELF> {
+export class HooksLinker<TRAPPED extends Record<string, (...args: any) => any>, SELF> {
   constructor(
     private self: SELF,
-    private hooks?: HooksLinker.Hooks<FNS, SELF>,
+    private hooks?: HooksLinker.Hooks<TRAPPED, SELF>,
   ) {}
-  hook<KEY extends keyof FNS, ARGS extends FNS[KEY]>(hookName: KEY, trapped: () => void, ...args: ARGS): void {
+  hook<
+    KEY extends keyof TRAPPED,
+    FN extends TRAPPED[KEY],
+    ARGS extends Parameters<FN>,
+    RETURN extends ReturnType<TRAPPED[KEY]>,
+  >(hookName: KEY, trapped: FN): (...args: ARGS) => RETURN {
     const { hooks } = this;
-    return hooks?.[hookName] ? hooks[hookName](this.self, trapped, ...args) : trapped();
+    return hooks?.[hookName] ? (...args: ARGS) => hooks[hookName]!(this.self, trapped, ...args) : trapped;
   }
 }
 
 export namespace HooksLinker {
-  export type Hooks<FNS extends Record<string, any[]>, SELF> = {
-    [K in keyof FNS]?: (self: SELF, next: () => void, ...args: FNS[K]) => void;
+  export type Hooks<TRAPPED extends Record<string, (...args: any) => any>, SELF> = {
+    [K in keyof TRAPPED]?: (self: SELF, trapped: TRAPPED[K], ...args: Parameters<TRAPPED[K]>) => ReturnType<TRAPPED[K]>;
   };
-
-  export type TrappedFromEvents<
-    EVENTS extends Record<string, unknown>,
-    FNS extends { [K in keyof EVENTS]: [EVENTS[K]] } = {
-      [K in keyof EVENTS]: [EVENTS[K]];
-    },
-  > = FNS;
 }
