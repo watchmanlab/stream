@@ -6,6 +6,7 @@ import { ScopeLinker } from "./scope-linker";
 import { EventsLinker } from "./events-linker";
 import { HooksLinker } from "./hooks-linker";
 
+const NAME = "root";
 export class Stream<VALUE, NAME extends string = Stream.Name, SELF extends Named<NAME> = Stream<VALUE, NAME, never>>
   implements Source<VALUE>, Evented<EventsLinker.EventsStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
 {
@@ -21,7 +22,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name, SELF extends Named
   constructor(options?: Stream.Options<VALUE, NAME, SELF>) {
     const { name, scope, source, queueFactory, events, hooks } = { ...options };
 
-    this.name = name ?? (Stream.NAME as NAME);
+    this.name = name ?? (NAME as NAME);
     this._queueFactory = queueFactory;
     this._state = "active";
     this._eventsLinker = new EventsLinker(this as unknown as SELF, events);
@@ -220,7 +221,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name, SELF extends Named
 }
 
 export namespace Stream {
-  export const NAME = "root";
   export type Name = typeof NAME;
   export type State = "active" | "drain" | "aborted" | "completed";
   export type AnyStream = Stream<any, any, any>;
@@ -259,6 +259,11 @@ export namespace Stream {
     OUT_NAME extends string,
     OUT extends Transformer<IN, any, OUT_NAME, any> | IN,
   > = (inputStream: IN, name?: OUT_NAME) => OUT;
+
+  export const stream = Symbol.for("stream");
+  export interface Streamable<VALUE, NAME extends string> {
+    [stream]: () => Stream<VALUE, NAME>;
+  }
 }
 
 new Stream<number>({
