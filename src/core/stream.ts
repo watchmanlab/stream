@@ -42,37 +42,39 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     }
   }
   protected _optimizePush(): void {
-    const { _eventsLinker } = this;
-    switch (this._consumers.size) {
-      case 0:
-        this.push = () => {};
-        break;
-      case 1:
-        const consumer = this._consumers.values().next().value!;
+    this.push = this._hooksLinker.hook("optimizePush", () => {
+      const { _eventsLinker } = this;
+      switch (this._consumers.size) {
+        case 0:
+          return () => {};
 
-        this.push = _eventsLinker.has("push")
-          ? (value) => {
-              _eventsLinker.emit("push", value);
-              consumer.push(value);
-            }
-          : (value) => {
-              consumer.push(value);
-            };
-        break;
-      default:
-        this.push = _eventsLinker.has("push")
-          ? (value) => {
-              for (const consumer of this._consumers.values()) {
+        case 1:
+          const consumer = this._consumers.values().next().value!;
+
+          return _eventsLinker.has("push")
+            ? this._hooksLinker.hook("push", (value) => {
                 _eventsLinker.emit("push", value);
                 consumer.push(value);
-              }
-            }
-          : (value) => {
-              for (const consumer of this._consumers.values()) {
+              })
+            : this._hooksLinker.hook("push", (value) => {
                 consumer.push(value);
-              }
-            };
-    }
+              });
+
+        default:
+          return _eventsLinker.has("push")
+            ? this._hooksLinker.hook("push", (value) => {
+                for (const consumer of this._consumers.values()) {
+                  _eventsLinker.emit("push", value);
+                  consumer.push(value);
+                }
+              })
+            : this._hooksLinker.hook("push", (value) => {
+                for (const consumer of this._consumers.values()) {
+                  consumer.push(value);
+                }
+              });
+      }
+    })();
   }
   push(value: VALUE, hot = false): void {}
 
@@ -229,6 +231,7 @@ export namespace Stream {
     consumerLeft: Consumer<VALUE, any>;
   };
   export type Trapped<VALUE> = {
+    optimizePush: () => (value: VALUE) => void;
     push: (value: VALUE) => void;
     drain: () => void;
     complete: () => void;
@@ -267,11 +270,10 @@ export namespace Stream {
   }
 }
 
-new Stream<number>({
-  hooks: {
-    consumerLeft(self, trapped, consumer, error) {
-      trapped(consumer, error);
-      return;
-    },
-  },
-});
+// new Stream<number>({
+//   hooks: {
+//     optimizePush(self, trapped) {
+//       return ()=>{}
+//     },
+//   },
+// });

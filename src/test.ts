@@ -123,7 +123,7 @@ function filterTest() {
   stream.push(6);
 }
 
-filterTest();
+// filterTest();
 // filtered 1
 // 2
 // filtered 3
@@ -147,3 +147,16 @@ function fromIterableTest() {
 }
 
 // fromIterableTest();
+
+function test() {
+  const stream = new Stream<number>();
+  stream.listen((self, value) => {
+    console.log(value);
+    self.next();
+  });
+
+  stream.push(1);
+  stream.push(2);
+  stream.push(3);
+}
+test();
