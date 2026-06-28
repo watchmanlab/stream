@@ -1,5 +1,5 @@
 import { Consumer } from "./consumer";
-import type { Closable, Evented, Named, Queue, Source } from "./types";
+import type { Closable, Evented, Named, Prettify, Queue, Source } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceLinker } from "./source-linker";
 import { ScopeLinker } from "./scope-linker";
@@ -28,7 +28,11 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     this._eventsLinker = new EventsLinker(this, events);
     this._hooksLinker = new HooksLinker(this, hooks);
 
-    const { _eventsLinker } = this;
+    const { _eventsLinker, _hooksLinker } = this;
+
+    this.abort = _hooksLinker.hook("abort", (error) => this.abort(error));
+    this.complete = _hooksLinker.hook("complete", () => this.complete());
+
     if (source)
       this._sourceLinker = new SourceLinker(source, (_, value) => this.push(value), {
         error: (_, error) => {
@@ -102,7 +106,8 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
         _consumers.delete(handler);
         this._optimizePush();
 
-        _eventsLinker.emit("consumerLeft", consumer);
+        _eventsLinker.emit("consumerLeft", { reason: "abort", consumer, error });
+        if (error) _eventsLinker.emit("error", { reason: "consumerAbort", error, consumer });
 
         if (_consumers.size === 0) {
           if (this._state === "drain") this._completed();
@@ -110,21 +115,21 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
 
         abort?.(consumer, error);
       }),
-      complete: (self) => {
+      complete: _hooksLinker.hook("consumerLeft", (consumer) => {
         _consumers.delete(handler);
         this._optimizePush();
 
-        _eventsLinker.emit("consumerLeft", consumer);
+        _eventsLinker.emit("consumerLeft", { reason: "complete", consumer });
 
         if (_consumers.size === 0) if (this._state === "drain") this._completed();
 
-        complete?.(self);
-      },
-      error: (self, err) => {
-        _eventsLinker.emit("error", err);
+        complete?.(consumer);
+      }),
+      error: _hooksLinker.hook("consumerError", (consumer, err) => {
+        _eventsLinker.emit("error", { reason: "consumerError", error: err, consumer });
 
-        error?.(self, err);
-      },
+        error?.(consumer, err);
+      }),
       queue: queue ? queue : this._queueFactory?.(),
     });
 
@@ -142,11 +147,14 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     if (this._state === "aborted" || this._state === "completed") return;
     this._state = "aborted";
     this.push = () => {};
+    this._optimizePush = () => {};
+
     for (const consumer of this._consumers.values()) {
       consumer.abort(error);
     }
 
     this._eventsLinker.emit("abort", error);
+    if (error) this._eventsLinker.emit("error", { reason: "abort", error });
 
     this._clean("aborted", error);
   }
@@ -156,6 +164,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     if (this._consumers.size) {
       this._state = "drain";
       this.push = () => {};
+      this._optimizePush = () => {};
       this._eventsLinker.emit("drain", undefined);
     } else {
       this._completed();
@@ -224,18 +233,21 @@ export namespace Stream {
     drain: void;
     complete: void;
     abort: any;
-    error: any;
+    error: { error: any } & (
+      | { reason: "abort" }
+      | { reason: "consumerError" | "consumerAbort"; consumer: Consumer<VALUE, any> }
+    );
     consumerJoin: Consumer<VALUE, any>;
-    consumerLeft: Consumer<VALUE, any>;
+    consumerLeft: { consumer: Consumer<VALUE, any> } & ({ reason: "complete" } | { reason: "abort"; error?: any });
   };
   export type Trapped<VALUE> = {
     push: (value: VALUE) => void;
     drain: () => void;
     complete: () => void;
     abort: (error?: any) => void;
-    error: (error: any) => void;
     consumerJoin: (consumer: Consumer<VALUE, any>) => void;
     consumerLeft: (consumer: Consumer<VALUE, any>, error?: any) => void;
+    consumerError: (consumer: Consumer<VALUE, any>, error: any) => void;
   };
 
   export type QueueFactory<VALUE> = () => Queue<VALUE>;

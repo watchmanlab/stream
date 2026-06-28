@@ -159,4 +159,4 @@ function test() {
   stream.push(2);
   stream.push(3);
 }
-test();
+// test();
