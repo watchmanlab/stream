@@ -46,36 +46,23 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     }
   }
   protected _optimizePush(): void {
-    const { _eventsLinker, _hooksLinker, _consumers } = this;
+    const { _hooksLinker, _consumers } = this;
     switch (_consumers.size) {
       case 0:
         this.push = () => {};
         break;
       case 1:
         const consumer = _consumers.values().next().value!;
-
-        this.push = _eventsLinker.has("push")
-          ? _hooksLinker.hook("push", (value) => {
-              _eventsLinker.emit("push", value);
-              consumer.push(value);
-            })
-          : _hooksLinker.hook("push", (value) => {
-              consumer.push(value);
-            });
+        this.push = _hooksLinker.hook("push", (value) => {
+          consumer.push(value);
+        });
         break;
       default:
-        this.push = _eventsLinker.has("push")
-          ? _hooksLinker.hook("push", (value) => {
-              for (const consumer of _consumers.values()) {
-                _eventsLinker.emit("push", value);
-                consumer.push(value);
-              }
-            })
-          : _hooksLinker.hook("push", (value) => {
-              for (const consumer of _consumers.values()) {
-                consumer.push(value);
-              }
-            });
+        this.push = _hooksLinker.hook("push", (value) => {
+          for (const consumer of _consumers.values()) {
+            consumer.push(value);
+          }
+        });
     }
   }
   push(value: VALUE, hot = false): void {}
@@ -229,7 +216,6 @@ export namespace Stream {
   export type AnyStream = Stream<any, any>;
 
   export type Events<VALUE> = {
-    push: VALUE;
     drain: void;
     complete: void;
     abort: any;
