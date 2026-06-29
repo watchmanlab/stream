@@ -1,7 +1,7 @@
-export class HooksLinker<TRAPPED extends Record<string, (...args: any) => any>, SELF> {
+export class HooksLinker<TRAPPED extends Record<string, (...args: any) => any>, CONTEXT> {
   constructor(
-    private self: SELF,
-    private hooks?: HooksLinker.Hooks<TRAPPED, SELF>,
+    private context: CONTEXT,
+    private hooks?: HooksLinker.Hooks<TRAPPED, CONTEXT>,
   ) {}
   hook<
     KEY extends keyof TRAPPED,
@@ -10,12 +10,16 @@ export class HooksLinker<TRAPPED extends Record<string, (...args: any) => any>, 
     RETURN extends ReturnType<TRAPPED[KEY]>,
   >(hookName: KEY, trapped: FN): (...args: ARGS) => RETURN {
     const { hooks } = this;
-    return hooks?.[hookName] ? (...args: ARGS) => hooks[hookName]!(this.self, trapped, ...args) : trapped;
+    return hooks?.[hookName] ? (...args: ARGS) => hooks[hookName]!(this.context, trapped, ...args) : trapped;
   }
 }
 
 export namespace HooksLinker {
-  export type Hooks<TRAPPED extends Record<string, (...args: any) => any>, SELF> = {
-    [K in keyof TRAPPED]?: (self: SELF, trapped: TRAPPED[K], ...args: Parameters<TRAPPED[K]>) => ReturnType<TRAPPED[K]>;
+  export type Hooks<TRAPPED extends Record<string, (...args: any) => any>, CONTEXT> = {
+    [K in keyof TRAPPED]?: (
+      context: CONTEXT,
+      trapped: TRAPPED[K],
+      ...args: Parameters<TRAPPED[K]>
+    ) => ReturnType<TRAPPED[K]>;
   };
 }

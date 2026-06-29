@@ -1,15 +1,15 @@
 import { Stream } from "./stream";
 import { Named } from "./types";
 
-export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends string, SELF extends Named> {
+export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends string, CONTEXT extends Named> {
   protected _events?: Partial<EventsLinker.EventsStreams<EVENTS, NAME>>;
   constructor(
-    private self: SELF,
-    functions?: EventsLinker.EventsFunctions<EVENTS, SELF>,
+    private context: CONTEXT,
+    functions?: EventsLinker.EventsFunctions<EVENTS, CONTEXT>,
   ) {
     if (functions) {
       this.emit = (eventName, value) => {
-        functions[eventName]?.(self, value);
+        functions[eventName]?.(context, value);
         this._events?.[eventName]?.push?.(value);
       };
     } else {
@@ -31,10 +31,10 @@ export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends s
       get: (target, p: string, receiver) => {
         if (p in target) return Reflect.get(target, p, receiver);
         const stream = new Stream({
-          name: this.self.name + p[0].toUpperCase() + p.slice(1),
+          name: this.context.name + p[0].toUpperCase() + p.slice(1),
           events: {
-            consumerLeft(self) {
-              if (self.consumersCount === 0) delete (_events as any)[p];
+            consumerLeft(context) {
+              if (context.consumersCount === 0) delete (_events as any)[p];
             },
           },
         });
@@ -43,13 +43,19 @@ export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends s
       },
     });
   }
+  abort(error?: any) {
+    for (const event of Object.values(this._events ?? {})) (event as Stream.AnyStream).abort(error);
+  }
+  complete() {
+    for (const event of Object.values(this._events ?? {})) (event as Stream.AnyStream).complete();
+  }
 }
 
 export namespace EventsLinker {
   export type EventsStreams<EVENTS extends Record<string, unknown>, NAME extends string> = {
     [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
   };
-  export type EventsFunctions<EVENTS extends Record<string, unknown>, SELF> = {
-    [K in keyof EVENTS]?: (self: SELF, value: EVENTS[K]) => void;
+  export type EventsFunctions<EVENTS extends Record<string, unknown>, CONTEXT> = {
+    [K in keyof EVENTS]?: (context: CONTEXT, value: EVENTS[K]) => void;
   };
 }

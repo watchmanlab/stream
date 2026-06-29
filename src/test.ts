@@ -65,7 +65,7 @@ function bench() {
   }
 }
 
-// bench();
+bench();
 // 7 000 000 1149 ms
 // 7 000 000 1150 ms
 // 7 000 000 1150 ms
@@ -149,7 +149,16 @@ function fromIterableTest() {
 // fromIterableTest();
 
 function test() {
-  const stream = new Stream<number>();
+  const stream = new Stream<number>({
+    hooks: {
+      consumerJoin(self, trapped, consumer) {
+        console.log("consumer joined");
+
+        return trapped(consumer);
+      },
+    },
+  });
+
   stream.listen((self, value) => {
     console.log(value);
     self.next();
@@ -160,3 +169,12 @@ function test() {
   stream.push(3);
 }
 // test();
+// before
+// 1
+// after
+// before
+// 2
+// after
+// before
+// 3
+// after

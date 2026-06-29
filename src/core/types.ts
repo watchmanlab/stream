@@ -30,6 +30,9 @@ export interface Source<VALUE> {
     options?: Consumer.Options<VALUE, ERROR>,
   ): Consumer<VALUE, ERROR>;
 }
+export namespace Source {
+  export type AnySource = Source<any>;
+}
 export interface Named<NAME extends string = any> {
   readonly name: NAME;
 }

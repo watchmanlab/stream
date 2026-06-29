@@ -28,10 +28,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     this._eventsLinker = new EventsLinker(this, events);
     this._hooksLinker = new HooksLinker(this, hooks);
 
-    const { _eventsLinker, _hooksLinker } = this;
-
-    this.abort = _hooksLinker.hook("abort", (error) => this.abort(error));
-    this.complete = _hooksLinker.hook("complete", () => this.complete());
+    const { _eventsLinker } = this;
 
     if (source)
       this._sourceLinker = new SourceLinker(source, (_, value) => this.push(value), {
@@ -120,60 +117,67 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
       queue: queue ? queue : this._queueFactory?.(),
     });
 
-    _consumers.set(handler, consumer);
+    return _hooksLinker.hook("consumerJoin", (consumer) => {
+      _consumers.set(handler, consumer);
 
-    this._optimizePush();
+      this._optimizePush();
 
-    _eventsLinker.emit("consumerJoin", consumer);
+      _eventsLinker.emit("consumerJoin", consumer);
 
-    if (options?.isReady !== false && _sourceLinker) _sourceLinker.next();
-
-    return consumer;
+      if (options?.isReady !== false && _sourceLinker) _sourceLinker.next();
+      return consumer;
+    })(consumer);
   }
   abort(error?: any): void {
     if (this._state === "aborted" || this._state === "completed") return;
-    this._state = "aborted";
-    this.push = () => {};
-    this._optimizePush = () => {};
+    this._hooksLinker.hook("abort", (error) => {
+      this._state = "aborted";
+      this.push = () => {};
+      this._optimizePush = () => {};
 
-    for (const consumer of this._consumers.values()) {
-      consumer.abort(error);
-    }
+      for (const consumer of this._consumers.values()) {
+        consumer.abort(error);
+      }
 
-    this._eventsLinker.emit("abort", error);
-    if (error) this._eventsLinker.emit("error", { reason: "abort", error });
+      this._eventsLinker.emit("abort", error);
+      if (error) this._eventsLinker.emit("error", { reason: "abort", error });
 
-    this._clean("aborted", error);
+      this._clean("aborted", error);
+    })(error);
   }
   complete(): void {
     if (this._state !== "active") return;
-
-    if (this._consumers.size) {
-      this._state = "drain";
-      this.push = () => {};
-      this._optimizePush = () => {};
-      this._eventsLinker.emit("drain", undefined);
-    } else {
-      this._completed();
-    }
-    for (const consumer of this._consumers.values()) {
-      consumer.complete();
-    }
+    const { _hooksLinker } = this;
+    _hooksLinker.hook("complete", () => {
+      if (this._consumers.size) {
+        _hooksLinker.hook("drain", () => {
+          this._state = "drain";
+          this.push = () => {};
+          this._optimizePush = () => {};
+          this._eventsLinker.emit("drain", undefined);
+        })();
+      } else {
+        this._completed();
+      }
+      for (const consumer of this._consumers.values()) {
+        consumer.complete();
+      }
+    })();
   }
   protected _completed(): void {
     this._state = "completed";
     this.push = () => {};
 
     this._eventsLinker.emit("complete", undefined);
-    this._clean("_completed");
+    this._clean("completed");
   }
-  protected _clean(reason: "aborted" | "_completed", error?: any): void {
+  protected _clean(reason: "aborted" | "completed", error?: any): void {
     if (reason === "aborted") {
-      for (const event of Object.values(this._eventsLinker ?? {})) event.abort(error);
+      this._eventsLinker.abort(error);
       this._sourceLinker?.abort(error);
       this._scopeLinker?.abort(error);
     } else {
-      for (const event of Object.values(this._eventsLinker ?? {})) event.complete();
+      this._eventsLinker.complete();
       this._sourceLinker?.complete();
       this._scopeLinker?.complete();
     }
@@ -220,18 +224,21 @@ export namespace Stream {
     complete: void;
     abort: any;
     error: { error: any } & (
-      | { reason: "abort" }
+      | { reason: "abort"; consumer?: never }
       | { reason: "consumerError" | "consumerAbort"; consumer: Consumer<VALUE, any> }
     );
     consumerJoin: Consumer<VALUE, any>;
-    consumerLeft: { consumer: Consumer<VALUE, any> } & ({ reason: "complete" } | { reason: "abort"; error?: any });
+    consumerLeft: { consumer: Consumer<VALUE, any> } & (
+      | { reason: "complete"; error?: never }
+      | { reason: "abort"; error?: any }
+    );
   };
   export type Trapped<VALUE> = {
     push: (value: VALUE) => void;
     drain: () => void;
     complete: () => void;
     abort: (error?: any) => void;
-    consumerJoin: (consumer: Consumer<VALUE, any>) => void;
+    consumerJoin: (consumer: Consumer<VALUE, any>) => Consumer<VALUE, any>;
     consumerLeft: (consumer: Consumer<VALUE, any>, error?: any) => void;
     consumerError: (consumer: Consumer<VALUE, any>, error: any) => void;
   };
@@ -264,11 +271,3 @@ export namespace Stream {
     readonly stream: Stream<VALUE, NAME>;
   }
 }
-
-// new Stream<number>({
-//   hooks: {
-//     optimizePush(self, trapped) {
-//       return ()=>{}
-//     },
-//   },
-// });
