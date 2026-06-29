@@ -20,6 +20,7 @@ export class Consumer<VALUE, NAME extends string, ERROR = any> {
     this._handler = handler;
     this._ready = events?.ready ?? (() => {});
 
+    this.name = options?.name ?? ("consumer" as NAME);
     this._queue = queue ? queue : new LinkedList();
     this._isReady = isReady === undefined ? true : isReady;
     this._isProcessing = false;
@@ -58,7 +59,7 @@ export class Consumer<VALUE, NAME extends string, ERROR = any> {
         } else {
           this._state = "completed";
           this._eventsLinker.emit("complete", undefined);
-          this.clean();
+          this._clean();
         }
       } catch (error: any) {
         this._eventsLinker.emit("error", error);
@@ -76,7 +77,7 @@ export class Consumer<VALUE, NAME extends string, ERROR = any> {
     } catch (error: any) {
       this._eventsLinker.emit("error", error);
     } finally {
-      this.clean();
+      this._clean();
     }
   }
   complete(): void {
@@ -93,7 +94,7 @@ export class Consumer<VALUE, NAME extends string, ERROR = any> {
     } catch (error: any) {
       this._eventsLinker.emit("error", error);
     } finally {
-      this.clean();
+      this._clean();
     }
   }
   private _drain(): void {
@@ -114,7 +115,7 @@ export class Consumer<VALUE, NAME extends string, ERROR = any> {
       this._isProcessing = false;
     }
   }
-  private clean(): void {
+  private _clean(): void {
     this._isReady = false;
     this._isProcessing = true;
     this._queue.clear();
@@ -135,7 +136,7 @@ export class Consumer<VALUE, NAME extends string, ERROR = any> {
   get handler(): Consumer.Handler<VALUE, NAME, ERROR> {
     return this._handler;
   }
-  get events(): EventsLinker.EventsStreams<Consumer.Events<VALUE>, NAME> {
+  get events(): EventsLinker.EventStreams<Consumer.Events<VALUE>, NAME> {
     return this._eventsLinker.events;
   }
 }
@@ -146,6 +147,7 @@ export namespace Consumer {
   export type Handler<VALUE, NAME extends string, ERROR> = (self: Consumer<VALUE, NAME, ERROR>, value: VALUE) => void;
 
   export type Options<VALUE, NAME extends string, ERROR> = {
+    name?: NAME;
     queue?: Queue<VALUE>;
     isReady?: boolean;
     events?: EventsLinker.EventsFunctions<Events<VALUE>, Consumer<VALUE, NAME, ERROR>>;

@@ -1,14 +1,13 @@
 import { Consumer } from "./consumer";
-import type { Closable, Evented, Named, Prettify, Queue, Source } from "./types";
+import type { Closable, Evented, Named, Queue, Source } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceLinker } from "./source-linker";
 import { ScopeLinker } from "./scope-linker";
 import { EventsLinker } from "./events-linker";
-import { HooksLinker } from "./hooks-linker";
 
 const NAME = "root";
 export class Stream<VALUE, NAME extends string = Stream.Name>
-  implements Source<VALUE, NAME>, Evented<EventsLinker.EventsStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
+  implements Source<VALUE, NAME>, Evented<EventsLinker.EventStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
 {
   public readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, NAME, any>, Consumer<VALUE, NAME, any>>();
@@ -195,7 +194,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
   get consumersCount(): number {
     return this._consumers.size;
   }
-  get events(): EventsLinker.EventsStreams<Stream.Events<VALUE>, NAME> {
+  get events(): EventsLinker.EventStreams<Stream.Events<VALUE>, NAME> {
     return this._eventsLinker.events;
   }
   get source(): Source<VALUE, any> | undefined {

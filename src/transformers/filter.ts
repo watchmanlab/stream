@@ -36,7 +36,7 @@ export class Filter<
     this._eventsLinker = new EventsLinker(this, events);
     const { _eventsLinker } = this;
   }
-  override get events(): EventsLinker.EventsStreams<filter.Events<FILTERED>, NAME> {
+  override get events(): EventsLinker.EventStreams<filter.Events<FILTERED>, NAME> {
     return this._eventsLinker.events;
   }
 }

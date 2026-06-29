@@ -2,7 +2,7 @@ import { Stream } from "./stream";
 import { Named } from "./types";
 
 export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends string, CONTEXT extends Named> {
-  protected _events?: Partial<EventsLinker.EventsStreams<EVENTS, NAME>>;
+  protected _events: Partial<EventsLinker.EventStreams<EVENTS, NAME>> = {};
   constructor(
     private context: CONTEXT,
     functions?: EventsLinker.EventsFunctions<EVENTS, CONTEXT>,
@@ -10,24 +10,23 @@ export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends s
     if (functions) {
       this.emit = (eventName, value) => {
         functions[eventName]?.(context, value);
-        this._events?.[eventName]?.push?.(value);
+        this._events[eventName]?.push?.(value);
       };
     } else {
       this.emit = (eventName, value) => {
-        this._events?.[eventName]?.push?.(value);
+        this._events[eventName]?.push?.(value);
       };
     }
   }
 
   emit<KEY extends keyof EVENTS, VALUE extends EVENTS[KEY]>(eventName: KEY, value: VALUE): void {}
   has<KEY extends keyof EVENTS>(eventName: KEY): boolean {
-    return this._events?.[eventName] !== undefined;
+    return this._events[eventName] !== undefined;
   }
-  get events(): EventsLinker.EventsStreams<EVENTS, NAME> {
-    if (!this._events) this._events = {};
+  get events(): EventsLinker.EventStreams<EVENTS, NAME> {
     const { _events } = this;
 
-    return new Proxy(_events as EventsLinker.EventsStreams<EVENTS, NAME>, {
+    return new Proxy(_events as EventsLinker.EventStreams<EVENTS, NAME>, {
       get: (target, p: string, receiver) => {
         if (p in target) return Reflect.get(target, p, receiver);
         const stream = new Stream({
@@ -44,15 +43,15 @@ export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends s
     });
   }
   abort(error?: any) {
-    for (const event of Object.values(this._events ?? {})) (event as Stream.AnyStream).abort(error);
+    for (const event of Object.values(this._events)) (event as Stream.AnyStream).abort(error);
   }
   complete() {
-    for (const event of Object.values(this._events ?? {})) (event as Stream.AnyStream).complete();
+    for (const event of Object.values(this._events)) (event as Stream.AnyStream).complete();
   }
 }
 
 export namespace EventsLinker {
-  export type EventsStreams<EVENTS extends Record<string, unknown>, NAME extends string> = {
+  export type EventStreams<EVENTS extends Record<string, unknown>, NAME extends string> = {
     [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
   };
   export type EventsFunctions<EVENTS extends Record<string, unknown>, CONTEXT> = {
