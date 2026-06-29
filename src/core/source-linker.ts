@@ -2,13 +2,13 @@ import type { Consumer } from "./consumer";
 import type { Source } from "./types";
 
 export class SourceLinker<VALUE> {
-  private _consumer: Consumer<VALUE, any>;
+  private _consumer: Consumer<VALUE, any, any>;
   private _pulling: boolean;
 
   constructor(
-    public readonly source: Source<VALUE>,
-    public readonly handler: Consumer.Handler<VALUE, ErrnoException>,
-    options?: Consumer.Options<VALUE, any>,
+    public readonly source: Source<VALUE, any>,
+    public readonly handler: Consumer.Handler<VALUE, any, any>,
+    options?: Consumer.Options<VALUE, any, any>,
   ) {
     this._pulling = false;
 

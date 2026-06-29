@@ -24,14 +24,14 @@ export namespace Queue {
   export type Empty = typeof EMPTY;
 }
 
-export interface Source<VALUE> {
+export interface Source<VALUE, NAME extends string> extends Named<NAME> {
   listen<ERROR>(
-    handler: Consumer.Handler<VALUE, ERROR>,
-    options?: Consumer.Options<VALUE, ERROR>,
-  ): Consumer<VALUE, ERROR>;
+    handler: Consumer.Handler<VALUE, NAME, ERROR>,
+    options?: Consumer.Options<VALUE, NAME, ERROR>,
+  ): Consumer<VALUE, NAME, ERROR>;
 }
 export namespace Source {
-  export type AnySource = Source<any>;
+  export type AnySource = Source<any, any>;
 }
 export interface Named<NAME extends string = any> {
   readonly name: NAME;

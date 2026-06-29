@@ -1,5 +1,5 @@
 import { Consumer } from "../core/consumer";
-import { Stream, type stream } from "../core/stream";
+import { Stream } from "../core/stream";
 
 export class AbortSignalStream<VALUE extends void, NAME extends string = abortSignalStream.Name> extends Stream<
   void,
@@ -11,20 +11,21 @@ export class AbortSignalStream<VALUE extends void, NAME extends string = abortSi
 
     init?: abortSignalStream.Init<void, NAME>,
   ) {
-    super(name, {
+    super({
       ...init,
+      name,
       source: {
-        listen: (init) => {
+        listen: (handler, init) => {
           let abortController = new AbortController();
-          const consumer = new Consumer<void, any>({
+          const consumer = new Consumer<void, any>(handler, {
             ...init,
             abort: (self, error) => {
               abortController.abort();
-              init.abort?.(self, error);
+              init?.abort?.(self, error);
             },
             complete: (self) => {
               abortController.abort();
-              init.complete?.(self);
+              init?.complete?.(self);
             },
           });
 
