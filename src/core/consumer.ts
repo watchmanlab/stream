@@ -1,18 +1,20 @@
-import type { Queue } from "./types";
+import type { Closable, Evented, Named, Queue } from "./types";
 import { LinkedList } from "./linked-list";
 import { EventsLinker } from "./events-linker";
 
-export class Consumer<VALUE, NAME extends string, ERROR = any> {
+export class Consumer<VALUE, ERROR = any, NAME extends string = "consumer">
+  implements Closable, Named<NAME>, Evented<EventsLinker.EventStreams<Consumer.Events<VALUE>, NAME>>
+{
   readonly name: NAME;
   private _queue: Queue<VALUE>;
   private _isReady: boolean;
   private _isProcessing: boolean;
   private _state: Consumer.State;
-  private _handler: Consumer.Handler<VALUE, NAME, ERROR>;
-  private _ready: (self: Consumer<VALUE, NAME, ERROR>) => void;
+  private _handler: Consumer.Handler<VALUE, ERROR, NAME>;
+  private _ready: (self: Consumer<VALUE, ERROR, NAME>) => void;
   private _eventsLinker: EventsLinker<Consumer.Events<VALUE>, NAME, this>;
 
-  constructor(handler: Consumer.Handler<VALUE, NAME, ERROR>, options?: Consumer.Options<VALUE, NAME, ERROR>) {
+  constructor(handler: Consumer.Handler<VALUE, ERROR, NAME>, options?: Consumer.Options<VALUE, ERROR, NAME>) {
     const { events, isReady, queue } = options ?? {};
 
     this._eventsLinker = new EventsLinker(this, events);
@@ -133,7 +135,7 @@ export class Consumer<VALUE, NAME extends string, ERROR = any> {
   get isProcessing(): boolean {
     return this._isProcessing;
   }
-  get handler(): Consumer.Handler<VALUE, NAME, ERROR> {
+  get handler(): Consumer.Handler<VALUE, ERROR, NAME> {
     return this._handler;
   }
   get events(): EventsLinker.EventStreams<Consumer.Events<VALUE>, NAME> {
@@ -144,13 +146,13 @@ export class Consumer<VALUE, NAME extends string, ERROR = any> {
 export namespace Consumer {
   export type State = "active" | "drain" | "aborted" | "completed";
   export type AnyConsumer = Consumer<any, any, any>;
-  export type Handler<VALUE, NAME extends string, ERROR> = (self: Consumer<VALUE, NAME, ERROR>, value: VALUE) => void;
+  export type Handler<VALUE, ERROR, NAME extends string> = (self: Consumer<VALUE, ERROR, NAME>, value: VALUE) => void;
 
-  export type Options<VALUE, NAME extends string, ERROR> = {
+  export type Options<VALUE, ERROR, NAME extends string> = {
     name?: NAME;
     queue?: Queue<VALUE>;
     isReady?: boolean;
-    events?: EventsLinker.EventsFunctions<Events<VALUE>, Consumer<VALUE, NAME, ERROR>>;
+    events?: EventsLinker.EventsFunctions<Events<VALUE>, Consumer<VALUE, ERROR, NAME>>;
   };
 
   export type Events<VALUE> = {

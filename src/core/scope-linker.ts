@@ -30,11 +30,11 @@ export class ScopeLinker {
 
     scopes.forEach((scope) =>
       this._consumers!.push(
-        scope.events.abort.listen((self, e) => {
+        scope.events.abort.listen((_, e) => {
           this.target.abort(e);
           set.clear();
         }),
-        scope.events.complete.listen((self) => {
+        scope.events.complete.listen(() => {
           this.target.complete();
           set.clear();
         }),
@@ -47,7 +47,7 @@ export class ScopeLinker {
 
     scopes.forEach((scope) => {
       this._consumers!.push(
-        scope.events.abort.listen((self, e) => {
+        scope.events.abort.listen((_, e) => {
           this.target.abort(e);
           set.clear();
         }),

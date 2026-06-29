@@ -10,7 +10,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
   implements Source<VALUE, NAME>, Evented<EventsLinker.EventStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
 {
   public readonly name: NAME;
-  protected _consumers = new Map<Consumer.Handler<VALUE, NAME, any>, Consumer<VALUE, NAME, any>>();
+  protected _consumers = new Map<Consumer.Handler<VALUE, any, any>, Consumer<VALUE, any, any>>();
   protected _state: Stream.State;
   protected _sourceLinker?: SourceLinker<VALUE>;
   protected _scopeLinker?: ScopeLinker;
@@ -57,22 +57,24 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
         };
     }
   }
-  push(value: VALUE, hot = false): void {}
+  push(value: VALUE): void {}
 
-  listen<ERROR>(
-    handler: Consumer.Handler<VALUE, NAME, ERROR>,
-    options?: Consumer.Options<VALUE, NAME, ERROR>,
-  ): Consumer<VALUE, NAME, ERROR> {
-    const { _consumers, _sourceLinker, _eventsLinker } = this;
+  listen<ERROR, CUSTOM_NAME extends string = `${NAME}Consumer`>(
+    handler: Consumer.Handler<VALUE, ERROR, CUSTOM_NAME>,
+    options?: Consumer.Options<VALUE, ERROR, CUSTOM_NAME>,
+  ): Consumer<VALUE, ERROR, CUSTOM_NAME> {
+    const { _consumers, _sourceLinker, _eventsLinker, name } = this;
 
     if (_consumers.has(handler)) return _consumers.get(handler)!;
 
-    const { events, queue, ...restOptions } = options ?? {};
+    const { events, queue, name: customName, ...restOptions } = options ?? {};
 
     const { ready, abort, complete, error } = events ?? {};
 
     const consumer = new Consumer(handler, {
       ...restOptions,
+      name: customName ?? (`${name}Consumer` as CUSTOM_NAME),
+      queue: queue ? queue : this._queueFactory?.(),
       events: {
         ...events,
         ready: _sourceLinker
@@ -81,7 +83,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
                 _sourceLinker!.next();
                 ready(self);
               }
-            : (self) => {
+            : () => {
                 _sourceLinker!.next();
               }
           : ready,
@@ -89,8 +91,8 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
           _consumers.delete(handler);
           this._optimizePush();
 
-          _eventsLinker.emit("consumerLeft", { reason: "abort", consumer, error });
-          if (error) _eventsLinker.emit("error", { reason: "consumerAbort", error, consumer });
+          _eventsLinker.emit("consumerLeft", consumer);
+          if (error) _eventsLinker.emit("error", error);
 
           if (_consumers.size === 0) {
             if (this._state === "drain") this._completed();
@@ -102,19 +104,18 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
           _consumers.delete(handler);
           this._optimizePush();
 
-          _eventsLinker.emit("consumerLeft", { reason: "complete", consumer });
+          _eventsLinker.emit("consumerLeft", consumer);
 
           if (_consumers.size === 0) if (this._state === "drain") this._completed();
 
           complete?.(consumer);
         },
         error: (consumer, err) => {
-          _eventsLinker.emit("error", { reason: "consumerError", error: err, consumer });
+          _eventsLinker.emit("error", err);
 
           error?.(consumer, err);
         },
       },
-      queue: queue ? queue : this._queueFactory?.(),
     });
 
     _consumers.set(handler, consumer);
@@ -137,7 +138,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
     }
 
     this._eventsLinker.emit("abort", error);
-    if (error) this._eventsLinker.emit("error", { reason: "abort", error });
+    if (error) this._eventsLinker.emit("error", error);
 
     this._clean("aborted", error);
   }
@@ -197,12 +198,6 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
   get events(): EventsLinker.EventStreams<Stream.Events<VALUE>, NAME> {
     return this._eventsLinker.events;
   }
-  get source(): Source<VALUE, any> | undefined {
-    return this._sourceLinker?.source;
-  }
-  get scope(): ScopeLinker.Scope | undefined {
-    return this._scopeLinker?.scope;
-  }
 }
 
 export namespace Stream {
@@ -214,15 +209,9 @@ export namespace Stream {
     drain: void;
     complete: void;
     abort: any;
-    error: { error: any } & (
-      | { reason: "abort"; consumer?: never }
-      | { reason: "consumerError" | "consumerAbort"; consumer: Consumer<VALUE, any> }
-    );
-    consumerJoin: Consumer<VALUE, any>;
-    consumerLeft: { consumer: Consumer<VALUE, any> } & (
-      | { reason: "complete"; error?: never }
-      | { reason: "abort"; error?: any }
-    );
+    error: any;
+    consumerJoin: Consumer<VALUE, any, any>;
+    consumerLeft: Consumer<VALUE, any, any>;
   };
 
   export type QueueFactory<VALUE> = () => Queue<VALUE>;

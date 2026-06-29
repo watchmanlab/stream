@@ -8,7 +8,7 @@ export class SourceLinker<VALUE> {
   constructor(
     public readonly source: Source<VALUE, any>,
     public readonly handler: Consumer.Handler<VALUE, any, any>,
-    options?: Consumer.Options<VALUE, any, any>,
+    options?: Omit<Consumer.Options<VALUE, any, any>, "isReady">,
   ) {
     this._pulling = false;
 

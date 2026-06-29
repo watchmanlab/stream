@@ -26,9 +26,9 @@ export namespace Queue {
 
 export interface Source<VALUE, NAME extends string> extends Named<NAME> {
   listen<ERROR>(
-    handler: Consumer.Handler<VALUE, NAME, ERROR>,
-    options?: Consumer.Options<VALUE, NAME, ERROR>,
-  ): Consumer<VALUE, NAME, ERROR>;
+    handler: Consumer.Handler<VALUE, ERROR, NAME>,
+    options?: Consumer.Options<VALUE, ERROR, NAME>,
+  ): Consumer<VALUE, ERROR, NAME>;
 }
 export namespace Source {
   export type AnySource = Source<any, any>;
