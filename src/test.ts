@@ -61,7 +61,7 @@ function bench() {
   });
 
   for (let i = 0; i <= MAX; i++) {
-    stream.push(i, true);
+    stream.push(i);
   }
 }
 
@@ -89,9 +89,9 @@ function mapTest() {
     self.next();
   });
 
-  stream.push(1, true);
-  stream.push(2, true);
-  stream.push(3, true);
+  stream.push(1);
+  stream.push(2);
+  stream.push(3);
 }
 // mapTest();
 function filterTest() {

@@ -7,7 +7,7 @@ import { EventsLinker } from "./events-linker";
 
 const NAME = "root";
 export class Stream<VALUE, NAME extends string = Stream.Name>
-  implements Source<VALUE, NAME>, Evented<EventsLinker.EventStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
+  implements Source<VALUE>, Evented<EventsLinker.EventStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
 {
   public readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, any, any>, Consumer<VALUE, any, any>>();
@@ -94,9 +94,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
           _eventsLinker.emit("consumerLeft", consumer);
           if (error) _eventsLinker.emit("error", error);
 
-          if (_consumers.size === 0) {
-            if (this._state === "drain") this._completed();
-          }
+          if (_consumers.size === 0 && this._state === "drain") this._completed();
 
           abort?.(consumer, error);
         },
@@ -106,7 +104,7 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
 
           _eventsLinker.emit("consumerLeft", consumer);
 
-          if (_consumers.size === 0) if (this._state === "drain") this._completed();
+          if (_consumers.size === 0 && this._state === "drain") this._completed();
 
           complete?.(consumer);
         },
@@ -217,7 +215,7 @@ export namespace Stream {
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Options<VALUE, NAME extends string> = {
     name?: NAME;
-    source?: Source<VALUE, any>;
+    source?: Source<VALUE>;
     scope?: ScopeLinker.Scope;
     queueFactory?: QueueFactory<VALUE>;
     events?: EventsLinker.EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
