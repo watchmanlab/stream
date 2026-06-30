@@ -97,7 +97,7 @@ function mapTest() {
 function filterTest() {
   const stream = new Stream<number>();
 
-  const mapped = stream.pipe(filter((v) => v % 2 === 0));
+  const mapped = stream.pipe(filter((v) => v % 2 === 0, {}));
 
   mapped.events.consumerJoin.listen((self) => {
     console.log("consumer join");

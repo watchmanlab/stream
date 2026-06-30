@@ -13,7 +13,7 @@ export class Filter<
   constructor(
     input: INPUT,
     predicate: Filter.Predicate<VALUE, FILTERED>,
-    options?: Filter.Options<INPUT, VALUE, FILTERED, NAME>,
+    options?: Omit<Filter.Options<INPUT, VALUE, FILTERED, NAME>, "source">,
   ) {
     const { name = Filter.NAME as NAME, events, ...restOptions } = { ...options };
 
@@ -48,7 +48,7 @@ export function filter<
   NAME extends string = Filter.Name,
 >(
   predicate: Filter.Predicate<VALUE, FILTERED>,
-  options?: Filter.Options<INPUT, VALUE, FILTERED, NAME>,
+  options?: Omit<Filter.Options<INPUT, VALUE, FILTERED, NAME>, "source">,
 ): Stream.Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
   return (input, name) => new Filter(input, predicate, { ...options, name });
 }
@@ -66,7 +66,7 @@ export namespace Filter {
     VALUE extends Stream.ExtractValue<INPUT>,
     FILTERED extends VALUE,
     NAME extends string,
-  > = Transformer.Options<FILTERED, NAME> & {
+  > = Omit<Transformer.Options<FILTERED, NAME>, "events"> & {
     events?: EventsLinker.EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
   };
 }
