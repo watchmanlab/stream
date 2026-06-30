@@ -1,22 +1,22 @@
 import { Consumer } from "../core/consumer";
-import { Stream, type stream } from "../core/stream";
+import { Stream } from "../core/stream";
+import { NonEmptyString } from "../core/types";
 
-export class PromiseStream<VALUE, NAME extends string> extends Stream<VALUE, NAME> {
+export class PromiseStream<VALUE, NAME extends NonEmptyString> extends Stream<VALUE, NAME> {
   constructor(
-    name = promiseStream.NAME as NAME,
     public readonly promise: Promise<VALUE>,
-    init?: promiseStream.Init<VALUE, NAME>,
+    options?: PromiseStream.Options<VALUE, NAME>,
   ) {
-    super(name, {
-      ...init,
+    super({
+      ...options,
       source: {
-        listen: (init) => {
+        listen: (handler, options) => {
           promise
             .then((value) => consumer.push(value))
             .catch((error) => consumer.abort(error))
             .finally(() => consumer.complete());
 
-          const consumer = new Consumer<VALUE, any>(init);
+          const consumer = new Consumer<VALUE, any>(handler, options);
           return consumer;
         },
       },
@@ -24,8 +24,6 @@ export class PromiseStream<VALUE, NAME extends string> extends Stream<VALUE, NAM
   }
 }
 
-export namespace promiseStream {
-  export const NAME = "promiseStream";
-  export type Name = typeof NAME;
-  export type Init<VALUE, NAME extends string> = Omit<stream.Init<VALUE, NAME>, "source">;
+export namespace PromiseStream {
+  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
 }

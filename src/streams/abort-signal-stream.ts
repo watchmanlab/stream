@@ -1,31 +1,33 @@
 import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
+import { NonEmptyString } from "../core/types";
 
-export class AbortSignalStream<VALUE extends void, NAME extends string = abortSignalStream.Name> extends Stream<
+export class AbortSignalStream<VALUE extends void, NAME extends NonEmptyString = AbortSignalStream.Name> extends Stream<
   void,
   NAME
 > {
   constructor(
-    name = abortSignalStream.NAME as NAME,
     public readonly signal: AbortSignal,
-
-    init?: abortSignalStream.Init<void, NAME>,
+    options?: AbortSignalStream.Options<void, NAME>,
   ) {
     super({
-      ...init,
-      name,
+      ...options,
+      name: options?.name ?? (AbortSignalStream.NAME as NAME),
       source: {
-        listen: (handler, init) => {
+        listen: (handler, options) => {
           let abortController = new AbortController();
           const consumer = new Consumer<void, any>(handler, {
-            ...init,
-            abort: (self, error) => {
-              abortController.abort();
-              init?.abort?.(self, error);
-            },
-            complete: (self) => {
-              abortController.abort();
-              init?.complete?.(self);
+            ...options,
+            events: {
+              ...options?.events,
+              abort: (self, error) => {
+                abortController.abort();
+                options?.events?.abort?.(self, error);
+              },
+              complete: (self) => {
+                abortController.abort();
+                options?.events?.complete?.(self);
+              },
             },
           });
 
@@ -51,26 +53,8 @@ export class AbortSignalStream<VALUE extends void, NAME extends string = abortSi
   }
 }
 
-export function abortSignalStream<NAME extends string>(
-  name: NAME,
-  signal: AbortSignal,
-  init?: abortSignalStream.Init<void, NAME>,
-): AbortSignalStream<void, NAME>;
-export function abortSignalStream<NAME extends string>(
-  signal: AbortSignal,
-  init?: abortSignalStream.Init<void, NAME>,
-): AbortSignalStream<void, NAME>;
-export function abortSignalStream<NAME extends string>(
-  nameOrSignal: NAME | AbortSignal,
-  signalOrInit?: AbortSignal | abortSignalStream.Init<void, NAME>,
-  init?: abortSignalStream.Init<void, NAME>,
-): AbortSignalStream<void, NAME> {
-  return typeof nameOrSignal === "string"
-    ? new AbortSignalStream(nameOrSignal, signalOrInit as AbortSignal, init)
-    : new AbortSignalStream(undefined, nameOrSignal, signalOrInit as abortSignalStream.Init<void, NAME>);
-}
-export namespace abortSignalStream {
+export namespace AbortSignalStream {
   export const NAME = "abortSignalStream";
   export type Name = typeof NAME;
-  export type Init<VALUE, NAME extends string> = Omit<stream.Init<VALUE, NAME>, "source">;
+  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
 }

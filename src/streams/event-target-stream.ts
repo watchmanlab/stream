@@ -1,37 +1,37 @@
 import { Consumer } from "../core/consumer";
-import { Stream, type stream } from "../core/stream";
+import { Stream } from "../core/stream";
+import { NonEmptyString } from "../core/types";
 
 export class EventTargetStream<
   EVENT_TYPE extends keyof HTMLElementEventMap | (string & {}),
-  NAME extends string,
+  NAME extends NonEmptyString,
 > extends Stream<EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event, NAME> {
   constructor(
     public readonly target: EventTarget,
     public readonly eventType: EVENT_TYPE,
-    init?: Omit<
-      stream.Init<EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event, NAME>,
-      "source"
-    >,
+    options?: EventTargetStream.Options<EVENT_TYPE, NAME>,
   ) {
     super({
-      ...init,
-
+      ...options,
       source: {
-        listen: (init) => {
+        listen: (handler, options) => {
           let abortController = new AbortController();
           target.addEventListener(eventType, (e: any) => consumer.push(e), {
             signal: abortController.signal,
           });
 
-          const consumer = new Consumer({
-            ...init,
-            abort: (self, error) => {
-              abortController.abort();
-              init.abort?.(self, error);
-            },
-            complete: (self) => {
-              abortController.abort();
-              init.complete?.(self);
+          const consumer = new Consumer(handler, {
+            ...options,
+            events: {
+              ...options?.events,
+              abort: (self, error) => {
+                abortController.abort();
+                options?.events?.abort?.(self, error);
+              },
+              complete: (self) => {
+                abortController.abort();
+                options?.events?.complete?.(self);
+              },
             },
           });
 
@@ -40,4 +40,11 @@ export class EventTargetStream<
       },
     });
   }
+}
+
+export namespace EventTargetStream {
+  export type Options<EVENT_TYPE extends keyof HTMLElementEventMap | (string & {}), NAME extends NonEmptyString> = Omit<
+    Stream.Options<EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event, NAME>,
+    "source"
+  >;
 }

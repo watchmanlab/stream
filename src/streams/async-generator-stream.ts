@@ -1,11 +1,16 @@
-import type { stream } from "../core/stream";
+import type { Stream } from "../core/stream";
+import { NonEmptyString } from "../core/types";
 import { AsyncIteratorStream } from "./async-iterator-stream";
 
-export class AsyncGeneratorStream<VALUE, NAME extends string> extends AsyncIteratorStream<VALUE, NAME> {
+export class AsyncGeneratorStream<VALUE, NAME extends NonEmptyString> extends AsyncIteratorStream<VALUE, NAME> {
   constructor(
     public readonly asyncFunctionGenerator: () => AsyncGenerator<VALUE>,
-    init?: Omit<stream.Init<VALUE, NAME>, "source">,
+    options?: AsyncGeneratorStream.Options<VALUE, NAME>,
   ) {
-    super(asyncFunctionGenerator, init);
+    super(asyncFunctionGenerator, options);
   }
+}
+
+export namespace AsyncGeneratorStream {
+  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
 }

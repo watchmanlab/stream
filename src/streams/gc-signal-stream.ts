@@ -1,17 +1,16 @@
 import { Consumer } from "../core/consumer";
-import { Stream, type stream } from "../core/stream";
+import { Stream } from "../core/stream";
+import { NonEmptyString } from "../core/types";
 
-const NAME = "gc-signal-stream";
-
-export class GCSignalStream<VALUE extends void, NAME extends string> extends Stream<void, NAME> {
-  constructor(token: object, init?: Omit<stream.Init<void, NAME>, "source">) {
+export class GCSignalStream<VALUE extends void, NAME extends NonEmptyString> extends Stream<void, NAME> {
+  constructor(token: object, options?: GCSignalStream.Options<NAME>) {
     const ref = new WeakRef(token);
     const unregisterToken = {};
 
     super({
-      ...init,
+      ...options,
       source: {
-        listen: (init) => {
+        listen: (handler, options) => {
           let registry: FinalizationRegistry<unknown> | undefined;
 
           new Promise<void>((resolve) => {
@@ -35,15 +34,18 @@ export class GCSignalStream<VALUE extends void, NAME extends string> extends Str
               registry?.unregister(unregisterToken);
             });
 
-          const consumer = new Consumer<void, any>({
-            ...init,
-            abort(self, error) {
-              registry?.unregister(unregisterToken);
-              init.abort?.(self, error);
-            },
-            complete(self) {
-              registry?.unregister(unregisterToken);
-              init.complete?.(self);
+          const consumer = new Consumer<void, any>(handler, {
+            ...options,
+            events: {
+              ...options?.events,
+              abort(self, error) {
+                registry?.unregister(unregisterToken);
+                options?.events?.abort?.(self, error);
+              },
+              complete(self) {
+                registry?.unregister(unregisterToken);
+                options?.events?.complete?.(self);
+              },
             },
           });
           return consumer;
@@ -53,4 +55,6 @@ export class GCSignalStream<VALUE extends void, NAME extends string> extends Str
   }
 }
 
-export namespace GCSignalStream {}
+export namespace GCSignalStream {
+  export type Options<NAME extends NonEmptyString> = Omit<Stream.Options<void, NAME>, "source">;
+}

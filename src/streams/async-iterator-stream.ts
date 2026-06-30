@@ -1,35 +1,39 @@
 import { Consumer } from "../core/consumer";
-import { Stream, type stream } from "../core/stream";
+import { Stream } from "../core/stream";
+import { NonEmptyString } from "../core/types";
 
-export class AsyncIteratorStream<VALUE, NAME extends string> extends Stream<VALUE, NAME> {
+export class AsyncIteratorStream<VALUE, NAME extends NonEmptyString> extends Stream<VALUE, NAME> {
   constructor(
     public readonly asyncItrator: AsyncIterator<VALUE> | (() => AsyncIterator<VALUE>),
-    init?: Omit<stream.Init<VALUE, NAME>, "source">,
+    options?: AsyncIteratorStream.Options<VALUE, NAME>,
   ) {
     super({
-      ...init,
+      ...options,
       source: {
-        listen: (init) => {
+        listen: (handler, options) => {
           const iterator = typeof asyncItrator === "function" ? asyncItrator() : asyncItrator;
-          const outputConsumer = new Consumer<VALUE, any>({
-            ...init,
-            ready: (self) => {
-              iterator.next().then((result) => {
-                if (result.done) {
-                  self.complete();
-                } else {
-                  self.push(result.value);
-                }
-              });
-              init.ready?.(self);
-            },
-            abort: (self, error) => {
-              iterator.return?.(error);
-              init.abort?.(self, error);
-            },
-            complete: (self) => {
-              iterator.return?.(undefined);
-              init.complete?.(self);
+          const outputConsumer = new Consumer<VALUE, any>(handler, {
+            ...options,
+            events: {
+              ...options?.events,
+              ready: (self) => {
+                iterator.next().then((result) => {
+                  if (result.done) {
+                    self.complete();
+                  } else {
+                    self.push(result.value);
+                  }
+                });
+                options?.events?.ready?.(self);
+              },
+              abort: (self, error) => {
+                iterator.return?.(error);
+                options?.events?.abort?.(self, error);
+              },
+              complete: (self) => {
+                iterator.return?.(undefined);
+                options?.events?.complete?.(self);
+              },
             },
           });
           return outputConsumer;
@@ -37,4 +41,8 @@ export class AsyncIteratorStream<VALUE, NAME extends string> extends Stream<VALU
       },
     });
   }
+}
+
+export namespace AsyncIteratorStream {
+  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
 }

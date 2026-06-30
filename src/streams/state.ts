@@ -1,10 +1,11 @@
-import { Stream, type stream } from "../core/stream";
+import { Stream } from "../core/stream";
+import { NonEmptyString } from "../core/types";
 
-export class State<VALUE, NAME extends string = "state"> extends Stream<VALUE, NAME> {
+export class State<VALUE, NAME extends NonEmptyString = "state"> extends Stream<VALUE, NAME> {
   private _value: VALUE;
 
-  constructor(initialValue: VALUE, init?: stream.Init<VALUE, NAME>) {
-    super({ ...init, name: init?.name ?? ("state" as NAME) });
+  constructor(initialValue: VALUE, options?: Stream.Options<VALUE, NAME>) {
+    super({ ...options, name: options?.name ?? ("state" as NAME) });
     this._value = initialValue;
   }
   get value(): VALUE {

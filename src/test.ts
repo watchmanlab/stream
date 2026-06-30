@@ -65,7 +65,7 @@ function bench() {
   }
 }
 
-bench();
+// bench();
 // 7 000 000 1149 ms
 // 7 000 000 1150 ms
 // 7 000 000 1150 ms
@@ -74,10 +74,7 @@ bench();
 function mapTest() {
   const stream = new Stream<number>();
 
-  const mapped = stream.pipe(map((value) => value.toFixed() + " mapped", { name: "map2" }));
-
-  mapped.name;
-  //.    ^?
+  const mapped = stream.pipe(map((value) => value.toFixed() + " mapped"));
 
   mapped.listen((self, v) => {
     if (v === "2 mapped") {
