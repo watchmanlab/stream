@@ -9,17 +9,12 @@ export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME ex
   protected _input: INPUT;
   constructor(input: INPUT, options?: Transformer.Options<VALUE, NAME>) {
     let scope: ScopeLinker.Scope | undefined = options?.scope;
-
-    if (scope instanceof Stream) {
-      scope = { any: [input, scope] };
-    } else if (scope) {
+    if (scope) {
       if (scope.any) {
         scope = { any: [input, ...scope.any] };
       } else {
         scope = { all: [input, ...scope.all] };
       }
-    } else {
-      scope = input;
     }
 
     super({ ...options, scope });

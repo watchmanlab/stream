@@ -1,35 +1,26 @@
-import { Stream } from "./stream";
 import type { Consumer } from "./consumer";
 import { Closable, CloseEvents, Evented } from "./types";
 
-export class ScopeLinker {
+export class ScopeLinker implements Closable {
   private _consumers: Consumer.AnyConsumer[];
   constructor(
-    private target: Closable & Evented<CloseEvents>,
+    private target: Closable,
     public readonly scope: ScopeLinker.Scope,
   ) {
     this._consumers = [];
 
-    if (scope instanceof Stream) {
-      this.one(scope);
-    } else if (scope.any) {
+    if (scope.any && scope.any.length > 0) {
       this.any(scope.any);
-    } else {
+    } else if (scope.all && scope.all.length > 0) {
       this.all(scope.all);
     }
   }
 
-  private one(source: Stream.AnyStream): void {
-    this._consumers.push(
-      source.events.abort.listen((self, e) => this.target.abort(e.error)),
-      source.events.complete.listen(() => this.target.complete()),
-    );
-  }
-  private any(scopes: Stream.AnyStream[]): void {
+  private any(scopes: Evented<CloseEvents>[]): void {
     const set = new Set(scopes);
 
     scopes.forEach((scope) =>
-      this._consumers!.push(
+      this._consumers.push(
         scope.events.abort.listen((_, e) => {
           this.target.abort(e);
           set.clear();
@@ -41,12 +32,12 @@ export class ScopeLinker {
       ),
     );
   }
-  private all(scopes: Stream.AnyStream[]): void {
+  private all(scopes: Evented<CloseEvents>[]): void {
     const set = new Set(scopes);
     let count = set.size;
 
     scopes.forEach((scope) => {
-      this._consumers!.push(
+      this._consumers.push(
         scope.events.abort.listen((_, e) => {
           this.target.abort(e);
           set.clear();
@@ -76,7 +67,6 @@ export class ScopeLinker {
 
 export namespace ScopeLinker {
   export type Scope =
-    | Stream.AnyStream
-    | { any: [Stream.AnyStream, ...Stream.AnyStream[]]; all?: never }
-    | { any?: never; all: [Stream.AnyStream, ...Stream.AnyStream[]] };
+    | { any: [Evented<CloseEvents>, ...Evented<CloseEvents>[]]; all?: never }
+    | { any?: never; all: [Evented<CloseEvents>, ...Evented<CloseEvents>[]] };
 }
