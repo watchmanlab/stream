@@ -7,7 +7,7 @@ export class Filter<
   INPUT extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
-  NAME extends NonEmptyString = Filter.Name,
+  NAME extends NonEmptyString = "filter",
 > extends Transformer<INPUT, FILTERED, NAME> {
   protected override _eventsLinker: EventsLinker<Filter.Events<FILTERED>, NAME, this>;
 
@@ -16,7 +16,7 @@ export class Filter<
     predicate: Filter.Predicate<VALUE, FILTERED>,
     options?: Filter.Options<INPUT, VALUE, FILTERED, NAME>,
   ) {
-    const { name = Filter.NAME as NAME, events, ...restOptions } = { ...options };
+    const { name = "filter" as NAME, events, ...restOptions } = { ...options };
 
     super(input, {
       ...restOptions,
@@ -46,17 +46,15 @@ export function filter<
   INPUT extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
-  NAME extends NonEmptyString = Filter.Name,
+  NAME extends NonEmptyString = "filter",
 >(
   predicate: Filter.Predicate<VALUE, FILTERED>,
   options?: Filter.Options<INPUT, VALUE, FILTERED, NAME>,
 ): Stream.Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
-  return (input, name) => new Filter(input, predicate, { ...options, name });
+  return (input, name) => new Filter(input, predicate, { ...options, name: name ?? options?.name });
 }
 
 export namespace Filter {
-  export const NAME = "filter";
-  export type Name = typeof NAME;
   export type Predicate<VALUE, FILTERED extends VALUE> =
     | ((value: VALUE) => value is FILTERED)
     | ((value: VALUE) => boolean);

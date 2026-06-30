@@ -1,8 +1,8 @@
-import type { Closable, Evented, Named, Queue } from "./types";
+import type { Closable, Evented, Named, NonEmptyString, Queue } from "./types";
 import { LinkedList } from "./linked-list";
 import { EventsLinker } from "./events-linker";
 
-export class Consumer<VALUE, ERROR = any, NAME extends string = "consumer">
+export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consumer">
   implements Closable, Named<NAME>, Evented<EventsLinker.EventStreams<Consumer.Events<VALUE>, NAME>>
 {
   readonly name: NAME;
@@ -146,9 +146,12 @@ export class Consumer<VALUE, ERROR = any, NAME extends string = "consumer">
 export namespace Consumer {
   export type State = "active" | "drain" | "aborted" | "completed";
   export type AnyConsumer = Consumer<any, any, any>;
-  export type Handler<VALUE, ERROR, NAME extends string> = (self: Consumer<VALUE, ERROR, NAME>, value: VALUE) => void;
+  export type Handler<VALUE, ERROR, NAME extends NonEmptyString> = (
+    self: Consumer<VALUE, ERROR, NAME>,
+    value: VALUE,
+  ) => void;
 
-  export type Options<VALUE, ERROR, NAME extends string> = {
+  export type Options<VALUE, ERROR, NAME extends NonEmptyString> = {
     name?: NAME;
     queue?: Queue<VALUE>;
     isReady?: boolean;

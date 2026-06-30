@@ -59,7 +59,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
   }
   push(value: VALUE): void {}
 
-  listen<ERROR, CUSTOM_NAME extends string = `${NAME}Consumer`>(
+  listen<ERROR, CUSTOM_NAME extends NonEmptyString = `${NAME}Consumer`>(
     handler: Consumer.Handler<VALUE, ERROR, CUSTOM_NAME>,
     options?: Consumer.Options<VALUE, ERROR, CUSTOM_NAME>,
   ): Consumer<VALUE, ERROR, CUSTOM_NAME> {
