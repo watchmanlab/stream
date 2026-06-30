@@ -1,12 +1,13 @@
 import { EventsLinker } from "../core/events-linker";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
+import { NonEmptyString } from "../core/types";
 
 export class Filter<
   INPUT extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
-  NAME extends string = Filter.Name,
+  NAME extends NonEmptyString = Filter.Name,
 > extends Transformer<INPUT, FILTERED, NAME> {
   protected override _eventsLinker: EventsLinker<Filter.Events<FILTERED>, NAME, this>;
 
@@ -45,7 +46,7 @@ export function filter<
   INPUT extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
-  NAME extends string = Filter.Name,
+  NAME extends NonEmptyString = Filter.Name,
 >(
   predicate: Filter.Predicate<VALUE, FILTERED>,
   options?: Omit<Filter.Options<INPUT, VALUE, FILTERED, NAME>, "source">,
@@ -65,7 +66,7 @@ export namespace Filter {
     INPUT extends Stream.AnyStream,
     VALUE extends Stream.ExtractValue<INPUT>,
     FILTERED extends VALUE,
-    NAME extends string,
+    NAME extends NonEmptyString,
   > = Omit<Transformer.Options<FILTERED, NAME>, "events"> & {
     events?: EventsLinker.EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
   };

@@ -1,12 +1,13 @@
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
+import { NonEmptyString } from "../core/types";
 
 const NAME = "map";
 export class Map<
   INPUT extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   MAPPED = VALUE,
-  NAME extends string = Map.Name,
+  NAME extends NonEmptyString = Map.Name,
 > extends Transformer<INPUT, MAPPED, NAME> {
   constructor(input: INPUT, mapper: Map.Mapper<VALUE, MAPPED>, options?: Map.Options<MAPPED, NAME>) {
     super(input, {
@@ -26,7 +27,7 @@ export function map<
   INPUT extends Stream.AnyStream,
   VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
   MAPPED = VALUE,
-  NAME extends string = Map.Name,
+  NAME extends NonEmptyString = Map.Name,
 >(
   mapper: Map.Mapper<VALUE, MAPPED>,
   options?: Map.Options<MAPPED, NAME>,
@@ -36,5 +37,5 @@ export function map<
 export namespace Map {
   export type Name = typeof NAME;
   export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;
-  export type Options<MAPPED, NAME extends string> = Transformer.Options<MAPPED, NAME>;
+  export type Options<MAPPED, NAME extends NonEmptyString> = Transformer.Options<MAPPED, NAME>;
 }

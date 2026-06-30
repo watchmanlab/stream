@@ -1,7 +1,8 @@
 import type { ScopeLinker } from "./scope-linker";
 import { Stream } from "./stream";
+import { NonEmptyString } from "./types";
 
-export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME extends string> extends Stream<
+export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME extends NonEmptyString> extends Stream<
   VALUE,
   NAME
 > {
@@ -46,7 +47,7 @@ export abstract class Transformer<INPUT extends Stream.AnyStream, VALUE, NAME ex
 }
 
 export namespace Transformer {
-  export type Options<VALUE, NAME extends string> = Stream.Options<VALUE, NAME>;
+  export type Options<VALUE, NAME extends NonEmptyString> = Stream.Options<VALUE, NAME>;
   export type AnyTransformer = Transformer<Stream.AnyStream, any, any>;
   export type ExtractValue<T> = T extends Transformer<any, infer VALUE, any> ? VALUE : never;
   export type ExtractName<T> = T extends AnyTransformer ? T["name"] : never;

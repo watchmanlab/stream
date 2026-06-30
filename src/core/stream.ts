@@ -1,12 +1,12 @@
 import { Consumer } from "./consumer";
-import type { Closable, Evented, Named, Queue, Source } from "./types";
+import type { Closable, Evented, Named, NonEmptyString, Queue, Source } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceLinker } from "./source-linker";
 import { ScopeLinker } from "./scope-linker";
 import { EventsLinker } from "./events-linker";
 
 const NAME = "root";
-export class Stream<VALUE, NAME extends string = Stream.Name>
+export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
   implements Source<VALUE>, Evented<EventsLinker.EventStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
 {
   public readonly name: NAME;
@@ -174,14 +174,14 @@ export class Stream<VALUE, NAME extends string = Stream.Name>
 
     (this._eventsLinker as any) = this._queueFactory = this._sourceLinker = this._scopeLinker = undefined;
   }
-  pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
+  pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
     transform: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT;
-  pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
+  pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
     name: OUT_NAME,
     transform: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT;
-  pipe<OUT_NAME extends string, OUT extends Transformer<this, any, OUT_NAME> | this>(
+  pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
     nameOrTransform: OUT_NAME | Stream.Transform<this, OUT_NAME, OUT>,
     transform?: Stream.Transform<this, OUT_NAME, OUT>,
   ): OUT {
@@ -213,7 +213,7 @@ export namespace Stream {
   };
 
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
-  export type Options<VALUE, NAME extends string> = {
+  export type Options<VALUE, NAME extends NonEmptyString> = {
     name?: NAME;
     source?: Source<VALUE>;
     scope?: ScopeLinker.Scope;
@@ -231,11 +231,7 @@ export namespace Stream {
 
   export type Transform<
     IN extends AnyStream,
-    OUT_NAME extends string,
+    OUT_NAME extends NonEmptyString,
     OUT extends Transformer<IN, any, OUT_NAME> | IN,
   > = (inputStream: IN, name?: OUT_NAME) => OUT;
-
-  export interface Streamable<VALUE, NAME extends string> {
-    readonly stream: Stream<VALUE, NAME>;
-  }
 }

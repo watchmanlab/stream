@@ -33,7 +33,7 @@ export interface Source<VALUE> {
 export namespace Source {
   export type AnySource = Source<any>;
 }
-export interface Named<NAME extends string = any> {
+export interface Named<NAME extends NonEmptyString = any> {
   readonly name: NAME;
 }
 export interface Evented<EVENTS extends Record<string, Stream.AnyStream> = any> {
@@ -45,6 +45,10 @@ export interface Closable {
   abort(error?: any): void;
   complete(): void;
 }
+export interface StreamLike<VALUE, NAME extends NonEmptyString> {
+  readonly stream: Stream<VALUE, NAME>;
+}
+export type NonEmptyString = `${any}${string}`;
 
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE

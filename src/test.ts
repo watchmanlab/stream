@@ -74,7 +74,10 @@ bench();
 function mapTest() {
   const stream = new Stream<number>();
 
-  const mapped = stream.pipe(map((value) => value.toFixed() + " mapped", { events: { abort(self, value) {} } }));
+  const mapped = stream.pipe(map((value) => value.toFixed() + " mapped", { name: "map2" }));
+
+  mapped.name;
+  //.    ^?
 
   mapped.listen((self, v) => {
     if (v === "2 mapped") {
