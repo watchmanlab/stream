@@ -54,3 +54,6 @@ export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]:
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR
   : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
+
+export type AnyPromise = Promise<any>;
+export type ExtractValueFromPromise<T extends AnyPromise> = T extends Promise<infer U> ? U : never;
