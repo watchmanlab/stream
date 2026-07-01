@@ -1,11 +1,11 @@
 import { EventsLinker } from "../core/events-linker";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { NonEmptyString } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Filter<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends NonEmptyString = "filter",
 > extends Transformer<INPUT, FILTERED, NAME> {
@@ -43,14 +43,14 @@ export class Filter<
 }
 
 export function filter<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends NonEmptyString = "filter",
 >(
   predicate: Filter.Predicate<VALUE, FILTERED>,
   options?: Filter.Options<INPUT, VALUE, FILTERED, NAME>,
-): Stream.Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
+): Transform<INPUT, NAME, Filter<INPUT, VALUE, FILTERED, NAME>> {
   return (input, name) => new Filter(input, predicate, { ...options, name: name ?? options?.name });
 }
 
@@ -61,8 +61,8 @@ export namespace Filter {
 
   export type Events<VALUE> = Stream.Events<VALUE> & { filtered: VALUE };
   export type Options<
-    INPUT extends Stream.AnyStream,
-    VALUE extends Stream.ExtractValue<INPUT>,
+    INPUT extends AnyStream,
+    VALUE extends ExtractValue<INPUT>,
     FILTERED extends VALUE,
     NAME extends NonEmptyString,
   > = Omit<Transformer.Options<FILTERED, NAME>, "events" | "source"> & {

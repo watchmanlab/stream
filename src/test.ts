@@ -7,6 +7,7 @@ function bench() {
   const MAX = 7_000_000;
 
   const stream = new Stream<number>();
+
   const start = performance.now();
 
   const s = stream

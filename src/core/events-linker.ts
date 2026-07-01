@@ -1,5 +1,5 @@
 import { Stream } from "./stream";
-import { Named, NonEmptyString } from "./types";
+import { AnyStream, Named, NonEmptyString } from "./types";
 
 export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends NonEmptyString, CONTEXT extends Named> {
   protected _events: Partial<EventsLinker.EventStreams<EVENTS, NAME>> = {};
@@ -43,10 +43,10 @@ export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends N
     });
   }
   abort(error?: any) {
-    for (const event of Object.values(this._events)) (event as Stream.AnyStream).abort(error);
+    for (const event of Object.values(this._events)) (event as AnyStream).abort(error);
   }
   complete() {
-    for (const event of Object.values(this._events)) (event as Stream.AnyStream).complete();
+    for (const event of Object.values(this._events)) (event as AnyStream).complete();
   }
 }
 

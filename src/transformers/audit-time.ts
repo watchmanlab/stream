@@ -1,10 +1,10 @@
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import type { NonEmptyString } from "../core/types";
+import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class AuditTime<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "auditTime",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(
@@ -52,10 +52,10 @@ export class AuditTime<
 }
 
 export function auditTime<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "auditTime",
->(ms: number, options?: AuditTime.Options<VALUE, NAME>): Stream.Transform<INPUT, NAME, AuditTime<INPUT, VALUE, NAME>> {
+>(ms: number, options?: AuditTime.Options<VALUE, NAME>): Transform<INPUT, NAME, AuditTime<INPUT, VALUE, NAME>> {
   return (input, name) => new AuditTime(input, ms, { ...options, name: name ?? options?.name });
 }
 

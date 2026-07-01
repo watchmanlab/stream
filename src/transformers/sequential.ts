@@ -1,12 +1,9 @@
-import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyPromise, ExtractValueFromPromise, NonEmptyString } from "../core/types";
+import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Sequential<
-  INPUT extends Stream.AnyStream,
-  VALUE extends ExtractValueFromPromise<Stream.ExtractValue<INPUT>> = ExtractValueFromPromise<
-    Stream.ExtractValue<INPUT>
-  >,
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
   NAME extends NonEmptyString = "sequential",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, options?: Sequential.Options<VALUE, NAME>) {
@@ -29,12 +26,10 @@ export class Sequential<
 }
 
 export function sequential<
-  INPUT extends Stream<AnyPromise, any>,
-  VALUE extends ExtractValueFromPromise<Stream.ExtractValue<INPUT>> = ExtractValueFromPromise<
-    Stream.ExtractValue<INPUT>
-  >,
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
   NAME extends NonEmptyString = "sequential",
->(options?: Sequential.Options<VALUE, NAME>): Stream.Transform<INPUT, NAME, Sequential<INPUT, VALUE, NAME>> {
+>(options?: Sequential.Options<VALUE, NAME>): Transform<INPUT, NAME, Sequential<INPUT, VALUE, NAME>> {
   return (input, name) => new Sequential(input, { ...options, name: name ?? options?.name });
 }
 

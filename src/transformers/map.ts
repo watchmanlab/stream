@@ -1,10 +1,10 @@
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { NonEmptyString } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Map<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends NonEmptyString = "map",
 > extends Transformer<INPUT, MAPPED, NAME> {
@@ -23,14 +23,14 @@ export class Map<
   }
 }
 export function map<
-  INPUT extends Stream.AnyStream,
-  VALUE extends Stream.ExtractValue<INPUT> = Stream.ExtractValue<INPUT>,
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends NonEmptyString = "map",
 >(
   mapper: Map.Mapper<VALUE, MAPPED>,
   options?: Map.Options<MAPPED, NAME>,
-): Stream.Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
+): Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
   return (input, name) => new Map(input, mapper, { ...options, name: name ?? options?.name });
 }
 export namespace Map {

@@ -1,5 +1,5 @@
 import { Consumer } from "./consumer";
-import type { Closable, Evented, Named, NonEmptyString, Queue, Source, State } from "./types";
+import type { Closable, Evented, Named, NonEmptyString, Queue, Source, State, Transform } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceLinker } from "./source-linker";
 import { ScopeLinker } from "./scope-linker";
@@ -178,15 +178,15 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
     (this._eventsLinker as any) = this._queueFactory = this._sourceLinker = this._scopeLinker = undefined;
   }
   pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    transform: Stream.Transform<this, OUT_NAME, OUT>,
+    transform: Transform<this, OUT_NAME, OUT>,
   ): OUT;
   pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
     name: OUT_NAME,
-    transform: Stream.Transform<this, OUT_NAME, OUT>,
+    transform: Transform<this, OUT_NAME, OUT>,
   ): OUT;
   pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    nameOrTransform: OUT_NAME | Stream.Transform<this, OUT_NAME, OUT>,
-    transform?: Stream.Transform<this, OUT_NAME, OUT>,
+    nameOrTransform: OUT_NAME | Transform<this, OUT_NAME, OUT>,
+    transform?: Transform<this, OUT_NAME, OUT>,
   ): OUT {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
@@ -200,8 +200,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
 
 export namespace Stream {
   export type Name = typeof NAME;
-
-  export type AnyStream = Stream<any, any>;
 
   export type Events<VALUE> = {
     drain: void;
@@ -224,18 +222,4 @@ export namespace Stream {
     queueFactory?: QueueFactory<VALUE>;
     events?: EventsLinker.EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
   };
-  export type ExtractValue<T extends AnyStream | Transformer.AnyTransformer> =
-    T extends Stream<infer VALUE, any>
-      ? VALUE
-      : Transformer.ExtractValue<T> extends never
-        ? never
-        : Transformer.ExtractValue<T>;
-
-  export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
-
-  export type Transform<
-    IN extends AnyStream,
-    OUT_NAME extends NonEmptyString,
-    OUT extends Transformer<IN, any, OUT_NAME> | IN,
-  > = (inputStream: IN, name?: OUT_NAME) => OUT;
 }
