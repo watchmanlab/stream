@@ -33,7 +33,7 @@ export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends N
           name: (this.context.name + p[0].toUpperCase() + p.slice(1)) as NonEmptyString,
           events: {
             consumerLeft(context) {
-              if (context.consumersCount === 0) delete (_events as any)[p];
+              if (context.infos.consumersCount === 0) delete (_events as any)[p];
             },
           },
         });

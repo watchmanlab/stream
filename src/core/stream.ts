@@ -1,9 +1,10 @@
 import { Consumer } from "./consumer";
-import type { Closable, Evented, Named, NonEmptyString, Queue, Source } from "./types";
+import type { Closable, Evented, Named, NonEmptyString, Queue, Source, State } from "./types";
 import type { Transformer } from "./transformer";
 import { SourceLinker } from "./source-linker";
 import { ScopeLinker } from "./scope-linker";
 import { EventsLinker } from "./events-linker";
+import { InfosLinker } from "./infos-linker";
 
 const NAME = "root";
 export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
@@ -11,10 +12,11 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
 {
   public readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, any, any>, Consumer<VALUE, any, any>>();
-  protected _state: Stream.State;
+  protected _state: State;
   protected _sourceLinker?: SourceLinker<VALUE>;
   protected _scopeLinker?: ScopeLinker;
   protected _eventsLinker: EventsLinker<Stream.Events<VALUE>, NAME, this>;
+  protected _infosLinker: InfosLinker<Stream.Infos>;
   protected _queueFactory?: Stream.QueueFactory<VALUE>;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
@@ -24,6 +26,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
     this._queueFactory = queueFactory;
     this._state = "active";
     this._eventsLinker = new EventsLinker(this, events);
+    this._infosLinker = new InfosLinker({ state: () => this._state, consumersCount: () => this._consumers.size });
 
     const { _eventsLinker } = this;
 
@@ -187,11 +190,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
   ): OUT {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
   }
-  get state(): Stream.State {
-    return this._state;
-  }
-  get consumersCount(): number {
-    return this._consumers.size;
+  get infos(): Stream.Infos {
+    return this._infosLinker.infos;
   }
   get events(): EventsLinker.EventStreams<Stream.Events<VALUE>, NAME> {
     return this._eventsLinker.events;
@@ -200,7 +200,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
 
 export namespace Stream {
   export type Name = typeof NAME;
-  export type State = "active" | "drain" | "aborted" | "completed";
+
   export type AnyStream = Stream<any, any>;
 
   export type Events<VALUE> = {
@@ -210,6 +210,10 @@ export namespace Stream {
     error: any;
     consumerJoin: Consumer<VALUE, any, any>;
     consumerLeft: Consumer<VALUE, any, any>;
+  };
+  export type Infos = {
+    state: State;
+    consumersCount: number;
   };
 
   export type QueueFactory<VALUE> = () => Queue<VALUE>;

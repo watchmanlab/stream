@@ -45,6 +45,7 @@ export interface Closable {
   abort(error?: any): void;
   complete(): void;
 }
+export type State = "active" | "drain" | "aborted" | "completed";
 export interface StreamLike<VALUE, NAME extends NonEmptyString> {
   readonly stream: Stream<VALUE, NAME>;
 }
@@ -56,4 +57,4 @@ export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> 
   : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
 
 export type AnyPromise = Promise<any>;
-export type ExtractValueFromPromise<T extends AnyPromise> = T extends Promise<infer U> ? U : never;
+export type ExtractValueFromPromise<T> = T extends Promise<infer U> ? U : T;
