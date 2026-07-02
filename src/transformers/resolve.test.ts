@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { Stream } from "../core/stream";
-import { sequential } from "./sequential";
+import { resolve } from "./resolve";
 
 describe("sequential", () => {
   test("resolves promises sequentially", async () => {
     const stream = new Stream<Promise<number>>();
     const results: number[] = [];
 
-    stream.pipe(sequential()).listen((self, value) => {
+    stream.pipe(resolve()).listen((self, value) => {
       results.push(value);
       self.next();
     });
@@ -24,7 +24,7 @@ describe("sequential", () => {
     const stream = new Stream<Promise<number>>();
     const order: string[] = [];
 
-    stream.pipe(sequential()).listen((self, value) => {
+    stream.pipe(resolve()).listen((self, value) => {
       order.push(`resolved:${value}`);
       self.next();
     });
@@ -48,7 +48,7 @@ describe("sequential", () => {
     const stream = new Stream<Promise<number>>();
     const results: number[] = [];
 
-    stream.pipe(sequential()).listen((self, value) => {
+    stream.pipe(resolve()).listen((self, value) => {
       results.push(value);
       self.next();
     });

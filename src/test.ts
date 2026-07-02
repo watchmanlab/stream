@@ -2,6 +2,8 @@ import { filter } from "./transformers/filter";
 import { map } from "./transformers/map";
 import { Stream } from "./core/stream";
 import { IterableStream } from "./streams/iterable-stream";
+import { GeneratorStream } from "./streams/generator-stream";
+import { resolve } from "./transformers/resolve";
 
 function bench() {
   const MAX = 7_000_000;
@@ -133,7 +135,11 @@ function filterTest() {
 // 6
 
 function fromIterableTest() {
-  const stream = new IterableStream([1, 2, 3, 4]).pipe(map((v) => v * 10));
+  const stream = new GeneratorStream(function* () {
+    yield 1;
+    yield 2;
+    yield 3;
+  });
 
   const A = stream.listen((self, v) => {
     console.log("A:", v);
@@ -145,7 +151,7 @@ function fromIterableTest() {
   });
 }
 
-fromIterableTest();
+// fromIterableTest();
 
 function test() {
   const stream = new Stream<number>();
@@ -164,3 +170,18 @@ function test() {
 // 1
 // 2
 // 3
+
+function concurrentTest() {
+  const stream = new Stream<Promise<number>>();
+
+  stream.pipe(resolve()).listen((self, v) => {
+    console.log(v);
+    self.next();
+  });
+
+  stream.push(new Promise<number>((r) => setTimeout(() => r(1), 200)));
+  stream.push(new Promise<number>((r) => setTimeout(() => r(2), 300)));
+  stream.push(new Promise<number>((r) => setTimeout(() => r(3), 100)));
+}
+
+concurrentTest();

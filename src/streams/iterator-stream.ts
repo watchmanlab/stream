@@ -20,7 +20,7 @@ export class IteratorStream<VALUE, NAME extends NonEmptyString> extends Stream<V
               ready: (self) => {
                 if (!started) {
                   started = true;
-                  Promise.resolve().then(() => {
+                  queueMicrotask(() => {
                     const result = iter.next();
                     if (result.done) self.complete();
                     else self.push(result.value);
