@@ -12,16 +12,23 @@ export class IteratorStream<VALUE, NAME extends NonEmptyString> extends Stream<V
       source: {
         listen: (handler, options) => {
           const iter = typeof iterator === "function" ? iterator() : iterator;
-          return new Consumer<VALUE, any>(handler, {
+          let started = false;
+          return new Consumer(handler, {
             ...options,
             events: {
               ...options?.events,
               ready: (self) => {
-                const result = iter.next();
-                if (result.done) {
-                  self.complete();
+                if (!started) {
+                  started = true;
+                  Promise.resolve().then(() => {
+                    const result = iter.next();
+                    if (result.done) self.complete();
+                    else self.push(result.value);
+                  });
                 } else {
-                  self.push(result.value);
+                  const result = iter.next();
+                  if (result.done) self.complete();
+                  else self.push(result.value);
                 }
 
                 options?.events?.ready?.(self);

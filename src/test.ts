@@ -133,21 +133,19 @@ function filterTest() {
 // 6
 
 function fromIterableTest() {
-  const stream = new IterableStream([1, 2, 3, 4]);
+  const stream = new IterableStream([1, 2, 3, 4]).pipe(map((v) => v * 10));
 
-  stream.listen((self, v) => {
+  const A = stream.listen((self, v) => {
     console.log("A:", v);
-    setTimeout(() => {
-      self.next();
-    }, 1000);
+    self.next();
   });
-  stream.listen((self, v) => {
+  const B = stream.listen((self, v) => {
     console.log("B:", v);
     self.next();
   });
 }
 
-// fromIterableTest();
+fromIterableTest();
 
 function test() {
   const stream = new Stream<number>();
@@ -162,12 +160,7 @@ function test() {
   stream.push(3);
 }
 // test();
-// before
+
 // 1
-// after
-// before
 // 2
-// after
-// before
 // 3
-// after

@@ -49,6 +49,7 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
         this._eventsLinker.emit("error", error);
       } finally {
         this._isProcessing = false;
+        if (this._isReady) this._ready(this);
       }
     } else {
       this._queue.enqueue(value);
@@ -63,7 +64,7 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
     }
     this._isReady = true;
 
-    if (this._queue.size === 0) {
+    if (!this._isProcessing && this._queue.size === 0) {
       try {
         if (this._state === "active") {
           this._ready(this);

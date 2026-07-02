@@ -26,7 +26,10 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
     this._queueFactory = queueFactory;
     this._state = "active";
     this._eventsLinker = new EventsLinker(this, events);
-    this._infosLinker = new InfosLinker({ state: () => this._state, consumersCount: () => this._consumers.size });
+    this._infosLinker = new InfosLinker({
+      state: () => this._state,
+      consumersCount: () => this._consumers.size,
+    });
 
     const { _eventsLinker } = this;
 
@@ -174,8 +177,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
       this._sourceLinker?.complete();
       this._scopeLinker?.complete();
     }
-
-    (this._eventsLinker as any) = this._queueFactory = this._sourceLinker = this._scopeLinker = undefined;
   }
   pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
     transform: Transform<this, OUT_NAME, OUT>,
