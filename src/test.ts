@@ -4,6 +4,7 @@ import { Stream } from "./core/stream";
 import { IterableStream } from "./streams/iterable-stream";
 import { GeneratorStream } from "./streams/generator-stream";
 import { resolve } from "./transformers/resolve";
+import { bufferCount } from "./transformers/buffer-count";
 
 function bench() {
   const MAX = 7_000_000;
@@ -184,4 +185,22 @@ function concurrentTest() {
   stream.push(new Promise<number>((r) => setTimeout(() => r(3), 100)));
 }
 
-concurrentTest();
+// concurrentTest();
+
+function bufferCountTest() {
+  const stream = new Stream<number>();
+
+  stream.pipe(bufferCount(4)).listen((self, value) => {
+    console.log(value);
+    self.next();
+  });
+
+  stream.push(1);
+  stream.push(2);
+  stream.push(3);
+  stream.push(4);
+  stream.push(5);
+  stream.push(6);
+}
+
+bufferCountTest();
