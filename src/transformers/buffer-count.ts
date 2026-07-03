@@ -1,6 +1,8 @@
+import { InfosLinker } from "../core/infos-linker";
 import { LinkedList } from "../core/linked-list";
+import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { Queue, AnyStream, ExtractValue, FixedArray, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, ExtractValue, FixedArray, NonEmptyString, Queue, Transform } from "../core/types";
 
 export class BufferCount<
   INPUT extends AnyStream,
@@ -9,6 +11,7 @@ export class BufferCount<
   NAME extends NonEmptyString = "bufferCount",
 > extends Transformer<INPUT, FixedArray<VALUE, SIZE>, NAME> {
   private _buffers = new LinkedList<VALUE[]>();
+  protected override _infosLinker: InfosLinker<BufferCount.Infos<VALUE>>;
   constructor(
     input: INPUT,
     public readonly size: SIZE,
@@ -66,15 +69,16 @@ export class BufferCount<
         },
       },
     });
+
+    this._infosLinker = new InfosLinker({
+      buffers: () => [...this._buffers].map((buffer) => buffer.values()),
+      consumersCount: () => this._consumers.size,
+      state: () => this._state,
+    });
   }
 
-  private *bufferGenerator() {
-    for (const buffer of this._buffers) {
-      yield buffer.values();
-    }
-  }
-  get buffers() {
-    return this.bufferGenerator();
+  override get infos(): BufferCount.Infos<VALUE> {
+    return this._infosLinker.infos;
   }
 }
 
@@ -92,4 +96,5 @@ export function bufferCount<
 }
 export namespace BufferCount {
   export type Options<VALUE, NAME extends NonEmptyString> = Omit<Transformer.Options<VALUE, NAME>, "source">;
+  export type Infos<VALUE> = Stream.Infos & { buffers: ArrayIterator<VALUE>[] };
 }

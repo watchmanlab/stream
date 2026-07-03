@@ -1,7 +1,11 @@
 import { Stream } from "./stream";
-import { AnyStream, Named, NonEmptyString } from "./types";
+import { AnyStream, Closable, Named, NonEmptyString } from "./types";
 
-export class EventsLinker<EVENTS extends Record<string, unknown>, NAME extends NonEmptyString, CONTEXT extends Named> {
+export class EventsLinker<
+  EVENTS extends Record<string, unknown>,
+  NAME extends NonEmptyString,
+  CONTEXT extends Named,
+> implements Closable {
   protected _events: Partial<EventsLinker.EventStreams<EVENTS, NAME>> = {};
   constructor(
     private context: CONTEXT,

@@ -1,14 +1,14 @@
 import type { Consumer } from "./consumer";
-import type { Source } from "./types";
+import type { Closable, Source } from "./types";
 
-export class SourceLinker<VALUE> {
+export class SourceLinker<VALUE> implements Closable {
   private _consumer: Consumer<VALUE, any, any>;
   private _pulling: boolean;
 
   constructor(
     public readonly source: Source<VALUE>,
     public readonly handler: Consumer.Handler<VALUE, any, any>,
-    options?: Omit<Consumer.Options<VALUE, any, any>, "isReady">,
+    options?: SourceLinker.Options<VALUE>,
   ) {
     this._pulling = false;
 
@@ -38,4 +38,8 @@ export class SourceLinker<VALUE> {
   get pulling(): boolean {
     return this._pulling;
   }
+}
+
+export namespace SourceLinker {
+  export type Options<VALUE> = Omit<Consumer.Options<VALUE, any, any>, "isReady">;
 }

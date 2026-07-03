@@ -163,6 +163,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
   protected _completed(): void {
     this._state = "completed";
     this.push = () => {};
+    this._optimizePush = () => {};
 
     this._eventsLinker.emit("complete", undefined);
     this._clean("completed");
