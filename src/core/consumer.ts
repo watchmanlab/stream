@@ -1,10 +1,11 @@
-import type { Closable, Evented, Named, NonEmptyString, Queue, State } from "./types";
+import type { Closable, Evented, EventsFunctions, EventStreams, Named, NonEmptyString, Queue, State } from "./types";
 import { LinkedList } from "./linked-list";
 import { EventsLinker } from "./events-linker";
 import { InfosLinker } from "./infos-linker";
+import { ScopeLinker } from "./scope-linker";
 
 export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consumer">
-  implements Closable, Named<NAME>, Evented<EventsLinker.EventStreams<Consumer.Events<VALUE>, NAME>>
+  implements Closable, Named<NAME>, Evented<Consumer.Events<VALUE>, NAME>
 {
   readonly name: NAME;
   private _queue: Queue<VALUE>;
@@ -17,7 +18,16 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
   private _infosLinker: InfosLinker<Consumer.Infos<VALUE, ERROR, NAME>>;
 
   constructor(handler: Consumer.Handler<VALUE, ERROR, NAME>, options?: Consumer.Options<VALUE, ERROR, NAME>) {
-    const { events, isReady, queue } = options ?? {};
+    const { name, events, isReady, queue } = options ?? {};
+
+    this._handler = handler;
+    this._ready = events?.ready ?? (() => {});
+
+    this.name = name ?? ("consumer" as NAME);
+    this._queue = queue ? queue : new LinkedList();
+    this._isReady = isReady === undefined ? true : isReady;
+    this._isProcessing = false;
+    this._state = "active";
 
     this._eventsLinker = new EventsLinker(this, events);
     this._infosLinker = new InfosLinker({
@@ -27,15 +37,6 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
       queue: () => this._queue,
       state: () => this._state,
     });
-
-    this._handler = handler;
-    this._ready = events?.ready ?? (() => {});
-
-    this.name = options?.name ?? ("consumer" as NAME);
-    this._queue = queue ? queue : new LinkedList();
-    this._isReady = isReady === undefined ? true : isReady;
-    this._isProcessing = false;
-    this._state = "active";
   }
 
   push(value: VALUE): void {
@@ -136,7 +137,7 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
   get infos(): Consumer.Infos<VALUE, ERROR, NAME> {
     return this._infosLinker.infos;
   }
-  get events(): EventsLinker.EventStreams<Consumer.Events<VALUE>, NAME> {
+  get events(): EventStreams<Consumer.Events<VALUE>, NAME> {
     return this._eventsLinker.events;
   }
 }
@@ -152,7 +153,7 @@ export namespace Consumer {
     name?: NAME;
     queue?: Queue<VALUE>;
     isReady?: boolean;
-    events?: EventsLinker.EventsFunctions<Events<VALUE>, Consumer<VALUE, ERROR, NAME>>;
+    events?: EventsFunctions<Events<VALUE>, Consumer<VALUE, ERROR, NAME>>;
   };
 
   export type Events<VALUE> = {

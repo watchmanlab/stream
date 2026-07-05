@@ -166,7 +166,7 @@ function test() {
   stream.push(2);
   stream.push(3);
 }
-// test();
+test();
 
 // 1
 // 2
@@ -203,4 +203,4 @@ function bufferCountTest() {
   stream.push(6);
 }
 
-bufferCountTest();
+// bufferCountTest();

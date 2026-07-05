@@ -1,11 +1,11 @@
 import type { Consumer } from "./consumer";
 import { Closable, CloseEvents, Evented } from "./types";
 
-export class ScopeLinker implements Closable {
+export class ScopeLinker {
   private _consumers: Consumer.AnyConsumer[];
   constructor(
     private target: Closable,
-    public readonly scope: ScopeLinker.Scope,
+    scope: ScopeLinker.Scope,
   ) {
     this._consumers = [];
 
@@ -51,16 +51,12 @@ export class ScopeLinker implements Closable {
       );
     });
   }
-  abort(error?: any): void {
-    for (const consumer of this._consumers) {
-      consumer.abort(error);
-    }
+  abort(error?: any) {
+    for (const consumer of this._consumers) consumer.abort(error);
     this._consumers.length = 0;
   }
-  complete(): void {
-    for (const consumer of this._consumers) {
-      consumer.complete();
-    }
+  complete() {
+    for (const consumer of this._consumers) consumer.complete();
     this._consumers.length = 0;
   }
 }

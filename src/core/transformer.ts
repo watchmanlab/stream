@@ -1,12 +1,13 @@
 import type { ScopeLinker } from "./scope-linker";
 import { Stream } from "./stream";
-import type { AnyStream, NonEmptyString, Traversal } from "./types";
+import type { AnyStream, NonEmptyString, Source, Traversal } from "./types";
 
 export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends NonEmptyString> extends Stream<
   VALUE,
   NAME
 > {
   protected _input: INPUT;
+  // abstract source: Source<VALUE>;
   constructor(input: INPUT, options?: Transformer.Options<VALUE, NAME>) {
     let scope: ScopeLinker.Scope | undefined = options?.scope;
     if (scope) {

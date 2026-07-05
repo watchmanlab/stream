@@ -6,8 +6,8 @@ export class SourceLinker<VALUE> implements Closable {
   private _pulling: boolean;
 
   constructor(
-    public readonly source: Source<VALUE>,
-    public readonly handler: Consumer.Handler<VALUE, any, any>,
+    source: Source<VALUE>,
+    handler: Consumer.Handler<VALUE, any, any>,
     options?: SourceLinker.Options<VALUE>,
   ) {
     this._pulling = false;

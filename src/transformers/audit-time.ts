@@ -21,11 +21,11 @@ export class AuditTime<
           let timer: any = null;
 
           return input.listen(
-            (context, value) => {
+            (self, value) => {
               latest = value;
               if (!timer) {
                 timer = setTimeout(() => {
-                  handler(context, latest);
+                  handler(self, latest);
                   timer = null;
                 }, ms);
               }
@@ -34,13 +34,13 @@ export class AuditTime<
               ...options,
               events: {
                 ...options?.events,
-                abort(context, value) {
+                abort(self, value) {
                   clearTimeout(timer);
-                  options?.events?.abort?.(context, value);
+                  options?.events?.abort?.(self, value);
                 },
-                complete(context, value) {
+                complete(self, value) {
                   clearTimeout(timer);
-                  options?.events?.complete?.(context, value);
+                  options?.events?.complete?.(self, value);
                 },
               },
             },

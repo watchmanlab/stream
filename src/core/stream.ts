@@ -1,5 +1,17 @@
 import { Consumer } from "./consumer";
-import type { Closable, Evented, Named, NonEmptyString, Queue, Source, State, Transform } from "./types";
+import type {
+  Closable,
+  Evented,
+  EventsFunctions,
+  EventStreams,
+  Named,
+  NonEmptyString,
+  CloseEvents,
+  Queue,
+  Source,
+  State,
+  Transform,
+} from "./types";
 import type { Transformer } from "./transformer";
 import { SourceLinker } from "./source-linker";
 import { ScopeLinker } from "./scope-linker";
@@ -8,7 +20,7 @@ import { InfosLinker } from "./infos-linker";
 
 const NAME = "root";
 export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
-  implements Source<VALUE>, Evented<EventsLinker.EventStreams<Stream.Events<VALUE>, NAME>>, Closable, Named<NAME>
+  implements Source<VALUE>, Evented<Stream.Events<VALUE>, NAME>, Closable, Named<NAME>
 {
   public readonly name: NAME;
   protected _consumers = new Map<Consumer.Handler<VALUE, any, any>, Consumer<VALUE, any, any>>();
@@ -195,7 +207,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
   get infos(): Stream.Infos {
     return this._infosLinker.infos;
   }
-  get events(): EventsLinker.EventStreams<Stream.Events<VALUE>, NAME> {
+  get events(): EventStreams<Stream.Events<VALUE>, NAME> {
     return this._eventsLinker.events;
   }
 }
@@ -222,6 +234,6 @@ export namespace Stream {
     source?: Source<VALUE>;
     scope?: ScopeLinker.Scope;
     queueFactory?: QueueFactory<VALUE>;
-    events?: EventsLinker.EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
+    events?: EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
   };
 }

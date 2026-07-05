@@ -10,14 +10,14 @@ export class BufferCount<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "bufferCount",
 > extends Transformer<INPUT, FixedArray<VALUE, SIZE>, NAME> {
-  private _buffers = new LinkedList<VALUE[]>();
   protected override _infosLinker: InfosLinker<BufferCount.Infos<VALUE>>;
   constructor(
     input: INPUT,
-    public readonly size: SIZE,
-    public readonly startBufferEvery = size,
+    size: SIZE,
+    startBufferEvery = size,
     options?: BufferCount.Options<FixedArray<VALUE, SIZE>, NAME>,
   ) {
+    const buffers = new LinkedList<VALUE[]>();
     let count = 0;
 
     super(input, {
@@ -27,41 +27,39 @@ export class BufferCount<
         listen: (handler, options) => {
           return input.listen(
             (self, value) => {
-              if (count % startBufferEvery === 0) this._buffers.enqueue([]);
+              if (count++ % startBufferEvery === 0) buffers.enqueue([]);
 
-              let buffersSize = this._buffers.size;
-              for (const buffer of this._buffers) {
+              let buffersSize = buffers.size;
+              for (const buffer of buffers) {
                 buffer.push(value);
                 if (buffer.length === size) {
-                  this._buffers.dequeue();
+                  buffers.dequeue();
                   handler(self, [...buffer] as FixedArray<VALUE, SIZE>);
                 }
               }
 
-              if (buffersSize === this._buffers.size) self.next();
-
-              count++;
+              if (buffersSize === buffers.size) self.next();
             },
             {
               ...options,
               events: {
                 ...options?.events,
-                abort: (context, value) => {
-                  this._buffers.clear();
+                abort: (self, value) => {
+                  buffers.clear();
                   count = 0;
-                  options?.events?.abort?.(context, value);
+                  options?.events?.abort?.(self, value);
                 },
 
-                complete: (context, value) => {
-                  while (this._buffers.size > 0) {
-                    const buffer = this._buffers.dequeue() as VALUE[];
+                complete: (self, value) => {
+                  while (buffers.size > 0) {
+                    const buffer = buffers.dequeue() as VALUE[];
 
                     if (buffer.length > 0) {
-                      handler(context, [...buffer] as never);
+                      handler(self, [...buffer] as never);
                     }
                   }
                   count = 0;
-                  options?.events?.complete?.(context, value);
+                  options?.events?.complete?.(self, value);
                 },
               },
             },
@@ -71,7 +69,9 @@ export class BufferCount<
     });
 
     this._infosLinker = new InfosLinker({
-      buffers: () => [...this._buffers].map((buffer) => buffer.values()),
+      size: () => size,
+      startBufferEvery: () => startBufferEvery,
+      buffers: () => [...buffers].map((buffer) => buffer.values()),
       consumersCount: () => this._consumers.size,
       state: () => this._state,
     });
@@ -96,5 +96,5 @@ export function bufferCount<
 }
 export namespace BufferCount {
   export type Options<VALUE, NAME extends NonEmptyString> = Omit<Transformer.Options<VALUE, NAME>, "source">;
-  export type Infos<VALUE> = Stream.Infos & { buffers: ArrayIterator<VALUE>[] };
+  export type Infos<VALUE> = Stream.Infos & { buffers: ArrayIterator<VALUE>[]; size: number; startBufferEvery: number };
 }

@@ -1,19 +1,19 @@
 import { Stream } from "./stream";
-import { AnyStream, Closable, Named, NonEmptyString } from "./types";
+import { AnyStream, Closable, EventsFunctions, EventStreams, Named, NonEmptyString } from "./types";
 
 export class EventsLinker<
   EVENTS extends Record<string, unknown>,
   NAME extends NonEmptyString,
-  CONTEXT extends Named,
+  SELF extends Named,
 > implements Closable {
-  protected _events: Partial<EventsLinker.EventStreams<EVENTS, NAME>> = {};
+  protected _events: Partial<EventStreams<EVENTS, NAME>> = {};
   constructor(
-    private context: CONTEXT,
-    functions?: EventsLinker.EventsFunctions<EVENTS, CONTEXT>,
+    private self: SELF,
+    functions?: EventsFunctions<EVENTS, SELF>,
   ) {
     if (functions) {
       this.emit = (eventName, value) => {
-        functions[eventName]?.(context, value);
+        functions[eventName]?.(self, value);
         this._events[eventName]?.push?.(value);
       };
     } else {
@@ -27,17 +27,17 @@ export class EventsLinker<
   has<KEY extends keyof EVENTS>(eventName: KEY): boolean {
     return this._events[eventName] !== undefined;
   }
-  get events(): EventsLinker.EventStreams<EVENTS, NAME> {
+  get events(): EventStreams<EVENTS, NAME> {
     const { _events } = this;
 
-    return new Proxy(_events as EventsLinker.EventStreams<EVENTS, NAME>, {
+    return new Proxy(_events as EventStreams<EVENTS, NAME>, {
       get: (target, p: string, receiver) => {
         if (p in target) return Reflect.get(target, p, receiver);
         const stream = new Stream({
-          name: (this.context.name + p[0].toUpperCase() + p.slice(1)) as NonEmptyString,
+          name: (this.self.name + p[0].toUpperCase() + p.slice(1)) as NonEmptyString,
           events: {
-            consumerLeft(context) {
-              if (context.infos.consumersCount === 0) delete (_events as any)[p];
+            consumerLeft(self) {
+              if (self.infos.consumersCount === 0) delete (_events as any)[p];
             },
           },
         });
@@ -54,11 +54,4 @@ export class EventsLinker<
   }
 }
 
-export namespace EventsLinker {
-  export type EventStreams<EVENTS extends Record<string, unknown>, NAME extends NonEmptyString> = {
-    [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
-  };
-  export type EventsFunctions<EVENTS extends Record<string, unknown>, CONTEXT> = {
-    [K in keyof EVENTS]?: (context: CONTEXT, value: EVENTS[K]) => void;
-  };
-}
+export namespace EventsLinker {}

@@ -37,11 +37,17 @@ export namespace Source {
 export interface Named<NAME extends NonEmptyString = any> {
   readonly name: NAME;
 }
-export interface Evented<EVENTS extends Record<string, AnyStream> = any> {
-  readonly events: EVENTS;
+export type EventStreams<EVENTS extends Record<string, unknown>, NAME extends NonEmptyString> = {
+  [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
+};
+export type EventsFunctions<EVENTS extends Record<string, unknown>, SELF> = {
+  [K in keyof EVENTS]?: (self: SELF, value: EVENTS[K]) => void;
+};
+export interface Evented<EVENTS extends Record<string, any>, NAME extends NonEmptyString = NonEmptyString> {
+  readonly events: EventStreams<EVENTS, NAME>;
 }
 
-export type CloseEvents = { abort: AnyStream; complete: Stream<void, any> };
+export type CloseEvents = { abort: any; complete: void };
 export interface Closable {
   abort(error?: any): void;
   complete(): void;

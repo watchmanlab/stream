@@ -1,7 +1,7 @@
 import { EventsLinker } from "../core/events-linker";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, EventsFunctions, EventStreams, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Filter<
   INPUT extends AnyStream,
@@ -37,7 +37,7 @@ export class Filter<
     this._eventsLinker = new EventsLinker(this, events);
     const { _eventsLinker } = this;
   }
-  override get events(): EventsLinker.EventStreams<Filter.Events<FILTERED>, NAME> {
+  override get events(): EventStreams<Filter.Events<FILTERED>, NAME> {
     return this._eventsLinker.events;
   }
 }
@@ -66,6 +66,6 @@ export namespace Filter {
     FILTERED extends VALUE,
     NAME extends NonEmptyString,
   > = Omit<Transformer.Options<FILTERED, NAME>, "events" | "source"> & {
-    events?: EventsLinker.EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
+    events?: EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
   };
 }
