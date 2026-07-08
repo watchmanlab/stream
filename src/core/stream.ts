@@ -97,13 +97,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
         ...events,
         ready: _sourceLinker
           ? ready
-            ? (self) => {
-                _sourceLinker!.next();
-                ready(self);
-              }
-            : () => {
-                _sourceLinker!.next();
-              }
+            ? (self) => (_sourceLinker!.next(), ready(self))
+            : () => _sourceLinker!.next()
           : ready,
         abort: (consumer, error) => {
           _consumers.delete(handler);

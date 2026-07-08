@@ -48,10 +48,9 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
         this._handler(this, value);
       } catch (error: any) {
         this._eventsLinker.emit("error", error);
-      } finally {
-        this._isProcessing = false;
-        if (this._isReady) this._ready(this);
       }
+      this._isProcessing = false;
+      if (this._isReady) this._ready(this);
     } else {
       this._queue.enqueue(value);
     }
@@ -60,7 +59,11 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
     if (error) this._eventsLinker.emit("error", error);
 
     if (this._isReady) {
-      this._ready(this);
+      try {
+        this._ready(this);
+      } catch (error) {
+        this._eventsLinker.emit("error", error);
+      }
       return;
     }
     this._isReady = true;
@@ -70,9 +73,7 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
         if (this._state === "active") {
           this._ready(this);
         } else {
-          this._state = "completed";
-          this._eventsLinker.emit("complete", undefined);
-          this._clean();
+          this._completed();
         }
       } catch (error: any) {
         this._eventsLinker.emit("error", error);
@@ -82,58 +83,62 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
     }
   }
   abort(error?: ERROR): void {
-    if (this._state === "aborted" || this._state === "completed") return;
+    this.push = this.next = this.complete = this.abort = this._drain = this._ready = this._handler = () => {};
+
     this._state = "aborted";
+    this._isReady = true;
+    this._isProcessing = false;
+    this._queue.clear();
+
+    if (error) this._eventsLinker.emit("error", error);
 
     try {
       this._eventsLinker.emit("abort", error);
+      this._eventsLinker.abort(error);
     } catch (error: any) {
       this._eventsLinker.emit("error", error);
-    } finally {
-      this._clean();
     }
   }
   complete(): void {
-    if (this._state !== "active") return;
+    this.push = this.complete = () => {};
+
     try {
       if (this._queue.size) {
         this._state = "drain";
-        this.push = () => {};
         this._eventsLinker.emit("drain", undefined);
       } else {
-        this._state = "completed";
-        this._eventsLinker.emit("complete", undefined);
+        this._completed();
       }
     } catch (error: any) {
       this._eventsLinker.emit("error", error);
-    } finally {
-      this._clean();
     }
   }
   private _drain(): void {
     if (this._isProcessing) return;
 
     this._isProcessing = true;
-    try {
-      while (this._isReady && this._queue.size) {
-        this._isReady = false;
+    while (this._isReady && this._queue.size) {
+      this._isReady = false;
 
-        const value = this._queue.dequeue() as VALUE;
+      const value = this._queue.dequeue() as VALUE;
 
+      try {
         this._handler(this, value);
+      } catch (error: any) {
+        this._eventsLinker.emit("error", error);
       }
-    } catch (error: any) {
-      this._eventsLinker.emit("error", error);
-    } finally {
-      this._isProcessing = false;
     }
+    this._isProcessing = false;
   }
-  private _clean(): void {
-    this._isReady = false;
-    this._isProcessing = true;
-    this._queue.clear();
-    this.push = this.next = this._drain = () => {};
+  private _completed(): void {
+    this.next = this.abort = this._ready = this._handler = () => {};
+    this._state = "completed";
+    this._isReady = true;
+    this._isProcessing = false;
+    this._eventsLinker.emit("complete", undefined);
+    this._eventsLinker.complete();
   }
+
   get infos(): Consumer.Infos<VALUE, ERROR, NAME> {
     return this._infosLinker.infos;
   }

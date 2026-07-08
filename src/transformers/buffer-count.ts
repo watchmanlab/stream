@@ -30,10 +30,12 @@ export class BufferCount<
               if (count++ % startBufferEvery === 0) buffers.enqueue([]);
 
               let buffersSize = buffers.size;
+              //since there is no reentrancy issue because of a safe queue mutation inside a loop ,
+              // we always have a single buffer full at most at a time
               for (const buffer of buffers) {
                 buffer.push(value);
                 if (buffer.length === size) {
-                  buffers.dequeue();
+                  buffers.dequeue(); //safe
                   handler(self, [...buffer] as FixedArray<VALUE, SIZE>);
                 }
               }

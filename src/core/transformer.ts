@@ -7,7 +7,7 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
   NAME
 > {
   protected _input: INPUT;
-  // abstract source: Source<VALUE>;
+
   constructor(input: INPUT, options?: Transformer.Options<VALUE, NAME>) {
     let scope: ScopeLinker.Scope | undefined = options?.scope;
     if (scope) {

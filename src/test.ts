@@ -166,7 +166,7 @@ function test() {
   stream.push(2);
   stream.push(3);
 }
-test();
+// test();
 
 // 1
 // 2
@@ -190,7 +190,7 @@ function concurrentTest() {
 function bufferCountTest() {
   const stream = new Stream<number>();
 
-  stream.pipe(bufferCount(4)).listen((self, value) => {
+  stream.pipe(bufferCount(2)).listen((self, value) => {
     console.log(value);
     self.next();
   });

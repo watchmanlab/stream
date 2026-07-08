@@ -1,5 +1,5 @@
 // for now it's not been used for immutability reason
-// Stream need to be immutable on it creation and only with transformers we can create a new one with the desired behavior
+
 export class HooksLinker<TRAPPED extends Record<string, (...args: any) => any>, SELF> {
   constructor(
     private self: SELF,
