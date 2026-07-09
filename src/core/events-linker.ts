@@ -12,8 +12,18 @@ export class EventsLinker<
     functions?: EventHandlers<EVENTS, SELF>,
   ) {
     if (functions) {
-      this.emit = (eventName, value) => {
-        functions[eventName]?.(self, value);
+      this.emit = (eventName, value, error?: (error: any) => void) => {
+        const func = functions[eventName];
+        if (func)
+          if (error) {
+            try {
+              func(self, value);
+            } catch (e) {
+              error(e);
+            }
+          } else {
+            func(self, value);
+          }
         this._events[eventName]?.push?.(value);
       };
     } else {
@@ -23,7 +33,11 @@ export class EventsLinker<
     }
   }
 
-  emit<KEY extends keyof EVENTS, VALUE extends EVENTS[KEY]>(eventName: KEY, value: VALUE): void {}
+  emit<KEY extends keyof EVENTS, VALUE extends EVENTS[KEY]>(
+    eventName: KEY,
+    value: VALUE,
+    error?: (error: any) => void,
+  ): void {}
   has<KEY extends keyof EVENTS>(eventName: KEY): boolean {
     return this._events[eventName] !== undefined;
   }

@@ -133,11 +133,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
 
     this._optimizePush();
 
-    try {
-      _eventsLinker.emit("consumerJoin", consumer);
-    } catch (error) {
-      _eventsLinker.emit("error", error);
-    }
+    _eventsLinker.emit("consumerJoin", consumer, (error) => _eventsLinker.emit("error", error));
 
     if (options?.isReady !== false && _sourceLinker) _sourceLinker.next();
     return consumer;
@@ -152,11 +148,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
     }
 
     if (error) this._eventsLinker.emit("error", error);
-    try {
-      this._eventsLinker.emit("abort", error);
-    } catch (error) {
-      this._eventsLinker.emit("error", error);
-    }
+
+    this._eventsLinker.emit("abort", error, (error) => this._eventsLinker.emit("error", error));
 
     this._clean("aborted", error);
   }

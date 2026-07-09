@@ -97,12 +97,8 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
 
     if (error) this._eventsLinker.emit("error", error);
 
-    try {
-      this._eventsLinker.emit("abort", error);
-      this._eventsLinker.abort(error);
-    } catch (error: any) {
-      this._eventsLinker.emit("error", error);
-    }
+    this._eventsLinker.emit("abort", error, (error) => this._eventsLinker.emit("error", error));
+    this._eventsLinker.abort(error);
   }
   complete(): void {
     this.push = this.complete = () => {};
@@ -140,11 +136,8 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
     this._state = "completed";
     this._isReady = true;
     this._isProcessing = false;
-    try {
-      this._eventsLinker.emit("complete", undefined);
-    } catch (error: any) {
-      this._eventsLinker.emit("error", error);
-    }
+
+    this._eventsLinker.emit("complete", undefined);
     this._eventsLinker.complete();
   }
   get infos(): Consumer.Infos<VALUE, ERROR, NAME> {
