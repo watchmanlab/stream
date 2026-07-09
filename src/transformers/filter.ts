@@ -1,7 +1,7 @@
 import { EventsLinker } from "../core/events-linker";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, EventsFunctions, EventStreams, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, EventHandlers, EventStreams, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Filter<
   INPUT extends AnyStream,
@@ -66,6 +66,6 @@ export namespace Filter {
     FILTERED extends VALUE,
     NAME extends NonEmptyString,
   > = Omit<Transformer.Options<FILTERED, NAME>, "events" | "source"> & {
-    events?: EventsFunctions<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
+    events?: EventHandlers<Events<VALUE>, Filter<INPUT, VALUE, FILTERED, NAME>>;
   };
 }

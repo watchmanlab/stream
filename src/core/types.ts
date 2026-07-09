@@ -40,7 +40,7 @@ export interface Named<NAME extends NonEmptyString = any> {
 export type EventStreams<EVENTS extends Record<string, unknown>, NAME extends NonEmptyString> = {
   [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
 };
-export type EventsFunctions<EVENTS extends Record<string, unknown>, SELF> = {
+export type EventHandlers<EVENTS extends Record<string, unknown>, SELF> = {
   [K in keyof EVENTS]?: (self: SELF, value: EVENTS[K]) => void;
 };
 export interface Evented<EVENTS extends Record<string, any>, NAME extends NonEmptyString = NonEmptyString> {

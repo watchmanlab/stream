@@ -2,7 +2,7 @@ import { Consumer } from "./consumer";
 import type {
   Closable,
   Evented,
-  EventsFunctions,
+  EventHandlers,
   EventStreams,
   Named,
   NonEmptyString,
@@ -133,44 +133,53 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
 
     this._optimizePush();
 
-    _eventsLinker.emit("consumerJoin", consumer);
+    try {
+      _eventsLinker.emit("consumerJoin", consumer);
+    } catch (error) {
+      _eventsLinker.emit("error", error);
+    }
 
     if (options?.isReady !== false && _sourceLinker) _sourceLinker.next();
     return consumer;
   }
   abort(error?: any): void {
-    if (this._state === "aborted" || this._state === "completed") return;
+    this.push = this.abort = this.complete = this._optimizePush = () => {};
+
     this._state = "aborted";
-    this.push = () => {};
-    this._optimizePush = () => {};
 
     for (const consumer of this._consumers.values()) {
       consumer.abort(error);
     }
 
-    this._eventsLinker.emit("abort", error);
     if (error) this._eventsLinker.emit("error", error);
+    try {
+      this._eventsLinker.emit("abort", error);
+    } catch (error) {
+      this._eventsLinker.emit("error", error);
+    }
 
     this._clean("aborted", error);
   }
   complete(): void {
-    if (this._state !== "active") return;
-    if (this._consumers.size) {
-      this._state = "drain";
-      this.push = () => {};
-      this._optimizePush = () => {};
-      this._eventsLinker.emit("drain", undefined);
-    } else {
-      this._completed();
+    this.push = this.complete = this._optimizePush = () => {};
+    try {
+      if (this._consumers.size) {
+        this._state = "drain";
+        this._eventsLinker.emit("drain", undefined);
+      } else {
+        this._completed();
+      }
+    } catch (error) {
+      this._eventsLinker.emit("error", error);
     }
     for (const consumer of this._consumers.values()) {
       consumer.complete();
     }
   }
   protected _completed(): void {
+    this.push = this.abort = this.complete = this._optimizePush = () => {};
+
     this._state = "completed";
-    this.push = () => {};
-    this._optimizePush = () => {};
 
     this._eventsLinker.emit("complete", undefined);
     this._clean("completed");
@@ -229,6 +238,6 @@ export namespace Stream {
     source?: Source<VALUE>;
     scope?: ScopeLinker.Scope;
     queueFactory?: QueueFactory<VALUE>;
-    events?: EventsFunctions<Events<VALUE>, Stream<VALUE, NAME>>;
+    events?: EventHandlers<Events<VALUE>, Stream<VALUE, NAME>>;
   };
 }

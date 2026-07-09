@@ -1,11 +1,10 @@
-import type { Closable, Evented, EventsFunctions, EventStreams, Named, NonEmptyString, Queue, State } from "./types";
+import type { Closable, Evented, EventHandlers, EventStreams, Named, NonEmptyString, Queue, State } from "./types";
 import { LinkedList } from "./linked-list";
 import { EventsLinker } from "./events-linker";
 import { InfosLinker } from "./infos-linker";
-import { ScopeLinker } from "./scope-linker";
 
-export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consumer">
-  implements Closable, Named<NAME>, Evented<Consumer.Events<VALUE>, NAME>
+export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "consumer">
+  implements Closable, Named<NAME>, Evented<Consumer.Events<VALUE, ERROR>, NAME>
 {
   readonly name: NAME;
   private _queue: Queue<VALUE>;
@@ -14,7 +13,7 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
   private _state: State;
   private _handler: Consumer.Handler<VALUE, ERROR, NAME>;
   private _ready: (self: Consumer<VALUE, ERROR, NAME>) => void;
-  private _eventsLinker: EventsLinker<Consumer.Events<VALUE>, NAME, this>;
+  private _eventsLinker: EventsLinker<Consumer.Events<VALUE, ERROR>, NAME, this>;
   private _infosLinker: InfosLinker<Consumer.Infos<VALUE, ERROR, NAME>>;
 
   constructor(handler: Consumer.Handler<VALUE, ERROR, NAME>, options?: Consumer.Options<VALUE, ERROR, NAME>) {
@@ -50,7 +49,13 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
         this._eventsLinker.emit("error", error);
       }
       this._isProcessing = false;
-      if (this._isReady) this._ready(this);
+      if (this._isReady) {
+        try {
+          this._ready(this);
+        } catch (error: any) {
+          this._eventsLinker.emit("error", error);
+        }
+      }
     } else {
       this._queue.enqueue(value);
     }
@@ -61,7 +66,7 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
     if (this._isReady) {
       try {
         this._ready(this);
-      } catch (error) {
+      } catch (error: any) {
         this._eventsLinker.emit("error", error);
       }
       return;
@@ -135,14 +140,17 @@ export class Consumer<VALUE, ERROR = any, NAME extends NonEmptyString = "consume
     this._state = "completed";
     this._isReady = true;
     this._isProcessing = false;
-    this._eventsLinker.emit("complete", undefined);
+    try {
+      this._eventsLinker.emit("complete", undefined);
+    } catch (error: any) {
+      this._eventsLinker.emit("error", error);
+    }
     this._eventsLinker.complete();
   }
-
   get infos(): Consumer.Infos<VALUE, ERROR, NAME> {
     return this._infosLinker.infos;
   }
-  get events(): EventStreams<Consumer.Events<VALUE>, NAME> {
+  get events(): EventStreams<Consumer.Events<VALUE, ERROR>, NAME> {
     return this._eventsLinker.events;
   }
 }
@@ -158,17 +166,30 @@ export namespace Consumer {
     name?: NAME;
     queue?: Queue<VALUE>;
     isReady?: boolean;
-    events?: EventsFunctions<Events<VALUE>, Consumer<VALUE, ERROR, NAME>>;
+    events?: EventHandlers<Events<VALUE, ERROR>, Consumer<VALUE, ERROR, NAME>>;
   };
 
-  export type Events<VALUE> = {
+  export interface Error<VALUE, ERROR, NAME extends NonEmptyString> {
+    source: "consumer";
+    consumer: Consumer<VALUE, ERROR, NAME>;
+    error: ERROR;
+    reason:
+      | "next"
+      | "abort"
+      | "handler"
+      | "ready-event-handler"
+      | "drain-event-handler"
+      | "abort-event-handler"
+      | "complete-event-handler";
+  }
+  export type Events<VALUE, ERROR> = {
     ready: void;
     enqueue: VALUE;
     dequeue: VALUE;
     drain: void;
     complete: void;
-    abort: any;
-    error: any;
+    abort: ERROR | undefined;
+    error: ERROR;
   };
   export type Infos<VALUE, ERROR, NAME extends NonEmptyString> = {
     state: State;

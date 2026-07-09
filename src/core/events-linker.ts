@@ -1,5 +1,5 @@
 import { Stream } from "./stream";
-import { AnyStream, Closable, EventsFunctions, EventStreams, Named, NonEmptyString } from "./types";
+import { AnyStream, Closable, EventHandlers, EventStreams, Named, NonEmptyString } from "./types";
 
 export class EventsLinker<
   EVENTS extends Record<string, unknown>,
@@ -9,7 +9,7 @@ export class EventsLinker<
   protected _events: Partial<EventStreams<EVENTS, NAME>> = {};
   constructor(
     private self: SELF,
-    functions?: EventsFunctions<EVENTS, SELF>,
+    functions?: EventHandlers<EVENTS, SELF>,
   ) {
     if (functions) {
       this.emit = (eventName, value) => {
