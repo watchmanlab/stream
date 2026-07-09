@@ -12,7 +12,7 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
   private _isProcessing: boolean;
   private _state: State;
   private _handler: Consumer.Handler<VALUE, ERROR, NAME>;
-  private _ready: (self: Consumer<VALUE, ERROR, NAME>) => void;
+  private _ready: (self: Consumer<VALUE, ERROR, NAME>, error?: ERROR) => void;
   private _eventsLinker: EventsLinker<Consumer.Events<VALUE, ERROR>, NAME, this>;
   private _infosLinker: InfosLinker<Consumer.Infos<VALUE, ERROR, NAME>>;
 
@@ -65,7 +65,7 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
 
     if (this._isReady) {
       try {
-        this._ready(this);
+        this._ready(this, error);
       } catch (error: any) {
         this._eventsLinker.emit("error", error);
       }
@@ -176,7 +176,7 @@ export namespace Consumer {
       | "complete-event-handler";
   }
   export type Events<VALUE, ERROR> = {
-    ready: void;
+    ready: ERROR | undefined;
     enqueue: VALUE;
     dequeue: VALUE;
     drain: void;

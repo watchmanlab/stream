@@ -1,3 +1,4 @@
+import { InfosLinker } from "../core/infos-linker";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
 import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
@@ -7,11 +8,8 @@ export class AuditTime<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "auditTime",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(
-    input: INPUT,
-    public readonly ms: number,
-    options?: AuditTime.Options<VALUE, NAME>,
-  ) {
+  protected override _infosLinker: InfosLinker<AuditTime.Infos>;
+  constructor(input: INPUT, ms: number, options?: AuditTime.Options<VALUE, NAME>) {
     super(input, {
       ...options,
       name: options?.name ?? ("auditTime" as NAME),
@@ -48,6 +46,16 @@ export class AuditTime<
         },
       },
     });
+
+    this._infosLinker = new InfosLinker({
+      ms: () => ms,
+      state: () => this._state,
+      consumersCount: () => this._consumers.size,
+    });
+  }
+
+  override get infos(): AuditTime.Infos {
+    return this._infosLinker.infos;
   }
 }
 
@@ -61,4 +69,5 @@ export function auditTime<
 
 export namespace AuditTime {
   export type Options<VALUE, NAME extends NonEmptyString> = Omit<Transformer.Options<VALUE, NAME>, "source">;
+  export type Infos = Stream.Infos & { ms: number };
 }

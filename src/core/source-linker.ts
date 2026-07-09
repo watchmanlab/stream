@@ -23,10 +23,10 @@ export class SourceLinker<VALUE> implements Closable {
       },
     );
   }
-  next(): void {
+  next(error?: any): void {
     if (!this._pulling) {
       this._pulling = true;
-      this._consumer.next();
+      this._consumer.next(error);
     }
   }
   abort(error?: any): void {
