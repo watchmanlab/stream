@@ -87,7 +87,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
 
     const { events, queue, name: customName, ...restOptions } = options ?? {};
 
-    const { ready, abort, complete, error } = events ?? {};
+    const { next, abort, complete, error } = events ?? {};
 
     const consumer = new Consumer(handler, {
       ...restOptions,
@@ -95,11 +95,11 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
       queue: queue ? queue : this._queueFactory?.(),
       events: {
         ...events,
-        ready: _sourceLinker
-          ? ready
-            ? (self, error) => (_sourceLinker!.next(error), ready(self, error))
+        next: _sourceLinker
+          ? next
+            ? (self, error) => (_sourceLinker!.next(error), next(self, error))
             : (_, error) => _sourceLinker!.next(error)
-          : ready,
+          : next,
         abort: (consumer, error) => {
           _consumers.delete(handler);
           this._optimizePush();

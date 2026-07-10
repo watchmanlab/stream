@@ -12,7 +12,7 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
   private _isProcessing: boolean;
   private _state: State;
   private _handler: Consumer.Handler<VALUE, ERROR, NAME>;
-  private _ready: (self: Consumer<VALUE, ERROR, NAME>, error?: ERROR) => void;
+  private _next: (self: Consumer<VALUE, ERROR, NAME>) => void;
   private _eventsLinker: EventsLinker<Consumer.Events<VALUE, ERROR>, NAME, this>;
   private _infosLinker: InfosLinker<Consumer.Infos<VALUE, ERROR, NAME>>;
 
@@ -20,7 +20,7 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
     const { name, events, isReady, queue } = options ?? {};
 
     this._handler = handler;
-    this._ready = events?.ready ?? (() => {});
+    this._next = events?.next ?? (() => {});
 
     this.name = name ?? ("consumer" as NAME);
     this._queue = queue ? queue : new LinkedList();
@@ -51,7 +51,7 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
       this._isProcessing = false;
       if (this._isReady) {
         try {
-          this._ready(this);
+          this._next(this);
         } catch (error: any) {
           this._eventsLinker.emit("error", error);
         }
@@ -65,7 +65,7 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
 
     if (this._isReady) {
       try {
-        this._ready(this, error);
+        this._next(this);
       } catch (error: any) {
         this._eventsLinker.emit("error", error);
       }
@@ -76,7 +76,7 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
     if (!this._isProcessing && this._queue.size === 0) {
       try {
         if (this._state === "active") {
-          this._ready(this);
+          this._next(this);
         } else {
           this._completed();
         }
@@ -88,7 +88,7 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
     }
   }
   abort(error?: ERROR): void {
-    this.push = this.next = this.complete = this.abort = this._drain = this._ready = this._handler = () => {};
+    this.push = this.next = this.complete = this.abort = this._drain = this._next = this._handler = () => {};
 
     this._state = "aborted";
     this._isReady = true;
@@ -132,7 +132,7 @@ export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "c
     this._isProcessing = false;
   }
   private _completed(): void {
-    this.next = this.abort = this._ready = this._handler = () => {};
+    this.next = this.abort = this._next = this._handler = () => {};
     this._state = "completed";
     this._isReady = true;
     this._isProcessing = false;
@@ -162,21 +162,8 @@ export namespace Consumer {
     events?: EventHandlers<Events<VALUE, ERROR>, Consumer<VALUE, ERROR, NAME>>;
   };
 
-  export interface Error<VALUE, ERROR, NAME extends NonEmptyString> {
-    source: "consumer";
-    consumer: Consumer<VALUE, ERROR, NAME>;
-    error: ERROR;
-    reason:
-      | "next"
-      | "abort"
-      | "handler"
-      | "ready-event-handler"
-      | "drain-event-handler"
-      | "abort-event-handler"
-      | "complete-event-handler";
-  }
   export type Events<VALUE, ERROR> = {
-    ready: ERROR | undefined;
+    next: void;
     enqueue: VALUE;
     dequeue: VALUE;
     drain: void;
