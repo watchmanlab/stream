@@ -1,194 +1,155 @@
 import type { Closable, Evented, EventHandlers, EventStreams, Named, NonEmptyString, Queue, State } from "./types";
-import { LinkedList } from "./linked-list";
+import { LinkedListQueue } from "./linked-list-queue";
 import { EventsLinker } from "./events-linker";
 import { InfosLinker } from "./infos-linker";
 
-export class Consumer<VALUE, const ERROR = any, NAME extends NonEmptyString = "consumer">
-  implements Closable, Named<NAME>, Evented<Consumer.Events<VALUE, ERROR>, NAME>
+export class Consumer<VALUE, NAME extends NonEmptyString = "consumer">
+  implements Closable, Named<NAME>, Evented<Consumer.Events<VALUE>, NAME>
 {
   readonly name: NAME;
   private _queue: Queue<VALUE>;
-  private _isReady: boolean;
-  private _isProcessing: boolean;
+  private _ready: boolean;
+  private _processing: boolean;
   private _state: State;
-  private _handler: Consumer.Handler<VALUE, ERROR, NAME>;
-  private _ready: (self: Consumer<VALUE, ERROR, NAME>, error?: ERROR) => void;
-  private _eventsLinker: EventsLinker<Consumer.Events<VALUE, ERROR>, NAME, this>;
-  private _infosLinker: InfosLinker<Consumer.Infos<VALUE, ERROR, NAME>>;
+  private _handler: Consumer.Handler<VALUE, NAME>;
+  private _next: (self: Consumer<VALUE, NAME>) => void;
+  private _eventsLinker: EventsLinker<Consumer.Events<VALUE>, NAME, this>;
+  private _infosLinker: InfosLinker<Consumer.Infos<VALUE, NAME>>;
 
-  constructor(handler: Consumer.Handler<VALUE, ERROR, NAME>, options?: Consumer.Options<VALUE, ERROR, NAME>) {
-    const { name, events, isReady, queue } = options ?? {};
+  constructor(handler: Consumer.Handler<VALUE, NAME>, options?: Consumer.Options<VALUE, NAME>) {
+    const { name, events, ready, queue } = options ?? {};
 
     this._handler = handler;
-    this._ready = events?.ready ?? (() => {});
+    this._next = events?.next ?? (() => {});
 
     this.name = name ?? ("consumer" as NAME);
-    this._queue = queue ? queue : new LinkedList();
-    this._isReady = isReady === undefined ? true : isReady;
-    this._isProcessing = false;
+    this._queue = queue ? queue : new LinkedListQueue();
+    this._ready = ready === undefined ? true : ready;
+    this._processing = false;
     this._state = "active";
 
     this._eventsLinker = new EventsLinker(this, events);
     this._infosLinker = new InfosLinker({
       handler: () => handler,
-      isProcessing: () => this._isProcessing,
-      isReady: () => this._isReady,
+      processing: () => this._processing,
+      ready: () => this._ready,
       queue: () => this._queue,
       state: () => this._state,
     });
   }
 
   push(value: VALUE): void {
-    if (this._isReady && !this._isProcessing) {
-      this._isProcessing = true;
-      this._isReady = false;
+    if (this._ready && !this._processing) {
+      this._processing = true;
+      this._ready = false;
 
-      try {
-        this._handler(this, value);
-      } catch (error: any) {
-        this._eventsLinker.emit("error", error);
-      }
-      this._isProcessing = false;
-      if (this._isReady) {
-        try {
-          this._ready(this);
-        } catch (error: any) {
-          this._eventsLinker.emit("error", error);
-        }
+      this._handler(this, value);
+      // try {
+      // } catch (error: any) {
+      //   this._eventsLinker.emit("error", error);
+      // }
+      this._processing = false;
+      if (this._ready) {
+        this._next(this);
+        // try {
+        // } catch (error: any) {
+        //   this._eventsLinker.emit("error", error);
+        // }
       }
     } else {
       this._queue.enqueue(value);
     }
   }
-  next(error?: ERROR): void {
-    if (error) this._eventsLinker.emit("error", error);
+  next(): void {
+    if (this._ready) return this._next(this);
 
-    if (this._isReady) {
-      try {
-        this._ready(this, error);
-      } catch (error: any) {
-        this._eventsLinker.emit("error", error);
-      }
-      return;
-    }
-    this._isReady = true;
+    this._ready = true;
 
-    if (!this._isProcessing && this._queue.size === 0) {
-      try {
-        if (this._state === "active") {
-          this._ready(this);
-        } else {
-          this._completed();
-        }
-      } catch (error: any) {
-        this._eventsLinker.emit("error", error);
+    if (!this._processing && this._queue.size === 0) {
+      if (this._state === "active") {
+        this._next(this);
+      } else {
+        this._completed();
       }
     } else {
       this._drain();
     }
   }
-  abort(error?: ERROR): void {
-    this.push = this.next = this.complete = this.abort = this._drain = this._ready = this._handler = () => {};
+  abort(): void {
+    this.push = this.next = this.complete = this.abort = this._drain = this._next = this._handler = () => {};
 
     this._state = "aborted";
-    this._isReady = true;
-    this._isProcessing = false;
+    this._ready = true;
+    this._processing = false;
     this._queue.clear();
 
-    if (error) this._eventsLinker.emit("error", error);
-
-    this._eventsLinker.emit("abort", error, (error) => this._eventsLinker.emit("error", error));
-    this._eventsLinker.abort(error);
+    this._eventsLinker.emit("abort", undefined);
+    this._eventsLinker.abort();
   }
   complete(): void {
     this.push = this.complete = () => {};
 
-    try {
-      if (this._queue.size) {
-        this._state = "drain";
-        this._eventsLinker.emit("drain", undefined);
-      } else {
-        this._completed();
-      }
-    } catch (error: any) {
-      this._eventsLinker.emit("error", error);
+    if (this._queue.size) {
+      this._state = "drain";
+      this._eventsLinker.emit("drain", undefined);
+    } else {
+      this._completed();
     }
   }
   private _drain(): void {
-    if (this._isProcessing) return;
+    if (this._processing) return;
 
-    this._isProcessing = true;
-    while (this._isReady && this._queue.size) {
-      this._isReady = false;
+    this._processing = true;
+    while (this._ready && this._queue.size) {
+      this._ready = false;
 
       const value = this._queue.dequeue() as VALUE;
 
-      try {
-        this._handler(this, value);
-      } catch (error: any) {
-        this._eventsLinker.emit("error", error);
-      }
+      this._handler(this, value);
     }
-    this._isProcessing = false;
+    this._processing = false;
   }
   private _completed(): void {
-    this.next = this.abort = this._ready = this._handler = () => {};
+    this.next = this.abort = this._next = this._handler = () => {};
     this._state = "completed";
-    this._isReady = true;
-    this._isProcessing = false;
+    this._ready = true;
+    this._processing = false;
 
     this._eventsLinker.emit("complete", undefined);
     this._eventsLinker.complete();
   }
-  get infos(): Consumer.Infos<VALUE, ERROR, NAME> {
+  get infos(): Consumer.Infos<VALUE, NAME> {
     return this._infosLinker.infos;
   }
-  get events(): EventStreams<Consumer.Events<VALUE, ERROR>, NAME> {
+  get events(): EventStreams<Consumer.Events<VALUE>, NAME> {
     return this._eventsLinker.events;
   }
 }
 
 export namespace Consumer {
-  export type AnyConsumer = Consumer<any, any, any>;
-  export type Handler<VALUE, ERROR, NAME extends NonEmptyString> = (
-    self: Consumer<VALUE, ERROR, NAME>,
-    value: VALUE,
-  ) => void;
+  export type AnyConsumer = Consumer<any, any>;
+  export type Handler<VALUE, NAME extends NonEmptyString> = (self: Consumer<VALUE, NAME>, value: VALUE) => void;
 
-  export type Options<VALUE, ERROR, NAME extends NonEmptyString> = {
+  export type Options<VALUE, NAME extends NonEmptyString> = {
     name?: NAME;
     queue?: Queue<VALUE>;
-    isReady?: boolean;
-    events?: EventHandlers<Events<VALUE, ERROR>, Consumer<VALUE, ERROR, NAME>>;
+    ready?: boolean;
+    events?: EventHandlers<Events<VALUE>, Consumer<VALUE, NAME>>;
   };
 
-  export interface Error<VALUE, ERROR, NAME extends NonEmptyString> {
-    source: "consumer";
-    consumer: Consumer<VALUE, ERROR, NAME>;
-    error: ERROR;
-    reason:
-      | "next"
-      | "abort"
-      | "handler"
-      | "ready-event-handler"
-      | "drain-event-handler"
-      | "abort-event-handler"
-      | "complete-event-handler";
-  }
-  export type Events<VALUE, ERROR> = {
-    ready: ERROR | undefined;
+  export type Events<VALUE> = {
+    next: void;
     enqueue: VALUE;
     dequeue: VALUE;
     drain: void;
     complete: void;
-    abort: ERROR | undefined;
-    error: ERROR;
+    abort: void;
   };
-  export type Infos<VALUE, ERROR, NAME extends NonEmptyString> = {
+  export type Infos<VALUE, NAME extends NonEmptyString> = {
     state: State;
     queue: Queue<VALUE>;
-    isReady: boolean;
-    isProcessing: boolean;
-    handler: Handler<VALUE, ERROR, NAME>;
+    ready: boolean;
+    processing: boolean;
+    handler: Handler<VALUE, NAME>;
   };
 }

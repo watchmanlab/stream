@@ -1,15 +1,19 @@
+import { EventsLinker } from "../core/events-linker";
+import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import type { AnyStream, EventHandlers, EventStreams, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Resolve<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
   NAME extends NonEmptyString = "resolve",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, concurrency = 1, options?: Resolve.Options<VALUE, NAME>) {
+  protected override _eventsLinker: EventsLinker<Resolve.Events<VALUE>, NAME, this>;
+  constructor(input: INPUT, concurrency = 1, options?: Resolve.Options<INPUT, VALUE, NAME>) {
+    const { name = "resolve" as NAME, events, ...restOptions } = { ...options };
     super(input, {
-      ...options,
-      name: options?.name ?? ("resolve" as NAME),
+      ...restOptions,
+      name,
       source: {
         listen: (handler, options) => {
           let count = 0;
@@ -19,7 +23,10 @@ export class Resolve<
             if (maybePromise instanceof Promise) {
               maybePromise
                 .then((value) => handler(self, value))
-                .catch((error) => self.next(error))
+                .catch((error) => {
+                  this._eventsLinker.emit("error", error);
+                  self.next();
+                })
                 .finally(() => {
                   count--;
                 });
@@ -31,6 +38,12 @@ export class Resolve<
         },
       },
     });
+
+    this._eventsLinker = new EventsLinker(this, events);
+  }
+
+  override get events(): EventStreams<Resolve.Events<VALUE>, NAME> {
+    return this._eventsLinker.events;
   }
 }
 
@@ -38,10 +51,17 @@ export function resolve<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
   NAME extends NonEmptyString = "resolve",
->(concurrency = 1, options?: Resolve.Options<VALUE, NAME>): Transform<INPUT, NAME, Resolve<INPUT, VALUE, NAME>> {
+>(concurrency = 1, options?: Resolve.Options<INPUT, VALUE, NAME>): Transform<INPUT, NAME, Resolve<INPUT, VALUE, NAME>> {
   return (input, name) => new Resolve(input, concurrency, { ...options, name: name ?? options?.name });
 }
 
 export namespace Resolve {
-  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Transformer.Options<VALUE, NAME>, "source">;
+  export type Events<VALUE> = Stream.Events<VALUE> & { error: any };
+  export type Options<
+    INPUT extends AnyStream,
+    VALUE extends ExtractValue<ExtractValue<INPUT>>,
+    NAME extends NonEmptyString,
+  > = Omit<Transformer.Options<VALUE, NAME>, "source" | "events"> & {
+    events?: EventHandlers<Events<VALUE>, Resolve<INPUT, VALUE, NAME>>;
+  };
 }

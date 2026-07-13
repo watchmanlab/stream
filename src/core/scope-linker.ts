@@ -21,8 +21,8 @@ export class ScopeLinker {
 
     scopes.forEach((scope) =>
       this._consumers.push(
-        scope.events.abort.listen((_, e) => {
-          this.target.abort(e);
+        scope.events.abort.listen((_) => {
+          this.target.abort();
           set.clear();
         }),
         scope.events.complete.listen(() => {
@@ -38,8 +38,8 @@ export class ScopeLinker {
 
     scopes.forEach((scope) => {
       this._consumers.push(
-        scope.events.abort.listen((_, e) => {
-          this.target.abort(e);
+        scope.events.abort.listen((_) => {
+          this.target.abort();
           set.clear();
         }),
         scope.events.complete.listen(() => {
@@ -51,8 +51,8 @@ export class ScopeLinker {
       );
     });
   }
-  abort(error?: any) {
-    for (const consumer of this._consumers) consumer.abort(error);
+  abort() {
+    for (const consumer of this._consumers) consumer.abort();
     this._consumers.length = 0;
   }
   complete() {

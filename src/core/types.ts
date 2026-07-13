@@ -26,10 +26,7 @@ export namespace Queue {
 }
 
 export interface Source<VALUE> {
-  listen<ERROR>(
-    handler: Consumer.Handler<VALUE, ERROR, any>,
-    options?: Consumer.Options<VALUE, ERROR, any>,
-  ): Consumer<VALUE, ERROR, any>;
+  listen(handler: Consumer.Handler<VALUE, any>, options?: Consumer.Options<VALUE, any>): Consumer<VALUE, any>;
 }
 export namespace Source {
   export type AnySource = Source<any>;
@@ -49,7 +46,7 @@ export interface Evented<EVENTS extends Record<string, any>, NAME extends NonEmp
 
 export type CloseEvents = { abort: any; complete: void };
 export interface Closable {
-  abort(error?: any): void;
+  abort(): void;
   complete(): void;
 }
 export type State = "active" | "drain" | "aborted" | "completed";
@@ -72,7 +69,7 @@ export type AnyStream = Stream<any, any>;
 export type ExtractValue<T> = T extends
   | Stream<infer VALUE, any>
   | Promise<infer VALUE>
-  | Consumer<infer VALUE, any, any>
+  | Consumer<infer VALUE, any>
   | Source<infer VALUE>
   | Transformer<any, infer VALUE, any>
   ? VALUE

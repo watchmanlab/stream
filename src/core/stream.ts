@@ -6,7 +6,6 @@ import type {
   EventStreams,
   Named,
   NonEmptyString,
-  CloseEvents,
   Queue,
   Source,
   State,
@@ -23,7 +22,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
   implements Source<VALUE>, Evented<Stream.Events<VALUE>, NAME>, Closable, Named<NAME>
 {
   public readonly name: NAME;
-  protected _consumers = new Map<Consumer.Handler<VALUE, any, any>, Consumer<VALUE, any, any>>();
+  protected _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
   protected _state: State;
   protected _sourceLinker?: SourceLinker<VALUE>;
   protected _scopeLinker?: ScopeLinker;
@@ -43,13 +42,10 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
       consumersCount: () => this._consumers.size,
     });
 
-    const { _eventsLinker } = this;
-
     if (source)
       this._sourceLinker = new SourceLinker(source, (_, value) => this.push(value), {
         events: {
-          error: (_, error) => _eventsLinker.emit("error", error),
-          abort: (_, error) => this.abort(error),
+          abort: (_) => this.abort(),
           complete: (_) => this.complete(),
         },
       });
@@ -77,17 +73,17 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
   }
   push(value: VALUE): void {}
 
-  listen<ERROR, CUSTOM_NAME extends NonEmptyString = `${NAME}Consumer`>(
-    handler: Consumer.Handler<VALUE, ERROR, CUSTOM_NAME>,
-    options?: Consumer.Options<VALUE, ERROR, CUSTOM_NAME>,
-  ): Consumer<VALUE, ERROR, CUSTOM_NAME> {
+  listen<CUSTOM_NAME extends NonEmptyString = `${NAME}Consumer`>(
+    handler: Consumer.Handler<VALUE, CUSTOM_NAME>,
+    options?: Consumer.Options<VALUE, CUSTOM_NAME>,
+  ): Consumer<VALUE, CUSTOM_NAME> {
     const { _consumers, _sourceLinker, _eventsLinker, name } = this;
 
     if (_consumers.has(handler)) return _consumers.get(handler)!;
 
     const { events, queue, name: customName, ...restOptions } = options ?? {};
 
-    const { ready, abort, complete, error } = events ?? {};
+    const { next, abort, complete } = events ?? {};
 
     const consumer = new Consumer(handler, {
       ...restOptions,
@@ -95,21 +91,20 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
       queue: queue ? queue : this._queueFactory?.(),
       events: {
         ...events,
-        ready: _sourceLinker
-          ? ready
-            ? (self, error) => (_sourceLinker!.next(error), ready(self, error))
-            : (_, error) => _sourceLinker!.next(error)
-          : ready,
-        abort: (consumer, error) => {
+        next: _sourceLinker
+          ? next
+            ? (self) => (_sourceLinker!.next(), next(self))
+            : () => _sourceLinker!.next()
+          : next,
+        abort: (consumer) => {
           _consumers.delete(handler);
           this._optimizePush();
 
           _eventsLinker.emit("consumerLeft", consumer);
-          if (error) _eventsLinker.emit("error", error);
 
           if (_consumers.size === 0 && this._state === "drain") this._completed();
 
-          abort?.(consumer, error);
+          abort?.(consumer);
         },
         complete: (consumer) => {
           _consumers.delete(handler);
@@ -121,11 +116,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
 
           complete?.(consumer);
         },
-        error: (consumer, err) => {
-          _eventsLinker.emit("error", err);
-
-          error?.(consumer, err);
-        },
       },
     });
 
@@ -133,37 +123,31 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
 
     this._optimizePush();
 
-    _eventsLinker.emit("consumerJoin", consumer, (error) => _eventsLinker.emit("error", error));
+    _eventsLinker.emit("consumerJoin", consumer);
 
-    if (options?.isReady !== false && _sourceLinker) _sourceLinker.next();
+    if (options?.ready !== false && _sourceLinker) _sourceLinker.next();
     return consumer;
   }
-  abort(error?: any): void {
+  abort(): void {
     this.push = this.abort = this.complete = this._optimizePush = () => {};
 
     this._state = "aborted";
 
     for (const consumer of this._consumers.values()) {
-      consumer.abort(error);
+      consumer.abort();
     }
 
-    if (error) this._eventsLinker.emit("error", error);
+    this._eventsLinker.emit("abort", undefined);
 
-    this._eventsLinker.emit("abort", error, (error) => this._eventsLinker.emit("error", error));
-
-    this._clean("aborted", error);
+    this._clean("aborted");
   }
   complete(): void {
     this.push = this.complete = this._optimizePush = () => {};
-    try {
-      if (this._consumers.size) {
-        this._state = "drain";
-        this._eventsLinker.emit("drain", undefined);
-      } else {
-        this._completed();
-      }
-    } catch (error) {
-      this._eventsLinker.emit("error", error);
+    if (this._consumers.size) {
+      this._state = "drain";
+      this._eventsLinker.emit("drain", undefined);
+    } else {
+      this._completed();
     }
     for (const consumer of this._consumers.values()) {
       consumer.complete();
@@ -177,11 +161,11 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
     this._eventsLinker.emit("complete", undefined);
     this._clean("completed");
   }
-  protected _clean(reason: "aborted" | "completed", error?: any): void {
+  protected _clean(reason: "aborted" | "completed"): void {
     if (reason === "aborted") {
-      this._eventsLinker.abort(error);
-      this._sourceLinker?.abort(error);
-      this._scopeLinker?.abort(error);
+      this._eventsLinker.abort();
+      this._sourceLinker?.abort();
+      this._scopeLinker?.abort();
     } else {
       this._eventsLinker.complete();
       this._sourceLinker?.complete();
@@ -216,9 +200,8 @@ export namespace Stream {
     drain: void;
     complete: void;
     abort: any;
-    error: any;
-    consumerJoin: Consumer<VALUE, any, any>;
-    consumerLeft: Consumer<VALUE, any, any>;
+    consumerJoin: Consumer<VALUE, any>;
+    consumerLeft: Consumer<VALUE, any>;
   };
   export type Infos = {
     state: State;

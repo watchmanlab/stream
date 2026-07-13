@@ -1,8 +1,8 @@
 import { Queue } from "./types";
 
-export class LinkedList<VALUE> implements Queue<VALUE> {
-  private _head?: LinkedList.Node<VALUE>;
-  private _tail?: LinkedList.Node<VALUE>;
+export class LinkedListQueue<VALUE> implements Queue<VALUE> {
+  private _head?: LinkedListQueue.Node<VALUE>;
+  private _tail?: LinkedListQueue.Node<VALUE>;
   private _size = 0;
 
   constructor() {}
@@ -55,6 +55,6 @@ export class LinkedList<VALUE> implements Queue<VALUE> {
     return this._size;
   }
 }
-export namespace LinkedList {
+export namespace LinkedListQueue {
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
 }

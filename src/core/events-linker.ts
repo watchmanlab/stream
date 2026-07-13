@@ -12,18 +12,10 @@ export class EventsLinker<
     functions?: EventHandlers<EVENTS, SELF>,
   ) {
     if (functions) {
-      this.emit = (eventName, value, error?: (error: any) => void) => {
+      this.emit = (eventName, value) => {
         const func = functions[eventName];
-        if (func)
-          if (error) {
-            try {
-              func(self, value);
-            } catch (e) {
-              error(e);
-            }
-          } else {
-            func(self, value);
-          }
+        if (func) func(self, value);
+
         this._events[eventName]?.push?.(value);
       };
     } else {
@@ -33,11 +25,7 @@ export class EventsLinker<
     }
   }
 
-  emit<KEY extends keyof EVENTS, VALUE extends EVENTS[KEY]>(
-    eventName: KEY,
-    value: VALUE,
-    error?: (error: any) => void,
-  ): void {}
+  emit<KEY extends keyof EVENTS, VALUE extends EVENTS[KEY]>(eventName: KEY, value: VALUE): void {}
   has<KEY extends keyof EVENTS>(eventName: KEY): boolean {
     return this._events[eventName] !== undefined;
   }
@@ -60,8 +48,8 @@ export class EventsLinker<
       },
     });
   }
-  abort(error?: any) {
-    for (const event of Object.values(this._events)) (event as AnyStream).abort(error);
+  abort() {
+    for (const event of Object.values(this._events)) (event as AnyStream).abort();
   }
   complete() {
     for (const event of Object.values(this._events)) (event as AnyStream).complete();

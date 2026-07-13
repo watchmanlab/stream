@@ -69,7 +69,7 @@ function bench() {
   }
 }
 
-bench();
+// bench();
 // 7 000 000 1149 ms
 // 7 000 000 1150 ms
 // 7 000 000 1150 ms
@@ -204,3 +204,29 @@ function bufferCountTest() {
 }
 
 // bufferCountTest();
+
+function errorTest() {
+  const stream = new Stream<number>();
+
+  const consumer = stream.listen(
+    (self, value) => {
+      if (value === 2) throw new Error("kechmahaja");
+
+      console.log(value);
+      self.next();
+    },
+    { ready: false },
+  );
+
+  stream.push(1);
+  try {
+    stream.push(2);
+  } catch (error) {}
+  stream.push(3);
+
+  try {
+    consumer.next();
+  } catch (error) {}
+}
+
+errorTest();

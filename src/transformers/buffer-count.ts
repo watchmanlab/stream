@@ -1,5 +1,5 @@
 import { InfosLinker } from "../core/infos-linker";
-import { LinkedList } from "../core/linked-list";
+import { LinkedListQueue } from "../core/linked-list-queue";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
 import { AnyStream, ExtractValue, FixedArray, NonEmptyString, Queue, Transform } from "../core/types";
@@ -17,7 +17,7 @@ export class BufferCount<
     startBufferEvery = size,
     options?: BufferCount.Options<FixedArray<VALUE, SIZE>, NAME>,
   ) {
-    const buffers = new LinkedList<VALUE[]>();
+    const buffers = new LinkedListQueue<VALUE[]>();
     let count = 0;
 
     super(input, {
