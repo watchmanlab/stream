@@ -13,9 +13,7 @@ export class EventsLinker<
   ) {
     if (functions) {
       this.emit = (eventName, value) => {
-        const func = functions[eventName];
-        if (func) func(self, value);
-
+        functions[eventName]?.(self, value);
         this._events[eventName]?.push?.(value);
       };
     } else {

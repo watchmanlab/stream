@@ -128,6 +128,13 @@ export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
     if (options?.ready !== false && _sourceLinker) _sourceLinker.next();
     return consumer;
   }
+  bind(scope: ScopeLinker.Scope): () => void {
+    const linker = new ScopeLinker(this, scope);
+
+    return () => {
+      linker.abort();
+    };
+  }
   abort(): void {
     this.push = this.abort = this.complete = this._optimizePush = () => {};
 

@@ -1,5 +1,5 @@
-import { Stream } from "../core/stream";
-import { NonEmptyString } from "../core/types";
+import { Stream } from "./stream";
+import { NonEmptyString } from "./types";
 
 export class State<VALUE, NAME extends NonEmptyString = "state"> extends Stream<VALUE, NAME> {
   private _value: VALUE;

@@ -44,18 +44,9 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer">
       this._ready = false;
 
       this._handler(this, value);
-      // try {
-      // } catch (error: any) {
-      //   this._eventsLinker.emit("error", error);
-      // }
+
       this._processing = false;
-      if (this._ready) {
-        this._next(this);
-        // try {
-        // } catch (error: any) {
-        //   this._eventsLinker.emit("error", error);
-        // }
-      }
+      if (this._ready) this._next(this);
     } else {
       this._queue.enqueue(value);
     }
