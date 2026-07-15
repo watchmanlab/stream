@@ -5,8 +5,31 @@ import { IterableStream } from "./streams/iterable-stream";
 import { GeneratorStream } from "./streams/generator-stream";
 import { resolve } from "./transformers/resolve";
 import { bufferCount } from "./transformers/buffer-count";
+import { Consumer } from "./core/consumer";
 
-function bench() {
+function consumerBench() {
+  const MAX = 350_000_000;
+
+  const start = performance.now();
+
+  const consumer = Consumer.create<number>((self, v) => {
+    if (v === MAX) {
+      console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      self.terminate(false);
+      return;
+    }
+
+    self.next();
+  });
+
+  for (let i = 0; i <= MAX; i++) {
+    consumer.push(i);
+  }
+}
+
+consumerBench(); //350 000 000 1000 ms
+
+function transformersBench() {
   const MAX = 7_000_000;
 
   const stream = new Stream<number>();
@@ -69,12 +92,12 @@ function bench() {
   }
 }
 
-// bench();
-// 7 000 000 1149 ms
-// 7 000 000 1150 ms
-// 7 000 000 1150 ms
-// 7 000 000 1150 ms
-// 7 000 000 1150 ms
+// transformersBench();
+// 7 000 000 1055 ms
+// 7 000 000 1055 ms
+// 7 000 000 1055 ms
+// 7 000 000 1055 ms
+// 7 000 000 1055 ms
 function mapTest() {
   const stream = new Stream<number>();
 
@@ -229,4 +252,4 @@ function errorTest() {
   } catch (error) {}
 }
 
-errorTest();
+// errorTest();
