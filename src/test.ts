@@ -15,7 +15,7 @@ function consumerBench() {
   const consumer = Consumer.create<number>((self, v) => {
     if (v === MAX) {
       console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      self.terminate(false);
+      self.abort();
       return;
     }
 
@@ -27,21 +27,34 @@ function consumerBench() {
   }
 }
 
-// consumerBench(); //350 000 000 1000 ms
+consumerBench(); //350 000 000 1000 ms
 
 function consumerTest() {
   const consumer = Consumer.create<number>(
     ({ next }, value) => {
-      if (value === 2) {
-        setTimeout(() => console.log(value), 1000);
+      // if (value === 2) {
+      //   setTimeout(() => {
+      //     console.log(value);
+      //     next();
+      //   }, 1000);
+      //   return;
+      // }
+      // if (value === 3) {
+      //   setTimeout(() => {
+      //     console.log(value);
+      //     next();
+      //   }, 1000);
+      //   return;
+      // }
+      // console.log(value);
+      // next();
+      setTimeout(() => {
+        console.log(value);
         next();
-        return;
-      }
-      console.log(value);
-      next();
+      }, 500);
     },
     {
-      ready: true,
+      ready: false,
       pull() {
         console.log("pull");
       },
@@ -51,9 +64,9 @@ function consumerTest() {
   consumer.push(1);
   consumer.push(2);
   consumer.push(3);
-  // consumer.next();
+  consumer.next();
 }
-consumerTest();
+// consumerTest();
 
 function transformersBench() {
   const MAX = 7_000_000;
