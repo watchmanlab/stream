@@ -15,7 +15,7 @@ function consumerBench() {
   const consumer = Consumer.create<number>((self, v) => {
     if (v === MAX) {
       console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      self.abort();
+      self.terminate(v);
       return;
     }
 
@@ -57,6 +57,10 @@ function consumerTest() {
       ready: false,
       pull() {
         console.log("pull");
+      },
+      next(consumer) {
+        // console.log("ddd");
+        consumer.next();
       },
     },
   );
