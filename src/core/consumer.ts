@@ -5,16 +5,17 @@ import { Stream } from "./stream";
 export interface Consumer<VALUE, NAME extends NonEmptyString = "consumer"> {
   getName(): NAME;
   getState(): Consumer.State;
-  getQueue(): Queue.Iterator<VALUE>;
-  getReady(): boolean;
-  getProcessing(): boolean;
+  getQueue(): Queue<VALUE>;
+  isReady(): boolean;
+  isProcessing(): boolean;
   //i used stream per event to avoid object allocation wrapper for each event emitted
   //because event streams are created once and lazily and do not affect the hot path when emitting raw values
-  get$terminated(): Stream<Consumer<VALUE, NAME>, `${NAME}Terminated`>;
+  getTerminatedStream(): Stream<"aborted" | "completed", `${NAME}Terminated`>;
+  getPullStream(): Stream<Consumer<VALUE, NAME>, `${NAME}Pull`>;
 
   push(value: VALUE): void;
   next(): void;
-  terminate(drain: boolean): void;
+  terminate(reason: "abort" | "complete"): void;
 }
 
 export namespace Consumer {
@@ -23,69 +24,43 @@ export namespace Consumer {
     options?: Consumer.Options<VALUE, NAME>,
   ) {
     options = { ...options };
-    let next = options?.next ?? (() => {});
+    let pull = options?.pull ?? (() => {});
     const queue: Queue<VALUE> = options?.queue ? options.queue : new LinkedListQueue();
+    const name = options?.name ?? ("consumer" as NAME);
     let ready = options?.ready === undefined ? true : options.ready;
     let processing = false;
     let state: State = "active";
 
-    let $terminated: Stream<Consumer<VALUE, NAME>, `${NAME}Terminated`> | undefined;
+    let terminatedStream: Stream<"aborted" | "completed", `${NAME}Terminated`> | undefined;
+    let pullStream: Stream<Consumer<VALUE, NAME>, `${NAME}Pull`> | undefined;
 
     const consumer: Consumer<VALUE, NAME> = {
       getName() {
-        return options?.name ?? ("consumer" as NAME);
+        return name;
       },
       getState() {
         return state;
       },
       getQueue() {
-        return queue.values();
+        return queue;
       },
-      getReady() {
+      isReady() {
         return ready;
       },
-      getProcessing() {
+      isProcessing() {
         return processing;
       },
-      get$terminated() {
-        if (!$terminated) $terminated = new Stream({ name: `${consumer.getName()}Terminated` });
-        return $terminated;
+      getTerminatedStream() {
+        if (!terminatedStream) terminatedStream = new Stream({ name: `${consumer.getName()}Terminated` });
+        return terminatedStream;
+      },
+      getPullStream() {
+        if (!pullStream) pullStream = new Stream({ name: `${consumer.getName()}Pull` });
+        return pullStream;
       },
       push: options.push ? (value: VALUE) => options.push!({ ...consumer, push }, value) : push,
-      next(): void {
-        if (ready) return next(consumer);
-
-        ready = true;
-
-        if (!processing && queue.size === 0) {
-          if (state === "active") {
-            next(consumer);
-          } else {
-            completed();
-          }
-        } else {
-          drain();
-        }
-      },
-      terminate(drain) {
-        if (drain) {
-          consumer.push = () => {};
-
-          if (queue.size) {
-            state = "drain";
-          } else {
-            completed();
-          }
-        } else {
-          consumer.push = consumer.next = consumer.terminate = next = handler = () => {};
-
-          state = "aborted";
-          ready = true;
-          processing = false;
-          queue.clear();
-          $terminated?.push(consumer);
-        }
-      },
+      next: options.next ? () => options.next!({ ...consumer, next }) : next,
+      terminate: options.terminate ? (reason) => options.terminate!({ ...consumer, terminate }, reason) : terminate,
     };
 
     return consumer;
@@ -98,31 +73,62 @@ export namespace Consumer {
         handler(consumer, value);
 
         processing = false;
-        if (ready) next(consumer);
       } else {
         queue.enqueue(value);
       }
     }
+    function next(): void {
+      if (ready) return pull();
 
+      ready = true;
+
+      if (processing) {
+        return;
+      } else if (!queue.size) {
+        if (state === "active") {
+          pull();
+        } else {
+          completed();
+        }
+      } else {
+        drain();
+      }
+    }
+    function terminate(reason: "abort" | "complete"): void {
+      if (reason === "complete") {
+        consumer.push = () => {};
+
+        if (queue.size) {
+          state = "drain";
+        } else {
+          completed();
+        }
+      } else {
+        consumer.push = consumer.next = consumer.terminate = pull = handler = () => {};
+
+        state = "aborted";
+        ready = true;
+        processing = false;
+        queue.clear();
+        terminatedStream?.push(state);
+      }
+    }
     function drain(): void {
-      if (processing) return;
-
       processing = true;
       while (ready && queue.size) {
         ready = false;
 
         const value = queue.dequeue() as VALUE;
-
         handler(consumer, value);
       }
       processing = false;
     }
     function completed(): void {
-      consumer.next = consumer.terminate = next = handler = () => {};
+      consumer.next = consumer.terminate = pull = handler = () => {};
       state = "completed";
       ready = true;
       processing = false;
-      $terminated?.push(consumer);
+      terminatedStream?.push(state);
     }
   }
   export type State = "active" | "drain" | "aborted" | "completed";
@@ -133,9 +139,9 @@ export namespace Consumer {
     name?: NAME;
     queue?: Queue<VALUE>;
     ready?: boolean;
+    pull?: () => void;
     push?: (consumer: Consumer<VALUE, NAME>, value: VALUE) => void;
     next?: (consumer: Consumer<VALUE, NAME>) => void;
-    complete?: (consumer: Consumer<VALUE, NAME>) => void;
-    abort?: (consumer: Consumer<VALUE, NAME>) => void;
+    terminate?: (consumer: Consumer<VALUE, NAME>, reason: "abort" | "complete") => void;
   };
 }

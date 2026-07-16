@@ -27,7 +27,33 @@ function consumerBench() {
   }
 }
 
-consumerBench(); //350 000 000 1000 ms
+// consumerBench(); //350 000 000 1000 ms
+
+function consumerTest() {
+  const consumer = Consumer.create<number>(
+    ({ next }, value) => {
+      if (value === 2) {
+        setTimeout(() => console.log(value), 1000);
+        next();
+        return;
+      }
+      console.log(value);
+      next();
+    },
+    {
+      ready: true,
+      pull() {
+        console.log("pull");
+      },
+    },
+  );
+
+  consumer.push(1);
+  consumer.push(2);
+  consumer.push(3);
+  // consumer.next();
+}
+consumerTest();
 
 function transformersBench() {
   const MAX = 7_000_000;
