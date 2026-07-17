@@ -1,10 +1,10 @@
-import { filter } from "./transformers/filter";
-import { map } from "./transformers/map";
-import { Stream } from "./core/stream";
-import { IterableStream } from "./streams/iterable-stream";
-import { GeneratorStream } from "./streams/generator-stream";
-import { resolve } from "./transformers/resolve";
-import { bufferCount } from "./transformers/buffer-count";
+// import { filter } from "./transformers/filter";
+// import { map } from "./transformers/map";
+// import { Stream } from "./core/stream";
+// import { IterableStream } from "./streams/iterable-stream";
+// import { GeneratorStream } from "./streams/generator-stream";
+// import { resolve } from "./transformers/resolve";
+// import { bufferCount } from "./transformers/buffer-count";
 import { Consumer } from "./core/consumer";
 
 function consumerBench() {
@@ -46,15 +46,15 @@ function consumerTest() {
       //   }, 1000);
       //   return;
       // }
-      // console.log(value);
-      // next();
-      setTimeout(() => {
-        console.log(value);
-        next();
-      }, 500);
+      console.log(value);
+      next();
+      // setTimeout(() => {
+      //   console.log(value);
+      //   next();
+      // }, 500);
     },
     {
-      ready: false,
+      ready: true,
       pull() {
         console.log("pull");
       },
@@ -68,7 +68,7 @@ function consumerTest() {
   consumer.push(1);
   consumer.push(2);
   consumer.push(3);
-  consumer.next();
+  // consumer.next();
 }
 // consumerTest();
 

@@ -8,11 +8,15 @@ export interface Consumer<VALUE, NAME extends NonEmptyString = "consumer"> {
   getQueue(): Queue<VALUE>;
   //i used stream per event to avoid object allocation wrapper for each event emitted
   //because event streams are created once and lazily and do not affect the hot path when emitting raw values
-  getAbortStream(): Stream<void, `${NAME}Abort`>;
-  getCompleteStream(): Stream<void, `${NAME}Complete`>;
-  getDrainStream(): Stream<void, `${NAME}Drain`>;
-  getTerminateStream(): Stream<"abort" | "complete", `${NAME}Terminate`>;
+  getAbortedStream(): Stream<void, `${NAME}Aborted`>;
+  getCompletedStream(): Stream<void, `${NAME}Completed`>;
+  getDrainingStream(): Stream<void, `${NAME}Draining`>;
+  getTerminatedStream(): Stream<"abort" | "complete", `${NAME}Terminated`>;
   getPullStream(): Stream<void, `${NAME}Pull`>;
+  canPush(): boolean;
+  canNext(): boolean;
+  canAbort(): boolean;
+  canComplete(): boolean;
 
   push(value: VALUE): void;
   next(): void;
@@ -20,28 +24,29 @@ export interface Consumer<VALUE, NAME extends NonEmptyString = "consumer"> {
   complete(): void;
 }
 
-function push<VALUE, NAME extends NonEmptyString = "comsumer">(consumer: Consumer<VALUE, NAME>) {
-  //
-}
-
 export namespace Consumer {
   export function create<VALUE, NAME extends NonEmptyString = "consumer">(
     handler: Consumer.Handler<VALUE, NAME>,
     options?: Consumer.Options<VALUE, NAME>,
   ) {
-    options = { ...options };
+    let {
+      name = "consumer" as NAME,
+      ready = true,
+      queue = new LinkedListQueue(),
+      pull = () => {},
+      drain = () => {},
+      terminated = () => {},
+    } = { ...options };
+    options = undefined;
+
     let state: State = "active";
 
-    let pull = options?.pull ?? (() => {});
-    const queue: Queue<VALUE> = options?.queue ? options.queue : new LinkedListQueue();
-    const name = options?.name ?? ("consumer" as NAME);
-    let ready = options?.ready === undefined ? true : options.ready;
     let processing = false;
 
-    let abortStream: Stream<void, `${NAME}Abort`> | undefined;
-    let completeStream: Stream<void, `${NAME}Complete`> | undefined;
-    let drainStream: Stream<void, `${NAME}Drain`> | undefined;
-    let terminateStream: Stream<"abort" | "complete", `${NAME}Terminate`> | undefined;
+    let abortedStream: Stream<void, `${NAME}Aborted`> | undefined;
+    let completedStream: Stream<void, `${NAME}Completed`> | undefined;
+    let drainingStream: Stream<void, `${NAME}Draining`> | undefined;
+    let terminatedStream: Stream<"abort" | "complete", `${NAME}Terminated`> | undefined;
     let pullStream: Stream<void, `${NAME}Pull`> | undefined;
 
     const consumer: Consumer<VALUE, NAME> = {
@@ -54,122 +59,127 @@ export namespace Consumer {
       getQueue() {
         return queue;
       },
-      getAbortStream() {
-        if (!abortStream) abortStream = new Stream({ name: `${name}Abort` });
-        return abortStream;
+      getAbortedStream() {
+        if (!abortedStream) abortedStream = new Stream({ name: `${name}Aborted` });
+        return abortedStream;
       },
-      getCompleteStream() {
-        if (!completeStream) completeStream = new Stream({ name: `${name}Complete` });
-        return completeStream;
+      getCompletedStream() {
+        if (!completedStream) completedStream = new Stream({ name: `${name}Completed` });
+        return completedStream;
       },
-      getDrainStream() {
-        if (!drainStream) drainStream = new Stream({ name: `${name}Drain` });
-        return drainStream;
+      getDrainingStream() {
+        if (!drainingStream) drainingStream = new Stream({ name: `${name}Draining` });
+        return drainingStream;
       },
-      getTerminateStream() {
-        if (!terminateStream) terminateStream = new Stream({ name: `${name}Terminate` });
-        return terminateStream;
+      getTerminatedStream() {
+        if (!terminatedStream) terminatedStream = new Stream({ name: `${name}Terminated` });
+        return terminatedStream;
       },
       getPullStream() {
         if (!pullStream) pullStream = new Stream({ name: `${name}Pull` });
         return pullStream;
       },
-      push: options.push ? (value) => options!.push!({ ...consumer, push }, value) : push,
-      next: options.next ? () => options!.next!({ ...consumer, next }) : next,
-      complete: options.complete ? () => options!.complete!({ ...consumer, complete }) : complete,
-      abort: options.abort ? () => options!.abort!({ ...consumer, abort }) : abort,
+      canPush() {
+        return state === "active";
+      },
+      canNext() {
+        return state === "active" || state === "draining";
+      },
+      canAbort() {
+        return state === "active" || state === "draining";
+      },
+      canComplete() {
+        return state === "active";
+      },
+      push(value: VALUE): void {
+        if (state !== "active") return;
+
+        if (ready && !processing) {
+          processing = true;
+          ready = false;
+
+          handler(consumer, value);
+
+          processing = false;
+        } else {
+          queue.enqueue(value);
+        }
+      },
+      next(): void {
+        if (state === "aborted" || state === "completed") return;
+
+        if (ready) {
+          pull(consumer);
+          pullStream?.push();
+          return;
+        }
+
+        ready = true;
+
+        if (processing) return;
+
+        processing = true;
+        while (ready && queue.size) {
+          ready = false;
+
+          const value = queue.dequeue() as VALUE;
+
+          handler(consumer, value);
+        }
+
+        switch (state) {
+          case "active":
+            pull(consumer);
+            pullStream?.push();
+            break;
+          case "draining":
+            if (!queue.size) consumer.complete();
+            break;
+        }
+
+        processing = false;
+      },
+      abort() {
+        if (state === "aborted" || state === "completed") return;
+        terminate("abort");
+      },
+      complete() {
+        if (state !== "active") return;
+        terminate("complete");
+      },
     };
 
     return consumer;
 
-    function push(value: VALUE): void {
-      if (state !== "active") return;
-
-      if (ready && !processing) {
-        processing = true;
-        ready = false;
-
-        handler(consumer, value);
-
-        processing = false;
-      } else {
-        queue.enqueue(value);
-      }
-    }
-    function next(): void {
-      if (state === "aborted" || state === "completed") return;
-
-      if (ready) return pull(consumer);
-
-      ready = true;
-
-      if (processing) return;
-
-      processing = true;
-      while (ready && queue.size) {
-        ready = false;
-
-        const value = queue.dequeue() as VALUE;
-
-        handler(consumer, value);
-      }
-
-      if (state === "draining" && !queue.size) {
-        complete();
-      }
-
-      processing = false;
-    }
-
-    function abort() {
-      if (state === "aborted" || state === "completed") return;
-
-      state = "aborted";
-
-      options?.abort?.(consumer);
-
-      abortStream?.push();
-
-      terminate("abort");
-    }
-    function complete() {
-      if (state !== "active") return;
-
-      if (queue.size) {
-        state = "draining";
-        options?.drain?.(consumer);
-
-        drainStream?.push();
-        return;
-      }
-      state = "completed";
-
-      options?.complete?.(consumer);
-
-      completeStream?.push();
-
-      terminate("complete");
-    }
-
     function terminate(reason: "abort" | "complete"): void {
-      ready = true;
-      processing = true;
-      queue.clear();
+      if (reason === "abort") {
+        state = "aborted";
+        queue.clear();
+        abortedStream?.push();
+      } else if (queue.size) {
+        state = "draining";
+        drain(consumer);
+        drainingStream?.push();
+        return;
+      } else {
+        state = "completed";
+        completedStream?.push();
+      }
 
-      terminateStream?.push(reason);
-      terminateStream?.complete();
-      drainStream?.complete();
-      completeStream?.complete();
-      abortStream?.complete();
+      terminatedStream?.push(reason);
+      terminatedStream?.complete();
+      drainingStream?.complete();
+      completedStream?.complete();
+      abortedStream?.complete();
       pullStream?.complete();
 
-      terminateStream = drainStream = completeStream = abortStream = pullStream = undefined;
+      terminatedStream = drainingStream = completedStream = abortedStream = pullStream = undefined;
+
+      terminated(consumer, reason);
       handler = () => {};
       pull = () => {};
-
-      options?.terminate?.(consumer, reason);
-
-      options = undefined;
+      drain = () => {};
+      terminated = () => {};
     }
   }
 
@@ -181,12 +191,8 @@ export namespace Consumer {
     name?: NAME;
     queue?: Queue<VALUE>;
     ready?: boolean;
-    push?: (consumer: Consumer<VALUE, NAME>, value: VALUE) => void;
-    next?: (consumer: Consumer<VALUE, NAME>) => void;
     pull?: (consumer: Consumer<VALUE, NAME>) => void;
-    terminate?: (consumer: Consumer<VALUE, NAME>, reason: "abort" | "complete") => void;
+    terminated?: (consumer: Consumer<VALUE, NAME>, reason: "abort" | "complete") => void;
     drain?: (consumer: Consumer<VALUE, NAME>) => void;
-    complete?: (consumer: Consumer<VALUE, NAME>) => void;
-    abort?: (consumer: Consumer<VALUE, NAME>) => void;
   };
 }
