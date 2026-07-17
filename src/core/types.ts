@@ -31,25 +31,17 @@ export interface Source<VALUE> {
 export namespace Source {
   export type AnySource = Source<any>;
 }
-export interface Named<NAME extends NonEmptyString = any> {
+export interface Named<NAME extends NonEmptyString> {
   readonly name: NAME;
 }
-export type EventStreams<EVENTS extends Record<string, unknown>, NAME extends NonEmptyString> = {
-  [K in keyof EVENTS]: Stream<EVENTS[K], `${NAME}${Capitalize<K extends string ? K : "">}`>;
-};
-export type EventHandlers<EVENTS extends Record<string, unknown>, SELF> = {
-  [K in keyof EVENTS]?: (self: SELF, value: EVENTS[K]) => void;
-};
-export interface Evented<EVENTS extends Record<string, any>, NAME extends NonEmptyString = NonEmptyString> {
-  readonly events: EventStreams<EVENTS, NAME>;
-}
 
-export type CloseEvents = { abort: any; complete: void };
 export interface Closable {
+  readonly $aborted?: Stream<any, any>;
+  readonly $completed?: Stream<any, any>;
+  readonly $terminated?: Stream<"abort" | "complete", any>;
   abort(): void;
   complete(): void;
 }
-export type State = "active" | "drain" | "aborted" | "completed";
 export interface StreamLike<VALUE, NAME extends NonEmptyString> {
   readonly stream: Stream<VALUE, NAME>;
 }

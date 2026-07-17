@@ -1,10 +1,10 @@
-import type { NonEmptyString, Queue } from "./types";
+import type { Closable, Named, NonEmptyString, Queue } from "./types";
 import { LinkedListQueue } from "./linked-list-queue";
 import { Stream } from "./stream";
 
-export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> {
+export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implements Named<NAME>, Closable {
   #name: NAME;
-  #state: Consumer.State = "active";
+  #state: Consumer.State;
   #queue: Queue<VALUE>;
   #ready: boolean;
   #processing = false;
@@ -16,14 +16,15 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> {
 
   #$aborted?: Stream<void, `${NAME}Aborted`>;
   #$completed?: Stream<void, `${NAME}Completed`>;
-  #$draining?: Stream<void, `${NAME}Draining`>;
   #$terminated?: Stream<"abort" | "complete", `${NAME}Terminated`>;
+  #$draining?: Stream<void, `${NAME}Draining`>;
   #$pull?: Stream<void, `${NAME}Pull`>;
 
   constructor(handler: Consumer.Handler<VALUE, NAME>, options?: Consumer.Options<VALUE, NAME>) {
     this.#name = options?.name ?? ("consumer" as NAME);
     this.#ready = options?.ready ?? true;
     this.#queue = options?.queue ?? new LinkedListQueue();
+    this.#state = "active";
 
     this.#handler = handler;
     this.#pull = options?.pull ?? (() => {});
