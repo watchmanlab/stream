@@ -1,48 +1,48 @@
 import type { Consumer } from "./consumer";
-import { Closable, CloseEvents, Evented } from "./types";
+import { Closable } from "./types";
 
 export class ScopeLinker {
-  private _consumers: Consumer.AnyConsumer[];
+  #consumers: Consumer.AnyConsumer[];
   constructor(
     private target: Closable,
     scope: ScopeLinker.Scope,
   ) {
-    this._consumers = [];
+    this.#consumers = [];
 
     if (scope.any && scope.any.length > 0) {
-      this.any(scope.any);
+      this.#any(scope.any);
     } else if (scope.all && scope.all.length > 0) {
-      this.all(scope.all);
+      this.#all(scope.all);
     }
   }
 
-  private any(scopes: Evented<CloseEvents>[]): void {
+  #any(scopes: Closable[]): void {
     const set = new Set(scopes);
 
     scopes.forEach((scope) =>
-      this._consumers.push(
-        scope.events.abort.listen((_) => {
+      this.#consumers.push(
+        scope.$aborted.listen((_) => {
           this.target.abort();
           set.clear();
         }),
-        scope.events.complete.listen(() => {
+        scope.$completed.listen(() => {
           this.target.complete();
           set.clear();
         }),
       ),
     );
   }
-  private all(scopes: Evented<CloseEvents>[]): void {
+  #all(scopes: Closable[]): void {
     const set = new Set(scopes);
     let count = set.size;
 
     scopes.forEach((scope) => {
-      this._consumers.push(
-        scope.events.abort.listen((_) => {
+      this.#consumers.push(
+        scope.$aborted.listen((_) => {
           this.target.abort();
           set.clear();
         }),
-        scope.events.complete.listen(() => {
+        scope.$completed.listen(() => {
           if (!--count) {
             this.target.complete();
             set.clear();
@@ -52,17 +52,15 @@ export class ScopeLinker {
     });
   }
   abort() {
-    for (const consumer of this._consumers) consumer.abort();
-    this._consumers.length = 0;
+    for (const consumer of this.#consumers) consumer.abort();
+    this.#consumers.length = 0;
   }
   complete() {
-    for (const consumer of this._consumers) consumer.complete();
-    this._consumers.length = 0;
+    for (const consumer of this.#consumers) consumer.complete();
+    this.#consumers.length = 0;
   }
 }
 
 export namespace ScopeLinker {
-  export type Scope =
-    | { any: [Evented<CloseEvents>, ...Evented<CloseEvents>[]]; all?: never }
-    | { any?: never; all: [Evented<CloseEvents>, ...Evented<CloseEvents>[]] };
+  export type Scope = { any: [Closable, ...Closable[]]; all?: never } | { any?: never; all: [Closable, ...Closable[]] };
 }

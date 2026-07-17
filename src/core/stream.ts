@@ -41,7 +41,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "root"> implements Sour
 
     if (options?.source)
       this.#sourceLinker = new SourceLinker(options?.source, (_, value) => this.push(value), {
-        terminated: (consumer, reason) => {
+        terminated: (_, reason) => {
           reason === "abort" ? this.abort() : this.complete();
         },
       });
@@ -50,7 +50,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "root"> implements Sour
     }
   }
   get name() {
-    return (this, this.#name);
+    return this.#name;
   }
   get consumers() {
     const self = this;
