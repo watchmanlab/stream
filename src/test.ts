@@ -1,18 +1,18 @@
-// import { filter } from "./transformers/filter";
-// import { map } from "./transformers/map";
-// import { Stream } from "./core/stream";
-// import { IterableStream } from "./streams/iterable-stream";
-// import { GeneratorStream } from "./streams/generator-stream";
-// import { resolve } from "./transformers/resolve";
-// import { bufferCount } from "./transformers/buffer-count";
+import { filter } from "./transformers/filter";
+import { map } from "./transformers/map";
+import { Stream } from "./core/stream";
+import { IterableStream } from "./streams/iterable-stream";
+import { GeneratorStream } from "./streams/generator-stream";
+import { resolve } from "./transformers/resolve";
+import { bufferCount } from "./transformers/buffer-count";
 import { Consumer } from "./core/consumer";
 
 function consumerBench() {
-  const MAX = 350_000_000;
+  const MAX = 100_000_000;
 
   const start = performance.now();
 
-  const consumer = Consumer.create<number>((self, v) => {
+  const consumer = new Consumer<number>((self, v) => {
     if (v === MAX) {
       console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       self.complete();
@@ -27,50 +27,27 @@ function consumerBench() {
   }
 }
 
-consumerBench(); //350 000 000 1000 ms
+// consumerBench(); //350 000 000 1000 ms
 
 function consumerTest() {
-  const consumer = Consumer.create<number>(
-    ({ next }, value) => {
-      // if (value === 2) {
-      //   setTimeout(() => {
-      //     console.log(value);
-      //     next();
-      //   }, 1000);
-      //   return;
-      // }
-      // if (value === 3) {
-      //   setTimeout(() => {
-      //     console.log(value);
-      //     next();
-      //   }, 1000);
-      //   return;
-      // }
-      console.log(value);
-      next();
-      // setTimeout(() => {
-      //   console.log(value);
-      //   next();
-      // }, 500);
-    },
-    {
-      ready: true,
-      pull() {
-        console.log("pull");
-      },
-      next(consumer) {
-        // console.log("ddd");
+  const consumer = new Consumer<number>((consumer, value) => {
+    if (value === 2) {
+      setTimeout(() => {
+        console.log(value);
         consumer.next();
-      },
-    },
-  );
+      }, 1000);
+      return;
+    }
+
+    console.log(value);
+    consumer.next();
+  });
 
   consumer.push(1);
   consumer.push(2);
   consumer.push(3);
-  // consumer.next();
 }
-// consumerTest();
+consumerTest();
 
 function transformersBench() {
   const MAX = 7_000_000;
