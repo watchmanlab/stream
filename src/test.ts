@@ -65,33 +65,48 @@ function streamBench() {
   }
 }
 
-streamBench(); //1 000 000 13 ms
+// streamBench(); //1 000 000 13 ms
 
 function streamTest() {
   const stream = new Stream<number>();
 
+  // stream.listen((consumer, value) => {
+  //   if (value === 2) {
+  //     setTimeout(() => {
+  //       console.log("c1", value);
+  //       consumer.next();
+  //     }, 1000);
+  //     // consumer.next();
+  //     return;
+  //   }
+  //   console.log("c1", value);
+  //   consumer.next();
+  // });
   stream.listen((consumer, value) => {
-    console.log(value);
+    console.log("L2", value.toString().repeat(3));
+    if (value < 4) stream.push(++value);
     consumer.next();
   });
 
-  stream.push(1);
-  stream.push(2);
-  stream.push(3);
+  // stream.push(1);
+  // stream.push(2);
+  // stream.push(3);
 }
 
-// streamTest();
+streamTest();
 
 function fromIteratorTest() {
   const stream = fromIterator([1, 2, 3].values());
+
   stream.listen((c, v) => {
     console.log("c1", v);
     c.next();
   });
+
   stream.listen((c, v) => {
-    console.log("c2", v);
+    console.log("c2", v.toString().repeat(3));
     c.next();
   });
 }
 
-// fromIteratorTest();
+fromIteratorTest();

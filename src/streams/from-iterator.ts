@@ -1,4 +1,3 @@
-import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
@@ -7,25 +6,21 @@ export function fromIterator<VALUE, NAME extends NonEmptyString = "root">(
   options?: Stream.Options<VALUE, NAME>,
 ): Stream<VALUE, NAME> {
   const iter = typeof iterator === "function" ? iterator() : iterator;
-  let started = false;
+
   return new Stream({
     ...options,
-    pull(stream) {
-      if (!started) {
-        started = true;
-        queueMicrotask(() => {
-          const result = iter.next();
-          if (result.done) stream.terminate("complete");
-          else stream.push(result.value);
-        });
+    pull(stream, consumer) {
+      const result = iter.next();
+      if (result.done) {
+        stream.terminate("complete");
       } else {
-        const result = iter.next();
-        if (result.done) stream.terminate("complete");
-        else stream.push(result.value);
+        stream.push(result.value);
+        options?.pull?.(stream, consumer);
       }
     },
-    terminated() {
+    terminated(stream, reason) {
       iter.return?.();
+      options?.terminated?.(stream, reason);
     },
   });
 }

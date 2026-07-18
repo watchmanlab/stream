@@ -116,9 +116,9 @@ export class Stream<VALUE, NAME extends NonEmptyString = "root"> implements Sour
 
       terminated: (consumer, reason) => {
         this.#consumers.delete(handler);
+        this.#optimizePush();
         this.#consumerLeft(this, consumer);
         this.#$consumerLeft?.push(consumer);
-        this.#optimizePush();
         if (this.#consumers.size === 0 && this.#state === "draining") this.terminate("complete");
 
         options?.terminated?.(consumer, reason);
@@ -126,10 +126,9 @@ export class Stream<VALUE, NAME extends NonEmptyString = "root"> implements Sour
     });
 
     this.#consumers.set(handler, consumer);
+    this.#optimizePush();
     this.#consumerJoined(this, consumer);
     this.#$consumerJoined?.push(consumer);
-
-    this.#optimizePush();
 
     if (options?.ready !== false && !this.#pulling) {
       this.#pull(this, consumer);

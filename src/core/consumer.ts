@@ -7,7 +7,7 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
   #state: Consumer.State;
   #queue: Queue<VALUE>;
   #ready: boolean;
-  #processing = false;
+  #processing: boolean;
 
   #handler: Consumer.Handler<VALUE, NAME>;
   #pull: NonNullable<Consumer.Options<VALUE, NAME>["pull"]>;
@@ -19,9 +19,10 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
 
   constructor(handler: Consumer.Handler<VALUE, NAME>, options?: Consumer.Options<VALUE, NAME>) {
     this.#name = options?.name ?? ("consumer" as NAME);
-    this.#ready = options?.ready ?? true;
-    this.#queue = options?.queue ?? new LinkedListQueue();
     this.#state = "active";
+    this.#queue = options?.queue ?? new LinkedListQueue();
+    this.#ready = options?.ready ?? true;
+    this.#processing = false;
 
     this.#handler = handler;
     this.#pull = options?.pull ?? (() => {});
@@ -54,17 +55,14 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
       this.#ready = false;
       this.#handler(this, value);
       this.#processing = false;
-      // if (this.#ready) {
-      //   this.#pull(this);
-      //   this.#$pull?.push();
-      // }
+      if (this.#ready) this.next();
     } else {
       this.#queue.enqueue(value);
     }
   }
 
   next(): void {
-    if (this.#ready) {
+    if (this.#ready && !this.#queue.size) {
       this.#pull(this);
       this.#$pull?.push();
       return;
@@ -78,7 +76,6 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
       this.#ready = false;
       const value = this.#queue.dequeue() as VALUE;
       this.#handler(this, value);
-      this.#processing = false;
     }
 
     switch (this.#state) {
@@ -90,6 +87,8 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
         if (!this.#queue.size) this.terminate("complete");
         break;
     }
+
+    this.#processing = false;
   }
 
   terminate(reason: "abort" | "complete"): void {
