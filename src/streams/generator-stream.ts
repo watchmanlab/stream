@@ -1,6 +1,6 @@
 import type { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
-import { IteratorStream } from "./iterator-stream";
+import { IteratorStream } from "./from-iterator";
 
 export class GeneratorStream<VALUE, NAME extends NonEmptyString> extends IteratorStream<VALUE, NAME> {
   constructor(

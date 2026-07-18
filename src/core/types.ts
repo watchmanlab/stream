@@ -36,11 +36,8 @@ export interface Named<NAME extends NonEmptyString> {
 }
 
 export interface Closable {
-  readonly $aborted: Stream<any, any>;
-  readonly $completed: Stream<any, any>;
   readonly $terminated: Stream<"abort" | "complete", any>;
-  abort(): void;
-  complete(): void;
+  terminate(reason: "abort" | "complete"): void;
 }
 export interface StreamLike<VALUE, NAME extends NonEmptyString> {
   readonly stream: Stream<VALUE, NAME>;

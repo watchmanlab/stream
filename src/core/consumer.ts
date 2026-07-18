@@ -2,7 +2,7 @@ import type { Closable, Named, NonEmptyString, Queue } from "./types";
 import { LinkedListQueue } from "./linked-list-queue";
 import { Stream } from "./stream";
 
-export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implements Named<NAME>, Closable {
+export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implements Named<NAME>, Closable, Named<NAME> {
   #name: NAME;
   #state: Consumer.State;
   #queue: Queue<VALUE>;
@@ -10,12 +10,9 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
   #processing = false;
 
   #handler: Consumer.Handler<VALUE, NAME>;
-  #pull: (consumer: this) => void;
-  #draining: (consumer: this) => void;
-  #terminated: (consumer: this, reason: "abort" | "complete") => void;
-
-  #$aborted?: Stream<void, `${NAME}Aborted`>;
-  #$completed?: Stream<void, `${NAME}Completed`>;
+  #pull: NonNullable<Consumer.Options<VALUE, NAME>["pull"]>;
+  #draining: NonNullable<Consumer.Options<VALUE, NAME>["draining"]>;
+  #terminated: NonNullable<Consumer.Options<VALUE, NAME>["terminated"]>;
   #$terminated?: Stream<"abort" | "complete", `${NAME}Terminated`>;
   #$draining?: Stream<void, `${NAME}Draining`>;
   #$pull?: Stream<void, `${NAME}Pull`>;
@@ -41,12 +38,6 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
   get queue() {
     return this.#queue;
   }
-  get $aborted() {
-    return (this.#$aborted ??= new Stream({ name: `${this.name}Aborted` }));
-  }
-  get $completed() {
-    return (this.#$completed ??= new Stream({ name: `${this.name}Completed` }));
-  }
   get $draining() {
     return (this.#$draining ??= new Stream({ name: `${this.name}Draining` }));
   }
@@ -58,21 +49,21 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
   }
 
   push(value: VALUE): void {
-    if (this.#state !== "active") return;
-
     if (this.#ready && !this.#processing) {
       this.#processing = true;
       this.#ready = false;
       this.#handler(this, value);
       this.#processing = false;
+      // if (this.#ready) {
+      //   this.#pull(this);
+      //   this.#$pull?.push();
+      // }
     } else {
       this.#queue.enqueue(value);
     }
   }
 
   next(): void {
-    if (this.#state === "aborted" || this.#state === "completed") return;
-
     if (this.#ready) {
       this.#pull(this);
       this.#$pull?.push();
@@ -87,6 +78,7 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
       this.#ready = false;
       const value = this.#queue.dequeue() as VALUE;
       this.#handler(this, value);
+      this.#processing = false;
     }
 
     switch (this.#state) {
@@ -95,53 +87,36 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
         this.#$pull?.push();
         break;
       case "draining":
-        if (!this.#queue.size) this.complete();
+        if (!this.#queue.size) this.terminate("complete");
         break;
     }
-
-    this.#processing = false;
   }
 
-  abort() {
-    if (this.#state === "aborted" || this.#state === "completed") return;
-    this.#terminate("abort");
-  }
-
-  complete() {
-    if (this.#state !== "active") return;
-    this.#terminate("complete");
-  }
-
-  #terminate(reason: "abort" | "complete"): void {
+  terminate(reason: "abort" | "complete"): void {
+    this.push = () => {};
     if (reason === "abort") {
+      this.next = this.terminate = () => {};
       this.#state = "aborted";
       this.#queue.clear();
-      this.#$aborted?.push();
     } else if (this.#queue.size) {
       this.#state = "draining";
       this.#draining(this);
       this.#$draining?.push();
       return;
     } else {
+      this.next = this.terminate = () => {};
       this.#state = "completed";
-      this.#$completed?.push();
     }
 
     this.#$terminated?.push(reason);
-    this.#$terminated?.complete();
-    this.#$draining?.complete();
-    this.#$completed?.complete();
-    this.#$aborted?.complete();
-    this.#$pull?.complete();
+    this.#$terminated?.terminate("complete");
+    this.#$draining?.terminate("complete");
+    this.#$pull?.terminate("complete");
 
-    this.#$terminated = this.#$draining = this.#$completed = this.#$aborted = this.#$pull = undefined;
+    this.#$terminated = this.#$draining = this.#$pull = undefined;
 
     this.#terminated(this, reason);
-
-    this.#handler = () => {};
-    this.#pull = () => {};
-    this.#draining = () => {};
-    this.#terminated = () => {};
+    this.#handler = this.#pull = this.#draining = this.#terminated = () => {};
   }
 }
 

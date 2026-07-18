@@ -21,12 +21,8 @@ export class ScopeLinker {
 
     scopes.forEach((scope) =>
       this.#consumers.push(
-        scope.$aborted.listen((_) => {
-          this.target.abort();
-          set.clear();
-        }),
-        scope.$completed.listen(() => {
-          this.target.complete();
+        scope.$terminated.listen((_, reason) => {
+          this.target.terminate(reason);
           set.clear();
         }),
       ),
@@ -38,25 +34,24 @@ export class ScopeLinker {
 
     scopes.forEach((scope) => {
       this.#consumers.push(
-        scope.$aborted.listen((_) => {
-          this.target.abort();
-          set.clear();
-        }),
-        scope.$completed.listen(() => {
-          if (!--count) {
-            this.target.complete();
-            set.clear();
+        scope.$terminated.listen((_, reason) => {
+          switch (reason) {
+            case "abort":
+              this.target.terminate("abort");
+              break;
+            case "complete":
+              if (!--count) {
+                this.target.terminate("complete");
+                break;
+              }
           }
+          set.clear();
         }),
       );
     });
   }
-  abort() {
-    for (const consumer of this.#consumers) consumer.abort();
-    this.#consumers.length = 0;
-  }
-  complete() {
-    for (const consumer of this.#consumers) consumer.complete();
+  terminate(reason: "abort" | "complete") {
+    for (const consumer of this.#consumers) consumer.terminate(reason);
     this.#consumers.length = 0;
   }
 }

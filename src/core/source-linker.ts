@@ -25,11 +25,8 @@ export class SourceLinker<VALUE> {
       this.#consumer.next();
     }
   }
-  abort(): void {
-    this.#consumer.abort();
-  }
-  complete(): void {
-    this.#consumer.complete();
+  terminate(reason: "abort" | "complete") {
+    this.#consumer.terminate(reason);
   }
 }
 
