@@ -5,11 +5,11 @@ import { fromIterator } from "./sources/from-iterator";
 import { fromIterable } from "./sources/from-iterable";
 
 function consumerBench() {
-  const MAX = 500_000_000;
+  const MAX = 350_000_000;
 
   const start = performance.now();
 
-  const consumer = Consumer.create<number>((self, v) => {
+  const consumer = new Consumer<number>((self, v) => {
     if (v === MAX) {
       console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       self.terminate("complete");
@@ -24,10 +24,10 @@ function consumerBench() {
   }
 }
 
-// consumerBench(); //350 000 000 1000 ms
+// consumerBench(); //350 000 000 850 ms
 
 function consumerBench2() {
-  const MAX = 10_000_000;
+  const MAX = 20_000_000;
 
   const start = performance.now();
 
