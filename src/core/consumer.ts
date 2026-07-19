@@ -10,12 +10,12 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
   #processing: boolean;
 
   #handler: Consumer.Handler<VALUE, NAME>;
-  #pull: NonNullable<Consumer.Options<VALUE, NAME>["pull"]>;
-  #draining: NonNullable<Consumer.Options<VALUE, NAME>["draining"]>;
-  #terminated: NonNullable<Consumer.Options<VALUE, NAME>["terminated"]>;
-  #$terminated?: Stream<"abort" | "complete", `${NAME}Terminated`>;
-  #$draining?: Stream<void, `${NAME}Draining`>;
-  #$pull?: Stream<void, `${NAME}Pull`>;
+  #next: NonNullable<Consumer.Options<VALUE, NAME>["next"]>;
+  #drain: NonNullable<Consumer.Options<VALUE, NAME>["drain"]>;
+  #terminate: NonNullable<Consumer.Options<VALUE, NAME>["terminate"]>;
+  #$terminate?: Stream<"abort" | "complete", `$${NAME}Terminate`>;
+  #$drain?: Stream<void, `$${NAME}Drain`>;
+  #$next?: Stream<void, `$${NAME}Next`>;
 
   constructor(handler: Consumer.Handler<VALUE, NAME>, options?: Consumer.Options<VALUE, NAME>) {
     this.#name = options?.name ?? ("consumer" as NAME);
@@ -25,9 +25,9 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
     this.#processing = false;
 
     this.#handler = handler;
-    this.#pull = options?.pull ?? (() => {});
-    this.#draining = options?.draining ?? (() => {});
-    this.#terminated = options?.terminated ?? (() => {});
+    this.#next = options?.next ?? (() => {});
+    this.#drain = options?.drain ?? (() => {});
+    this.#terminate = options?.terminate ?? (() => {});
   }
 
   get name() {
@@ -39,14 +39,14 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
   get queue() {
     return this.#queue;
   }
-  get $draining() {
-    return (this.#$draining ??= new Stream({ name: `${this.name}Draining` }));
+  get $drain() {
+    return (this.#$drain ??= new Stream({ name: `$${this.name}Drain` }));
   }
-  get $terminated() {
-    return (this.#$terminated ??= new Stream({ name: `${this.name}Terminated` }));
+  get $terminate() {
+    return (this.#$terminate ??= new Stream({ name: `$${this.name}Terminate` }));
   }
-  get $pull() {
-    return (this.#$pull ??= new Stream({ name: `${this.name}Pull` }));
+  get $next() {
+    return (this.#$next ??= new Stream({ name: `$${this.name}Next` }));
   }
 
   push(value: VALUE): void {
@@ -63,8 +63,8 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
 
   next(): void {
     if (this.#ready && !this.#queue.size) {
-      this.#pull(this);
-      this.#$pull?.push();
+      this.#next(this);
+      this.#$next?.push();
       return;
     }
 
@@ -80,8 +80,8 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
 
     switch (this.#state) {
       case "active":
-        this.#pull(this);
-        this.#$pull?.push();
+        this.#next(this);
+        this.#$next?.push();
         break;
       case "draining":
         if (!this.#queue.size) this.terminate("complete");
@@ -99,27 +99,134 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
       this.#queue.clear();
     } else if (this.#queue.size) {
       this.#state = "draining";
-      this.#draining(this);
-      this.#$draining?.push();
+      this.#drain(this);
+      this.#$drain?.push();
       return;
     } else {
       this.next = this.terminate = () => {};
       this.#state = "completed";
     }
 
-    this.#$terminated?.push(reason);
-    this.#$terminated?.terminate("complete");
-    this.#$draining?.terminate("complete");
-    this.#$pull?.terminate("complete");
+    this.#$terminate?.push(reason);
+    this.#$terminate?.terminate("complete");
+    this.#$drain?.terminate("complete");
+    this.#$next?.terminate("complete");
 
-    this.#$terminated = this.#$draining = this.#$pull = undefined;
+    this.#$terminate = this.#$drain = this.#$next = undefined;
 
-    this.#terminated(this, reason);
-    this.#handler = this.#pull = this.#draining = this.#terminated = () => {};
+    this.#terminate(this, reason);
+    this.#handler = this.#next = this.#drain = this.#terminate = () => {};
   }
 }
 
 export namespace Consumer {
+  export function create<VALUE, NAME extends NonEmptyString = "consumer">(
+    handler: Handler<VALUE, NAME>,
+    options?: Options<VALUE, NAME>,
+  ) {
+    const name = options?.name ?? ("consumer" as NAME);
+    const queue = options?.queue ?? new LinkedListQueue();
+    let state = "active";
+    let ready = options?.ready ?? true;
+    let processing = false;
+
+    let next = options?.next ?? (() => {});
+    let drain = options?.drain ?? (() => {});
+    let terminate = options?.terminate ?? (() => {});
+
+    let $terminate: Stream<"abort" | "complete", `$${NAME}Terminate`> | undefined;
+    let $drain: Stream<void, `$${NAME}Drain`> | undefined;
+    let $next: Stream<void, `$${NAME}Next`> | undefined;
+
+    const consumer = {
+      get name() {
+        return name;
+      },
+      get state() {
+        return state;
+      },
+      get queue() {
+        return queue;
+      },
+      get $drain() {
+        return ($drain ??= new Stream({ name: `$${this.name}Drain` }));
+      },
+      get $terminate() {
+        return ($terminate ??= new Stream({ name: `$${this.name}Terminate` }));
+      },
+      get $next() {
+        return ($next ??= new Stream({ name: `$${this.name}Next` }));
+      },
+      push(value: VALUE): void {
+        if (ready && !processing) {
+          processing = true;
+          ready = false;
+          handler(consumer, value);
+          processing = false;
+          if (ready) consumer.next();
+        } else {
+          queue.enqueue(value);
+        }
+      },
+      next(): void {
+        if (ready && !queue.size) {
+          next(consumer);
+          $next?.push();
+          return;
+        }
+
+        ready = true;
+        if (processing) return;
+
+        processing = true;
+        while (ready && queue.size) {
+          ready = false;
+          const value = queue.dequeue() as VALUE;
+          handler(consumer, value);
+        }
+
+        switch (state) {
+          case "active":
+            next(consumer);
+            $next?.push();
+            break;
+          case "draining":
+            if (!queue.size) consumer.terminate("complete");
+            break;
+        }
+
+        processing = false;
+      },
+      terminate(reason: "abort" | "complete"): void {
+        consumer.push = () => {};
+        if (reason === "abort") {
+          consumer.next = consumer.terminate = () => {};
+          state = "aborted";
+          queue.clear();
+        } else if (queue.size) {
+          state = "draining";
+          drain(consumer);
+          $drain?.push();
+          return;
+        } else {
+          consumer.next = consumer.terminate = () => {};
+          state = "completed";
+        }
+
+        $terminate?.push(reason);
+        $terminate?.terminate("complete");
+        $drain?.terminate("complete");
+        $next?.terminate("complete");
+
+        $terminate = $drain = $next = undefined;
+
+        terminate(consumer, reason);
+        handler = next = drain = terminate = () => {};
+      },
+    } as Consumer<VALUE, NAME>;
+
+    return consumer;
+  }
   export type State = "active" | "draining" | "aborted" | "completed";
   export type AnyConsumer = Consumer<any, any>;
   export type Handler<VALUE, NAME extends NonEmptyString> = (consumer: Consumer<VALUE, NAME>, value: VALUE) => void;
@@ -128,8 +235,8 @@ export namespace Consumer {
     name?: NAME;
     queue?: Queue<VALUE>;
     ready?: boolean;
-    pull?: (consumer: Consumer<VALUE, NAME>) => void;
-    terminated?: (consumer: Consumer<VALUE, NAME>, reason: "abort" | "complete") => void;
-    draining?: (consumer: Consumer<VALUE, NAME>) => void;
+    next?: (consumer: Consumer<VALUE, NAME>) => void;
+    drain?: (consumer: Consumer<VALUE, NAME>) => void;
+    terminate?: (consumer: Consumer<VALUE, NAME>, reason: "abort" | "complete") => void;
   };
 }

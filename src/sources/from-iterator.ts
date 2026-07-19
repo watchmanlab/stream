@@ -9,22 +9,18 @@ export function fromIterator<VALUE, NAME extends NonEmptyString = "root">(
 
   return new Stream({
     ...options,
-    pull(stream, consumer) {
+    next(stream, consumer) {
       const result = iter.next();
       if (result.done) {
         stream.terminate("complete");
       } else {
         stream.push(result.value);
-        options?.pull?.(stream, consumer);
+        options?.next?.(stream, consumer);
       }
     },
-    terminated(stream, reason) {
+    terminate(stream, reason) {
       iter.return?.();
-      options?.terminated?.(stream, reason);
+      options?.terminate?.(stream, reason);
     },
   });
-}
-
-export namespace IteratorStream {
-  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
 }
