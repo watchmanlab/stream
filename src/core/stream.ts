@@ -3,7 +3,7 @@ import type { AnyStream, Closable, NonEmptyString, Queue, Source, Transform } fr
 import { ScopeBinder } from "./scope-binder";
 import { Transformer } from "./transformer";
 
-export class Stream<VALUE, NAME extends NonEmptyString = "$root", SELF = never> implements Source<VALUE>, Closable {
+export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Closable {
   private _name: NAME;
   private _consumers: Map<Consumer.Handler<VALUE, `${NAME}Consumer`>, Consumer<VALUE, `${NAME}Consumer`>>;
   private _state: Stream.State;
@@ -202,18 +202,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root", SELF = never> 
     this._next = this._drain = this._terminate = this._consumerJoin = this._consumerLeft = () => {};
   }
 
-  pipe<CUSTOM_NAME extends NonEmptyString, OUTPUT extends Transformer<this, any, CUSTOM_NAME>>(
-    transform: Transform<this, CUSTOM_NAME, OUTPUT>,
-  ): OUTPUT;
-  pipe<CUSTOM_NAME extends NonEmptyString, OUTPUT extends Transformer<this, any, CUSTOM_NAME>>(
-    name: CUSTOM_NAME,
-    transform: Transform<this, CUSTOM_NAME, OUTPUT>,
-  ): OUTPUT;
-  pipe<CUSTOM_NAME extends NonEmptyString, OUTPUT extends Transformer<this, any, CUSTOM_NAME>>(
-    nameOrTransform: CUSTOM_NAME | Transform<this, CUSTOM_NAME, OUTPUT>,
-    transform?: Transform<this, CUSTOM_NAME, OUTPUT>,
-  ): OUTPUT {
-    return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
+  pipe<OUTPUT extends Transformer<this, any, any>>(transform: Transform<this, OUTPUT>): OUTPUT {
+    return transform(this);
   }
 }
 

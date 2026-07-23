@@ -1,4 +1,3 @@
-import type { ScopeBinder } from "./scope-binder";
 import { Stream } from "./stream";
 import type { AnyStream, NonEmptyString, Traversal } from "./types";
 
@@ -9,7 +8,7 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
   protected _input: INPUT;
 
   constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
-    let scope: ScopeBinder.Scope | undefined = options?.scope;
+    let { scope } = { ...options };
     if (scope) {
       if (scope.any) {
         scope = { any: [input, ...scope.any] };

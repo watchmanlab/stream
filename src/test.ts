@@ -1,6 +1,6 @@
 import { Stream } from "./core/stream";
 import { Consumer } from "./core/consumer";
-import { map } from "./transformers/map";
+import { map, Map } from "./transformers/map";
 import { IteratorStream } from "./streams/iterator-stream";
 import { IterableStream } from "./streams/iterable-stream";
 import { EventTargetStream } from "./streams/event-target-stream";
@@ -172,18 +172,21 @@ function fromEventTargetTest() {
 function mapTest() {
   const stream = new Stream<number>();
 
-  const mapped = stream.pipe(map((v) => v.toString()));
-  const mapped2 = mapped.pipe(map((v) => v));
+  const v = new Map(stream, (v) => v.toString(), { name: "$text" });
+  const v1 = new Map(v, (v) => [v]);
 
-  new IterableStream([1, 2, 3])
-    .pipe(map((v) => v * 100))
-    .listen((c, v) => {
-      console.log(v);
-      setTimeout(() => {
-        c.next();
-      }, 1000);
-    })
-    .next();
+  // const mapped2 = mapped.pipe(map((v) => v));
+
+  // new IterableStream([1, 2, 3])
+  //   .pipe(map((v) => v * 100))
+  //   .listen((c, v) => {
+  //     console.log(v);
+  //     setTimeout(() => {
+  //       c.next();
+  //     }, 1000);
+  //   })
+  //   .next();
+
   // stream
   //   .pipe(map((v) => new Promise<number>((resolve) => setTimeout(() => resolve(v * 100), 500))))
   //   .listen(async (c, v) => {

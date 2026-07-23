@@ -64,8 +64,6 @@ export type ExtractValue<T> = T extends
 
 export type ExtractName<T> = T extends { [k in "name"]: any } ? T["name"] : never;
 
-export type Transform<
-  IN extends AnyStream,
-  OUT_NAME extends NonEmptyString,
-  OUT extends Transformer<IN, any, OUT_NAME> | IN,
-> = (input: IN, name?: OUT_NAME) => OUT;
+export type Transform<INPUT extends AnyStream, OUTPUT extends Transformer<INPUT, any, any> | INPUT> = (
+  input: INPUT,
+) => OUTPUT;

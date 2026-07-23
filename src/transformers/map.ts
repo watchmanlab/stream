@@ -32,8 +32,8 @@ export function map<
 >(
   mapper: Map.Mapper<VALUE, MAPPED>,
   options?: Stream.Options<MAPPED, NAME>,
-): Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
-  return (input, name) => new Map(input, mapper, { ...options, name: name ?? options?.name });
+): Transform<INPUT, Map<INPUT, VALUE, MAPPED, NAME>> {
+  return (input) => new Map(input, mapper, options);
 }
 export namespace Map {
   export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;

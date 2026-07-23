@@ -12,9 +12,9 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
   private _next: NonNullable<Consumer.Options<VALUE, NAME>["next"]>;
   private _drain: NonNullable<Consumer.Options<VALUE, NAME>["drain"]>;
   private _terminate: NonNullable<Consumer.Options<VALUE, NAME>["terminate"]>;
-  private _$terminate?: Stream<"abort" | "complete", `${NAME}Terminate`>;
-  private _$drain?: Stream<void, `${NAME}Drain`>;
   private _$next?: Stream<void, `${NAME}Next`>;
+  private _$drain?: Stream<void, `${NAME}Drain`>;
+  private _$terminate?: Stream<"abort" | "complete", `${NAME}Terminate`>;
 
   constructor(handler: Consumer.Handler<VALUE, NAME>, options?: Consumer.Options<VALUE, NAME>) {
     this._name = options?.name ?? ("consumer" as NAME);
