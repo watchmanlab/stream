@@ -1,54 +1,29 @@
-import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
-export class IteratorStream<VALUE, NAME extends NonEmptyString> extends Stream<VALUE, NAME> {
+export class IteratorStream<VALUE, NAME extends NonEmptyString = "$iterator"> extends Stream<VALUE, NAME> {
   constructor(
     public readonly iterator: Iterator<VALUE> | (() => Iterator<VALUE>),
-    options?: IteratorStream.Options<VALUE, NAME>,
+    options?: Stream.Options<VALUE, NAME>,
   ) {
+    const iter = typeof iterator === "function" ? iterator() : iterator;
+
     super({
       ...options,
-      source: {
-        listen: (handler, options) => {
-          const iter = typeof iterator === "function" ? iterator() : iterator;
-          let started = false;
-          return new Consumer(handler, {
-            ...options,
-            events: {
-              ...options?.events,
-              ready: (self) => {
-                if (!started) {
-                  started = true;
-                  queueMicrotask(() => {
-                    const result = iter.next();
-                    if (result.done) self.complete();
-                    else self.push(result.value);
-                  });
-                } else {
-                  const result = iter.next();
-                  if (result.done) self.complete();
-                  else self.push(result.value);
-                }
-
-                options?.events?.ready?.(self);
-              },
-              abort: (self, error) => {
-                iter.return?.(error);
-                options?.events?.abort?.(self, error);
-              },
-              complete: (self) => {
-                iter.return?.(undefined);
-                options?.events?.complete?.(self);
-              },
-            },
-          });
-        },
+      name: options?.name ?? ("$iterator" as NAME),
+      next(stream, consumer) {
+        const result = iter.next();
+        if (result.done) {
+          stream.terminate("complete");
+        } else {
+          stream.push(result.value);
+          options?.next?.(stream, consumer);
+        }
+      },
+      terminate(stream, reason) {
+        iter.return?.();
+        options?.terminate?.(stream, reason);
       },
     });
   }
-}
-
-export namespace IteratorStream {
-  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
 }

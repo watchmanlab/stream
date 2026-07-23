@@ -1,155 +1,141 @@
-import type { Closable, Evented, EventHandlers, EventStreams, Named, NonEmptyString, Queue, State } from "./types";
+import { Closable, NonEmptyString, Queue } from "./types";
 import { LinkedListQueue } from "./linked-list-queue";
-import { EventsLinker } from "./events-linker";
-import { InfosLinker } from "./infos-linker";
+import { Stream } from "./stream";
 
-export class Consumer<VALUE, NAME extends NonEmptyString = "consumer">
-  implements Closable, Named<NAME>, Evented<Consumer.Events<VALUE>, NAME>
-{
-  readonly name: NAME;
+export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implements Closable {
+  private _name: NAME;
+  private _state: Consumer.State;
   private _queue: Queue<VALUE>;
-  private _ready: boolean;
-  private _processing: boolean;
-  private _state: State;
+  private _counter: number;
+
   private _handler: Consumer.Handler<VALUE, NAME>;
-  private _next: (self: Consumer<VALUE, NAME>) => void;
-  private _eventsLinker: EventsLinker<Consumer.Events<VALUE>, NAME, this>;
-  private _infosLinker: InfosLinker<Consumer.Infos<VALUE, NAME>>;
+  private _next: NonNullable<Consumer.Options<VALUE, NAME>["next"]>;
+  private _drain: NonNullable<Consumer.Options<VALUE, NAME>["drain"]>;
+  private _terminate: NonNullable<Consumer.Options<VALUE, NAME>["terminate"]>;
+  private _$terminate?: Stream<"abort" | "complete", `${NAME}Terminate`>;
+  private _$drain?: Stream<void, `${NAME}Drain`>;
+  private _$next?: Stream<void, `${NAME}Next`>;
 
   constructor(handler: Consumer.Handler<VALUE, NAME>, options?: Consumer.Options<VALUE, NAME>) {
-    const { name, events, ready, queue } = options ?? {};
+    this._name = options?.name ?? ("consumer" as NAME);
+    this._state = "active";
+    this._queue = options?.queue ?? new LinkedListQueue();
+    this._counter = 0;
 
     this._handler = handler;
-    this._next = events?.next ?? (() => {});
-
-    this.name = name ?? ("consumer" as NAME);
-    this._queue = queue ? queue : new LinkedListQueue();
-    this._ready = ready === undefined ? true : ready;
-    this._processing = false;
-    this._state = "active";
-
-    this._eventsLinker = new EventsLinker(this, events);
-    this._infosLinker = new InfosLinker({
-      handler: () => handler,
-      processing: () => this._processing,
-      ready: () => this._ready,
-      queue: () => this._queue,
-      state: () => this._state,
-    });
+    this._next = options?.next ?? (() => {});
+    this._drain = options?.drain ?? (() => {});
+    this._terminate = options?.terminate ?? (() => {});
   }
 
-  push(value: VALUE): void {
-    if (this._ready && !this._processing) {
-      this._processing = true;
-      this._ready = false;
+  get state() {
+    return this._state;
+  }
+  get queue() {
+    return this._queue;
+  }
+  get $next() {
+    return (this._$next ??= new Stream({
+      name: `${this._name}Next`,
+      consumerLeft: (self) => {
+        if (!self.consumers.count) this._$next = undefined;
+      },
+    }));
+  }
+  get $drain() {
+    return (this._$drain ??= new Stream({
+      name: `${this._name}Drain`,
+      consumerLeft: (self) => {
+        if (!self.consumers.count) this._$drain = undefined;
+      },
+    }));
+  }
+  get $terminate() {
+    return (this._$terminate ??= new Stream({
+      name: `${this._name}Terminate`,
+      consumerLeft: (self) => {
+        if (!self.consumers.count) this._$terminate = undefined;
+      },
+    }));
+  }
+
+  push(value: VALUE) {
+    const { _queue } = this;
+    if (this._counter > 0 && _queue.size === 0) {
+      this._handler(this, value);
+      this._counter--;
+    } else {
+      _queue.enqueue(value);
+    }
+  }
+
+  next() {
+    const { _queue } = this;
+    this._counter++;
+    if (_queue.size === 0) {
+      this._next(this);
+      this._$next?.push();
+      return this;
+    }
+
+    if (this._counter > 1) return this;
+
+    while (this._counter > 0) {
+      const value = _queue.dequeue();
+      if (value === Queue.EMPTY) {
+        if (this._state === "draining") {
+          this.terminate("complete");
+        } else {
+          this._next(this);
+          this._$next?.push();
+        }
+        break;
+      }
 
       this._handler(this, value);
-      // try {
-      // } catch (error: any) {
-      //   this._eventsLinker.emit("error", error);
-      // }
-      this._processing = false;
-      if (this._ready) {
-        this._next(this);
-        // try {
-        // } catch (error: any) {
-        //   this._eventsLinker.emit("error", error);
-        // }
-      }
+      this._counter--;
+    }
+  }
+
+  terminate(reason: "abort" | "complete") {
+    const { _queue, _$next, _$drain, _$terminate } = this;
+    this.push = () => this;
+    if (reason === "abort") {
+      this.next = this.terminate = () => this;
+      this._state = "aborted";
+      _queue.clear();
+    } else if (this._queue.size) {
+      this._state = "draining";
+      this._drain(this);
+      _$drain?.push();
+      return this;
     } else {
-      this._queue.enqueue(value);
+      this.next = this.terminate = () => this;
+      this._state = "completed";
     }
-  }
-  next(): void {
-    if (this._ready) return this._next(this);
 
-    this._ready = true;
+    _$terminate?.push(reason);
+    _$terminate?.terminate("complete");
+    _$drain?.terminate("complete");
+    _$next?.terminate("complete");
 
-    if (!this._processing && this._queue.size === 0) {
-      if (this._state === "active") {
-        this._next(this);
-      } else {
-        this._completed();
-      }
-    } else {
-      this._drain();
-    }
-  }
-  abort(): void {
-    this.push = this.next = this.complete = this.abort = this._drain = this._next = this._handler = () => {};
+    this._$terminate = this._$drain = this._$next = undefined;
 
-    this._state = "aborted";
-    this._ready = true;
-    this._processing = false;
-    this._queue.clear();
-
-    this._eventsLinker.emit("abort", undefined);
-    this._eventsLinker.abort();
-  }
-  complete(): void {
-    this.push = this.complete = () => {};
-
-    if (this._queue.size) {
-      this._state = "drain";
-      this._eventsLinker.emit("drain", undefined);
-    } else {
-      this._completed();
-    }
-  }
-  private _drain(): void {
-    if (this._processing) return;
-
-    this._processing = true;
-    while (this._ready && this._queue.size) {
-      this._ready = false;
-
-      const value = this._queue.dequeue() as VALUE;
-
-      this._handler(this, value);
-    }
-    this._processing = false;
-  }
-  private _completed(): void {
-    this.next = this.abort = this._next = this._handler = () => {};
-    this._state = "completed";
-    this._ready = true;
-    this._processing = false;
-
-    this._eventsLinker.emit("complete", undefined);
-    this._eventsLinker.complete();
-  }
-  get infos(): Consumer.Infos<VALUE, NAME> {
-    return this._infosLinker.infos;
-  }
-  get events(): EventStreams<Consumer.Events<VALUE>, NAME> {
-    return this._eventsLinker.events;
+    this._terminate(this, reason);
+    this._handler = this._next = this._drain = this._terminate = () => this;
   }
 }
 
 export namespace Consumer {
-  export type AnyConsumer = Consumer<any, any>;
+  export type State = "active" | "draining" | "aborted" | "completed";
+
   export type Handler<VALUE, NAME extends NonEmptyString> = (self: Consumer<VALUE, NAME>, value: VALUE) => void;
 
   export type Options<VALUE, NAME extends NonEmptyString> = {
     name?: NAME;
     queue?: Queue<VALUE>;
-    ready?: boolean;
-    events?: EventHandlers<Events<VALUE>, Consumer<VALUE, NAME>>;
-  };
-
-  export type Events<VALUE> = {
-    next: void;
-    enqueue: VALUE;
-    dequeue: VALUE;
-    drain: void;
-    complete: void;
-    abort: void;
-  };
-  export type Infos<VALUE, NAME extends NonEmptyString> = {
-    state: State;
-    queue: Queue<VALUE>;
-    ready: boolean;
-    processing: boolean;
-    handler: Handler<VALUE, NAME>;
+    next?: (self: Consumer<VALUE, NAME>) => void;
+    drain?: (self: Consumer<VALUE, NAME>) => void;
+    terminate?: (self: Consumer<VALUE, NAME>, reason: "abort" | "complete") => void;
   };
 }

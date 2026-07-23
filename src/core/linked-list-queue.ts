@@ -5,7 +5,13 @@ export class LinkedListQueue<VALUE> implements Queue<VALUE> {
   private _tail?: LinkedListQueue.Node<VALUE>;
   private _size = 0;
 
-  constructor() {}
+  constructor(values?: Iterable<VALUE>) {
+    if (values) {
+      for (const value of values) {
+        this.enqueue(value);
+      }
+    }
+  }
   [Symbol.iterator](): Queue.Iterator<VALUE> {
     let cursor = this._head;
     return {

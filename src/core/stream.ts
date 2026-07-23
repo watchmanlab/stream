@@ -1,219 +1,234 @@
 import { Consumer } from "./consumer";
-import type {
-  Closable,
-  Evented,
-  EventHandlers,
-  EventStreams,
-  Named,
-  NonEmptyString,
-  Queue,
-  Source,
-  State,
-  Transform,
-} from "./types";
-import type { Transformer } from "./transformer";
-import { SourceLinker } from "./source-linker";
-import { ScopeLinker } from "./scope-linker";
-import { EventsLinker } from "./events-linker";
-import { InfosLinker } from "./infos-linker";
+import type { AnyStream, Closable, NonEmptyString, Queue, Source, Transform } from "./types";
+import { ScopeBinder } from "./scope-binder";
+import { Transformer } from "./transformer";
 
-const NAME = "root";
-export class Stream<VALUE, NAME extends NonEmptyString = Stream.Name>
-  implements Source<VALUE>, Evented<Stream.Events<VALUE>, NAME>, Closable, Named<NAME>
-{
-  public readonly name: NAME;
-  protected _consumers = new Map<Consumer.Handler<VALUE, any>, Consumer<VALUE, any>>();
-  protected _state: State;
-  protected _sourceLinker?: SourceLinker<VALUE>;
-  protected _scopeLinker?: ScopeLinker;
-  protected _eventsLinker: EventsLinker<Stream.Events<VALUE>, NAME, this>;
-  protected _infosLinker: InfosLinker<Stream.Infos>;
-  protected _queueFactory?: Stream.QueueFactory<VALUE>;
+export class Stream<VALUE, NAME extends NonEmptyString = "$root", SELF = never> implements Source<VALUE>, Closable {
+  private _name: NAME;
+  private _consumers: Map<Consumer.Handler<VALUE, `${NAME}Consumer`>, Consumer<VALUE, `${NAME}Consumer`>>;
+  private _state: Stream.State;
+  private _scopeBinder?: ScopeBinder;
+  private _queueFactory?: Stream.QueueFactory<VALUE>;
+
+  private _next: NonNullable<Stream.Options<VALUE, NAME>["next"]>;
+  private _drain: NonNullable<Stream.Options<VALUE, NAME>["drain"]>;
+  private _terminate: NonNullable<Stream.Options<VALUE, NAME>["terminate"]>;
+  private _consumerJoin: NonNullable<Stream.Options<VALUE, NAME>["consumerJoin"]>;
+  private _consumerLeft: NonNullable<Stream.Options<VALUE, NAME>["consumerLeft"]>;
+
+  private _$next?: Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}Next`>;
+  private _$terminate?: Stream<"abort" | "complete", `${NAME}Terminate`>;
+  private _$drain?: Stream<void, `${NAME}Drain`>;
+  private _$consumerJoin?: Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerJoin`>;
+  private _$consumerLeft?: Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerLeft`>;
+
+  private _pulling: boolean;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
-    const { name, scope, source, queueFactory, events } = { ...options };
-
-    this.name = name ?? (NAME as NAME);
-    this._queueFactory = queueFactory;
+    this._name = options?.name ?? ("$root" as NAME);
+    this._consumers = new Map();
+    this._queueFactory = options?.queueFactory;
     this._state = "active";
-    this._eventsLinker = new EventsLinker(this, events);
-    this._infosLinker = new InfosLinker({
-      state: () => this._state,
-      consumersCount: () => this._consumers.size,
-    });
+    this._pulling = false;
 
-    if (source)
-      this._sourceLinker = new SourceLinker(source, (_, value) => this.push(value), {
-        events: {
-          abort: (_) => this.abort(),
-          complete: (_) => this.complete(),
-        },
-      });
-    if (scope) {
-      this._scopeLinker = new ScopeLinker(this, scope);
-    }
+    this._next = options?.next ?? (() => {});
+    this._drain = options?.drain ?? (() => {});
+    this._terminate = options?.terminate ?? (() => {});
+    this._consumerJoin = options?.consumerJoin ?? (() => {});
+    this._consumerLeft = options?.consumerLeft ?? (() => {});
+
+    this._scopeBinder = options?.scope ? new ScopeBinder(this, options.scope) : undefined;
   }
-  protected _optimizePush(): void {
-    const { _consumers } = this;
-    switch (_consumers.size) {
+  get name() {
+    return this._name;
+  }
+  get consumers() {
+    const self = this;
+    return {
+      get count() {
+        return self._consumers.size;
+      },
+      get handlers() {
+        return self._consumers.keys();
+      },
+      [Symbol.iterator]() {
+        return self._consumers.values();
+      },
+    };
+  }
+  get state() {
+    return this._state;
+  }
+  get $next(): Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}Next`> {
+    return (this._$next ??= new Stream({
+      name: `${this._name}Next`,
+      consumerLeft: (self) => {
+        if (!self.consumers.count) this._$next = undefined;
+      },
+    }));
+  }
+  get $drain(): Stream<void, `${NAME}Drain`> {
+    return (this._$drain ??= new Stream({
+      name: `${this._name}Drain`,
+      consumerLeft: (self) => {
+        if (!self.consumers.count) this._$drain = undefined;
+      },
+    }));
+  }
+  get $terminate(): Stream<"abort" | "complete", `${NAME}Terminate`> {
+    return (this._$terminate ??= new Stream({
+      name: `${this._name}Terminate`,
+      consumerLeft: (self) => {
+        if (!self.consumers.count) this._$terminate = undefined;
+      },
+    }));
+  }
+  get $consumerJoin(): Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerJoin`> {
+    return (this._$consumerJoin ??= new Stream({
+      name: `${this._name}ConsumerJoin`,
+      consumerLeft: (self) => {
+        if (!self.consumers.count) this._$consumerJoin = undefined;
+      },
+    }));
+  }
+  get $consumerLeft(): Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerLeft`> {
+    return (this._$consumerLeft ??= new Stream({
+      name: `${this._name}ConsumerLeft`,
+      consumerLeft: (self) => {
+        if (!self.consumers.count) this._$consumerLeft = undefined;
+      },
+    }));
+  }
+  private _optimizePush(): void {
+    const consumers = this._consumers;
+    switch (consumers.size) {
       case 0:
-        this.push = () => {};
+        this.push = () => (this._pulling = false);
         break;
       case 1:
-        const consumer = _consumers.values().next().value!;
-        this.push = (value) => consumer.push(value);
+        const consumer = consumers.values().next().value!;
+        this.push = (value) => {
+          this._pulling = false;
+          consumer.push(value);
+        };
         break;
       default:
         this.push = (value) => {
-          for (const consumer of _consumers.values()) {
+          this._pulling = false;
+          for (const consumer of consumers.values()) {
             consumer.push(value);
           }
         };
     }
   }
-  push(value: VALUE): void {}
+  push(value: VALUE): void {
+    this._pulling = false;
+  }
 
-  listen<CUSTOM_NAME extends NonEmptyString = `${NAME}Consumer`>(
-    handler: Consumer.Handler<VALUE, CUSTOM_NAME>,
-    options?: Consumer.Options<VALUE, CUSTOM_NAME>,
-  ): Consumer<VALUE, CUSTOM_NAME> {
-    const { _consumers, _sourceLinker, _eventsLinker, name } = this;
+  listen(
+    handler: Consumer.Handler<VALUE, `${NAME}Consumer`>,
+    options?: Omit<Consumer.Options<VALUE, `${NAME}Consumer`>, "name">,
+  ): Consumer<VALUE, `${NAME}Consumer`> {
+    const { _next, _consumers, _queueFactory, _consumerLeft, _consumerJoin, _$next, _$consumerLeft, _$consumerJoin } =
+      this;
+    const { next, terminate, queue } = { ...options };
 
     if (_consumers.has(handler)) return _consumers.get(handler)!;
 
-    const { events, queue, name: customName, ...restOptions } = options ?? {};
-
-    const { next, abort, complete } = events ?? {};
-
     const consumer = new Consumer(handler, {
-      ...restOptions,
-      name: customName ?? (`${name}Consumer` as CUSTOM_NAME),
-      queue: queue ? queue : this._queueFactory?.(),
-      events: {
-        ...events,
-        next: _sourceLinker
-          ? next
-            ? (self) => (_sourceLinker!.next(), next(self))
-            : () => _sourceLinker!.next()
-          : next,
-        abort: (consumer) => {
-          _consumers.delete(handler);
-          this._optimizePush();
+      ...options,
+      queue: queue ? queue : _queueFactory?.(),
+      next: (self) => {
+        next?.(self);
+        if (this._pulling === false) {
+          this._pulling = true;
+          _next(this, self);
+          _$next?.push(self);
+        }
+      },
 
-          _eventsLinker.emit("consumerLeft", consumer);
+      terminate: (self, reason) => {
+        _consumers.delete(handler);
+        this._optimizePush();
 
-          if (_consumers.size === 0 && this._state === "drain") this._completed();
-
-          abort?.(consumer);
-        },
-        complete: (consumer) => {
-          _consumers.delete(handler);
-          this._optimizePush();
-
-          _eventsLinker.emit("consumerLeft", consumer);
-
-          if (_consumers.size === 0 && this._state === "drain") this._completed();
-
-          complete?.(consumer);
-        },
+        terminate?.(self, reason);
+        _consumerLeft(this, self);
+        _$consumerLeft?.push(self);
+        if (_consumers.size === 0 && this._state === "drain") this.terminate("complete");
       },
     });
 
     _consumers.set(handler, consumer);
-
     this._optimizePush();
 
-    _eventsLinker.emit("consumerJoin", consumer);
+    _consumerJoin(this, consumer);
+    _$consumerJoin?.push(consumer);
 
-    if (options?.ready !== false && _sourceLinker) _sourceLinker.next();
     return consumer;
   }
-  abort(): void {
-    this.push = this.abort = this.complete = this._optimizePush = () => {};
 
-    this._state = "aborted";
-
-    for (const consumer of this._consumers.values()) {
-      consumer.abort();
-    }
-
-    this._eventsLinker.emit("abort", undefined);
-
-    this._clean("aborted");
-  }
-  complete(): void {
-    this.push = this.complete = this._optimizePush = () => {};
-    if (this._consumers.size) {
+  terminate(reason: "abort" | "complete"): void {
+    this.push = () => {};
+    if (reason === "abort") {
+      this.terminate = () => {};
+      this._state = "aborted";
+    } else if (this._consumers.size) {
       this._state = "drain";
-      this._eventsLinker.emit("drain", undefined);
+      this._drain(this);
+      this._$drain?.push();
+      return;
     } else {
-      this._completed();
+      this.terminate = () => {};
+      this._state = "completed";
     }
+
     for (const consumer of this._consumers.values()) {
-      consumer.complete();
+      consumer.terminate(reason);
     }
-  }
-  protected _completed(): void {
-    this.push = this.abort = this.complete = this._optimizePush = () => {};
+    this._terminate(this, reason);
+    this._$terminate?.push(reason);
 
-    this._state = "completed";
+    this._scopeBinder?.terminate(reason);
+    this._scopeBinder = undefined;
 
-    this._eventsLinker.emit("complete", undefined);
-    this._clean("completed");
+    this._$terminate =
+      this._$drain =
+      this._$next =
+      this._$consumerJoin =
+      this._$consumerLeft =
+      this._scopeBinder =
+      this._queueFactory =
+        undefined;
+    this._next = this._drain = this._terminate = this._consumerJoin = this._consumerLeft = () => {};
   }
-  protected _clean(reason: "aborted" | "completed"): void {
-    if (reason === "aborted") {
-      this._eventsLinker.abort();
-      this._sourceLinker?.abort();
-      this._scopeLinker?.abort();
-    } else {
-      this._eventsLinker.complete();
-      this._sourceLinker?.complete();
-      this._scopeLinker?.complete();
-    }
-  }
-  pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    transform: Transform<this, OUT_NAME, OUT>,
-  ): OUT;
-  pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    name: OUT_NAME,
-    transform: Transform<this, OUT_NAME, OUT>,
-  ): OUT;
-  pipe<OUT_NAME extends NonEmptyString, OUT extends Transformer<this, any, OUT_NAME> | this>(
-    nameOrTransform: OUT_NAME | Transform<this, OUT_NAME, OUT>,
-    transform?: Transform<this, OUT_NAME, OUT>,
-  ): OUT {
+
+  pipe<CUSTOM_NAME extends NonEmptyString, OUTPUT extends Transformer<this, any, CUSTOM_NAME>>(
+    transform: Transform<this, CUSTOM_NAME, OUTPUT>,
+  ): OUTPUT;
+  pipe<CUSTOM_NAME extends NonEmptyString, OUTPUT extends Transformer<this, any, CUSTOM_NAME>>(
+    name: CUSTOM_NAME,
+    transform: Transform<this, CUSTOM_NAME, OUTPUT>,
+  ): OUTPUT;
+  pipe<CUSTOM_NAME extends NonEmptyString, OUTPUT extends Transformer<this, any, CUSTOM_NAME>>(
+    nameOrTransform: CUSTOM_NAME | Transform<this, CUSTOM_NAME, OUTPUT>,
+    transform?: Transform<this, CUSTOM_NAME, OUTPUT>,
+  ): OUTPUT {
     return typeof nameOrTransform === "string" ? transform!(this, nameOrTransform) : nameOrTransform(this);
-  }
-  get infos(): Stream.Infos {
-    return this._infosLinker.infos;
-  }
-  get events(): EventStreams<Stream.Events<VALUE>, NAME> {
-    return this._eventsLinker.events;
   }
 }
 
 export namespace Stream {
-  export type Name = typeof NAME;
-
-  export type Events<VALUE> = {
-    drain: void;
-    complete: void;
-    abort: any;
-    consumerJoin: Consumer<VALUE, any>;
-    consumerLeft: Consumer<VALUE, any>;
-  };
-  export type Infos = {
-    state: State;
-    consumersCount: number;
-  };
+  export type State = "active" | "drain" | "aborted" | "completed";
 
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Options<VALUE, NAME extends NonEmptyString> = {
     name?: NAME;
-    source?: Source<VALUE>;
-    scope?: ScopeLinker.Scope;
+    scope?: ScopeBinder.Scope;
     queueFactory?: QueueFactory<VALUE>;
-    events?: EventHandlers<Events<VALUE>, Stream<VALUE, NAME>>;
+    next?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, `${NAME}Consumer`>) => void;
+    drain?: (self: Stream<VALUE, NAME>) => void;
+    terminate?: (self: Stream<VALUE, NAME>, reason: "abort" | "complete") => void;
+    consumerJoin?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, `${NAME}Consumer`>) => void;
+    consumerLeft?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, `${NAME}Consumer`>) => void;
   };
 }

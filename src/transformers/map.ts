@@ -6,18 +6,20 @@ export class Map<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   MAPPED = VALUE,
-  NAME extends NonEmptyString = "map",
+  NAME extends NonEmptyString = "$map",
 > extends Transformer<INPUT, MAPPED, NAME> {
-  constructor(input: INPUT, mapper: Map.Mapper<VALUE, MAPPED>, options?: Map.Options<MAPPED, NAME>) {
+  constructor(input: INPUT, mapper: Map.Mapper<VALUE, MAPPED>, options?: Stream.Options<MAPPED, NAME>) {
+    const inputConsumer = input.listen((_, value) => this.push(mapper(value)));
     super(input, {
       ...options,
-      name: options?.name ?? ("map" as NAME),
-      source: {
-        listen: (handler, options) => {
-          return input.listen((self, value) => {
-            handler(self, mapper(value));
-          }, options);
-        },
+      name: options?.name ?? ("$map" as NAME),
+      next(stream, consumer) {
+        inputConsumer.next();
+        options?.next?.(stream, consumer);
+      },
+      terminate(stream, reason) {
+        inputConsumer.terminate(reason);
+        options?.terminate?.(stream, reason);
       },
     });
   }
@@ -29,11 +31,10 @@ export function map<
   NAME extends NonEmptyString = "map",
 >(
   mapper: Map.Mapper<VALUE, MAPPED>,
-  options?: Map.Options<MAPPED, NAME>,
+  options?: Stream.Options<MAPPED, NAME>,
 ): Transform<INPUT, NAME, Map<INPUT, VALUE, MAPPED, NAME>> {
   return (input, name) => new Map(input, mapper, { ...options, name: name ?? options?.name });
 }
 export namespace Map {
   export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;
-  export type Options<MAPPED, NAME extends NonEmptyString> = Omit<Transformer.Options<MAPPED, NAME>, "source">;
 }

@@ -1,29 +1,39 @@
-import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
-export class PromiseStream<VALUE, NAME extends NonEmptyString> extends Stream<VALUE, NAME> {
+export class PromiseStream<VALUE, NAME extends NonEmptyString = "$promise"> extends Stream<VALUE, NAME> {
+  private _$error?: Stream<any, `${NAME}Error`>;
   constructor(
     public readonly promise: Promise<VALUE>,
-    options?: PromiseStream.Options<VALUE, NAME>,
+    options?: Stream.Options<VALUE, NAME>,
   ) {
     super({
       ...options,
-      source: {
-        listen: (handler, options) => {
-          promise
-            .then((value) => consumer.push(value))
-            .catch((error) => consumer.abort(error))
-            .finally(() => consumer.complete());
+      name: options?.name ?? ("$promise" as NAME),
+      next(stream, consumer) {
+        promise
+          .then((value) => stream.push(value))
+          .catch((error) => {
+            if (self?._$error?.consumers.count) {
+              self._$error.push(error);
+            } else {
+              throw error;
+            }
+          })
+          .finally(() => (self._$error?.terminate("complete"), stream.terminate("complete")));
 
-          const consumer = new Consumer<VALUE, any>(handler, options);
-          return consumer;
-        },
+        options?.next?.(stream, consumer);
       },
     });
+    const self = this;
   }
-}
 
-export namespace PromiseStream {
-  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
+  get $error() {
+    return (this._$error ??= new Stream({
+      name: `${this.name}Error`,
+      consumerLeft: (stream) => {
+        if (!stream.consumers.count) this._$error = undefined;
+      },
+    }));
+  }
 }

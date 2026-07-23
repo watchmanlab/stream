@@ -1,60 +1,33 @@
-import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
-export class AbortSignalStream<VALUE extends void, NAME extends NonEmptyString = AbortSignalStream.Name> extends Stream<
-  void,
-  NAME
-> {
+export class AbortSignalStream<NAME extends NonEmptyString = "$abortSignal"> extends Stream<void, NAME> {
   constructor(
     public readonly signal: AbortSignal,
-    options?: AbortSignalStream.Options<void, NAME>,
+    options?: Stream.Options<void, NAME>,
   ) {
+    let abortController = new AbortController();
+
     super({
       ...options,
-      name: options?.name ?? (AbortSignalStream.NAME as NAME),
-      source: {
-        listen: (handler, options) => {
-          let abortController = new AbortController();
-          const consumer = new Consumer<void, any>(handler, {
-            ...options,
-            events: {
-              ...options?.events,
-              abort: (self, error) => {
-                abortController.abort();
-                options?.events?.abort?.(self, error);
-              },
-              complete: (self) => {
-                abortController.abort();
-                options?.events?.complete?.(self);
-              },
-            },
-          });
-
-          if (signal.aborted) {
-            consumer.complete();
-            return consumer;
-          }
-          signal.addEventListener(
-            "abort",
-            () => {
-              consumer.push();
-              consumer.complete();
-            },
-            {
-              signal: abortController.signal,
-            },
-          );
-
-          return consumer;
-        },
+      name: options?.name ?? ("$abortSignal" as NAME),
+      terminate(stream, reason) {
+        abortController.abort();
+        options?.terminate?.(stream, reason);
       },
     });
-  }
-}
 
-export namespace AbortSignalStream {
-  export const NAME = "abortSignalStream";
-  export type Name = typeof NAME;
-  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
+    if (signal.aborted) this.terminate("complete");
+
+    signal.addEventListener(
+      "abort",
+      () => {
+        this.push();
+        this.terminate("complete");
+      },
+      {
+        signal: abortController.signal,
+      },
+    );
+  }
 }

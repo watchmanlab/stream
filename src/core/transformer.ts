@@ -1,6 +1,6 @@
-import type { ScopeLinker } from "./scope-linker";
+import type { ScopeBinder } from "./scope-binder";
 import { Stream } from "./stream";
-import type { AnyStream, NonEmptyString, Source, Traversal } from "./types";
+import type { AnyStream, NonEmptyString, Traversal } from "./types";
 
 export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends NonEmptyString> extends Stream<
   VALUE,
@@ -8,8 +8,8 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
 > {
   protected _input: INPUT;
 
-  constructor(input: INPUT, options?: Transformer.Options<VALUE, NAME>) {
-    let scope: ScopeLinker.Scope | undefined = options?.scope;
+  constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
+    let scope: ScopeBinder.Scope | undefined = options?.scope;
     if (scope) {
       if (scope.any) {
         scope = { any: [input, ...scope.any] };
@@ -40,8 +40,4 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
       },
     ) as never;
   }
-}
-
-export namespace Transformer {
-  export type Options<VALUE, NAME extends NonEmptyString> = Stream.Options<VALUE, NAME>;
 }
