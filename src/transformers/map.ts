@@ -1,3 +1,4 @@
+import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
 import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
@@ -9,18 +10,23 @@ export class Map<
   NAME extends NonEmptyString = "$map",
 > extends Transformer<INPUT, MAPPED, NAME> {
   constructor(input: INPUT, mapper: Map.Mapper<VALUE, MAPPED>, options?: Stream.Options<MAPPED, NAME>) {
-    const inputConsumer = input.listen((_, value) => this.push(mapper(value)));
+    // const inputConsumer = input.listen((_, value) => this.push(mapper(value)));
     super(input, {
       ...options,
       name: options?.name ?? ("$map" as NAME),
-      next(stream, consumer) {
-        inputConsumer.next();
-        options?.next?.(stream, consumer);
+      source: {
+        listen(handler, options) {
+          return input.listen((self, value) => handler(self, mapper(value)), options);
+        },
       },
-      terminate(stream, reason) {
-        inputConsumer.terminate(reason);
-        options?.terminate?.(stream, reason);
-      },
+      // next(stream, consumer) {
+      //   inputConsumer.next();
+      //   options?.next?.(stream, consumer);
+      // },
+      // terminate(stream, reason) {
+      //   inputConsumer.terminate(reason);
+      //   options?.terminate?.(stream, reason);
+      // },
     });
   }
 }

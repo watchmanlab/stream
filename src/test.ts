@@ -26,7 +26,7 @@ function consumerBench() {
   }
 }
 
-consumerBench(); //350 000 000 989 ms
+// consumerBench(); //350 000 000 989 ms
 
 function consumerBench2() {
   const MAX = 10_000_000;
@@ -95,14 +95,14 @@ function streamBench() {
 
 function streamTest() {
   const stream = new Stream<number>();
-
-  stream
+  const stream2 = new Stream({ source: stream });
+  stream2
     .listen((consumer, value) => {
       if (value === 2) {
         setTimeout(() => {
           console.log("c1", value);
           consumer.next();
-        }, 1000);
+        }, 500);
         // consumer.next();
         return;
       }
@@ -123,7 +123,10 @@ function streamTest() {
   stream.push(3);
 }
 
-// streamTest();
+streamTest();
+// c1 1
+// c1 2
+// c1 3
 
 function fromIteratorTest() {
   new IteratorStream([1, 2, 3].values())
