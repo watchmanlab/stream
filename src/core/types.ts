@@ -27,7 +27,7 @@ export namespace Queue {
 }
 
 export interface Source<VALUE> {
-  listen(handler: Consumer.Handler<VALUE, any>, options?: Consumer.Options<VALUE, any>): Consumer<VALUE, any>;
+  listen(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
 export namespace Source {
   export type AnySource = Source<any>;
@@ -45,13 +45,13 @@ export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> 
   : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
 
 export type AnyStream = Stream<any, any>;
-export type AnyConsumer = Consumer<any, any>;
+export type AnyConsumer = Consumer<any>;
 export type AnyTransformer = Transformer<AnyStream, any, any>;
 
 ////////////////////////
-//| (`$${string}` & {})
+
 export type ExtractInputStream<T extends AnyTransformer> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
-export type Traversal<T extends AnyStream> = Record<T["name"], Traversable<T>>;
+export type Traversal<T extends AnyStream> = Record<T["name"] | (`$${string}` & {}), Traversable<T>>;
 export type Traversable<T extends AnyStream> = T extends AnyTransformer
   ? Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>
   : T;
@@ -61,7 +61,7 @@ export type ExtractValue<T> = T extends
   | Transformer<any, infer VALUE, any>
   | Stream<infer VALUE, any>
   | Source<infer VALUE>
-  | Consumer<infer VALUE, any>
+  | Consumer<infer VALUE>
   | Promise<infer VALUE>
   ? VALUE
   : never;

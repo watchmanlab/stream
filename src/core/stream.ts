@@ -5,7 +5,7 @@ import { Transformer } from "./transformer";
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Closable<NAME> {
   protected _options: Stream.Options<VALUE, NAME>;
-  private _consumers: Map<Consumer.Handler<VALUE, `${NAME}Consumer`>, Consumer<VALUE, `${NAME}Consumer`>>;
+  private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _state: Stream.State;
   private _pulling: boolean;
 
@@ -106,15 +106,11 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
     this._pulling = false;
   }
 
-  listen(
-    handler: Consumer.Handler<VALUE, `${NAME}Consumer`>,
-    options?: Consumer.Options<VALUE, `${NAME}Consumer`>,
-  ): Consumer<VALUE, `${NAME}Consumer`> {
+  listen(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     if (this._consumers.has(handler)) return this._consumers.get(handler)!;
 
     const consumer = new Consumer(handler, {
       ...options,
-      name: `${this.name}Consumer`,
       queue: options?.queue ?? this._options.queueFactory?.(),
       next: (self) => {
         options?.next?.(self);
@@ -191,15 +187,15 @@ export namespace Stream {
     name?: NAME;
     scope?: AnyStream;
     queueFactory?: QueueFactory<VALUE>;
-    next?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, `${NAME}Consumer`>) => void;
+    next?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
     drain?: (self: Stream<VALUE, NAME>) => void;
     terminate?: (self: Stream<VALUE, NAME>, reason: "abort" | "complete") => void;
-    consumerJoin?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, `${NAME}Consumer`>) => void;
-    consumerLeft?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, `${NAME}Consumer`>) => void;
-    $next?: Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}Next`>;
+    consumerJoin?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+    consumerLeft?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+    $next?: Stream<Consumer<VALUE>, `${NAME}Next`>;
     $drain?: Stream<void, `${NAME}Drain`>;
     $terminate?: Stream<"abort" | "complete", `${NAME}Terminate`>;
-    $consumerJoin?: Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerJoin`>;
-    $consumerLeft?: Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerLeft`>;
+    $consumerJoin?: Stream<Consumer<VALUE>, `${NAME}ConsumerJoin`>;
+    $consumerLeft?: Stream<Consumer<VALUE>, `${NAME}ConsumerLeft`>;
   };
 }
