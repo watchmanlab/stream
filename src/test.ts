@@ -26,7 +26,7 @@ function consumerBench() {
   }
 }
 
-// consumerBench(); //350 000 000 989 ms
+consumerBench(); //350 000 000 989 ms
 
 function consumerBench2() {
   const MAX = 10_000_000;
@@ -91,7 +91,7 @@ function streamBench() {
   }
 }
 
-streamBench(); //100 000 000 943 ms
+// streamBench(); //100 000 000 943 ms
 
 function streamTest() {
   const stream = new Stream<number>();
@@ -172,11 +172,14 @@ function fromEventTargetTest() {
 function mapTest() {
   const stream = new Stream<number>();
 
-  const v = new Map(stream, (v) => v.toString());
-  const v1 = new Map(v, (v) => [v]);
+  const v = new Map(stream, (v) => v.toString(), { name: "$map1" });
+  const v1 = new Map(v, (v) => [v], { name: "$map2" });
+
+  v1.traversal.$map1.$root;
 
   const mapped = stream.pipe(map((v) => v.toString()));
   const mapped2 = mapped.pipe(map((v) => v));
+  mapped2.traversal.$map.$root;
 
   // new IterableStream([1, 2, 3])
   //   .pipe(map((v) => v * 100))

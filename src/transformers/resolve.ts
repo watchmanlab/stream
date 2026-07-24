@@ -1,13 +1,14 @@
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import type { AnyStream, ExtractValue, Transform } from "../core/types";
+import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Resolve<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
-> extends Transformer<INPUT, VALUE> {
-  declare protected _options: Resolve.Options<VALUE>;
-  constructor(input: INPUT, concurrency = 1, options?: Resolve.Options<VALUE>) {
+  NAME extends NonEmptyString = "$resolve",
+> extends Transformer<INPUT, VALUE, NAME> {
+  declare protected _options: Resolve.Options<VALUE, NAME>;
+  constructor(input: INPUT, concurrency = 1, options?: Resolve.Options<VALUE, NAME>) {
     let count = 0;
     const inputConsumer = input.listen((self, maybePromise) => {
       if (++count < concurrency) self.next();
@@ -28,6 +29,7 @@ export class Resolve<
     });
     super(input, {
       ...options,
+      name: options?.name ?? ("$resolve" as NAME),
       next(self, consumer) {
         inputConsumer.next();
         options?.next?.(self, consumer);
@@ -40,6 +42,7 @@ export class Resolve<
 
   get $error() {
     return (this._options.$error ??= new Stream({
+      name: `${this.name}Error`,
       consumerLeft: (self) => {
         if (!self.consumers.count) this._options.$error = undefined;
       },
@@ -50,10 +53,14 @@ export class Resolve<
 export function resolve<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
->(concurrency = 1, options?: Resolve.Options<VALUE>): Transform<INPUT, Resolve<INPUT, VALUE>> {
+  NAME extends NonEmptyString = "$resolve",
+>(concurrency = 1, options?: Resolve.Options<VALUE, NAME>): Transform<INPUT, Resolve<INPUT, VALUE, NAME>> {
   return (input) => new Resolve(input, concurrency, options);
 }
 
 export namespace Resolve {
-  export type Options<VALUE> = Stream.Options<VALUE> & { error?: (error: unknown) => void; $error?: Stream<unknown> };
+  export type Options<VALUE, NAME extends NonEmptyString> = Stream.Options<VALUE, NAME> & {
+    error?: (error: unknown) => void;
+    $error?: Stream<unknown, `${NAME}Error`>;
+  };
 }

@@ -27,40 +27,45 @@ export namespace Queue {
 }
 
 export interface Source<VALUE> {
-  listen(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
+  listen(handler: Consumer.Handler<VALUE, any>, options?: Consumer.Options<VALUE, any>): Consumer<VALUE, any>;
 }
 export namespace Source {
   export type AnySource = Source<any>;
 }
 
-export interface Closable {
-  readonly $terminate: Stream<"abort" | "complete">;
+export interface Closable<NAME extends NonEmptyString> {
+  readonly $terminate: Stream<"abort" | "complete", `${NAME}Terminate`>;
   terminate(reason: "abort" | "complete"): void;
 }
 
+export type NonEmptyString = `${any}${string}`;
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR
   : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
 
-export type AnyStream = Stream<any>;
-export type AnyConsumer = Consumer<any>;
-export type AnyTransformer = Transformer<AnyStream, any>;
-export type ExtractInputStream<T> = T extends Transformer<infer INPUT, any> ? INPUT : T;
-// export type Traversal<T extends AnyStream> = Record<T["name"] | (`$${string}` & {}), Traversable<T>>;
-// export type Traversable<T extends AnyStream> = [ExtractInputStream<T>] extends [never]
-//   ? T
-//   : Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>;
+export type AnyStream = Stream<any, any>;
+export type AnyConsumer = Consumer<any, any>;
+export type AnyTransformer = Transformer<AnyStream, any, any>;
+
+////////////////////////
+//| (`$${string}` & {})
+export type ExtractInputStream<T extends AnyTransformer> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
+export type Traversal<T extends AnyStream> = Record<T["name"], Traversable<T>>;
+export type Traversable<T extends AnyStream> = T extends AnyTransformer
+  ? Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>
+  : T;
+////////////
 
 export type ExtractValue<T> = T extends
-  | Transformer<any, infer VALUE>
-  | Stream<infer VALUE>
+  | Transformer<any, infer VALUE, any>
+  | Stream<infer VALUE, any>
   | Source<infer VALUE>
-  | Consumer<infer VALUE>
+  | Consumer<infer VALUE, any>
   | Promise<infer VALUE>
   ? VALUE
-  : T;
+  : never;
 
-export type Transform<INPUT extends AnyStream, OUTPUT extends Transformer<INPUT, any> | INPUT> = (
+export type Transform<INPUT extends AnyStream, OUTPUT extends Transformer<INPUT, any, any> | INPUT> = (
   input: INPUT,
 ) => OUTPUT;

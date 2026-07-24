@@ -1,16 +1,16 @@
-import { Closable, Queue } from "./types";
+import { Closable, NonEmptyString, Queue } from "./types";
 import { LinkedListQueue } from "./linked-list-queue";
 import { Stream } from "./stream";
 
-export class Consumer<VALUE> implements Closable {
-  protected _options: Consumer.Options<VALUE>;
+export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implements Closable<NAME> {
+  protected _options: Consumer.Options<VALUE, NAME>;
   private _state: Consumer.State;
   private _queue: Queue<VALUE>;
   private _counter: number;
 
-  private _handler: Consumer.Handler<VALUE>;
+  private _handler: Consumer.Handler<VALUE, NAME>;
 
-  constructor(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>) {
+  constructor(handler: Consumer.Handler<VALUE, NAME>, options?: Consumer.Options<VALUE, NAME>) {
     this._options = { ...options };
     this._state = "active";
     this._queue = options?.queue ?? new LinkedListQueue();
@@ -18,7 +18,9 @@ export class Consumer<VALUE> implements Closable {
 
     this._handler = handler;
   }
-
+  get name() {
+    return this._options.name ?? ("consumer" as NAME);
+  }
   get state() {
     return this._state;
   }
@@ -27,6 +29,7 @@ export class Consumer<VALUE> implements Closable {
   }
   get $next() {
     return (this._options.$next ??= new Stream({
+      name: `${this.name}Next`,
       consumerLeft: (self) => {
         if (!self.consumers.count) this._options.$next = undefined;
       },
@@ -34,6 +37,7 @@ export class Consumer<VALUE> implements Closable {
   }
   get $drain() {
     return (this._options.$drain ??= new Stream({
+      name: `${this.name}Drain`,
       consumerLeft: (self) => {
         if (!self.consumers.count) this._options.$drain = undefined;
       },
@@ -41,6 +45,7 @@ export class Consumer<VALUE> implements Closable {
   }
   get $terminate() {
     return (this._options.$terminate ??= new Stream({
+      name: `${this.name}Terminate`,
       consumerLeft: (self) => {
         if (!self.consumers.count) this._options.$terminate = undefined;
       },
@@ -116,15 +121,16 @@ export class Consumer<VALUE> implements Closable {
 export namespace Consumer {
   export type State = "active" | "draining" | "aborted" | "completed";
 
-  export type Handler<VALUE> = (self: Consumer<VALUE>, value: VALUE) => void;
+  export type Handler<VALUE, NAME extends NonEmptyString> = (self: Consumer<VALUE, NAME>, value: VALUE) => void;
 
-  export type Options<VALUE> = {
+  export type Options<VALUE, NAME extends NonEmptyString> = {
+    name?: NAME;
     queue?: Queue<VALUE>;
-    next?: (self: Consumer<VALUE>) => void;
-    drain?: (self: Consumer<VALUE>) => void;
-    terminate?: (self: Consumer<VALUE>, reason: "abort" | "complete") => void;
-    $next?: Stream<void>;
-    $drain?: Stream<void>;
-    $terminate?: Stream<"abort" | "complete">;
+    next?: (self: Consumer<VALUE, NAME>) => void;
+    drain?: (self: Consumer<VALUE, NAME>) => void;
+    terminate?: (self: Consumer<VALUE, NAME>, reason: "abort" | "complete") => void;
+    $next?: Stream<void, `${NAME}Next`>;
+    $drain?: Stream<void, `${NAME}Drain`>;
+    $terminate?: Stream<"abort" | "complete", `${NAME}Terminate`>;
   };
 }
