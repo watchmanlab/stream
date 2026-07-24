@@ -4,7 +4,7 @@ import type { AnyStream, Closable, Queue, Transform } from "./types";
 import { Transformer } from "./transformer";
 
 export class Stream<VALUE> implements Closable {
-  private _options: Stream.Options<VALUE>;
+  protected _options: Stream.Options<VALUE>;
   private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _state: Stream.State;
   private _pulling: boolean;

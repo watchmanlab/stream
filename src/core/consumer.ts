@@ -3,7 +3,7 @@ import { LinkedListQueue } from "./linked-list-queue";
 import { Stream } from "./stream";
 
 export class Consumer<VALUE> implements Closable {
-  private _options: Consumer.Options<VALUE>;
+  protected _options: Consumer.Options<VALUE>;
   private _state: Consumer.State;
   private _queue: Queue<VALUE>;
   private _counter: number;

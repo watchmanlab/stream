@@ -6,8 +6,8 @@ export class Resolve<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
 > extends Transformer<INPUT, VALUE> {
-  private _$error?: Stream<unknown>;
-  constructor(input: INPUT, concurrency = 1, options?: Stream.Options<VALUE>) {
+  declare protected _options: Resolve.Options<VALUE>;
+  constructor(input: INPUT, concurrency = 1, options?: Resolve.Options<VALUE>) {
     let count = 0;
     const inputConsumer = input.listen((self, maybePromise) => {
       if (++count < concurrency) self.next();
@@ -16,7 +16,7 @@ export class Resolve<
         maybePromise
           .then((value) => this.push(value))
           .catch((error) => {
-            this._$error?.push(error);
+            this._options.$error?.push(error);
             self.next();
           })
           .finally(() => {
@@ -39,9 +39,9 @@ export class Resolve<
   }
 
   get $error() {
-    return (this._$error ??= new Stream({
+    return (this._options.$error ??= new Stream({
       consumerLeft: (self) => {
-        if (!self.consumers.count) this._$error = undefined;
+        if (!self.consumers.count) this._options.$error = undefined;
       },
     }));
   }
@@ -50,6 +50,10 @@ export class Resolve<
 export function resolve<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
->(concurrency = 1, options?: Stream.Options<VALUE>): Transform<INPUT, Resolve<INPUT, VALUE>> {
+>(concurrency = 1, options?: Resolve.Options<VALUE>): Transform<INPUT, Resolve<INPUT, VALUE>> {
   return (input) => new Resolve(input, concurrency, options);
+}
+
+export namespace Resolve {
+  export type Options<VALUE> = Stream.Options<VALUE> & { error?: (error: unknown) => void; $error?: Stream<unknown> };
 }
