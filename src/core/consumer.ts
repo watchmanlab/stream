@@ -1,31 +1,22 @@
-import { Closable, NonEmptyString, Queue } from "./types";
+import { Closable, Queue } from "./types";
 import { LinkedListQueue } from "./linked-list-queue";
 import { Stream } from "./stream";
 
-export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implements Closable {
-  private _name: NAME;
+export class Consumer<VALUE> implements Closable {
+  private _options: Consumer.Options<VALUE>;
   private _state: Consumer.State;
   private _queue: Queue<VALUE>;
   private _counter: number;
 
-  private _handler: Consumer.Handler<VALUE, NAME>;
-  private _next: NonNullable<Consumer.Options<VALUE, NAME>["next"]>;
-  private _drain: NonNullable<Consumer.Options<VALUE, NAME>["drain"]>;
-  private _terminate: NonNullable<Consumer.Options<VALUE, NAME>["terminate"]>;
-  private _$next?: Stream<void, `${NAME}Next`>;
-  private _$drain?: Stream<void, `${NAME}Drain`>;
-  private _$terminate?: Stream<"abort" | "complete", `${NAME}Terminate`>;
+  private _handler: Consumer.Handler<VALUE>;
 
-  constructor(handler: Consumer.Handler<VALUE, NAME>, options?: Consumer.Options<VALUE, NAME>) {
-    this._name = options?.name ?? ("consumer" as NAME);
+  constructor(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>) {
+    this._options = { ...options };
     this._state = "active";
     this._queue = options?.queue ?? new LinkedListQueue();
     this._counter = 0;
 
     this._handler = handler;
-    this._next = options?.next ?? (() => {});
-    this._drain = options?.drain ?? (() => {});
-    this._terminate = options?.terminate ?? (() => {});
   }
 
   get state() {
@@ -35,26 +26,23 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
     return this._queue;
   }
   get $next() {
-    return (this._$next ??= new Stream({
-      name: `${this._name}Next`,
+    return (this._options.$next ??= new Stream({
       consumerLeft: (self) => {
-        if (!self.consumers.count) this._$next = undefined;
+        if (!self.consumers.count) this._options.$next = undefined;
       },
     }));
   }
   get $drain() {
-    return (this._$drain ??= new Stream({
-      name: `${this._name}Drain`,
+    return (this._options.$drain ??= new Stream({
       consumerLeft: (self) => {
-        if (!self.consumers.count) this._$drain = undefined;
+        if (!self.consumers.count) this._options.$drain = undefined;
       },
     }));
   }
   get $terminate() {
-    return (this._$terminate ??= new Stream({
-      name: `${this._name}Terminate`,
+    return (this._options.$terminate ??= new Stream({
       consumerLeft: (self) => {
-        if (!self.consumers.count) this._$terminate = undefined;
+        if (!self.consumers.count) this._options.$terminate = undefined;
       },
     }));
   }
@@ -69,16 +57,17 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
     }
   }
 
-  next() {
-    const { _queue } = this;
+  next(): void {
     this._counter++;
+    const { _queue } = this;
+
     if (_queue.size === 0) {
-      this._next(this);
-      this._$next?.push();
-      return this;
+      this._options.next?.(this);
+      this._options.$next?.push();
+      return;
     }
 
-    if (this._counter > 1) return this;
+    if (this._counter > 1) return;
 
     while (this._counter > 0) {
       const value = _queue.dequeue();
@@ -86,8 +75,8 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
         if (this._state === "draining") {
           this.terminate("complete");
         } else {
-          this._next(this);
-          this._$next?.push();
+          this._options.next?.(this);
+          this._options.$next?.push();
         }
         break;
       }
@@ -97,45 +86,45 @@ export class Consumer<VALUE, NAME extends NonEmptyString = "consumer"> implement
     }
   }
 
-  terminate(reason: "abort" | "complete") {
-    const { _queue, _$next, _$drain, _$terminate } = this;
+  terminate(reason: "abort" | "complete"): void {
     this.push = () => this;
     if (reason === "abort") {
-      this.next = this.terminate = () => this;
+      this.next = this.terminate = () => {};
       this._state = "aborted";
-      _queue.clear();
+      this._queue.clear();
     } else if (this._queue.size) {
       this._state = "draining";
-      this._drain(this);
-      _$drain?.push();
-      return this;
+      this._options.drain?.(this);
+      this._options.$drain?.push();
+      return;
     } else {
-      this.next = this.terminate = () => this;
+      this.next = this.terminate = () => {};
       this._state = "completed";
     }
 
-    _$terminate?.push(reason);
-    _$terminate?.terminate("complete");
-    _$drain?.terminate("complete");
-    _$next?.terminate("complete");
+    this._options.$next?.terminate(reason);
+    this._options.$drain?.terminate(reason);
 
-    this._$terminate = this._$drain = this._$next = undefined;
-
-    this._terminate(this, reason);
-    this._handler = this._next = this._drain = this._terminate = () => this;
+    this._options.terminate?.(this, reason);
+    this._options.$terminate?.push(reason);
+    this._options.$terminate?.terminate(reason);
+    this._handler = () => {};
+    this._options = {};
   }
 }
 
 export namespace Consumer {
   export type State = "active" | "draining" | "aborted" | "completed";
 
-  export type Handler<VALUE, NAME extends NonEmptyString> = (self: Consumer<VALUE, NAME>, value: VALUE) => void;
+  export type Handler<VALUE> = (self: Consumer<VALUE>, value: VALUE) => void;
 
-  export type Options<VALUE, NAME extends NonEmptyString> = {
-    name?: NAME;
+  export type Options<VALUE> = {
     queue?: Queue<VALUE>;
-    next?: (self: Consumer<VALUE, NAME>) => void;
-    drain?: (self: Consumer<VALUE, NAME>) => void;
-    terminate?: (self: Consumer<VALUE, NAME>, reason: "abort" | "complete") => void;
+    next?: (self: Consumer<VALUE>) => void;
+    drain?: (self: Consumer<VALUE>) => void;
+    terminate?: (self: Consumer<VALUE>, reason: "abort" | "complete") => void;
+    $next?: Stream<void>;
+    $drain?: Stream<void>;
+    $terminate?: Stream<"abort" | "complete">;
   };
 }

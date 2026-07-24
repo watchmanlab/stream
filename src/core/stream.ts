@@ -1,47 +1,25 @@
 import { Consumer } from "./consumer";
-import type { AnyStream, Closable, NonEmptyString, Queue, Source, Transform } from "./types";
-import { ScopeBinder } from "./scope-binder";
+import type { AnyStream, Closable, Queue, Transform } from "./types";
+
 import { Transformer } from "./transformer";
 
-export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Closable {
-  private _name: NAME;
-  private _consumers: Map<Consumer.Handler<VALUE, `${NAME}Consumer`>, Consumer<VALUE, `${NAME}Consumer`>>;
+export class Stream<VALUE> implements Closable {
+  private _options: Stream.Options<VALUE>;
+  private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _state: Stream.State;
-  private _scopeBinder?: ScopeBinder;
-  private _queueFactory?: Stream.QueueFactory<VALUE>;
-
-  private _next: NonNullable<Stream.Options<VALUE, NAME>["next"]>;
-  private _drain: NonNullable<Stream.Options<VALUE, NAME>["drain"]>;
-  private _terminate: NonNullable<Stream.Options<VALUE, NAME>["terminate"]>;
-  private _consumerJoin: NonNullable<Stream.Options<VALUE, NAME>["consumerJoin"]>;
-  private _consumerLeft: NonNullable<Stream.Options<VALUE, NAME>["consumerLeft"]>;
-
-  private _$next?: Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}Next`>;
-  private _$terminate?: Stream<"abort" | "complete", `${NAME}Terminate`>;
-  private _$drain?: Stream<void, `${NAME}Drain`>;
-  private _$consumerJoin?: Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerJoin`>;
-  private _$consumerLeft?: Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerLeft`>;
-
   private _pulling: boolean;
 
-  constructor(options?: Stream.Options<VALUE, NAME>) {
-    this._name = options?.name ?? ("$root" as NAME);
+  constructor(options?: Stream.Options<VALUE>) {
+    const scopeConsumer = options?.scope?.$terminate.listen((_, reason) => this.terminate(reason));
+    this._options = {
+      ...options,
+      terminate: options?.terminate ?? ((_, reason) => scopeConsumer?.terminate(reason)),
+    };
     this._consumers = new Map();
-    this._queueFactory = options?.queueFactory;
     this._state = "active";
     this._pulling = false;
-
-    this._next = options?.next ?? (() => {});
-    this._drain = options?.drain ?? (() => {});
-    this._terminate = options?.terminate ?? (() => {});
-    this._consumerJoin = options?.consumerJoin ?? (() => {});
-    this._consumerLeft = options?.consumerLeft ?? (() => {});
-
-    this._scopeBinder = options?.scope ? new ScopeBinder(this, options.scope) : undefined;
   }
-  get name() {
-    return this._name;
-  }
+
   get consumers() {
     const self = this;
     return {
@@ -59,43 +37,38 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
   get state() {
     return this._state;
   }
-  get $next(): Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}Next`> {
-    return (this._$next ??= new Stream({
-      name: `${this._name}Next`,
+  get $next(): Stream<Consumer<VALUE>> {
+    return (this._options.$next ??= new Stream({
       consumerLeft: (self) => {
-        if (!self.consumers.count) this._$next = undefined;
+        if (!self.consumers.count) this._options.$next = undefined;
       },
     }));
   }
-  get $drain(): Stream<void, `${NAME}Drain`> {
-    return (this._$drain ??= new Stream({
-      name: `${this._name}Drain`,
+  get $drain(): Stream<void> {
+    return (this._options.$drain ??= new Stream({
       consumerLeft: (self) => {
-        if (!self.consumers.count) this._$drain = undefined;
+        if (!self.consumers.count) this._options.$drain = undefined;
       },
     }));
   }
-  get $terminate(): Stream<"abort" | "complete", `${NAME}Terminate`> {
-    return (this._$terminate ??= new Stream({
-      name: `${this._name}Terminate`,
+  get $terminate(): Stream<"abort" | "complete"> {
+    return (this._options.$terminate ??= new Stream({
       consumerLeft: (self) => {
-        if (!self.consumers.count) this._$terminate = undefined;
+        if (!self.consumers.count) this._options.$terminate = undefined;
       },
     }));
   }
-  get $consumerJoin(): Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerJoin`> {
-    return (this._$consumerJoin ??= new Stream({
-      name: `${this._name}ConsumerJoin`,
+  get $consumerJoin(): Stream<Consumer<VALUE>> {
+    return (this._options.$consumerJoin ??= new Stream({
       consumerLeft: (self) => {
-        if (!self.consumers.count) this._$consumerJoin = undefined;
+        if (!self.consumers.count) this._options.$consumerJoin = undefined;
       },
     }));
   }
-  get $consumerLeft(): Stream<Consumer<VALUE, `${NAME}Consumer`>, `${NAME}ConsumerLeft`> {
-    return (this._$consumerLeft ??= new Stream({
-      name: `${this._name}ConsumerLeft`,
+  get $consumerLeft(): Stream<Consumer<VALUE>> {
+    return (this._options.$consumerLeft ??= new Stream({
       consumerLeft: (self) => {
-        if (!self.consumers.count) this._$consumerLeft = undefined;
+        if (!self.consumers.count) this._options.$consumerLeft = undefined;
       },
     }));
   }
@@ -125,44 +98,39 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
     this._pulling = false;
   }
 
-  listen(
-    handler: Consumer.Handler<VALUE, `${NAME}Consumer`>,
-    options?: Omit<Consumer.Options<VALUE, `${NAME}Consumer`>, "name">,
-  ): Consumer<VALUE, `${NAME}Consumer`> {
-    const { _next, _consumers, _queueFactory, _consumerLeft, _consumerJoin, _$next, _$consumerLeft, _$consumerJoin } =
-      this;
-    const { next, terminate, queue } = { ...options };
-
-    if (_consumers.has(handler)) return _consumers.get(handler)!;
+  listen(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    if (this._consumers.has(handler)) return this._consumers.get(handler)!;
 
     const consumer = new Consumer(handler, {
       ...options,
-      queue: queue ? queue : _queueFactory?.(),
+      queue: options?.queue ?? this._options.queueFactory?.(),
       next: (self) => {
-        next?.(self);
+        options?.next?.(self);
         if (this._pulling === false) {
           this._pulling = true;
-          _next(this, self);
-          _$next?.push(self);
+          this._options.next?.(this, self);
+          this._options.$next?.push(self);
         }
       },
 
       terminate: (self, reason) => {
-        _consumers.delete(handler);
+        this._consumers.delete(handler);
         this._optimizePush();
 
-        terminate?.(self, reason);
-        _consumerLeft(this, self);
-        _$consumerLeft?.push(self);
-        if (_consumers.size === 0 && this._state === "drain") this.terminate("complete");
+        options?.terminate?.(self, reason);
+        options = {};
+
+        this._options.consumerLeft?.(this, self);
+        this._options.$consumerLeft?.push(self);
+        if (this._consumers.size === 0 && this._state === "drain") this.terminate("complete");
       },
     });
 
-    _consumers.set(handler, consumer);
+    this._consumers.set(handler, consumer);
     this._optimizePush();
 
-    _consumerJoin(this, consumer);
-    _$consumerJoin?.push(consumer);
+    this._options.consumerJoin?.(this, consumer);
+    this._options.$consumerJoin?.push(consumer);
 
     return consumer;
   }
@@ -174,8 +142,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
       this._state = "aborted";
     } else if (this._consumers.size) {
       this._state = "drain";
-      this._drain(this);
-      this._$drain?.push();
+      this._options.drain?.(this);
+      this._options.$drain?.push();
       return;
     } else {
       this.terminate = () => {};
@@ -185,24 +153,20 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
     for (const consumer of this._consumers.values()) {
       consumer.terminate(reason);
     }
-    this._terminate(this, reason);
-    this._$terminate?.push(reason);
 
-    this._scopeBinder?.terminate(reason);
-    this._scopeBinder = undefined;
+    this._options.$next?.terminate(reason);
+    this._options.$drain?.terminate(reason);
+    this._options.$consumerJoin?.terminate(reason);
+    this._options.$consumerLeft?.terminate(reason);
 
-    this._$terminate =
-      this._$drain =
-      this._$next =
-      this._$consumerJoin =
-      this._$consumerLeft =
-      this._scopeBinder =
-      this._queueFactory =
-        undefined;
-    this._next = this._drain = this._terminate = this._consumerJoin = this._consumerLeft = () => {};
+    this._options.terminate?.(this, reason);
+    this._options.$terminate?.push(reason);
+    this._options.$terminate?.terminate(reason);
+
+    this._options = {};
   }
 
-  pipe<OUTPUT extends Transformer<this, any, any>>(transform: Transform<this, OUTPUT>): OUTPUT {
+  pipe<OUTPUT extends Transformer<this, any>>(transform: Transform<this, OUTPUT>): OUTPUT {
     return transform(this);
   }
 }
@@ -211,14 +175,18 @@ export namespace Stream {
   export type State = "active" | "drain" | "aborted" | "completed";
 
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
-  export type Options<VALUE, NAME extends NonEmptyString> = {
-    name?: NAME;
-    scope?: ScopeBinder.Scope;
+  export type Options<VALUE> = {
+    scope?: AnyStream;
     queueFactory?: QueueFactory<VALUE>;
-    next?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, `${NAME}Consumer`>) => void;
-    drain?: (self: Stream<VALUE, NAME>) => void;
-    terminate?: (self: Stream<VALUE, NAME>, reason: "abort" | "complete") => void;
-    consumerJoin?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, `${NAME}Consumer`>) => void;
-    consumerLeft?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE, `${NAME}Consumer`>) => void;
+    next?: (self: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    drain?: (self: Stream<VALUE>) => void;
+    terminate?: (self: Stream<VALUE>, reason: "abort" | "complete") => void;
+    consumerJoin?: (self: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    consumerLeft?: (self: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    $next?: Stream<Consumer<VALUE>>;
+    $drain?: Stream<void>;
+    $terminate?: Stream<"abort" | "complete">;
+    $consumerJoin?: Stream<Consumer<VALUE>>;
+    $consumerLeft?: Stream<Consumer<VALUE>>;
   };
 }

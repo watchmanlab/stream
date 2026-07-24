@@ -6,7 +6,7 @@ import { IterableStream } from "./streams/iterable-stream";
 import { EventTargetStream } from "./streams/event-target-stream";
 
 function consumerBench() {
-  const MAX = 250_000_000;
+  const MAX = 350_000_000;
 
   const start = performance.now();
 
@@ -26,10 +26,10 @@ function consumerBench() {
   }
 }
 
-// consumerBench(); //250 000 000 985 ms
+// consumerBench(); //350 000 000 989 ms
 
 function consumerBench2() {
-  const MAX = 20_000_000;
+  const MAX = 10_000_000;
 
   const start = performance.now();
 
@@ -91,7 +91,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //100 000 000 943 ms
+streamBench(); //100 000 000 943 ms
 
 function streamTest() {
   const stream = new Stream<number>();
@@ -172,10 +172,11 @@ function fromEventTargetTest() {
 function mapTest() {
   const stream = new Stream<number>();
 
-  const v = new Map(stream, (v) => v.toString(), { name: "$text" });
+  const v = new Map(stream, (v) => v.toString());
   const v1 = new Map(v, (v) => [v]);
 
-  // const mapped2 = mapped.pipe(map((v) => v));
+  const mapped = stream.pipe(map((v) => v.toString()));
+  const mapped2 = mapped.pipe(map((v) => v));
 
   // new IterableStream([1, 2, 3])
   //   .pipe(map((v) => v * 100))
@@ -199,4 +200,4 @@ function mapTest() {
   // stream.push(2);
   // stream.push(3);
 }
-mapTest();
+// mapTest();
