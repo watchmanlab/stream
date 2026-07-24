@@ -1,6 +1,5 @@
-import { Closable, NonEmptyString, Queue } from "./types";
+import { Queue } from "./types";
 import { LinkedListQueue } from "./linked-list-queue";
-import { Stream } from "./stream";
 
 export class Consumer<VALUE> {
   protected _options: Consumer.Options<VALUE>;

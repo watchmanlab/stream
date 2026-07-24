@@ -17,6 +17,7 @@ export class Resolve<
         maybePromise
           .then((value) => this.push(value))
           .catch((error) => {
+            this._options.error?.(this, error);
             this._options.$error?.push(error);
             self.next();
           })
@@ -35,6 +36,7 @@ export class Resolve<
         options?.next?.(self, consumer);
       },
       terminate(self, reason) {
+        options?.$error?.terminate(reason);
         options?.terminate?.(self, reason);
       },
     });
@@ -45,6 +47,9 @@ export class Resolve<
       name: `${this.name}Error`,
       consumerLeft: (self) => {
         if (!self.consumers.count) this._options.$error = undefined;
+      },
+      terminate: (self, reason) => {
+        this._options.$error = undefined;
       },
     }));
   }
@@ -60,7 +65,7 @@ export function resolve<
 
 export namespace Resolve {
   export type Options<VALUE, NAME extends NonEmptyString> = Stream.Options<VALUE, NAME> & {
-    error?: (error: unknown) => void;
+    error?: (self: Stream<VALUE, NAME>, error: unknown) => void;
     $error?: Stream<unknown, `${NAME}Error`>;
   };
 }

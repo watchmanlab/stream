@@ -4,7 +4,7 @@ import type { AnyStream, Closable, NonEmptyString, Queue, Transform } from "./ty
 import { Transformer } from "./transformer";
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Closable<NAME> {
-  protected _options: Stream.Options<VALUE, NAME>;
+  protected _options: Stream.Options<any, any>;
   private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _state: Stream.State;
   private _pulling: boolean;
@@ -40,7 +40,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
   get state() {
     return this._state;
   }
-  get $next() {
+  get $next(): Stream<Consumer<VALUE>, `${NAME}Next`> {
     return (this._options.$next ??= new Stream({
       name: `${this.name}Next`,
       consumerLeft: (self) => {
@@ -48,7 +48,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
       },
     }));
   }
-  get $drain() {
+  get $drain(): Stream<void, `${NAME}Drain`> {
     return (this._options.$drain ??= new Stream({
       name: `${this.name}Drain`,
       consumerLeft: (self) => {
@@ -56,7 +56,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
       },
     }));
   }
-  get $terminate() {
+  get $terminate(): Stream<"abort" | "complete", `${NAME}Terminate`> {
     return (this._options.$terminate ??= new Stream({
       name: `${this.name}Terminate`,
       consumerLeft: (self) => {
@@ -64,7 +64,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
       },
     }));
   }
-  get $consumerJoin() {
+  get $consumerJoin(): Stream<Consumer<VALUE>, `${NAME}ConsumerJoin`> {
     return (this._options.$consumerJoin ??= new Stream({
       name: `${this.name}ConsumerJoin`,
       consumerLeft: (self) => {
@@ -72,7 +72,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
       },
     }));
   }
-  get $consumerLeft() {
+  get $consumerLeft(): Stream<Consumer<VALUE>, `${NAME}ConsumerLeft`> {
     return (this._options.$consumerLeft ??= new Stream({
       name: `${this.name}ConsumerLeft`,
       consumerLeft: (self) => {
@@ -109,11 +109,13 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
   listen(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     if (this._consumers.has(handler)) return this._consumers.get(handler)!;
 
+    let _options = { ...options };
+
     const consumer = new Consumer(handler, {
-      ...options,
-      queue: options?.queue ?? this._options.queueFactory?.(),
+      ..._options,
+      queue: _options.queue ?? this._options.queueFactory?.(),
       next: (self) => {
-        options?.next?.(self);
+        _options.next?.(self);
         if (this._pulling === false) {
           this._pulling = true;
           this._options.next?.(this, self);
@@ -125,8 +127,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Clo
         this._consumers.delete(handler);
         this._optimizePush();
 
-        options?.terminate?.(self, reason);
-        options = {};
+        _options.terminate?.(self, reason);
+        _options = {};
 
         this._options.consumerLeft?.(this, self);
         this._options.$consumerLeft?.push(self);

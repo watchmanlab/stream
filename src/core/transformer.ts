@@ -1,5 +1,5 @@
 import { Stream } from "./stream";
-import type { AnyStream, NonEmptyString, Source, Traversal } from "./types";
+import type { AnyStream, NonEmptyString, Traversal } from "./types";
 
 export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends NonEmptyString> extends Stream<
   VALUE,
