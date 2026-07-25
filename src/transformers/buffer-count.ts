@@ -24,8 +24,8 @@ export class BufferCount<
       ...options,
       name: options?.name ?? ("bufferCount" as NAME),
       source: {
-        listen: (handler, options) => {
-          return input.listen(
+        consume: (handler, options) => {
+          return input.consume(
             (self, value) => {
               if (count++ % startBufferEvery === 0) buffers.enqueue([]);
 

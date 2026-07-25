@@ -13,7 +13,7 @@ export class Emit<
         this.emit(...this._values);
         this._values.length = 0;
 
-        const signal = input.listen((value) => this.emit(value));
+        const signal = input.consume((value) => this.emit(value));
 
         return () => signal.emit();
       },

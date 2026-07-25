@@ -13,7 +13,7 @@ export class Skip<INPUT extends Mitto.AnyMitto, NAME extends string = skip.Name>
   ) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           if (--count > 0) return;
           this.emit(value);
         });

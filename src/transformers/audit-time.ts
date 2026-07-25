@@ -14,11 +14,11 @@ export class AuditTime<
       ...options,
       name: options?.name ?? ("auditTime" as NAME),
       source: {
-        listen: (handler, options) => {
+        consume: (handler, options) => {
           let latest: VALUE;
           let timer: any = null;
 
-          return input.listen(
+          return input.consume(
             (self, value) => {
               latest = value;
               if (!timer) {

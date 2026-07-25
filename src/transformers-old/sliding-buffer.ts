@@ -12,7 +12,7 @@ export class SlidingBuffer<
   constructor(name = slidingBuffer.NAME as NAME, input: INPUT, size: SIZE) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           this._buffer.enqueue(value);
           if (this._buffer.size > size) this._buffer.dequeue();
           if (this._buffer.size === size) this.emit([...this._buffer] as Mitto.FixedArray<VALUE, SIZE>);

@@ -15,8 +15,8 @@ export class Sample<
 
     super(name, input, {
       source: () => {
-        const s1 = input.listen((v) => (latest = v));
-        const s2 = notifier.listen(() => {
+        const s1 = input.consume((v) => (latest = v));
+        const s2 = notifier.consume(() => {
           if (latest !== Mitto.EMPTY) this.emit(latest);
         });
         return () => {

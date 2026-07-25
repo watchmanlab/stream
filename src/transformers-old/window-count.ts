@@ -18,7 +18,7 @@ export class WindowCount<
 
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           if (count % startWindowEvery === 0) {
             const window = new Mitto<VALUE>();
             this._windows.enqueue({ mitto: window, count: 0 });

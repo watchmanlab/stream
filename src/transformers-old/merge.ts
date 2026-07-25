@@ -11,7 +11,7 @@ export class Merge<
   constructor(name = merge.NAME as NAME, input: INPUT, others: OTHERS) {
     super(name, input, {
       source: () => {
-        const signals = [input, ...this._others].map((m) => m.listen((value) => this.emit(value)));
+        const signals = [input, ...this._others].map((m) => m.consume((value) => this.emit(value)));
         return () => signals.forEach((abort) => abort.emit());
       },
     });

@@ -16,7 +16,7 @@ export class CombineLatest<
       scope: { any: mittos },
       source: () => {
         const signals = mittos.map((mitto, index) =>
-          mitto.listen((value) => {
+          mitto.consume((value) => {
             this._buffer[index] = value;
 
             if (this._buffer.every((v) => v !== Mitto.EMPTY)) this.emit([...this._buffer] as never);

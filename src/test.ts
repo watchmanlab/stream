@@ -75,7 +75,7 @@ function streamBench() {
   const start = performance.now();
   const stream = new Stream<number>();
   stream
-    .listen((consumer, v) => {
+    .consume((consumer, v) => {
       if (v === MAX) {
         console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
         consumer.terminate("complete");
@@ -97,7 +97,7 @@ function streamTest() {
   const stream = new Stream<number>();
   const stream2 = new Stream({ source: stream });
   stream2
-    .listen((consumer, value) => {
+    .consume((consumer, value) => {
       if (value === 2) {
         setTimeout(() => {
           console.log("c1", value);
@@ -111,7 +111,7 @@ function streamTest() {
     })
     .next();
   // stream
-  //   .listen((consumer, value) => {
+  //   .consume((consumer, value) => {
   //     console.log("L2", value.toString().repeat(3));
 
   //     consumer.next();
@@ -123,14 +123,14 @@ function streamTest() {
   stream.push(3);
 }
 
-streamTest();
+// streamTest();
 // c1 1
 // c1 2
 // c1 3
 
 function fromIteratorTest() {
   new IteratorStream([1, 2, 3].values())
-    .listen((c, v) => {
+    .consume((c, v) => {
       console.log("c1", v);
       c.next();
     })
@@ -141,7 +141,7 @@ function fromIteratorTest() {
 function fromIterableTest() {
   const stream = new IterableStream([1, 2, 3]);
   stream
-    .listen((c, v) => {
+    .consume((c, v) => {
       console.log("c1", v);
       c.next();
     })
@@ -154,7 +154,7 @@ function fromEventTargetTest() {
   const et = new EventTarget();
 
   new EventTargetStream(et, "click")
-    .listen((consumer, value) => {
+    .consume((consumer, value) => {
       setTimeout(() => {
         console.log(value.type);
 
@@ -175,28 +175,19 @@ function fromEventTargetTest() {
 function mapTest() {
   const stream = new Stream<number>();
 
-  const v = new Map(stream, (v) => v.toString(), { name: "$map1" });
-  const v1 = new Map(v, (v) => [v], { name: "$map2" });
-
-  v1.traversal.$map1.$root;
-
-  const mapped = stream.pipe(map((v) => v.toString()));
-  const mapped2 = mapped.pipe(map((v) => v));
-  mapped2.traversal.$map.$root;
-
-  // new IterableStream([1, 2, 3])
-  //   .pipe(map((v) => v * 100))
-  //   .listen((c, v) => {
-  //     console.log(v);
-  //     setTimeout(() => {
-  //       c.next();
-  //     }, 1000);
-  //   })
-  //   .next();
+  new IterableStream([1, 2, 3])
+    .pipe(map((v) => v.toString(), { source: new IterableStream(["a", "b", "c"]) }))
+    .consume((c, v) => {
+      console.log(v);
+      setTimeout(() => {
+        c.next();
+      }, 1000);
+    })
+    .next();
 
   // stream
-  //   .pipe(map((v) => new Promise<number>((resolve) => setTimeout(() => resolve(v * 100), 500))))
-  //   .listen(async (c, v) => {
+  //   .pipe(map((v) => new Promise<number>((resolve) => setTimeout(() => resolve(v * 100), Math.random() * 500))))
+  //   .consume(async (c, v) => {
   //     console.log(await v);
   //     c.next();
   //   })
@@ -206,4 +197,4 @@ function mapTest() {
   // stream.push(2);
   // stream.push(3);
 }
-// mapTest();
+mapTest();

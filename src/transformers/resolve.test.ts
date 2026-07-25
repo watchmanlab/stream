@@ -7,7 +7,7 @@ describe("sequential", () => {
     const stream = new Stream<Promise<number>>();
     const results: number[] = [];
 
-    stream.pipe(resolve()).listen((self, value) => {
+    stream.pipe(resolve()).consume((self, value) => {
       results.push(value);
       self.next();
     });
@@ -24,7 +24,7 @@ describe("sequential", () => {
     const stream = new Stream<Promise<number>>();
     const order: string[] = [];
 
-    stream.pipe(resolve()).listen((self, value) => {
+    stream.pipe(resolve()).consume((self, value) => {
       order.push(`resolved:${value}`);
       self.next();
     });
@@ -48,7 +48,7 @@ describe("sequential", () => {
     const stream = new Stream<Promise<number>>();
     const results: number[] = [];
 
-    stream.pipe(resolve()).listen((self, value) => {
+    stream.pipe(resolve()).consume((self, value) => {
       results.push(value);
       self.next();
     });

@@ -10,7 +10,7 @@ export class Last<
     let last: VALUE;
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           last = value;
         });
         return () => signal.emit();

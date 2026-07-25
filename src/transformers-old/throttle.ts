@@ -15,7 +15,7 @@ export class Throttle<INPUT extends Mitto.AnyMitto, NAME extends string = thrott
     let timer: any = null;
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           if (inThrottle) return;
 
           this.emit(value);

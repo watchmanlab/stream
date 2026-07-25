@@ -27,10 +27,7 @@ export namespace Queue {
 }
 
 export interface Source<VALUE> {
-  listen(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
-}
-export namespace Source {
-  export type AnySource = Source<any>;
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
 
 export interface Closable<NAME extends NonEmptyString> {
@@ -44,6 +41,7 @@ export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> 
   ? ARR
   : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
 
+export type AnySource = Source<any>;
 export type AnyStream = Stream<any, any>;
 export type AnyConsumer = Consumer<any>;
 export type AnyTransformer = Transformer<AnyStream, any, any>;

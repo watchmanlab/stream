@@ -13,7 +13,7 @@ export class Take<INPUT extends Mitto.AnyMitto, NAME extends string = take.Name>
   ) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           this.emit(value);
           if (--count === 0) this.abort();
         });

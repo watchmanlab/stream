@@ -16,7 +16,7 @@ export class Scan<
     let acc = seed;
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           acc = fn(acc, value);
           this.emit(acc);
         });

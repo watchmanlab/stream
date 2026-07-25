@@ -14,7 +14,7 @@ export class Delay<INPUT extends Mitto.AnyMitto, NAME extends string = delay.Nam
     let timer: any = null;
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           timer = setTimeout(() => this.emit(value), ms);
         });
 

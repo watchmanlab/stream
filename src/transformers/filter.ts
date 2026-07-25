@@ -22,8 +22,8 @@ export class Filter<
       ...restOptions,
       name,
       source: {
-        listen: (handler, options) => {
-          return input.listen((self, value) => {
+        consume: (handler, options) => {
+          return input.consume((self, value) => {
             if (predicate(value)) {
               handler(self, value);
             } else {

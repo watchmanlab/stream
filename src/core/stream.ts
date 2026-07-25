@@ -12,8 +12,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   constructor(options?: Stream.Options<VALUE, NAME>) {
     const _options = { ...options };
 
-    const scopeConsumer = _options.scope?.$terminate.listen((_, reason) => this.terminate(reason));
-    const sourceConsumer = _options.source?.listen((_, value) => this.push(value), {
+    const scopeConsumer = _options.scope?.$terminate.consume((_, reason) => this.terminate(reason));
+    const sourceConsumer = _options.source?.consume((_, value) => this.push(value), {
       terminate: (_, reason) => this.terminate(reason),
     });
 
@@ -100,7 +100,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._pulling = false;
   }
 
-  listen(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     if (this._consumers.has(handler)) return this._consumers.get(handler)!;
 
     let _options = { ...options };

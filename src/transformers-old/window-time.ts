@@ -21,7 +21,7 @@ export class WindowTime<
         this.createWindow();
         creationTimer = setInterval(this.createWindow.bind(this), startWindowEvery);
 
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           for (const window of this._windows) {
             window.mitto.emit(value);
           }

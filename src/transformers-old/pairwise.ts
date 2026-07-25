@@ -10,7 +10,7 @@ export class Pairwise<
     let prev: VALUE | Mitto.Empty;
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           if (prev !== Mitto.EMPTY) this.emit([prev, value]);
           prev = value;
         });

@@ -10,7 +10,7 @@ export class Distinct<
     let last: VALUE;
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           if (value !== last) {
             last = value;
             this.emit(value);

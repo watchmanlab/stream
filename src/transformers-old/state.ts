@@ -14,7 +14,7 @@ export class State<
   ) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => this.set(value));
+        const signal = input.consume((value) => this.set(value));
 
         return () => signal.emit();
       },

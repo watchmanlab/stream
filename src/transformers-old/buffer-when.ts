@@ -15,8 +15,8 @@ export class BufferWhen<
     super(name, input, {
       scope: notifier,
       source: () => {
-        const s1 = input.listen((value) => this._buffer.push(value));
-        const s2 = notifier.listen(() => {
+        const s1 = input.consume((value) => this._buffer.push(value));
+        const s2 = notifier.consume(() => {
           if (this._buffer.length > 0) {
             this.emit([...this._buffer]);
             this._buffer.length = 0;

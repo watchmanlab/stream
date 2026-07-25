@@ -16,7 +16,7 @@ export class BufferTime<
 
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           this._buffer.push(value);
 
           if (!timer) {

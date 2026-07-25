@@ -10,7 +10,7 @@ export class Resolve<
   declare protected _options: Resolve.Options<VALUE, NAME>;
   constructor(input: INPUT, concurrency = 1, options?: Resolve.Options<VALUE, NAME>) {
     let count = 0;
-    const inputConsumer = input.listen((self, maybePromise) => {
+    const inputConsumer = input.consume((self, maybePromise) => {
       if (++count < concurrency) self.next();
 
       if (maybePromise instanceof Promise) {

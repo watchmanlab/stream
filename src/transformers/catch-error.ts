@@ -19,7 +19,7 @@ export class CatchError<
       ...options,
       name: options?.name ?? ("catchError" as NAME),
       source: {
-        listen: (handler, options) => input.listen(handler, options),
+        consume: (handler, options) => input.consume(handler, options),
       },
     });
   }

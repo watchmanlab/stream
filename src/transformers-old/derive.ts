@@ -9,7 +9,7 @@ export class Derive<
   constructor(name = derive.NAME as NAME, input: INPUT) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => this.emit(value));
+        const signal = input.consume((value) => this.emit(value));
 
         return () => signal.emit();
       },

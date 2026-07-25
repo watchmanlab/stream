@@ -14,7 +14,7 @@ export class Flat<
   ) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           if (Array.isArray(value)) {
             const flatten = depth === 0 ? value : value.flat(depth);
             for (let i = 0, length = flatten.length; i < length; i++) {

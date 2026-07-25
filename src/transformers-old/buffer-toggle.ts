@@ -17,13 +17,13 @@ export class BufferToggle<
     super(name, input, {
       scope: opening,
       source: () => {
-        const s1 = input.listen((value) => {
+        const s1 = input.consume((value) => {
           for (const buffer of this._buffers.values()) {
             buffer.push(value);
           }
         });
 
-        const s2 = opening.listen(() => {
+        const s2 = opening.consume(() => {
           const bufferId = id++;
           const buffer: VALUE[] = [];
           this._buffers.set(bufferId, buffer);

@@ -15,7 +15,7 @@ export class Group<
   ) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           this._buffer.push(value);
 
           if (this._buffer.length === size) {

@@ -10,7 +10,7 @@ export class StartWith<
   constructor(name = startWith.NAME as NAME, input: INPUT, values: VALUE[]) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((v) => this.emit(v));
+        const signal = input.consume((v) => this.emit(v));
 
         return () => signal.emit();
       },

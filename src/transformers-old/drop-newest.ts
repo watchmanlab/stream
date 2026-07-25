@@ -22,7 +22,7 @@ export class DropNewest<
         this.emitBatch([...this._buffer]);
         this._buffer.clear();
         signal?.emit();
-        signal = input.listen((value) => this.emit(value));
+        signal = input.consume((value) => this.emit(value));
         return () => {
           signal?.emit();
           signal = this.save();
@@ -38,7 +38,7 @@ export class DropNewest<
     signal = this.save();
   }
   private save(): Mitto {
-    return this.input.listen((value) => {
+    return this.input.consume((value) => {
       if (this._buffer.size >= this.size) {
         this._dropped?.emit(value);
         return;

@@ -13,7 +13,7 @@ export class Tap<
   ) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           fn(value);
           this.emit(value);
         });

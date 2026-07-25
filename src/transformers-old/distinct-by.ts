@@ -15,7 +15,7 @@ export class DistinctBy<
     let last: KEY;
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           const key = fn(value);
           if (key !== last) {
             last = key;

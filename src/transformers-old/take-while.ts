@@ -13,7 +13,7 @@ export class TakeWhile<
   ) {
     super(name, input, {
       source: () => {
-        const signal = input.listen((value) => {
+        const signal = input.consume((value) => {
           if (!predicate(value)) {
             this.abort();
             return;
