@@ -7,7 +7,7 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
 > {
   protected _input: INPUT;
 
-  constructor(input: INPUT, options?: Transformer.Options<VALUE, NAME>) {
+  constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
     super(options);
 
     this._input = input;
@@ -30,8 +30,4 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
       },
     ) as Traversal<INPUT>;
   }
-}
-
-export namespace Transformer {
-  export type Options<VALUE, NAME extends NonEmptyString> = Stream.Options<VALUE, NAME>;
 }

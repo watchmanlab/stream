@@ -36,22 +36,15 @@ export class Resolve<
         options?.next?.(self, consumer);
       },
       terminate(self, reason) {
-        options?.$error?.terminate(reason);
+        inputConsumer.terminate(reason);
         options?.terminate?.(self, reason);
       },
     });
   }
 
   get $error() {
-    return (this._options.$error ??= new Stream({
-      name: `${this.name}Error`,
-      consumerLeft: (self) => {
-        if (!self.consumers.count) this._options.$error = undefined;
-      },
-      terminate: (self, reason) => {
-        this._options.$error = undefined;
-      },
-    }));
+    this._options.$error ??= new Stream({ scope: this });
+    return new Stream({ name: `${this.name}Error`, source: this._options.$error });
   }
 }
 
@@ -66,6 +59,6 @@ export function resolve<
 export namespace Resolve {
   export type Options<VALUE, NAME extends NonEmptyString> = Stream.Options<VALUE, NAME> & {
     error?: (self: Stream<VALUE, NAME>, error: unknown) => void;
-    $error?: Stream<unknown, `${NAME}Error`>;
+    $error?: Stream<unknown, any>;
   };
 }
