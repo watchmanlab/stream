@@ -53,7 +53,7 @@ export class Pump<
   }
   get $stop() {
     this._options.$stop ??= new Stream({ scope: this });
-    return new Stream({ name: `${this.name}Strop`, source: this._options.$stop });
+    return new Stream({ name: `${this.name}Stop`, source: this._options.$stop });
   }
 }
 

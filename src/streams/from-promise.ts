@@ -1,12 +1,9 @@
 import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
-export class PromiseStream<VALUE, NAME extends NonEmptyString = "$promise"> extends Stream<VALUE, NAME> {
+export class FromPromise<VALUE, NAME extends NonEmptyString = "$promise"> extends Stream<VALUE, NAME> {
   private _$error?: Stream<any, `${NAME}Error`>;
-  constructor(
-    public readonly promise: Promise<VALUE>,
-    options?: Stream.Options<VALUE, NAME>,
-  ) {
+  constructor(promise: Promise<VALUE>, options?: Stream.Options<VALUE, NAME>) {
     super({
       ...options,
       name: options?.name ?? ("$promise" as NAME),
@@ -36,4 +33,11 @@ export class PromiseStream<VALUE, NAME extends NonEmptyString = "$promise"> exte
       },
     }));
   }
+}
+
+export function fromPromise<VALUE, NAME extends NonEmptyString = "$promise">(
+  promise: Promise<VALUE>,
+  options?: Stream.Options<VALUE, NAME>,
+): FromPromise<VALUE, NAME> {
+  return new FromPromise(promise, options);
 }

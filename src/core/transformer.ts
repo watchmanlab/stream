@@ -28,6 +28,6 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
           return _input;
         },
       },
-    ) as Traversal<INPUT>;
+    ) as never;
   }
 }

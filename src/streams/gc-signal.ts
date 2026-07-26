@@ -1,7 +1,7 @@
 import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
-export class GCSignalStream<NAME extends NonEmptyString = "$gcSignal"> extends Stream<void, NAME> {
+export class GCSignal<NAME extends NonEmptyString = "$gcSignal"> extends Stream<void, NAME> {
   constructor(token: object, options?: Stream.Options<void, NAME>) {
     const ref = new WeakRef(token);
     const unregisterToken = {};
@@ -38,4 +38,11 @@ export class GCSignalStream<NAME extends NonEmptyString = "$gcSignal"> extends S
       },
     });
   }
+}
+
+export function gcSignal<NAME extends NonEmptyString = "$gcSignal">(
+  token: object,
+  options?: Stream.Options<void, NAME>,
+): GCSignal<NAME> {
+  return new GCSignal(token, options);
 }

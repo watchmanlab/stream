@@ -1,10 +1,10 @@
 import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
-export class AsyncIteratorStream<VALUE, NAME extends NonEmptyString = "$asyncIterator"> extends Stream<VALUE, NAME> {
+export class FromAsyncIterator<VALUE, NAME extends NonEmptyString = "$asyncIterator"> extends Stream<VALUE, NAME> {
   constructor(
-    public readonly asyncItrator: AsyncIterator<VALUE> | (() => AsyncIterator<VALUE>),
-    options?: AsyncIteratorStream.Options<VALUE, NAME>,
+    asyncItrator: AsyncIterator<VALUE> | (() => AsyncIterator<VALUE>),
+    options?: Stream.Options<VALUE, NAME>,
   ) {
     const iter = typeof asyncItrator === "function" ? asyncItrator() : asyncItrator;
 
@@ -29,6 +29,9 @@ export class AsyncIteratorStream<VALUE, NAME extends NonEmptyString = "$asyncIte
   }
 }
 
-export namespace AsyncIteratorStream {
-  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
+export function fromAsyncIterator<VALUE, NAME extends NonEmptyString = "$asyncIterator">(
+  asyncItrator: AsyncIterator<VALUE> | (() => AsyncIterator<VALUE>),
+  options?: Stream.Options<VALUE, NAME>,
+): FromAsyncIterator<VALUE, NAME> {
+  return new FromAsyncIterator(asyncItrator, options);
 }

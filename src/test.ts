@@ -1,9 +1,9 @@
 import { Stream } from "./core/stream";
 import { Consumer } from "./core/consumer";
 import { map, Map } from "./transformers/map";
-import { IteratorStream } from "./streams/iterator-stream";
-import { IterableStream } from "./streams/iterable-stream";
-import { EventTargetStream } from "./streams/event-target-stream";
+import { fromIterator, FromIterator } from "./streams/from-iterator";
+import { fromIterable } from "./streams/from-iterable";
+import { fromEventTarget } from "./streams/from-event-target";
 import { filter } from "./transformers/filter";
 import { resolve } from "./transformers/resolve";
 import { tap } from "./transformers/tap";
@@ -133,7 +133,7 @@ function streamTest() {
 // c1 3
 
 function fromIteratorTest() {
-  new IteratorStream([1, 2, 3].values())
+  fromIterator([1, 2, 3].values())
     .consume((c, v) => {
       console.log("c1", v);
       c.next();
@@ -143,7 +143,7 @@ function fromIteratorTest() {
 
 // fromIteratorTest();
 function fromIterableTest() {
-  const stream = new IterableStream([1, 2, 3]);
+  const stream = fromIterable([1, 2, 3]);
   stream
     .consume((c, v) => {
       console.log("c1", v);
@@ -157,7 +157,7 @@ function fromIterableTest() {
 function fromEventTargetTest() {
   const et = new EventTarget();
 
-  new EventTargetStream(et, "click")
+  fromEventTarget(et, "click")
     .consume((consumer, value) => {
       setTimeout(() => {
         console.log(value.type);
@@ -179,8 +179,8 @@ function fromEventTargetTest() {
 function mapTest() {
   const stream = new Stream<number>();
 
-  new IterableStream([1, 2, 3])
-    .pipe(map((v) => v.toString(), { name: "$map2", source: new IterableStream(["a", "b", "c"]) }))
+  fromIterable([1, 2, 3])
+    .pipe(map((v) => v.toString(), { name: "$map2", source: fromIterable(["a", "b", "c"]) }))
     .consume((c, v) => {
       console.log(v);
       setTimeout(() => {
@@ -204,7 +204,7 @@ function mapTest() {
 // mapTest();
 
 function filterTest() {
-  new IterableStream([1, 2, 3, 4, 5, 6])
+  fromIterable([1, 2, 3, 4, 5, 6])
     .pipe(filter((v) => v % 2 == 0))
     .consume(async (self, value) => {
       await new Promise((r) => setTimeout(r, Math.random() * 1000));
@@ -217,11 +217,13 @@ function filterTest() {
 // filterTest();
 
 function resolveTest() {
-  new IterableStream([1, 2, 3, 4])
-    .pipe(map((v) => new Promise((r) => setTimeout(() => r(v), Math.random() * 600))))
+  const stream = fromIterable([1, 2, 3, 4])
+    .pipe(map((v) => new Promise((r) => setTimeout(() => r(v), Math.random() * 1000))))
     .pipe(resolve())
     .pipe(tap((value) => console.log(value)))
     .pipe(pump());
+
+  stream.traversal.$tap.$resolve.$map.$iterable;
 }
 
 resolveTest();
