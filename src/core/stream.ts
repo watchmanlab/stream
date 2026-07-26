@@ -1,10 +1,10 @@
 import { Consumer } from "./consumer";
-import type { AnyStream, Closable, NonEmptyString, Queue, Source, Transform } from "./types";
+import type { Closable, NonEmptyString, Queue, Source, Transform } from "./types";
 
 import { Transformer } from "./transformer";
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, Closable<NAME> {
-  protected _options: Stream.Options<any, any>;
+  protected _options: Stream.Options<VALUE, NAME>;
   private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _state: Stream.State;
   private _pulling: boolean;

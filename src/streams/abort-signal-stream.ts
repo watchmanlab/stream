@@ -2,10 +2,7 @@ import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
 export class AbortSignalStream<NAME extends NonEmptyString = "$abortSignal"> extends Stream<void, NAME> {
-  constructor(
-    public readonly signal: AbortSignal,
-    options?: Stream.Options<void, NAME>,
-  ) {
+  constructor(signal: AbortSignal, options?: Stream.Options<void, NAME>) {
     let abortController = new AbortController();
 
     super({
@@ -30,4 +27,10 @@ export class AbortSignalStream<NAME extends NonEmptyString = "$abortSignal"> ext
       },
     );
   }
+}
+export function fromAbortSignal<NAME extends NonEmptyString = "$abortSignal">(
+  signal: AbortSignal,
+  options?: Stream.Options<void, NAME>,
+): AbortSignalStream<NAME> {
+  return new AbortSignalStream(signal, options);
 }

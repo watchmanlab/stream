@@ -4,6 +4,10 @@ import { map, Map } from "./transformers/map";
 import { IteratorStream } from "./streams/iterator-stream";
 import { IterableStream } from "./streams/iterable-stream";
 import { EventTargetStream } from "./streams/event-target-stream";
+import { filter } from "./transformers/filter";
+import { resolve } from "./transformers/resolve";
+import { tap } from "./transformers/tap";
+import { pump } from "./transformers/pump";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -176,7 +180,7 @@ function mapTest() {
   const stream = new Stream<number>();
 
   new IterableStream([1, 2, 3])
-    .pipe(map((v) => v.toString(), { source: new IterableStream(["a", "b", "c"]) }))
+    .pipe(map((v) => v.toString(), { name: "$map2", source: new IterableStream(["a", "b", "c"]) }))
     .consume((c, v) => {
       console.log(v);
       setTimeout(() => {
@@ -197,4 +201,27 @@ function mapTest() {
   // stream.push(2);
   // stream.push(3);
 }
-mapTest();
+// mapTest();
+
+function filterTest() {
+  new IterableStream([1, 2, 3, 4, 5, 6])
+    .pipe(filter((v) => v % 2 == 0))
+    .consume(async (self, value) => {
+      await new Promise((r) => setTimeout(r, Math.random() * 1000));
+      console.log(value);
+      self.next();
+    })
+    .next();
+}
+
+// filterTest();
+
+function resolveTest() {
+  new IterableStream([1, 2, 3, 4])
+    .pipe(map((v) => new Promise((r) => setTimeout(() => r(v), Math.random() * 600))))
+    .pipe(resolve())
+    .pipe(tap((value) => console.log(value)))
+    .pipe(pump());
+}
+
+resolveTest();
