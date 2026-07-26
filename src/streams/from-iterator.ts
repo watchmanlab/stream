@@ -1,11 +1,8 @@
 import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
-export class IteratorStream<VALUE, NAME extends NonEmptyString = "$iterator"> extends Stream<VALUE, NAME> {
-  constructor(
-    public readonly iterator: Iterator<VALUE> | (() => Iterator<VALUE>),
-    options?: Stream.Options<VALUE, NAME>,
-  ) {
+export class FromIterator<VALUE, NAME extends NonEmptyString = "$iterator"> extends Stream<VALUE, NAME> {
+  constructor(iterator: Iterator<VALUE> | (() => Iterator<VALUE>), options?: Stream.Options<VALUE, NAME>) {
     const iter = typeof iterator === "function" ? iterator() : iterator;
 
     super({
@@ -26,4 +23,11 @@ export class IteratorStream<VALUE, NAME extends NonEmptyString = "$iterator"> ex
       },
     });
   }
+}
+
+export function fromIterator<VALUE, NAME extends NonEmptyString = "$iterator">(
+  iterator: Iterator<VALUE> | (() => Iterator<VALUE>),
+  options?: Stream.Options<VALUE, NAME>,
+): FromIterator<VALUE, NAME> {
+  return new FromIterator(iterator, options);
 }

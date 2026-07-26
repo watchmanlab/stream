@@ -170,7 +170,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._options = {};
   }
 
-  pipe<OUTPUT extends Transformer<this, any, any>>(transform: Transform<this, OUTPUT>): OUTPUT {
+  pipe<OUTPUT extends Transformer<this, any, any> | this>(transform: Transform<this, OUTPUT>): OUTPUT {
     return transform(this);
   }
 }

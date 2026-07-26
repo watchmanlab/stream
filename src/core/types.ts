@@ -44,25 +44,25 @@ export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> 
 export type AnySource = Source<any>;
 export type AnyStream = Stream<any, any>;
 export type AnyConsumer = Consumer<any>;
-export type AnyTransformer = Transformer<AnyStream, any, any>;
+export type AnyTransformer = Transformer<any, any, any>;
 
 ////////////////////////
-
+// | (`$${string}` & {})
 export type ExtractInputStream<T extends AnyTransformer> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
-export type Traversal<T extends AnyStream> = Record<T["name"] | (`$${string}` & {}), Traversable<T>>;
+export type Traversal<T extends AnyStream> = Record<T["name"], Traversable<T>>;
 export type Traversable<T extends AnyStream> = T extends AnyTransformer
   ? Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>
   : T;
 ////////////
 
 export type ExtractValue<T> = T extends
+  | Source<infer VALUE>
   | Transformer<any, infer VALUE, any>
   | Stream<infer VALUE, any>
-  | Source<infer VALUE>
   | Consumer<infer VALUE>
   | Promise<infer VALUE>
   ? VALUE
-  : never;
+  : T;
 
 export type Transform<INPUT extends AnyStream, OUTPUT extends Transformer<INPUT, any, any> | INPUT> = (
   input: INPUT,
