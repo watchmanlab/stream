@@ -25,7 +25,7 @@ export class Consumer<VALUE> {
     return this._queue;
   }
 
-  push(value: VALUE) {
+  push(value: VALUE): this {
     const { _queue } = this;
     if (this._counter > 0 && _queue.size === 0) {
       this._handler(this, value);
@@ -34,19 +34,20 @@ export class Consumer<VALUE> {
       _queue.enqueue(value);
       this._options.enqueue?.(this, value);
     }
+    return this;
   }
 
-  next(): void {
+  next(): this {
     this._counter++;
     const { _queue } = this;
 
     if (_queue.size === 0) {
       this._options.next?.(this);
 
-      return;
+      return this;
     }
 
-    if (this._counter > 1) return;
+    if (this._counter > 1) return this;
 
     while (this._counter > 0) {
       const value = _queue.dequeue();
@@ -64,21 +65,22 @@ export class Consumer<VALUE> {
       this._handler(this, value);
       this._counter--;
     }
+    return this;
   }
 
-  terminate(reason: "abort" | "complete"): void {
+  terminate(reason: "abort" | "complete"): this {
     this.push = () => this;
     if (reason === "abort") {
-      this.next = this.terminate = () => {};
+      this.next = this.terminate = () => this;
       this._state = "aborted";
       this._queue.clear();
     } else if (this._queue.size) {
       this._state = "draining";
       this._options.drain?.(this);
 
-      return;
+      return this;
     } else {
-      this.next = this.terminate = () => {};
+      this.next = this.terminate = () => this;
       this._state = "completed";
     }
 
@@ -86,6 +88,8 @@ export class Consumer<VALUE> {
 
     this._handler = () => {};
     this._options = {};
+
+    return this;
   }
 }
 

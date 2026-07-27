@@ -40,7 +40,7 @@ export class AuditTime<
 export function auditTime<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "auditTime",
+  NAME extends NonEmptyString = "$auditTime",
 >(ms: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, AuditTime<INPUT, VALUE, NAME>> {
   return (input) => new AuditTime(input, ms, options);
 }

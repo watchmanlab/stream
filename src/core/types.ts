@@ -30,8 +30,8 @@ export interface Source<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
 
-export interface Closable<NAME extends NonEmptyString> {
-  readonly $terminate: Stream<"abort" | "complete", `${NAME}Terminate`>;
+export interface Closable {
+  readonly $terminate: Stream<"abort" | "complete", any>;
   terminate(reason: "abort" | "complete"): void;
 }
 

@@ -3,7 +3,7 @@ import type { Closable, NonEmptyString, Queue, Source, Transform } from "./types
 
 import { Transformer } from "./transformer";
 
-export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, Closable<NAME> {
+export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, Closable {
   protected _options: Stream.Options<VALUE, NAME>;
   private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _state: Stream.State;
@@ -12,7 +12,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   constructor(options?: Stream.Options<VALUE, NAME>) {
     const _options = { ...options };
 
-    const scopeConsumer = _options.scope?.$terminate.consume((_, reason) => this.terminate(reason));
+    const scopeConsumer = _options.scope?.$terminate.consume((_, reason) => this.terminate(reason)).next();
+
     const sourceConsumer = _options.source?.consume((_, value) => this.push(value), {
       terminate: (_, reason) => this.terminate(reason),
     });
@@ -55,27 +56,28 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     return this._state;
   }
   get $push(): Stream<VALUE, `${NAME}Push`> {
-    this._options.$push ??= new Stream();
+    this._options.$push ??= new Stream({ scope: this });
     return new Stream({ name: `${this.name}Push`, source: this._options.$push });
   }
   get $next(): Stream<Consumer<VALUE>, `${NAME}Next`> {
-    this._options.$next ??= new Stream();
+    this._options.$next ??= new Stream({ scope: this });
     return new Stream({ name: `${this.name}Next`, source: this._options.$next });
   }
   get $drain(): Stream<void, `${NAME}Drain`> {
-    this._options.$drain ??= new Stream();
+    this._options.$drain ??= new Stream({ scope: this });
     return new Stream({ name: `${this.name}Drain`, source: this._options.$drain });
   }
+
   get $terminate(): Stream<"abort" | "complete", `${NAME}Terminate`> {
-    this._options.$terminate ??= new Stream();
+    this._options.$terminate ??= new Stream(); // will be terminated manually to avoid circular termination
     return new Stream({ name: `${this.name}Terminate`, source: this._options.$terminate });
   }
   get $consumerJoin(): Stream<Consumer<VALUE>, `${NAME}ConsumerJoin`> {
-    this._options.$consumerJoin ??= new Stream();
+    this._options.$consumerJoin ??= new Stream({ scope: this });
     return new Stream({ name: `${this.name}ConsumerJoin`, source: this._options.$consumerJoin });
   }
   get $consumerLeft(): Stream<Consumer<VALUE>, `${NAME}ConsumerLeft`> {
-    this._options.$consumerLeft ??= new Stream();
+    this._options.$consumerLeft ??= new Stream({ scope: this });
     return new Stream({ name: `${this.name}ConsumerLeft`, source: this._options.$consumerLeft });
   }
   private _optimizePush(): void {
@@ -172,13 +174,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       consumer.terminate(reason);
     }
 
-    this._options.$next?.terminate(reason);
-    this._options.$drain?.terminate(reason);
-    this._options.$consumerJoin?.terminate(reason);
-    this._options.$consumerLeft?.terminate(reason);
-
     this._options.$terminate?.push(reason);
-    this._options.$terminate?.terminate(reason);
+    this._options.$terminate?.terminate(reason); // terminate it even if it's not owned
     this._options.terminate?.(this, reason);
 
     this._options = {};
@@ -195,7 +192,7 @@ export namespace Stream {
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Options<VALUE, NAME extends NonEmptyString> = {
     name?: NAME;
-    scope?: Closable<any>;
+    scope?: Closable;
     source?: Source<VALUE>;
     queueFactory?: QueueFactory<VALUE>;
     push?: (self: Stream<VALUE, NAME>, value: VALUE) => void;

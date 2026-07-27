@@ -207,14 +207,20 @@ function mapTest() {
 // mapTest();
 
 function filterTest() {
-  fromIterable([1, 2, 3, 4, 5, 6])
+  const stream = new Stream<number>();
+  stream
     .pipe(filter((v) => v % 2 == 0))
-    .consume(async (self, value) => {
-      await new Promise((r) => setTimeout(r, Math.random() * 1000));
-      console.log(value);
-      self.next();
-    })
-    .next();
+    .pipe(tap((value) => console.log(value)))
+    .pipe(pump())
+    .traversal.$tap.$filter.$rejected.pipe(tap((v) => console.log("rejected", v)))
+    .pipe(pump());
+
+  stream.push(1);
+  stream.push(2);
+  stream.push(3);
+  stream.push(4);
+  stream.push(5);
+  stream.push(6);
 }
 
 // filterTest();
@@ -233,19 +239,23 @@ function resolveTest() {
 
 function auditTimeTest() {
   fromAsyncGenerator(async function* () {
-    // await new Promise((r) => setTimeout(r, 400));
     yield 1;
-    // await new Promise((r) => setTimeout(r, 200));
     yield 2;
-    // await new Promise((r) => setTimeout(r, 600));
     yield 3;
   })
+    .pipe(passive())
     .pipe(auditTime(500))
-    .pipe(tap((v) => console.log(v)))
+    .pipe(tap((v) => console.log("audit", v)))
+    .pipe(pump())
+    .traversal.$tap.$auditTime.$passive.$asyncGenerator.pipe(tap((v) => console.log("driver", v)))
     .pipe(pump());
 }
 
-// auditTimeTest();
+auditTimeTest();
+// driver 1
+// driver 2
+// driver 3
+// audit 1
 
 function passiveTest() {
   const stream = fromAsyncGenerator(async function* () {
@@ -253,20 +263,21 @@ function passiveTest() {
     yield 2;
     yield 3;
   });
-  const passivePipeline = stream
+  const activePipeline = stream
+    .pipe(map((v) => v * 100))
+    .pipe(tap((v) => console.log("active pipeline", v)))
+    .pipe(pump());
+
+  const passivePipeline = activePipeline.traversal.$tap.$map.$asyncGenerator
     .pipe(passive())
     .pipe(tap((v) => console.log("passive pipeline", v)))
     .pipe(pump());
-  const activePipeline = stream
-    .pipe(map((v) => v.toString()))
-    .pipe(tap((v) => console.log("active pipeline", v)))
-    .pipe(pump());
 }
 
-passiveTest();
+// passiveTest();
 // passive pipeline 1
-// active pipeline 1
+// active pipeline 100
 // passive pipeline 2
-// active pipeline 2
+// active pipeline 200
 // passive pipeline 3
-// active pipeline 3
+// active pipeline 300
