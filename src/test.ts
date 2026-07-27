@@ -252,19 +252,21 @@ function passiveTest() {
     yield 1;
     yield 2;
     yield 3;
-  }); //new Stream<number>();
-  stream
+  });
+  const passivePipeline = stream
     .pipe(passive())
-    .pipe(tap((v) => console.log("passive", v)))
+    .pipe(tap((v) => console.log("passive pipeline", v)))
     .pipe(pump());
-  stream
+  const activePipeline = stream
     .pipe(map((v) => v.toString()))
-    .pipe(tap((v) => console.log("main pipeline", v)))
+    .pipe(tap((v) => console.log("active pipeline", v)))
     .pipe(pump());
-
-  // stream.push(1);
-  // stream.push(2);
-  // stream.push(3);
 }
 
 passiveTest();
+// passive pipeline 1
+// active pipeline 1
+// passive pipeline 2
+// active pipeline 2
+// passive pipeline 3
+// active pipeline 3
