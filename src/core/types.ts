@@ -5,7 +5,7 @@ import type { Transformer } from "./transformer";
 
 export interface Queue<VALUE> extends Iterable<VALUE>, Disposable {
   enqueue(value: VALUE): void;
-  dequeue(): VALUE | Queue.Empty;
+  dequeue(): VALUE | Empty;
   values(): Queue.Iterator<VALUE>;
   clear(): void;
   readonly size: number;
@@ -22,10 +22,10 @@ export namespace Queue {
           done: true;
         };
   }
-  export const EMPTY = Symbol.for("empty");
-  export type Empty = typeof EMPTY;
 }
 
+export const EMPTY = Symbol.for("empty");
+export type Empty = typeof EMPTY;
 export interface Source<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }

@@ -8,6 +8,9 @@ import { filter } from "./transformers/filter";
 import { resolve } from "./transformers/resolve";
 import { tap } from "./transformers/tap";
 import { pump } from "./transformers/pump";
+import { auditTime } from "./transformers/audit-time";
+import { fromAsyncGenerator } from "./streams/from-async-generator";
+import { passive } from "./transformers/passive";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -218,7 +221,7 @@ function filterTest() {
 
 function resolveTest() {
   const stream = fromIterable([1, 2, 3, 4])
-    .pipe(map((v) => new Promise((r) => setTimeout(() => r(v), Math.random() * 1000))))
+    .pipe(map((v) => new Promise<number>((r) => setTimeout(() => r(v), Math.random() * 1000))))
     .pipe(resolve())
     .pipe(tap((value) => console.log(value)))
     .pipe(pump());
@@ -226,4 +229,42 @@ function resolveTest() {
   stream.traversal.$tap.$resolve.$map.$iterable;
 }
 
-resolveTest();
+// resolveTest();
+
+function auditTimeTest() {
+  fromAsyncGenerator(async function* () {
+    // await new Promise((r) => setTimeout(r, 400));
+    yield 1;
+    // await new Promise((r) => setTimeout(r, 200));
+    yield 2;
+    // await new Promise((r) => setTimeout(r, 600));
+    yield 3;
+  })
+    .pipe(auditTime(500))
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump());
+}
+
+// auditTimeTest();
+
+function passiveTest() {
+  const stream = fromAsyncGenerator(async function* () {
+    yield 1;
+    yield 2;
+    yield 3;
+  }); //new Stream<number>();
+  stream
+    .pipe(passive())
+    .pipe(tap((v) => console.log("passive", v)))
+    .pipe(pump());
+  stream
+    .pipe(map((v) => v.toString()))
+    .pipe(tap((v) => console.log("main pipeline", v)))
+    .pipe(pump());
+
+  // stream.push(1);
+  // stream.push(2);
+  // stream.push(3);
+}
+
+passiveTest();
