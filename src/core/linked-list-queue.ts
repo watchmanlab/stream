@@ -1,4 +1,4 @@
-import { Queue } from "./types";
+import { EMPTY, Empty, Queue } from "./types";
 
 export class LinkedListQueue<VALUE> implements Queue<VALUE> {
   private _head?: LinkedListQueue.Node<VALUE>;
@@ -21,7 +21,7 @@ export class LinkedListQueue<VALUE> implements Queue<VALUE> {
           cursor = cursor.next;
           return { value };
         } else {
-          return { value: Queue.EMPTY, done: true };
+          return { value: EMPTY, done: true };
         }
       },
     };
@@ -40,8 +40,8 @@ export class LinkedListQueue<VALUE> implements Queue<VALUE> {
       this._tail = node;
     }
   }
-  dequeue(): VALUE | Queue.Empty {
-    if (!this._head) return Queue.EMPTY;
+  dequeue(): VALUE | Empty {
+    if (!this._head) return EMPTY;
 
     this._size--;
     const value = this._head.value;

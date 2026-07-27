@@ -54,6 +54,10 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   get state() {
     return this._state;
   }
+  get $push(): Stream<VALUE, `${NAME}Push`> {
+    this._options.$push ??= new Stream();
+    return new Stream({ name: `${this.name}Push`, source: this._options.$push });
+  }
   get $next(): Stream<Consumer<VALUE>, `${NAME}Next`> {
     this._options.$next ??= new Stream();
     return new Stream({ name: `${this.name}Next`, source: this._options.$next });
@@ -78,12 +82,18 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     const consumers = this._consumers;
     switch (consumers.size) {
       case 0:
-        this.push = () => (this._pulling = false);
+        this.push = (value) => {
+          this._pulling = false;
+          this._options.push?.(this, value);
+          this._options.$push?.push(value);
+        };
         break;
       case 1:
         const consumer = consumers.values().next().value!;
         this.push = (value) => {
           this._pulling = false;
+          this._options.push?.(this, value);
+          this._options.$push?.push(value);
           consumer.push(value);
         };
         break;
@@ -91,6 +101,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
         this.push = (value) => {
           this._pulling = false;
           for (const consumer of consumers.values()) {
+            this._options.push?.(this, value);
+            this._options.$push?.push(value);
             consumer.push(value);
           }
         };
@@ -98,6 +110,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   }
   push(value: VALUE): void {
     this._pulling = false;
+    this._options.push?.(this, value);
+    this._options.$push?.push(value);
   }
 
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
@@ -184,11 +198,13 @@ export namespace Stream {
     scope?: Closable<any>;
     source?: Source<VALUE>;
     queueFactory?: QueueFactory<VALUE>;
+    push?: (self: Stream<VALUE, NAME>, value: VALUE) => void;
     next?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
     drain?: (self: Stream<VALUE, NAME>) => void;
     terminate?: (self: Stream<VALUE, NAME>, reason: "abort" | "complete") => void;
     consumerJoin?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
     consumerLeft?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+    $push?: Stream<VALUE, any>;
     $next?: Stream<Consumer<VALUE>, any>;
     $drain?: Stream<void, any>;
     $terminate?: Stream<"abort" | "complete", any>;
