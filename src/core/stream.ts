@@ -6,7 +6,7 @@ import { Transformer } from "./transformer";
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, Closable {
   protected _options: Stream.Options<VALUE, NAME>;
   private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
-  private _state: Stream.State;
+  private _status: Stream.Status;
   private _pulling: boolean;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
@@ -32,7 +32,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     };
 
     this._consumers = new Map();
-    this._state = "active";
+    this._status = "active";
     this._pulling = false;
   }
   get name(): NAME {
@@ -52,8 +52,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       },
     };
   }
-  get state() {
-    return this._state;
+  get status() {
+    return this._status;
   }
   get $push(): Stream<VALUE, `${NAME}Push`> {
     this._options.$push ??= new Stream({ scope: this });
@@ -67,7 +67,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._options.$drain ??= new Stream({ scope: this });
     return new Stream({ name: `${this.name}Drain`, source: this._options.$drain });
   }
-
   get $terminate(): Stream<"abort" | "complete", `${NAME}Terminate`> {
     this._options.$terminate ??= new Stream(); // will be terminated manually to avoid circular termination
     return new Stream({ name: `${this.name}Terminate`, source: this._options.$terminate });
@@ -88,6 +87,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           this._pulling = false;
           this._options.push?.(this, value);
           this._options.$push?.push(value);
+          return this;
         };
         break;
       case 1:
@@ -97,6 +97,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           this._options.push?.(this, value);
           this._options.$push?.push(value);
           consumer.push(value);
+          return this;
         };
         break;
       default:
@@ -107,15 +108,16 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
             this._options.$push?.push(value);
             consumer.push(value);
           }
+          return this;
         };
     }
   }
-  push(value: VALUE): void {
+  push(value: VALUE): this {
     this._pulling = false;
     this._options.push?.(this, value);
     this._options.$push?.push(value);
+    return this;
   }
-
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     if (this._consumers.has(handler)) return this._consumers.get(handler)!;
 
@@ -142,7 +144,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
 
         this._options.consumerLeft?.(this, self);
         this._options.$consumerLeft?.push(self);
-        if (this._consumers.size === 0 && this._state === "drain") this.terminate("complete");
+        if (this._consumers.size === 0 && this._status === "drain") this.terminate("complete");
       },
     });
 
@@ -154,40 +156,38 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
 
     return consumer;
   }
-
-  terminate(reason: "abort" | "complete"): void {
-    this.push = () => {};
+  terminate(reason: "abort" | "complete"): this {
+    this.push = () => this;
     if (reason === "abort") {
-      this.terminate = () => {};
-      this._state = "aborted";
+      this.terminate = () => this;
+      this._status = "aborted";
     } else if (this._consumers.size) {
-      this._state = "drain";
+      this._status = "drain";
       this._options.drain?.(this);
       this._options.$drain?.push();
-      return;
+      for (const consumer of this._consumers.values()) {
+        consumer.terminate(reason);
+      }
+
+      return this;
     } else {
-      this.terminate = () => {};
-      this._state = "completed";
+      this.terminate = () => this;
+      this._status = "completed";
     }
-
-    for (const consumer of this._consumers.values()) {
-      consumer.terminate(reason);
-    }
-
     this._options.$terminate?.push(reason);
     this._options.$terminate?.terminate(reason); // terminate it even if it's not owned
     this._options.terminate?.(this, reason);
 
-    this._options = {};
+    this._options = { name: this._options.name };
+    return this;
   }
-
   pipe<OUTPUT extends Transformer<this, any, any> | this>(transform: Transform<this, OUTPUT>): OUTPUT {
     return transform(this);
   }
 }
 
 export namespace Stream {
-  export type State = "active" | "drain" | "aborted" | "completed";
+  export type Status = "active" | "drain" | "aborted" | "completed";
 
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Options<VALUE, NAME extends NonEmptyString> = {

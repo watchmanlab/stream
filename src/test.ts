@@ -11,6 +11,8 @@ import { pump } from "./transformers/pump";
 import { auditTime } from "./transformers/audit-time";
 import { fromAsyncGenerator } from "./streams/from-async-generator";
 import { passive } from "./transformers/passive";
+import { auditCount } from "./transformers/audit-count";
+import { take } from "./transformers/take";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -251,7 +253,7 @@ function auditTimeTest() {
     .pipe(pump());
 }
 
-auditTimeTest();
+// auditTimeTest();
 // driver 1
 // driver 2
 // driver 3
@@ -281,3 +283,27 @@ function passiveTest() {
 // active pipeline 200
 // passive pipeline 3
 // active pipeline 300
+
+function auditCountTest() {
+  const stream = new Stream<number>();
+  stream.pipe(tap((v) => console.log(v))).pipe(pump());
+  stream
+    .pipe(passive())
+    .pipe(auditCount(2))
+    .pipe(tap((v) => console.log("p", v)))
+    .pipe(pump());
+
+  stream.push(1).push(2).push(3).push(4).push(5).push(55);
+}
+// auditCountTest();
+
+function takeTest() {
+  const v = fromIterable([1, 2, 3, 4])
+    .pipe(take(3))
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump());
+
+  v.traversal.$tap.$take.$iterable.pipe(tap((v) => console.log("continue", v))).pipe(pump());
+}
+
+takeTest();

@@ -8,7 +8,7 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
   protected _input: INPUT;
 
   constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
-    super(options);
+    super({ ...options, scope: input });
 
     this._input = input;
 
