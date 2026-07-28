@@ -1,9 +1,18 @@
 import { Consumer } from "./consumer";
-import type { StreamableClosable, NonEmptyString, Queue, Source, Transform, AnyStream } from "./types";
+import type {
+  TerminableStreamable,
+  NonEmptyString,
+  Queue,
+  Source,
+  Transform,
+  AnyStream,
+  TerminateReason,
+} from "./types";
 
 import { Transformer } from "./transformer";
 
-export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, StreamableClosable {
+export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, TerminableStreamable {
+  private _name: NAME;
   protected _options: Stream.Options<VALUE, NAME>;
   private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _status: Stream.Status;
@@ -12,19 +21,29 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   constructor(options?: Stream.Options<VALUE, NAME>) {
     options = { ...options };
 
-    let terminateReason: "abort" | "complete" | undefined = undefined;
+    this._name = options.name ?? ("$root" as NAME);
+    this._consumers = new Map();
+    this._status = "active";
+    this._pulling = false;
 
-    const scopeConsumers = [...new Set(options.scope ?? [])].map((stream) => {
-      if (stream.status === "abort" || stream.status === "complete") terminateReason = stream.status;
-      return stream.$terminate.consume((_, reason) => this.terminate(reason)).next();
-    });
+    let terminateReason: TerminateReason | undefined = undefined;
+
+    const scopeConsumers: Consumer<TerminateReason>[] = [];
+
+    for (const stream of [...new Set(options.scope)]) {
+      if (stream.status === "abort" || stream.status === "complete") {
+        terminateReason = stream.status;
+        break;
+      }
+      scopeConsumers.push(stream.$terminate.consume((_, reason) => this.terminate(reason)).next());
+    }
 
     let sourceConsumer = options.source?.consume((_, value) => this.push(value), {
       terminate: (_, reason) => this.terminate(reason),
     });
 
     this._options = terminateReason
-      ? { name: options.name }
+      ? {}
       : {
           ...options,
           next: (self, consumer) => {
@@ -40,19 +59,16 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           },
         };
 
-    this._consumers = new Map();
-    this._status = "active";
-    this._pulling = false;
-
     if (terminateReason) {
       this._status = terminateReason;
       this.push = this.terminate = () => this;
+      this.consume = (handler, options) => new Consumer(handler, options).terminate(terminateReason!);
       scopeConsumers.forEach((consumer) => consumer.terminate(terminateReason!));
       scopeConsumers.length = 0;
     }
   }
   get name(): NAME {
-    return this._options.name ?? ("$root" as NAME);
+    return this._name;
   }
   get consumers() {
     const self = this;
@@ -83,7 +99,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._options.$drain ??= new Stream({ scope: [this] });
     return new Stream({ name: `${this.name}Drain`, source: this._options.$drain });
   }
-  get $terminate(): Stream<"abort" | "complete", `${NAME}Terminate`> {
+  get $terminate(): Stream<TerminateReason, `${NAME}Terminate`> {
     this._options.$terminate ??= new Stream(); // will be terminated manually to avoid circular termination
     return new Stream({
       name: `${this.name}Terminate`,
@@ -181,8 +197,10 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
 
     return consumer;
   }
-  terminate(reason: "abort" | "complete"): this {
+  terminate(reason: TerminateReason): this {
     this.push = () => this;
+    this.consume = (handler, options) => new Consumer(handler, options).terminate(reason);
+
     if (reason === "abort") {
       this.terminate = () => this;
       this._status = "abort";
@@ -203,7 +221,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._options?.$terminate?.terminate(reason); // terminate it even if it's not owned
     this._options?.terminate?.(this, reason);
 
-    this._options = { name: this._options?.name };
+    this._options = {};
     return this;
   }
   pipe<OUTPUT extends Transformer<this, any, any> | this>(transform: Transform<this, OUTPUT>): OUTPUT {
@@ -212,7 +230,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
 }
 
 export namespace Stream {
-  export type Status = "active" | "drain" | "abort" | "complete";
+  export type Status = "active" | "drain" | TerminateReason;
 
   export type QueueFactory<VALUE> = () => Queue<VALUE>;
   export type Options<VALUE, NAME extends NonEmptyString> = {
@@ -223,13 +241,13 @@ export namespace Stream {
     push?: (self: Stream<VALUE, NAME>, value: VALUE) => void;
     next?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
     drain?: (self: Stream<VALUE, NAME>) => void;
-    terminate?: (self: Stream<VALUE, NAME>, reason: "abort" | "complete") => void;
+    terminate?: (self: Stream<VALUE, NAME>, reason: TerminateReason) => void;
     consumerJoin?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
     consumerLeft?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
     $push?: Stream<VALUE, any>;
     $next?: Stream<Consumer<VALUE>, any>;
     $drain?: Stream<void, any>;
-    $terminate?: Stream<"abort" | "complete", any>;
+    $terminate?: Stream<TerminateReason, any>;
     $consumerJoin?: Stream<Consumer<VALUE>, any>;
     $consumerLeft?: Stream<Consumer<VALUE>, any>;
   };

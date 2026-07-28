@@ -29,12 +29,14 @@ export type Empty = typeof EMPTY;
 export interface Source<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
-export interface Closable {
-  terminate(reason: "abort" | "complete"): void;
+export type TerminateReason = "abort" | "complete";
+export interface Terminable {
+  readonly status: TerminateReason | (string & {});
+  terminate(reason: TerminateReason): void;
 }
 
-export interface StreamableClosable extends Closable {
-  readonly $terminate: Stream<"abort" | "complete", any>;
+export interface TerminableStreamable extends Terminable {
+  readonly $terminate: Stream<TerminateReason, any>;
 }
 export type NonEmptyString = `${any}${string}`;
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;

@@ -40,7 +40,7 @@ export class Pump<
     this._inputConsumer.next();
   }
 
-  stop(reason: "abort" | "complete") {
+  stop(reason: TerminateReason) {
     if (!this._inputConsumer) return;
 
     this._inputConsumer?.terminate(reason);
@@ -75,8 +75,8 @@ export namespace Pump {
   > = Stream.Options<VALUE, NAME> & {
     autoStart?: boolean;
     start?: (self: Pump<INPUT, VALUE, NAME>) => void;
-    stop?: (self: Pump<INPUT, VALUE, NAME>, reason: "abort" | "complete") => void;
+    stop?: (self: Pump<INPUT, VALUE, NAME>, reason: TerminateReason) => void;
     $start?: Stream<void, any>;
-    $stop?: Stream<"abort" | "complete", any>;
+    $stop?: Stream<TerminateReason, any>;
   };
 }
