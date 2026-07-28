@@ -25,7 +25,7 @@ export class Audit<
 
     super(input, {
       ...options,
-      scope: notifier,
+      scope: [notifier],
       name: options?.name ?? ("$audit" as NAME),
       terminate(self, reason) {
         notifierConsumer.terminate(reason);

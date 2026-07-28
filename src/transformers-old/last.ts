@@ -15,7 +15,7 @@ export class Last<
         });
         return () => signal.emit();
       },
-      aborted: () => {
+      abort: () => {
         this.emit(last);
       },
     });

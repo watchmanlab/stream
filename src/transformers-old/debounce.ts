@@ -24,7 +24,7 @@ export class Debounce<INPUT extends Mitto.AnyMitto, NAME extends string = deboun
           clearTimeout(timer);
         };
       },
-      aborted: () => clearTimeout(timer),
+      abort: () => clearTimeout(timer),
     });
   }
 }

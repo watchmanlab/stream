@@ -29,12 +29,13 @@ export type Empty = typeof EMPTY;
 export interface Source<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
-
 export interface Closable {
-  readonly $terminate: Stream<"abort" | "complete", any>;
   terminate(reason: "abort" | "complete"): void;
 }
 
+export interface StreamableClosable extends Closable {
+  readonly $terminate: Stream<"abort" | "complete", any>;
+}
 export type NonEmptyString = `${any}${string}`;
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE

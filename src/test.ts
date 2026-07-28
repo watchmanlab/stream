@@ -13,6 +13,12 @@ import { fromAsyncGenerator } from "./streams/from-async-generator";
 import { passive } from "./transformers/passive";
 import { auditCount } from "./transformers/audit-count";
 import { take } from "./transformers/take";
+import { skip } from "./transformers/skip";
+import { replay } from "./transformers/replay";
+import { tick } from "./transformers/tick";
+import { takeWhile } from "./transformers/take-while";
+import { takeUntil } from "./transformers/take-until";
+import { takeWith } from "./transformers/take-with";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -138,12 +144,13 @@ function streamTest() {
 // c1 3
 
 function fromIteratorTest() {
-  fromIterator([1, 2, 3].values())
-    .consume((c, v) => {
-      console.log("c1", v);
-      c.next();
-    })
-    .next();
+  fromIterator([1, 2, 3].values(), { name: "$list" })
+    .pipe(tick())
+    .pipe(tap((v) => console.log("first", v)))
+    .pipe(pump())
+    .traversal.$tap.$tick.$list.pipe(passive())
+    .pipe(tap((v) => console.log("sec", v)))
+    .pipe(pump());
 }
 
 // fromIteratorTest();
@@ -306,4 +313,63 @@ function takeTest() {
   v.traversal.$tap.$take.$iterable.pipe(tap((v) => console.log("continue", v))).pipe(pump());
 }
 
-takeTest();
+// takeTest();
+
+function skipTest() {
+  const v = fromIterable([1, 2, 3, 4])
+    .pipe(skip(3))
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump());
+}
+
+// skipTest();
+
+function replayTest() {
+  const stream = new Stream();
+  const replayed = stream.pipe(replay([55, 66]));
+  replayed.pipe(tap((v) => console.log(v))).pipe(pump());
+  replayed.pipe(tap((v) => console.log(v))).pipe(pump());
+
+  stream.push(1);
+}
+// replayTest();
+
+function takeWhileTest() {
+  fromIterable([1, 2, 3, 4])
+    .pipe(takeWhile((v) => v < 3))
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump());
+}
+
+// takeWhileTest();
+function takeUntilTest() {
+  fromIterable([1, 2, 3, 4])
+    .pipe(takeUntil((v) => v > 3))
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump());
+}
+
+// takeUntilTest();
+function takeWhithTest() {
+  const notifier = new Stream();
+  notifier.terminate("abort");
+
+  notifier.$terminate.pipe(tap((v) => console.log("t1", v))).pipe(pump());
+  notifier.$terminate.pipe(tap((v) => console.log("t2", v))).pipe(pump());
+
+  setTimeout(() => notifier.terminate("abort"), 1400);
+
+  fromAsyncGenerator(async function* () {
+    await new Promise((r) => setTimeout(r, 500));
+    yield 1;
+    await new Promise((r) => setTimeout(r, 500));
+    yield 2;
+    await new Promise((r) => setTimeout(r, 500));
+    yield 3;
+  })
+    .pipe(takeWith(notifier))
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump());
+}
+
+takeWhithTest();

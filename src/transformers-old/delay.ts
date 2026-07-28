@@ -20,7 +20,7 @@ export class Delay<INPUT extends Mitto.AnyMitto, NAME extends string = delay.Nam
 
         return () => signal.emit();
       },
-      aborted: () => clearTimeout(timer),
+      abort: () => clearTimeout(timer),
     });
   }
 }

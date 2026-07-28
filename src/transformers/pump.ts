@@ -11,19 +11,21 @@ export class Pump<
   declare protected _options: Pump.Options<INPUT, VALUE, NAME>;
   private _inputConsumer?: Consumer<VALUE>;
   constructor(input: INPUT, options?: Pump.Options<INPUT, VALUE, NAME>) {
+    const consumers = [
+      options?.$start?.consume((self) => (this.start(), self.next())).next(),
+      options?.$stop?.consume((self, reason) => (this.stop(reason), self.next())).next(),
+    ];
     super(input, {
       ...options,
       name: options?.name ?? ("$pump" as NAME),
       terminate: (self, reason) => {
         this.stop(reason);
+        consumers.forEach((consumer) => consumer?.terminate(reason));
         options?.terminate?.(self, reason);
       },
     });
 
     if (options?.autoStart !== false) this.start();
-
-    options?.$start?.consume((self) => (this.start(), self.next())).next();
-    options?.$stop?.consume((self, reason) => (this.stop(reason), self.next())).next();
   }
 
   start() {
@@ -48,11 +50,11 @@ export class Pump<
   }
 
   get $start() {
-    this._options.$start ??= new Stream({ scope: this });
+    this._options.$start ??= new Stream({ scope: [this] });
     return new Stream({ name: `${this.name}Start`, source: this._options.$start });
   }
   get $stop() {
-    this._options.$stop ??= new Stream({ scope: this });
+    this._options.$stop ??= new Stream({ scope: [this] });
     return new Stream({ name: `${this.name}Stop`, source: this._options.$stop });
   }
 }

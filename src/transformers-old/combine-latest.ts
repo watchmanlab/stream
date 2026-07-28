@@ -26,7 +26,7 @@ export class CombineLatest<
         return () => signals.forEach((signal) => signal.emit());
       },
 
-      aborted: () => {
+      abort: () => {
         mittos.length = 0;
         this._buffer.length = 0;
       },

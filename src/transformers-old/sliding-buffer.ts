@@ -19,7 +19,7 @@ export class SlidingBuffer<
         });
         return () => signal.emit();
       },
-      aborted: () => this._buffer.clear(),
+      abort: () => this._buffer.clear(),
     });
   }
   get buffer() {

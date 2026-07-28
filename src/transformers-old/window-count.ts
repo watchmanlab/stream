@@ -39,7 +39,7 @@ export class WindowCount<
 
         return () => signal.emit();
       },
-      aborted: () => {
+      abort: () => {
         for (const w of this._windows) {
           w.mitto.abort();
         }

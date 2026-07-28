@@ -8,10 +8,14 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
   protected _input: INPUT;
 
   constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
-    super({ ...options, scope: input });
+    options = { ...options };
+
+    super({
+      ...options,
+      scope: [input, ...(options.scope ?? [])],
+    });
 
     this._input = input;
-
     return new Proxy(this, {
       get(target, p, receiver) {
         if (p in target) return Reflect.get(target, p, receiver);

@@ -31,7 +31,7 @@ export class Throttle<INPUT extends Mitto.AnyMitto, NAME extends string = thrott
           clearTimeout(timer);
         };
       },
-      aborted: () => clearTimeout(timer),
+      abort: () => clearTimeout(timer),
     });
   }
 }

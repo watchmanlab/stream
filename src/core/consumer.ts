@@ -1,7 +1,7 @@
-import { Empty, EMPTY, Queue } from "./types";
+import { Closable, Empty, EMPTY, Queue } from "./types";
 import { LinkedListQueue } from "./linked-list-queue";
 
-export class Consumer<VALUE> {
+export class Consumer<VALUE> implements Closable {
   protected _options: Consumer.Options<VALUE>;
   private _status: Consumer.Status;
   private _queue: Queue<VALUE>;
@@ -32,7 +32,7 @@ export class Consumer<VALUE> {
       this._counter--;
     } else {
       _queue.enqueue(value);
-      this._options.enqueue?.(this, value);
+      this._options?.enqueue?.(this, value);
     }
     return this;
   }
@@ -42,7 +42,7 @@ export class Consumer<VALUE> {
     const { _queue } = this;
 
     if (_queue.size === 0) {
-      this._options.next?.(this);
+      this._options?.next?.(this);
 
       return this;
     }
@@ -51,13 +51,13 @@ export class Consumer<VALUE> {
 
     while (this._counter > 0) {
       const value = _queue.dequeue();
-      this._options.dequeue?.(this, value);
+      this._options?.dequeue?.(this, value);
 
       if (value === EMPTY) {
         if (this._status === "drain") {
           this.terminate("complete");
         } else {
-          this._options.next?.(this);
+          this._options?.next?.(this);
         }
         break;
       }
@@ -72,19 +72,19 @@ export class Consumer<VALUE> {
     this.push = () => this;
     if (reason === "abort") {
       this.next = this.terminate = () => this;
-      this._status = "aborted";
+      this._status = "abort";
       this._queue.clear();
     } else if (this._queue.size) {
       this._status = "drain";
-      this._options.drain?.(this);
+      this._options?.drain?.(this);
 
       return this;
     } else {
       this.next = this.terminate = () => this;
-      this._status = "completed";
+      this._status = "complete";
     }
 
-    this._options.terminate?.(this, reason);
+    this._options?.terminate?.(this, reason);
 
     this._handler = () => {};
     this._options = {};
@@ -94,7 +94,7 @@ export class Consumer<VALUE> {
 }
 
 export namespace Consumer {
-  export type Status = "active" | "drain" | "aborted" | "completed";
+  export type Status = "active" | "drain" | "abort" | "complete";
 
   export type Handler<VALUE> = (self: Consumer<VALUE>, value: VALUE) => void;
 

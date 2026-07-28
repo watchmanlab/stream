@@ -28,7 +28,7 @@ export class BufferWhen<
           s2.emit();
         };
       },
-      aborted: () => (this._buffer.length = 0),
+      abort: () => (this._buffer.length = 0),
     });
   }
   get buffer() {
