@@ -19,6 +19,8 @@ import { tick } from "./transformers/tick";
 import { takeWhile } from "./transformers/take-while";
 import { takeUntil } from "./transformers/take-until";
 import { takeWith } from "./transformers/take-with";
+import { merge } from "./transformers/merge";
+import { map$ } from "./transformers/map$";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -89,7 +91,7 @@ function streamBench() {
 
   const start = performance.now();
   const stream = new Stream<number>();
-  stream
+  const consumer = stream
     .consume((consumer, v) => {
       if (v === MAX) {
         console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
@@ -104,6 +106,8 @@ function streamBench() {
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);
   }
+
+  // consumer.next();
 }
 
 // streamBench(); //100 000 000 943 ms
@@ -346,13 +350,17 @@ function takeUntilTest() {
   fromIterable([1, 2, 3, 4])
     .pipe(takeUntil((v) => v > 3))
     .pipe(tap((v) => console.log(v)))
-    .pipe(pump());
+    .pipe(pump())
+    .pipe((input) => {
+      console.log(input.traversal.$tap.name);
+      return input;
+    });
 }
 
 // takeUntilTest();
 function takeWhithTest() {
   const notifier = new Stream();
-  notifier.terminate("abort");
+  // notifier.terminate("abort");
 
   notifier.$terminate.pipe(tap((v) => console.log("t1", v))).pipe(pump());
   notifier.$terminate.pipe(tap((v) => console.log("t2", v))).pipe(pump());
@@ -368,8 +376,69 @@ function takeWhithTest() {
     yield 3;
   })
     .pipe(takeWith(notifier))
+    .consume((self, value) => {
+      console.log(value);
+      self.next();
+    })
+    .next();
+}
+
+// takeWhithTest();
+
+function terminateTest() {
+  const notifier = new Stream();
+  notifier.terminate("complete");
+
+  const stream = new Stream({ $terminate: notifier.$terminate });
+
+  // console.log(stream.status);
+
+  stream
+    .consume((self, value) => {
+      console.log("value", value);
+      self.next();
+    })
+    .next();
+
+  stream.push(1).push(2);
+  // console.log(stream.status);
+
+  // stream.$terminate
+  //   .consume((self, reason) => {
+  //     console.log(reason);
+  //   })
+  //   .next();
+}
+// terminateTest();
+
+function mergeTest() {
+  const s1 = fromIterable([1, 2, 3]);
+  const s2 = fromIterable(["a", "b", "c"]);
+
+  s1.pipe(merge(s2))
+    .pipe(tick())
     .pipe(tap((v) => console.log(v)))
     .pipe(pump());
 }
 
-takeWhithTest();
+// mergeTest();
+
+function map$test() {
+  fromIterable([fromIterable([1, 2, 3])])
+    .pipe(map$((v) => v * 2))
+    .pipe(
+      tap((v) => {
+        v.consume((self, v) => {
+          console.log(v);
+          self.next();
+        }).next();
+        // v.pipe(tap((v) => console.log(v))).pipe(pump());
+      }),
+    )
+    .pipe(pump());
+}
+
+map$test();
+//2
+//4
+//6

@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, TerminateReason, Transform } from "../core/types";
 
 export class Pump<
   INPUT extends AnyStream,
@@ -50,11 +50,11 @@ export class Pump<
   }
 
   get $start() {
-    this._options.$start ??= new Stream({ scope: [this] });
+    this._options.$start ??= new Stream({ $terminate: this.$terminate });
     return new Stream({ name: `${this.name}Start`, source: this._options.$start });
   }
   get $stop() {
-    this._options.$stop ??= new Stream({ scope: [this] });
+    this._options.$stop ??= new Stream({ $terminate: this.$terminate });
     return new Stream({ name: `${this.name}Stop`, source: this._options.$stop });
   }
 }

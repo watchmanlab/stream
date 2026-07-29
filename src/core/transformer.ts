@@ -1,5 +1,5 @@
 import { Stream } from "./stream";
-import type { AnyStream, NonEmptyString, Traversal } from "./types";
+import type { AnyStream, NonEmptyString, TerminateReason, Traversal } from "./types";
 
 export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends NonEmptyString> extends Stream<
   VALUE,
@@ -10,10 +10,25 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
   constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
     options = { ...options };
 
+    const $terminate = new Stream<TerminateReason>();
+
     super({
       ...options,
-      scope: [input, ...(options.scope ?? [])],
+      $terminate: $terminate,
     });
+
+    input.$terminate
+      .consume((self, reason) => {
+        $terminate.push(reason);
+        $terminate.terminate(reason);
+      })
+      .next();
+    options.$terminate
+      ?.consume((self, reason) => {
+        $terminate.push(reason);
+        $terminate.terminate(reason);
+      })
+      .next();
 
     this._input = input;
     return new Proxy(this, {

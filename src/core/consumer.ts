@@ -17,34 +17,7 @@ export class Consumer<VALUE> implements Terminable {
 
     this._handler = handler;
 
-    let terminateReason: TerminateReason | undefined = undefined;
-
-    const scopeConsumers: Consumer<TerminateReason>[] = [];
-
-    for (const stream of [...new Set(options.scope)]) {
-      if (stream.status === "abort" || stream.status === "complete") {
-        terminateReason = stream.status as TerminateReason;
-        break;
-      }
-      scopeConsumers.push(stream.$terminate.consume((_, reason) => this.terminate(reason)).next());
-    }
-
-    this._options = terminateReason
-      ? {}
-      : {
-          ...options,
-          terminate(self, reason) {
-            scopeConsumers.forEach((consumer) => consumer.terminate(reason));
-            options.terminate?.(self, reason);
-          },
-        };
-
-    if (terminateReason) {
-      this._status = terminateReason;
-      this.push = this.next = this.terminate = this._handler = () => this;
-      scopeConsumers.forEach((consumer) => consumer.terminate(terminateReason!));
-      scopeConsumers.length = 0;
-    }
+    this._options = options;
   }
 
   get status() {
