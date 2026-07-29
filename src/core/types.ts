@@ -57,15 +57,27 @@ export type Traversable<T extends AnyStream> = T extends AnyTransformer
   ? Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>
   : T;
 ////////////
-
-export type ExtractValue<T> = T extends
-  | Source<infer VALUE>
-  | Transformer<any, infer VALUE, any>
-  | Stream<infer VALUE, any>
-  | Consumer<infer VALUE>
-  | Promise<infer VALUE>
-  ? VALUE
-  : T;
+export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
+  ? T extends
+      | Source<infer VALUE>
+      | Transformer<any, infer VALUE, any>
+      | Stream<infer VALUE, any>
+      | Consumer<infer VALUE>
+      | Promise<infer VALUE>
+      | Array<infer VALUE>
+      | Set<infer VALUE>
+    ? VALUE
+    : T
+  : T extends
+        | Source<infer VALUE>
+        | Transformer<any, infer VALUE, any>
+        | Stream<infer VALUE, any>
+        | Consumer<infer VALUE>
+        | Promise<infer VALUE>
+        | Array<infer VALUE>
+        | Set<infer VALUE>
+    ? ExtractValue<VALUE, DEPTH, [...COUNTER, any]>
+    : T;
 
 export type Transform<INPUT extends AnyStream, OUTPUT extends Transformer<INPUT, any, any> | INPUT> = (
   input: INPUT,

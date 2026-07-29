@@ -20,7 +20,8 @@ import { takeWhile } from "./transformers/take-while";
 import { takeUntil } from "./transformers/take-until";
 import { takeWith } from "./transformers/take-with";
 import { merge } from "./transformers/merge";
-import { map$ } from "./transformers/map$";
+import { mapBatch } from "./transformers/map-batch";
+import { flat } from "./transformers/flat";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -423,22 +424,24 @@ function mergeTest() {
 
 // mergeTest();
 
-function map$test() {
-  fromIterable([fromIterable([1, 2, 3])])
-    .pipe(map$((v) => v * 2))
-    .pipe(
-      tap((v) => {
-        v.consume((self, v) => {
-          console.log(v);
-          self.next();
-        }).next();
-        // v.pipe(tap((v) => console.log(v))).pipe(pump());
-      }),
-    )
+function mapBatchTest() {
+  fromIterable([[1, 2, 3]])
+    .pipe(mapBatch((v) => v * 2))
+    .pipe(flat())
+    .pipe(tap((v) => console.log(v)))
     .pipe(pump());
 }
 
-map$test();
+mapBatchTest();
 //2
 //4
 //6
+
+function flatTest() {
+  fromIterable([[[1, 2], [3]], [[4, 5, 6]]])
+    .pipe(flat(1))
+    .pipe(tap((v) => console.log(v)))
+    //         ^?
+    .pipe(pump());
+}
+// flatTest();
