@@ -27,7 +27,7 @@ export class Group<
 
         return () => signal.emit();
       },
-      aborted: () => (this._buffer.length = 0),
+      abort: () => (this._buffer.length = 0),
     });
   }
   get buffer(): ArrayIterator<VALUE> {

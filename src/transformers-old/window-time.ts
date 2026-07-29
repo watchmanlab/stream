@@ -35,7 +35,7 @@ export class WindowTime<
           }
         };
       },
-      aborted: () => {
+      abort: () => {
         for (const w of this._windows) {
           clearTimeout(w.timer);
           w.mitto.abort();

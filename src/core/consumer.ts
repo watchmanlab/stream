@@ -1,62 +1,65 @@
-import { Empty, EMPTY, Queue } from "./types";
+import { Terminable, Empty, EMPTY, Queue, TerminateReason, TerminableStreamable } from "./types";
 import { LinkedListQueue } from "./linked-list-queue";
 
-export class Consumer<VALUE> {
+export class Consumer<VALUE> implements Terminable {
   protected _options: Consumer.Options<VALUE>;
-  private _state: Consumer.State;
+  private _status: Consumer.Status;
   private _queue: Queue<VALUE>;
   private _counter: number;
 
   private _handler: Consumer.Handler<VALUE>;
 
   constructor(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>) {
-    this._options = { ...options };
-    this._state = "active";
+    options = { ...options };
+    this._status = "active";
     this._queue = options?.queue ?? new LinkedListQueue();
     this._counter = 0;
 
     this._handler = handler;
+
+    this._options = options;
   }
 
-  get state() {
-    return this._state;
+  get status() {
+    return this._status;
   }
   get queue() {
     return this._queue;
   }
 
-  push(value: VALUE) {
+  push(value: VALUE): this {
     const { _queue } = this;
     if (this._counter > 0 && _queue.size === 0) {
       this._handler(this, value);
       this._counter--;
     } else {
       _queue.enqueue(value);
-      this._options.enqueue?.(this, value);
+      this._options?.enqueue?.(this, value);
     }
+    return this;
   }
 
-  next(): void {
+  next(): this {
     this._counter++;
     const { _queue } = this;
 
     if (_queue.size === 0) {
-      this._options.next?.(this);
+      this._options?.next?.(this);
 
-      return;
+      return this;
     }
 
-    if (this._counter > 1) return;
+    if (this._counter > 1) return this;
 
     while (this._counter > 0) {
       const value = _queue.dequeue();
-      this._options.dequeue?.(this, value);
+      this._options?.dequeue?.(this, value);
 
       if (value === EMPTY) {
-        if (this._state === "draining") {
+        if (this._status === "drain") {
           this.terminate("complete");
         } else {
-          this._options.next?.(this);
+          this._options?.next?.(this);
         }
         break;
       }
@@ -64,41 +67,45 @@ export class Consumer<VALUE> {
       this._handler(this, value);
       this._counter--;
     }
+    return this;
   }
 
-  terminate(reason: "abort" | "complete"): void {
+  terminate(reason: TerminateReason): this {
     this.push = () => this;
     if (reason === "abort") {
-      this.next = this.terminate = () => {};
-      this._state = "aborted";
+      this.next = this.terminate = () => this;
+      this._status = "abort";
       this._queue.clear();
     } else if (this._queue.size) {
-      this._state = "draining";
-      this._options.drain?.(this);
+      this._status = "drain";
+      this._options?.drain?.(this);
 
-      return;
+      return this;
     } else {
-      this.next = this.terminate = () => {};
-      this._state = "completed";
+      this.next = this.terminate = () => this;
+      this._status = "complete";
     }
 
-    this._options.terminate?.(this, reason);
+    this._options?.terminate?.(this, reason);
 
     this._handler = () => {};
     this._options = {};
+
+    return this;
   }
 }
 
 export namespace Consumer {
-  export type State = "active" | "draining" | "aborted" | "completed";
+  export type Status = "active" | "drain" | TerminateReason;
 
   export type Handler<VALUE> = (self: Consumer<VALUE>, value: VALUE) => void;
 
   export type Options<VALUE> = {
     queue?: Queue<VALUE>;
+    scope?: TerminableStreamable[];
     next?: (self: Consumer<VALUE>) => void;
     drain?: (self: Consumer<VALUE>) => void;
-    terminate?: (self: Consumer<VALUE>, reason: "abort" | "complete") => void;
+    terminate?: (self: Consumer<VALUE>, reason: TerminateReason) => void;
     enqueue?: (self: Consumer<VALUE>, value: VALUE) => void;
     dequeue?: (self: Consumer<VALUE>, value: VALUE | Empty) => void;
   };

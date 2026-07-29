@@ -14,7 +14,7 @@ export class FromAbortSignal<NAME extends NonEmptyString = "$abortSignal"> exten
       },
     });
 
-    if (signal.aborted) this.terminate("complete");
+    if (signal.abort) this.terminate("complete");
 
     signal.addEventListener(
       "abort",

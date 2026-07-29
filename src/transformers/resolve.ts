@@ -43,7 +43,7 @@ export class Resolve<
   }
 
   get $error() {
-    this._options.$error ??= new Stream({ scope: this });
+    this._options.$error ??= new Stream({ $terminate: this.$terminate });
     return new Stream({ name: `${this.name}Error`, source: this._options.$error });
   }
 }

@@ -12,7 +12,6 @@ export class Tap<
       fn(value, input);
       this.push(value);
     });
-
     super(input, {
       ...options,
       name: options?.name ?? ("$tap" as NAME),

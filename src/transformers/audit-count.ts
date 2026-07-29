@@ -2,34 +2,31 @@ import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
 import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
-export class AuditTime<
+export class AuditCount<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$auditTime",
+  NAME extends NonEmptyString = "$auditCount",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, ms: number, options?: Stream.Options<VALUE, NAME>) {
-    let latest: VALUE;
-    let timer: any = null;
+  constructor(input: INPUT, count: number, options?: Stream.Options<VALUE, NAME>) {
+    let _count = count;
 
     const inputConsumer = input.consume((self, value) => {
-      latest = value;
-      if (!timer) {
-        timer = setTimeout(() => {
-          this.push(latest);
-          timer = null;
-        }, ms);
+      if (!--_count) {
+        _count = count;
+        this.push(value);
+      } else {
+        self.next();
       }
     });
 
     super(input, {
       ...options,
-      name: options?.name ?? ("$auditTime" as NAME),
+      name: options?.name ?? ("$auditCount" as NAME),
       next(self, consumer) {
         inputConsumer.next();
         options?.next?.(self, consumer);
       },
       terminate(self, reason) {
-        clearTimeout(timer);
         inputConsumer.terminate(reason);
         options?.terminate?.(self, reason);
       },
@@ -37,10 +34,10 @@ export class AuditTime<
   }
 }
 
-export function auditTime<
+export function auditCount<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$auditTime",
->(ms: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, AuditTime<INPUT, VALUE, NAME>> {
-  return (input) => new AuditTime(input, ms, options);
+  NAME extends NonEmptyString = "$auditCount",
+>(count: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, AuditCount<INPUT, VALUE, NAME>> {
+  return (input) => new AuditCount(input, count, options);
 }

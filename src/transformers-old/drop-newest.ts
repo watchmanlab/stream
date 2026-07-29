@@ -28,7 +28,7 @@ export class DropNewest<
           signal = this.save();
         };
       },
-      aborted: () => {
+      abort: () => {
         signal?.emit();
         signal = undefined;
         this._buffer.clear();

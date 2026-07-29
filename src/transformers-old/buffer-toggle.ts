@@ -41,7 +41,7 @@ export class BufferToggle<
           s2.emit();
         };
       },
-      aborted: () => this._buffers.clear(),
+      abort: () => this._buffers.clear(),
     });
   }
   get buffers() {

@@ -11,6 +11,16 @@ import { pump } from "./transformers/pump";
 import { auditTime } from "./transformers/audit-time";
 import { fromAsyncGenerator } from "./streams/from-async-generator";
 import { passive } from "./transformers/passive";
+import { auditCount } from "./transformers/audit-count";
+import { take } from "./transformers/take";
+import { skip } from "./transformers/skip";
+import { replay } from "./transformers/replay";
+import { tick } from "./transformers/tick";
+import { takeWhile } from "./transformers/take-while";
+import { takeUntil } from "./transformers/take-until";
+import { takeWith } from "./transformers/take-with";
+import { merge } from "./transformers/merge";
+import { map$ } from "./transformers/map$";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -81,7 +91,7 @@ function streamBench() {
 
   const start = performance.now();
   const stream = new Stream<number>();
-  stream
+  const consumer = stream
     .consume((consumer, v) => {
       if (v === MAX) {
         console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
@@ -96,6 +106,8 @@ function streamBench() {
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);
   }
+
+  // consumer.next();
 }
 
 // streamBench(); //100 000 000 943 ms
@@ -136,12 +148,13 @@ function streamTest() {
 // c1 3
 
 function fromIteratorTest() {
-  fromIterator([1, 2, 3].values())
-    .consume((c, v) => {
-      console.log("c1", v);
-      c.next();
-    })
-    .next();
+  fromIterator([1, 2, 3].values(), { name: "$list" })
+    .pipe(tick())
+    .pipe(tap((v) => console.log("first", v)))
+    .pipe(pump())
+    .traversal.$tap.$tick.$list.pipe(passive())
+    .pipe(tap((v) => console.log("sec", v)))
+    .pipe(pump());
 }
 
 // fromIteratorTest();
@@ -207,14 +220,20 @@ function mapTest() {
 // mapTest();
 
 function filterTest() {
-  fromIterable([1, 2, 3, 4, 5, 6])
+  const stream = new Stream<number>();
+  stream
     .pipe(filter((v) => v % 2 == 0))
-    .consume(async (self, value) => {
-      await new Promise((r) => setTimeout(r, Math.random() * 1000));
-      console.log(value);
-      self.next();
-    })
-    .next();
+    .pipe(tap((value) => console.log(value)))
+    .pipe(pump())
+    .traversal.$tap.$filter.$rejected.pipe(tap((v) => console.log("rejected", v)))
+    .pipe(pump());
+
+  stream.push(1);
+  stream.push(2);
+  stream.push(3);
+  stream.push(4);
+  stream.push(5);
+  stream.push(6);
 }
 
 // filterTest();
@@ -233,19 +252,23 @@ function resolveTest() {
 
 function auditTimeTest() {
   fromAsyncGenerator(async function* () {
-    // await new Promise((r) => setTimeout(r, 400));
     yield 1;
-    // await new Promise((r) => setTimeout(r, 200));
     yield 2;
-    // await new Promise((r) => setTimeout(r, 600));
     yield 3;
   })
+    .pipe(passive())
     .pipe(auditTime(500))
-    .pipe(tap((v) => console.log(v)))
+    .pipe(tap((v) => console.log("audit", v)))
+    .pipe(pump())
+    .traversal.$tap.$auditTime.$passive.$asyncGenerator.pipe(tap((v) => console.log("driver", v)))
     .pipe(pump());
 }
 
 // auditTimeTest();
+// driver 1
+// driver 2
+// driver 3
+// audit 1
 
 function passiveTest() {
   const stream = fromAsyncGenerator(async function* () {
@@ -253,20 +276,169 @@ function passiveTest() {
     yield 2;
     yield 3;
   });
-  const passivePipeline = stream
+  const activePipeline = stream
+    .pipe(map((v) => v * 100))
+    .pipe(tap((v) => console.log("active pipeline", v)))
+    .pipe(pump());
+
+  const passivePipeline = activePipeline.traversal.$tap.$map.$asyncGenerator
     .pipe(passive())
     .pipe(tap((v) => console.log("passive pipeline", v)))
     .pipe(pump());
-  const activePipeline = stream
-    .pipe(map((v) => v.toString()))
-    .pipe(tap((v) => console.log("active pipeline", v)))
+}
+
+// passiveTest();
+// passive pipeline 1
+// active pipeline 100
+// passive pipeline 2
+// active pipeline 200
+// passive pipeline 3
+// active pipeline 300
+
+function auditCountTest() {
+  const stream = new Stream<number>();
+  stream.pipe(tap((v) => console.log(v))).pipe(pump());
+  stream
+    .pipe(passive())
+    .pipe(auditCount(2))
+    .pipe(tap((v) => console.log("p", v)))
+    .pipe(pump());
+
+  stream.push(1).push(2).push(3).push(4).push(5).push(55);
+}
+// auditCountTest();
+
+function takeTest() {
+  const v = fromIterable([1, 2, 3, 4])
+    .pipe(take(3))
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump());
+
+  v.traversal.$tap.$take.$iterable.pipe(tap((v) => console.log("continue", v))).pipe(pump());
+}
+
+// takeTest();
+
+function skipTest() {
+  const v = fromIterable([1, 2, 3, 4])
+    .pipe(skip(3))
+    .pipe(tap((v) => console.log(v)))
     .pipe(pump());
 }
 
-passiveTest();
-// passive pipeline 1
-// active pipeline 1
-// passive pipeline 2
-// active pipeline 2
-// passive pipeline 3
-// active pipeline 3
+// skipTest();
+
+function replayTest() {
+  const stream = new Stream();
+  const replayed = stream.pipe(replay([55, 66]));
+  replayed.pipe(tap((v) => console.log(v))).pipe(pump());
+  replayed.pipe(tap((v) => console.log(v))).pipe(pump());
+
+  stream.push(1);
+}
+// replayTest();
+
+function takeWhileTest() {
+  fromIterable([1, 2, 3, 4])
+    .pipe(takeWhile((v) => v < 3))
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump());
+}
+
+// takeWhileTest();
+function takeUntilTest() {
+  fromIterable([1, 2, 3, 4])
+    .pipe(takeUntil((v) => v > 3))
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump())
+    .pipe((input) => {
+      console.log(input.traversal.$tap.name);
+      return input;
+    });
+}
+
+// takeUntilTest();
+function takeWhithTest() {
+  const notifier = new Stream();
+  // notifier.terminate("abort");
+
+  notifier.$terminate.pipe(tap((v) => console.log("t1", v))).pipe(pump());
+  notifier.$terminate.pipe(tap((v) => console.log("t2", v))).pipe(pump());
+
+  setTimeout(() => notifier.terminate("abort"), 1400);
+
+  fromAsyncGenerator(async function* () {
+    await new Promise((r) => setTimeout(r, 500));
+    yield 1;
+    await new Promise((r) => setTimeout(r, 500));
+    yield 2;
+    await new Promise((r) => setTimeout(r, 500));
+    yield 3;
+  })
+    .pipe(takeWith(notifier))
+    .consume((self, value) => {
+      console.log(value);
+      self.next();
+    })
+    .next();
+}
+
+// takeWhithTest();
+
+function terminateTest() {
+  const notifier = new Stream();
+  notifier.terminate("complete");
+
+  const stream = new Stream({ $terminate: notifier.$terminate });
+
+  // console.log(stream.status);
+
+  stream
+    .consume((self, value) => {
+      console.log("value", value);
+      self.next();
+    })
+    .next();
+
+  stream.push(1).push(2);
+  // console.log(stream.status);
+
+  // stream.$terminate
+  //   .consume((self, reason) => {
+  //     console.log(reason);
+  //   })
+  //   .next();
+}
+// terminateTest();
+
+function mergeTest() {
+  const s1 = fromIterable([1, 2, 3]);
+  const s2 = fromIterable(["a", "b", "c"]);
+
+  s1.pipe(merge(s2))
+    .pipe(tick())
+    .pipe(tap((v) => console.log(v)))
+    .pipe(pump());
+}
+
+// mergeTest();
+
+function map$test() {
+  fromIterable([fromIterable([1, 2, 3])])
+    .pipe(map$((v) => v * 2))
+    .pipe(
+      tap((v) => {
+        v.consume((self, v) => {
+          console.log(v);
+          self.next();
+        }).next();
+        // v.pipe(tap((v) => console.log(v))).pipe(pump());
+      }),
+    )
+    .pipe(pump());
+}
+
+map$test();
+//2
+//4
+//6

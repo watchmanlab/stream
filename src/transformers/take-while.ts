@@ -1,0 +1,49 @@
+import { Stream } from "../core/stream";
+import { Transformer } from "../core/transformer";
+import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+
+export class TakeWhile<
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  NAME extends NonEmptyString = "$takeWhile",
+> extends Transformer<INPUT, VALUE, NAME> {
+  constructor(input: INPUT, predicate: TakeWhile.Predicate<VALUE>, options?: Stream.Options<VALUE, NAME>) {
+    options = { ...options };
+
+    const inputConsumer = input.consume((self, value) => {
+      if (predicate(value)) {
+        this.push(value);
+      } else {
+        this.terminate("complete");
+      }
+    });
+
+    super(input, {
+      ...options,
+      name: options?.name ?? ("$takeWhile" as NAME),
+      next(self, consumer) {
+        options?.next?.(self, consumer);
+        inputConsumer.next();
+      },
+      terminate(self, reason) {
+        inputConsumer.terminate(reason);
+        options?.terminate?.(self, reason);
+      },
+    });
+  }
+}
+
+export function takeWhile<
+  INPUT extends AnyStream,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  NAME extends NonEmptyString = "$takeWhile",
+>(
+  predicate: TakeWhile.Predicate<VALUE>,
+  options?: Stream.Options<VALUE, NAME>,
+): Transform<INPUT, TakeWhile<INPUT, VALUE, NAME>> {
+  return (input) => new TakeWhile(input, predicate, options);
+}
+
+export namespace TakeWhile {
+  export type Predicate<VALUE> = (value: VALUE) => boolean;
+}

@@ -35,7 +35,7 @@ export class BufferTime<
           clearTimeout(timer);
         };
       },
-      aborted: () => {
+      abort: () => {
         clearTimeout(timer);
         this._buffer.length = 0;
       },

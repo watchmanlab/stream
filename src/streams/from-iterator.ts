@@ -8,13 +8,13 @@ export class FromIterator<VALUE, NAME extends NonEmptyString = "$iterator"> exte
     super({
       ...options,
       name: options?.name ?? ("$iterator" as NAME),
-      next(stream, consumer) {
+      next: (stream, consumer) => {
+        options?.next?.(stream, consumer);
         const result = iter.next();
         if (result.done) {
-          stream.terminate("complete");
+          this.terminate("complete");
         } else {
-          stream.push(result.value);
-          options?.next?.(stream, consumer);
+          this.push(result.value);
         }
       },
       terminate(stream, reason) {

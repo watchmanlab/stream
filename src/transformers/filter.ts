@@ -39,7 +39,7 @@ export class Filter<
     });
   }
   get $rejected(): Stream<VALUE, `${NAME}Rejected`> {
-    this._options.$rejected ??= new Stream({ scope: this });
+    this._options.$rejected ??= new Stream({ scope: [this] });
     return new Stream({ name: `${this.name}Rejected`, source: this._options.$rejected });
   }
 }

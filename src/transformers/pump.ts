@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, TerminateReason, Transform } from "../core/types";
 
 export class Pump<
   INPUT extends AnyStream,
@@ -11,19 +11,21 @@ export class Pump<
   declare protected _options: Pump.Options<INPUT, VALUE, NAME>;
   private _inputConsumer?: Consumer<VALUE>;
   constructor(input: INPUT, options?: Pump.Options<INPUT, VALUE, NAME>) {
+    const consumers = [
+      options?.$start?.consume((self) => (this.start(), self.next())).next(),
+      options?.$stop?.consume((self, reason) => (this.stop(reason), self.next())).next(),
+    ];
     super(input, {
       ...options,
       name: options?.name ?? ("$pump" as NAME),
       terminate: (self, reason) => {
         this.stop(reason);
+        consumers.forEach((consumer) => consumer?.terminate(reason));
         options?.terminate?.(self, reason);
       },
     });
 
     if (options?.autoStart !== false) this.start();
-
-    options?.$start?.consume((self) => (this.start(), self.next())).next();
-    options?.$stop?.consume((self, reason) => (this.stop(reason), self.next())).next();
   }
 
   start() {
@@ -38,7 +40,7 @@ export class Pump<
     this._inputConsumer.next();
   }
 
-  stop(reason: "abort" | "complete") {
+  stop(reason: TerminateReason) {
     if (!this._inputConsumer) return;
 
     this._inputConsumer?.terminate(reason);
@@ -48,11 +50,11 @@ export class Pump<
   }
 
   get $start() {
-    this._options.$start ??= new Stream({ scope: this });
+    this._options.$start ??= new Stream({ $terminate: this.$terminate });
     return new Stream({ name: `${this.name}Start`, source: this._options.$start });
   }
   get $stop() {
-    this._options.$stop ??= new Stream({ scope: this });
+    this._options.$stop ??= new Stream({ $terminate: this.$terminate });
     return new Stream({ name: `${this.name}Stop`, source: this._options.$stop });
   }
 }
@@ -73,8 +75,8 @@ export namespace Pump {
   > = Stream.Options<VALUE, NAME> & {
     autoStart?: boolean;
     start?: (self: Pump<INPUT, VALUE, NAME>) => void;
-    stop?: (self: Pump<INPUT, VALUE, NAME>, reason: "abort" | "complete") => void;
+    stop?: (self: Pump<INPUT, VALUE, NAME>, reason: TerminateReason) => void;
     $start?: Stream<void, any>;
-    $stop?: Stream<"abort" | "complete", any>;
+    $stop?: Stream<TerminateReason, any>;
   };
 }
