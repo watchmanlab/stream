@@ -4,35 +4,40 @@ import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/type
 
 export class MapBatch<
   INPUT extends Stream<Array<any>, any>,
-  VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
+  VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
   MAPPED = VALUE,
   NAME extends NonEmptyString = "$mapBatch",
 > extends Transformer<INPUT, MAPPED[], NAME> {
   constructor(input: INPUT, mapper: MapBatch.Mapper<VALUE, MAPPED>, options?: Stream.Options<MAPPED[], NAME>) {
+    options = { ...options };
+    let results: any[];
+
     const inputConsumer = input.consume((_, values) => {
-      for (let i = 0; i < values.length; i++) {
-        values[i] = mapper(values[i]);
+      for (let i = 0, len = values.length; i < len; i++) {
+        results.push(mapper(values[i]));
       }
-      this.push(values as MAPPED[]);
+      this.push(results);
+      results = [];
     });
+
     super(input, {
       ...options,
       name: options?.name ?? ("$mapBatch" as NAME),
-
       next(stream, consumer) {
+        options.next?.(stream, consumer);
         inputConsumer.next();
-        options?.next?.(stream, consumer);
       },
       terminate(stream, reason) {
+        results = [];
         inputConsumer.terminate(reason);
-        options?.terminate?.(stream, reason);
+        options.terminate?.(stream, reason);
       },
     });
   }
 }
 export function mapBatch<
   INPUT extends AnyStream,
-  VALUE extends ExtractValue<ExtractValue<INPUT>> = ExtractValue<ExtractValue<INPUT>>,
+  VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
   MAPPED = VALUE,
   NAME extends NonEmptyString = "$mapBatch",
 >(

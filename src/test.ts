@@ -242,14 +242,12 @@ function filterTest() {
 function resolveTest() {
   const stream = fromIterable([1, 2, 3, 4])
     .pipe(map((v) => new Promise<number>((r) => setTimeout(() => r(v), Math.random() * 1000))))
-    .pipe(resolve())
+    .pipe(resolve(4))
     .pipe(tap((value) => console.log(value)))
     .pipe(pump());
-
-  stream.traversal.$tap.$resolve.$map.$iterable;
 }
 
-// resolveTest();
+resolveTest();
 
 function auditTimeTest() {
   fromAsyncGenerator(async function* () {
@@ -432,7 +430,7 @@ function mapBatchTest() {
     .pipe(pump());
 }
 
-mapBatchTest();
+// mapBatchTest();
 //2
 //4
 //6

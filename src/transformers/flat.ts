@@ -3,7 +3,7 @@ import { Transformer } from "../core/transformer";
 import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Flat<
-  INPUT extends AnyStream,
+  INPUT extends Stream<Array<any>, any>,
   DEPTH extends number = 0,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$flat",
@@ -14,26 +14,15 @@ export class Flat<
     let cursor = 0;
     let values = [] as any[];
 
-    const scalarContainer = [null];
-
     const inputConsumer = input.consume((self, value) => {
-      if (Array.isArray(value)) {
-        values = depth === 0 ? value : value.flat(depth);
-        if (values.length === 0) {
-          self.next();
-          return;
-        }
-        cursor = 0;
-      } else {
-        scalarContainer[0] = value;
-        values = scalarContainer;
-        cursor = 0;
+      if (!value.length) {
+        self.next();
+        return;
       }
+      values = depth === 0 ? value : value.flat(depth);
+      cursor = 0;
 
       this.push(values[cursor++]);
-      if (cursor === values.length) {
-        self.next();
-      }
     });
 
     super(input, {
@@ -49,7 +38,6 @@ export class Flat<
       },
       terminate(self, reason) {
         values = [];
-        scalarContainer[0] = null; // Instantly clean to prevent memory pinning leaks
         inputConsumer.terminate(reason);
         options.terminate?.(self, reason);
       },
@@ -58,7 +46,7 @@ export class Flat<
 }
 
 export function flat<
-  INPUT extends AnyStream,
+  INPUT extends Stream<Array<any>, any>,
   DEPTH extends number = 0,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$flat",

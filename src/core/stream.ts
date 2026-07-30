@@ -143,13 +143,13 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     if (this._consumers.has(handler)) return this._consumers.get(handler)!;
 
-    let _options = { ...options };
+    options = { ...options };
 
     const consumer = new Consumer(handler, {
-      ..._options,
-      queue: _options.queue ?? this._options.queueFactory?.(),
+      ...options,
+      queue: options.queue ?? this._options.queueFactory?.(),
       next: (self) => {
-        _options.next?.(self);
+        options.next?.(self);
         if (this._pulling === false) {
           this._pulling = true;
           this._options.next?.(this, self);
@@ -161,8 +161,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
         this._consumers.delete(handler);
         this._optimizePush();
 
-        _options.terminate?.(self, reason);
-        _options = {};
+        options.terminate?.(self, reason);
 
         this._options.consumerLeft?.(this, self);
         this._metaStreams.$consumerLeft?.push(self);
