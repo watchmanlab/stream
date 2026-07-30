@@ -1,6 +1,7 @@
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
 import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { merge } from "./merge";
 
 export class TakeWith<
   INPUT extends AnyStream,
@@ -8,21 +9,21 @@ export class TakeWith<
   NAME extends NonEmptyString = "$takeWith",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, $notifier: AnyStream, options?: Stream.Options<VALUE, NAME>) {
-    options = { ...options };
+    const { name, next, terminate, ...rest } = options ?? {};
 
-    const inputConsumer = input.consume((self, value) => this.push(value));
+    const inputConsumer = input.consume((_, value) => this.push(value));
 
     super(input, {
-      ...options,
-      name: options?.name ?? ("$takeWith" as NAME),
-      $terminate: $notifier.$terminate,
+      ...rest,
+      name: name ?? ("$takeWith" as NAME),
+      $terminate: $notifier.$terminate.pipe(merge(input.$terminate)),
       next(self, consumer) {
-        options?.next?.(self, consumer);
         inputConsumer.next();
+        next?.(self, consumer);
       },
       terminate(self, reason) {
         inputConsumer.terminate(reason);
-        options?.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
   }

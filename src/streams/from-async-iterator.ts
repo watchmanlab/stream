@@ -6,11 +6,13 @@ export class FromAsyncIterator<VALUE, NAME extends NonEmptyString = "$asyncItera
     asyncItrator: AsyncIterator<VALUE> | (() => AsyncIterator<VALUE>),
     options?: Stream.Options<VALUE, NAME>,
   ) {
+    const { name, next, terminate, ...rest } = options ?? {};
+
     const iter = typeof asyncItrator === "function" ? asyncItrator() : asyncItrator;
 
     super({
-      ...options,
-      name: options?.name ?? ("$asyncIterator" as NAME),
+      ...rest,
+      name: name ?? ("$asyncIterator" as NAME),
       next(stream, consumer) {
         iter.next().then((result) => {
           if (result.done) {
@@ -19,11 +21,11 @@ export class FromAsyncIterator<VALUE, NAME extends NonEmptyString = "$asyncItera
             stream.push(result.value);
           }
         });
-        options?.next?.(stream, consumer);
+        next?.(stream, consumer);
       },
       terminate(stream, reason) {
         iter.return?.();
-        options?.terminate?.(stream, reason);
+        terminate?.(stream, reason);
       },
     });
   }

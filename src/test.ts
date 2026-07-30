@@ -22,6 +22,7 @@ import { takeWith } from "./transformers/take-with";
 import { merge } from "./transformers/merge";
 import { mapBatch } from "./transformers/map-batch";
 import { flat } from "./transformers/flat";
+import { Signal } from "./streams/signal";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -240,14 +241,36 @@ function filterTest() {
 // filterTest();
 
 function resolveTest() {
-  const stream = fromIterable([1, 2, 3, 4])
-    .pipe(map((v) => new Promise<number>((r) => setTimeout(() => r(v), Math.random() * 1000))))
+  const pipeline = fromIterable([1, 2, 3, 4])
+    .pipe(map((v) => new Promise<number>((r) => setTimeout(() => r(v), Math.random() * 500))))
     .pipe(resolve(4))
-    .pipe(tap((value) => console.log(value)))
+    .pipe(
+      tap((value) => {
+        // if (value === 2) pipeline.stop("abort");
+        console.log(value);
+      }),
+    )
     .pipe(pump());
 }
 
-resolveTest();
+// resolveTest();
+
+function signalTest() {
+  const signal = new Signal();
+
+  signal.push("dd");
+
+  signal
+    .consume((self, value) => {
+      console.log("consumer", value);
+      self.next();
+    })
+    .next();
+
+  console.log(signal.status);
+}
+
+// signalTest();
 
 function auditTimeTest() {
   fromAsyncGenerator(async function* () {
@@ -308,15 +331,15 @@ function auditCountTest() {
 // auditCountTest();
 
 function takeTest() {
-  const v = fromIterable([1, 2, 3, 4])
-    .pipe(take(3))
+  fromIterable([1, 2, 3, 4, 5, 6, 7])
+    .pipe(map((v) => new Promise<number>((r) => setTimeout(() => r(v), Math.random() * 500))))
+    .pipe(resolve(3))
+    .pipe(take(4))
     .pipe(tap((v) => console.log(v)))
     .pipe(pump());
-
-  v.traversal.$tap.$take.$iterable.pipe(tap((v) => console.log("continue", v))).pipe(pump());
 }
 
-// takeTest();
+takeTest();
 
 function skipTest() {
   const v = fromIterable([1, 2, 3, 4])

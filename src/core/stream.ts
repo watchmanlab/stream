@@ -116,20 +116,20 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
         const consumer = consumers.values().next().value!;
         this.push = (value) => {
           this._pulling = false;
+          consumer.push(value);
           this._options.push?.(this, value);
           this._metaStreams.$push?.push(value);
-          consumer.push(value);
           return this;
         };
         break;
       default:
         this.push = (value) => {
           this._pulling = false;
-          this._options.push?.(this, value);
-          this._metaStreams.$push?.push(value);
           for (const consumer of consumers.values()) {
             consumer.push(value);
           }
+          this._options.push?.(this, value);
+          this._metaStreams.$push?.push(value);
           return this;
         };
     }
@@ -161,11 +161,10 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
         this._consumers.delete(handler);
         this._optimizePush();
 
-        options.terminate?.(self, reason);
-
         this._options.consumerLeft?.(this, self);
         this._metaStreams.$consumerLeft?.push(self);
         if (this._consumers.size === 0 && this._status === "drain") this.terminate("complete");
+        options.terminate?.(self, reason);
       },
     });
 

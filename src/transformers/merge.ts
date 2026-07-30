@@ -9,23 +9,23 @@ export class Merge<
   NAME extends NonEmptyString = "$merge",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, other: OTHER, options?: Stream.Options<VALUE, NAME>) {
-    options = { ...options };
+    const { name, next, terminate, ...rest } = options ?? {};
 
-    const inputConsumer = input.consume((self, value) => this.push(value));
-    const otherConsumer = other.consume((self, value) => this.push(value));
+    const inputConsumer = input.consume((_, value) => this.push(value));
+    const otherConsumer = other.consume((_, value) => this.push(value));
 
     super(input, {
-      ...options,
-      name: options.name ?? ("$merge" as NAME),
+      ...rest,
+      name: name ?? ("$merge" as NAME),
       next(self, consumer) {
-        options.next?.(self, consumer);
         inputConsumer.next();
         otherConsumer.next();
+        next?.(self, consumer);
       },
       terminate(self, reason) {
         inputConsumer.terminate(reason);
         otherConsumer.terminate(reason);
-        options.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
   }

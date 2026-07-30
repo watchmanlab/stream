@@ -8,26 +8,25 @@ export class Take<
   NAME extends NonEmptyString = "$take",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, count: number, options?: Stream.Options<VALUE, NAME>) {
-    options = { ...options };
+    const { name, next, terminate, ...rest } = options ?? {};
 
-    const inputConsumer = input.consume((self, value) => {
-      this.push(value);
-    });
+    const inputConsumer = input.consume((_, value) => this.push(value));
 
     super(input, {
-      ...options,
-      name: options?.name ?? ("$take" as NAME),
+      ...rest,
+      name: name ?? ("$take" as NAME),
       next(self, consumer) {
         if (!count--) {
           self.terminate("complete");
-        } else {
-          options?.next?.(self, consumer);
-          inputConsumer.next();
+          return;
         }
+
+        inputConsumer.next();
+        next?.(self, consumer);
       },
       terminate(self, reason) {
         inputConsumer.terminate(reason);
-        options?.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
   }

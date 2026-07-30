@@ -8,18 +8,20 @@ export class Passive<
   NAME extends NonEmptyString = "$passive",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
-    const inputPushConsumer = input.$push.consume((self, value) => this.push(value));
+    const { name, next, terminate, ...rest } = options ?? {};
+
+    const inputPushConsumer = input.$push.consume((_, value) => this.push(value));
 
     super(input, {
-      ...options,
-      name: options?.name ?? ("$passive" as NAME),
+      ...rest,
+      name: name ?? ("$passive" as NAME),
       next: (self, consumer) => {
-        options?.next?.(self, consumer);
         inputPushConsumer.next();
+        next?.(self, consumer);
       },
       terminate(self, reason) {
         inputPushConsumer.terminate(reason);
-        options?.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
   }

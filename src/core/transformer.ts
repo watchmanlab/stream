@@ -10,25 +10,10 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
   constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
     options = { ...options };
 
-    const $terminate = new Stream<TerminateReason>();
-
     super({
       ...options,
-      $terminate: $terminate,
+      $terminate: options.$terminate ?? input.$terminate,
     });
-
-    input.$terminate
-      .consume((self, reason) => {
-        $terminate.push(reason);
-        $terminate.terminate(reason);
-      })
-      .next();
-    options.$terminate
-      ?.consume((self, reason) => {
-        $terminate.push(reason);
-        $terminate.terminate(reason);
-      })
-      .next();
 
     this._input = input;
     return new Proxy(this, {

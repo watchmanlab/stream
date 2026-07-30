@@ -8,9 +8,9 @@ export class TakeUntil<
   NAME extends NonEmptyString = "$takeUntil",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, predicate: TakeUntil.Predicate<VALUE>, options?: Stream.Options<VALUE, NAME>) {
-    options = { ...options };
+    const { name, next, terminate, ...rest } = options ?? {};
 
-    const inputConsumer = input.consume((self, value) => {
+    const inputConsumer = input.consume((_, value) => {
       if (predicate(value)) {
         this.terminate("complete");
       } else {
@@ -19,15 +19,15 @@ export class TakeUntil<
     });
 
     super(input, {
-      ...options,
-      name: options?.name ?? ("$takeUntil" as NAME),
+      ...rest,
+      name: name ?? ("$takeUntil" as NAME),
       next(self, consumer) {
-        options?.next?.(self, consumer);
         inputConsumer.next();
+        next?.(self, consumer);
       },
       terminate(self, reason) {
         inputConsumer.terminate(reason);
-        options?.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
   }

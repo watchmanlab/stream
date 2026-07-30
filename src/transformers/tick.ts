@@ -8,22 +8,21 @@ export class Tick<
   NAME extends NonEmptyString = "$tick",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
-    options = { ...options };
+    const { name, next, terminate, ...rest } = { ...options };
 
-    let inputConsumer = input.consume((self, value) => this.push(value));
+    let inputConsumer = input.consume((_, value) => this.push(value));
     super(input, {
-      ...options,
-      name: options?.name ?? ("$tick" as NAME),
+      ...rest,
+      name: name ?? ("$tick" as NAME),
       next(self, consumer) {
         queueMicrotask(() => {
-          options?.next?.(self, consumer);
           inputConsumer.next();
+          next?.(self, consumer);
         });
       },
       terminate(self, reason) {
-        queueMicrotask(() => {});
         inputConsumer.terminate(reason);
-        options?.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
   }

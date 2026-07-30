@@ -8,22 +8,22 @@ export class Range<
   NAME extends NonEmptyString = "$range",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, start: number, offset: number, options?: Stream.Options<VALUE, NAME>) {
-    options = { ...options };
+    const { name, next, terminate, ...rest } = options ?? {};
 
     const inputconsumer = input.consume((self, value) => {
       //
     });
 
     super(input, {
-      ...options,
-      name: options.name ?? ("$range" as NAME),
+      ...rest,
+      name: name ?? ("$range" as NAME),
       next(self, consumer) {
-        options.next?.(self, consumer);
         inputconsumer.next();
+        next?.(self, consumer);
       },
       terminate(self, reason) {
         inputconsumer.terminate(reason);
-        options.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
   }

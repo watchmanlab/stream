@@ -9,7 +9,7 @@ export class Flat<
   NAME extends NonEmptyString = "$flat",
 > extends Transformer<INPUT, FlatArray<VALUE, DEPTH>, NAME> {
   constructor(input: INPUT, depth = 0 as DEPTH, options?: Stream.Options<FlatArray<VALUE, DEPTH>, NAME>) {
-    options = { ...options };
+    const { name, next, terminate, ...rest } = options ?? {};
 
     let cursor = 0;
     let values = [] as any[];
@@ -26,20 +26,20 @@ export class Flat<
     });
 
     super(input, {
-      ...options,
-      name: options?.name ?? ("$flat" as NAME),
+      ...rest,
+      name: name ?? ("$flat" as NAME),
       next(self, consumer) {
-        options.next?.(self, consumer);
         if (cursor === values.length) {
           inputConsumer.next();
         } else {
           self.push(values[cursor++]);
         }
+        next?.(self, consumer);
       },
       terminate(self, reason) {
         values = [];
         inputConsumer.terminate(reason);
-        options.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
   }

@@ -5,7 +5,10 @@ export class State<VALUE, NAME extends NonEmptyString = "$state"> extends Stream
   private _value: VALUE;
 
   constructor(initialValue: VALUE, options?: Stream.Options<VALUE, NAME>) {
-    super({ ...options, name: options?.name ?? ("$state" as NAME) });
+    super({
+      ...options,
+      name: options?.name ?? ("$state" as NAME),
+    });
     this._value = initialValue;
   }
   get value(): VALUE {
