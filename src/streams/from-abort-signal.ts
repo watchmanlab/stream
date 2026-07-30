@@ -3,18 +3,20 @@ import { NonEmptyString } from "../core/types";
 
 export class FromAbortSignal<NAME extends NonEmptyString = "$abortSignal"> extends Stream<void, NAME> {
   constructor(signal: AbortSignal, options?: Stream.Options<void, NAME>) {
+    const { name, terminate, ...rest } = options ?? {};
+
     let abortController = new AbortController();
 
     super({
-      ...options,
-      name: options?.name ?? ("$abortSignal" as NAME),
+      ...rest,
+      name: name ?? ("$abortSignal" as NAME),
       terminate(stream, reason) {
         abortController.abort();
-        options?.terminate?.(stream, reason);
+        terminate?.(stream, reason);
       },
     });
 
-    if (signal.abort) this.terminate("complete");
+    if (signal.aborted) this.terminate("complete");
 
     signal.addEventListener(
       "abort",

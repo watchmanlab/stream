@@ -79,7 +79,6 @@ export class Consumer<VALUE> implements Terminable {
     } else if (this._queue.size) {
       this._status = "drain";
       this._options?.drain?.(this);
-
       return this;
     } else {
       this.next = this.terminate = () => this;

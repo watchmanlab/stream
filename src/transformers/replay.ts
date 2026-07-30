@@ -8,27 +8,29 @@ export class Replay<
   NAME extends NonEmptyString = "$replay",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, values: [VALUE, ...VALUE[]], options?: Stream.Options<VALUE, NAME>) {
-    const inputConsumer = input.consume((self, value) => {
+    const { name, next, consumerJoin, terminate, ...rest } = options ?? {};
+
+    const inputConsumer = input.consume((_, value) => {
       this.push(value);
     });
 
     super(input, {
-      ...options,
-      name: options?.name ?? ("$replay" as NAME),
+      ...rest,
+      name: name ?? ("$replay" as NAME),
       next(self, consumer) {
-        options?.next?.(self, consumer);
         inputConsumer.next();
+        next?.(self, consumer);
       },
       consumerJoin(self, consumer) {
         for (let i = 0, len = values.length; i < len; i++) {
           consumer.push(values[i]);
         }
-        options?.consumerJoin?.(self, consumer);
+        consumerJoin?.(self, consumer);
       },
       terminate(self, reason) {
         values.length = 0;
         inputConsumer.terminate(reason);
-        options?.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
   }

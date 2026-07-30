@@ -9,18 +9,21 @@ export class Map<
   NAME extends NonEmptyString = "$map",
 > extends Transformer<INPUT, MAPPED, NAME> {
   constructor(input: INPUT, mapper: Map.Mapper<VALUE, MAPPED>, options?: Stream.Options<MAPPED, NAME>) {
+    const { name, next, terminate, ...rest } = options ?? {};
+
     const inputConsumer = input.consume((_, value) => this.push(mapper(value)));
+
     super(input, {
-      ...options,
-      name: options?.name ?? ("$map" as NAME),
+      ...rest,
+      name: name ?? ("$map" as NAME),
 
       next(stream, consumer) {
         inputConsumer.next();
-        options?.next?.(stream, consumer);
+        next?.(stream, consumer);
       },
       terminate(stream, reason) {
         inputConsumer.terminate(reason);
-        options?.terminate?.(stream, reason);
+        terminate?.(stream, reason);
       },
     });
   }

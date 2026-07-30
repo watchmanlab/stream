@@ -1,7 +1,8 @@
 import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import type { AnyStream, ExtractValue, NonEmptyString, TerminateReason, Transform } from "../core/types";
+import type { ExtractValue, NonEmptyString, TerminateReason, Transform } from "../core/types";
+import { Signal } from "../streams/signal";
 
 export class Resolve<
   INPUT extends Stream<Promise<any>, any>,
@@ -12,36 +13,53 @@ export class Resolve<
   declare protected _metaStreams: Resolve.MetaStreams<VALUE>;
 
   constructor(input: INPUT, concurrency = 1, options?: Resolve.Options<VALUE, NAME>) {
-    options = { ...options };
+    const { name, next, terminate, ...rest } = options ?? {};
+
+    const $terminate = new Signal<TerminateReason>();
 
     let count = 0;
-    const inputConsumer = input.consume((self, maybePromise) => {
-      if (++count < concurrency) self.next();
 
-      maybePromise
-        .then((value) => {
-          count--;
+    const inputConsumer = input.consume(
+      (self, maybePromise) => {
+        if (++count < concurrency) self.next();
 
-          this.push(value);
-        })
-        .catch((error) => {
-          count--;
-          this._options.error?.(this, error);
-          this._metaStreams.$error?.push(error);
-          self.next();
-        });
-    });
+        maybePromise
+          .then((value) => {
+            count--;
+            this.push(value);
+          })
+          .catch((error) => {
+            count--;
+            this._options.error?.(this, error);
+            this._metaStreams.$error?.push(error);
+            self.next();
+          })
+          .finally(() => {
+            if (!count && (self.status === "abort" || self.status === "complete")) {
+              $terminate.push(self.status);
+            }
+          });
+      },
+      {
+        terminate(_, reason) {
+          if (count) return;
+          $terminate.push(reason);
+        },
+      },
+    );
 
     super(input, {
-      ...options,
-      name: options?.name ?? ("$resolve" as NAME),
+      ...rest,
+      name: name ?? ("$resolve" as NAME),
+      $terminate,
       next: (self, consumer) => {
-        options.next?.(self, consumer);
         if (count < concurrency) inputConsumer.next();
+        next?.(self, consumer);
       },
       terminate(self, reason) {
         inputConsumer.terminate(reason);
-        options.terminate?.(self, reason);
+        $terminate.terminate(reason);
+        terminate?.(self, reason);
       },
     });
   }

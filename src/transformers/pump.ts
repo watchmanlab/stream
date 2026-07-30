@@ -9,19 +9,22 @@ export class Pump<
   NAME extends NonEmptyString = "$pump",
 > extends Transformer<INPUT, VALUE, NAME> {
   declare protected _options: Pump.Options<INPUT, VALUE, NAME>;
+  declare protected _metaStreams: Pump.MetaStreams<VALUE>;
   private _inputConsumer?: Consumer<VALUE>;
   constructor(input: INPUT, options?: Pump.Options<INPUT, VALUE, NAME>) {
+    const { name, terminate, ...rest } = options ?? {};
+
     const consumers = [
       options?.$start?.consume((self) => (this.start(), self.next())).next(),
       options?.$stop?.consume((self, reason) => (this.stop(reason), self.next())).next(),
     ];
     super(input, {
-      ...options,
-      name: options?.name ?? ("$pump" as NAME),
+      ...rest,
+      name: name ?? ("$pump" as NAME),
       terminate: (self, reason) => {
         this.stop(reason);
         consumers.forEach((consumer) => consumer?.terminate(reason));
-        options?.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
 
@@ -36,7 +39,7 @@ export class Pump<
       self.next();
     });
     this._options.start?.(this);
-    this._options.$start?.push();
+    this._metaStreams.$start?.push();
     this._inputConsumer.next();
   }
 
@@ -46,16 +49,16 @@ export class Pump<
     this._inputConsumer?.terminate(reason);
     this._inputConsumer = undefined;
     this._options.stop?.(this, reason);
-    this._options.$stop?.push(reason);
+    this._metaStreams.$stop?.push(reason);
   }
 
   get $start() {
-    this._options.$start ??= new Stream({ $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Start`, source: this._options.$start });
+    this._metaStreams.$start ??= new Stream({ $terminate: this.$terminate });
+    return new Stream({ name: `${this.name}Start`, source: this._metaStreams.$start });
   }
   get $stop() {
-    this._options.$stop ??= new Stream({ $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Stop`, source: this._options.$stop });
+    this._metaStreams.$stop ??= new Stream({ $terminate: this.$terminate });
+    return new Stream({ name: `${this.name}Stop`, source: this._metaStreams.$stop });
   }
 }
 
@@ -76,6 +79,11 @@ export namespace Pump {
     autoStart?: boolean;
     start?: (self: Pump<INPUT, VALUE, NAME>) => void;
     stop?: (self: Pump<INPUT, VALUE, NAME>, reason: TerminateReason) => void;
+    $start?: Stream<void, any>;
+    $stop?: Stream<TerminateReason, any>;
+  };
+
+  export type MetaStreams<VALUE> = Stream.MetaStreams<VALUE> & {
     $start?: Stream<void, any>;
     $stop?: Stream<TerminateReason, any>;
   };

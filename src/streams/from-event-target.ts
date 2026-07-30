@@ -13,14 +13,16 @@ export class FromEventTarget<
       NAME
     >,
   ) {
+    const { name, terminate, ...rest } = options ?? {};
+
     let abortController = new AbortController();
 
     super({
-      ...options,
-      name: options?.name ?? ("$eventTarget" as NAME),
+      ...rest,
+      name: name ?? ("$eventTarget" as NAME),
       terminate(stream, reason) {
         abortController.abort();
-        options?.terminate?.(stream, reason);
+        terminate?.(stream, reason);
       },
     });
     target.addEventListener(eventType, (e: any) => this.push(e), { signal: abortController.signal });

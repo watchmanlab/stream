@@ -9,7 +9,8 @@ export class MapBatch<
   NAME extends NonEmptyString = "$mapBatch",
 > extends Transformer<INPUT, MAPPED[], NAME> {
   constructor(input: INPUT, mapper: MapBatch.Mapper<VALUE, MAPPED>, options?: Stream.Options<MAPPED[], NAME>) {
-    options = { ...options };
+    const { name, next, terminate, ...rest } = options ?? {};
+
     let results: any[];
 
     const inputConsumer = input.consume((_, values) => {
@@ -21,16 +22,16 @@ export class MapBatch<
     });
 
     super(input, {
-      ...options,
-      name: options?.name ?? ("$mapBatch" as NAME),
+      ...rest,
+      name: name ?? ("$mapBatch" as NAME),
       next(stream, consumer) {
-        options.next?.(stream, consumer);
         inputConsumer.next();
+        next?.(stream, consumer);
       },
       terminate(stream, reason) {
         results = [];
         inputConsumer.terminate(reason);
-        options.terminate?.(stream, reason);
+        terminate?.(stream, reason);
       },
     });
   }

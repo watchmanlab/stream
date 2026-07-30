@@ -10,29 +10,31 @@ export class ReplayLatest<
 > extends Transformer<INPUT, VALUE, NAME> {
   private _queue: SizedLinkedListQueue<VALUE>;
   constructor(input: INPUT, size: number, options?: Stream.Options<VALUE, NAME>) {
-    const inputConsumer = input.consume((self, value) => {
+    const { name, next, consumerJoin, terminate, ...rest } = options ?? {};
+
+    const inputConsumer = input.consume((_, value) => {
       this.push(value);
       this._queue.enqueue(value);
     });
 
     super(input, {
-      ...options,
-      name: options?.name ?? ("$replayLatest" as NAME),
+      ...rest,
+      name: name ?? ("$replayLatest" as NAME),
       next(self, consumer) {
-        options?.next?.(self, consumer);
         inputConsumer.next();
+        next?.(self, consumer);
       },
       consumerJoin: (self, consumer) => {
         for (const value of this._queue) {
           consumer.push(value);
         }
 
-        options?.consumerJoin?.(self, consumer);
+        consumerJoin?.(self, consumer);
       },
       terminate: (self, reason) => {
         this._queue.clear();
         inputConsumer.terminate(reason);
-        options?.terminate?.(self, reason);
+        terminate?.(self, reason);
       },
     });
 

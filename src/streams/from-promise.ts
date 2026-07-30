@@ -4,9 +4,11 @@ import { NonEmptyString } from "../core/types";
 export class FromPromise<VALUE, NAME extends NonEmptyString = "$promise"> extends Stream<VALUE, NAME> {
   private _$error?: Stream<any, `${NAME}Error`>;
   constructor(promise: Promise<VALUE>, options?: Stream.Options<VALUE, NAME>) {
+    const { name, next, ...rest } = options ?? {};
+
     super({
-      ...options,
-      name: options?.name ?? ("$promise" as NAME),
+      ...rest,
+      name: name ?? ("$promise" as NAME),
       next(stream, consumer) {
         promise
           .then((value) => stream.push(value))
@@ -19,7 +21,7 @@ export class FromPromise<VALUE, NAME extends NonEmptyString = "$promise"> extend
           })
           .finally(() => (self._$error?.terminate("complete"), stream.terminate("complete")));
 
-        options?.next?.(stream, consumer);
+        next?.(stream, consumer);
       },
     });
     const self = this;
