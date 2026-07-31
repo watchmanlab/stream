@@ -34,7 +34,7 @@ export class Consumer<VALUE> implements Terminable {
       this._counter--;
     } else {
       _queue.enqueue(value);
-      this._options?.enqueue?.(this, value);
+      this._options.enqueue?.(this, value);
     }
     return this;
   }
@@ -44,7 +44,7 @@ export class Consumer<VALUE> implements Terminable {
     const { _queue } = this;
 
     if (_queue.size === 0) {
-      this._options?.next?.(this);
+      this._options.next?.(this);
 
       return this;
     }
@@ -53,13 +53,13 @@ export class Consumer<VALUE> implements Terminable {
 
     while (this._counter > 0) {
       const value = _queue.dequeue();
-      this._options?.dequeue?.(this, value);
+      this._options.dequeue?.(this, value);
 
       if (value === EMPTY) {
         if (this._status === "drain") {
           this.terminate("complete");
         } else {
-          this._options?.next?.(this);
+          this._options.next?.(this);
         }
         break;
       }
@@ -88,7 +88,7 @@ export class Consumer<VALUE> implements Terminable {
     this._options?.terminate?.(this, reason);
 
     this._handler = () => {};
-    this._options = {};
+    // this._options = {};
 
     return this;
   }

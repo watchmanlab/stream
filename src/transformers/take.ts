@@ -10,17 +10,18 @@ export class Take<
   constructor(input: INPUT, count: number, options?: Stream.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
-    const inputConsumer = input.consume((_, value) => this.push(value));
+    const inputConsumer = input.consume((_, value) => {
+      if (count--) {
+        this.push(value);
+      } else {
+        this.terminate("complete");
+      }
+    });
 
     super(input, {
       ...rest,
       name: name ?? ("$take" as NAME),
       next(self, consumer) {
-        if (!count--) {
-          self.terminate("complete");
-          return;
-        }
-
         inputConsumer.next();
         next?.(self, consumer);
       },

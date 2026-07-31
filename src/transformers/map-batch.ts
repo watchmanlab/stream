@@ -11,14 +11,14 @@ export class MapBatch<
   constructor(input: INPUT, mapper: MapBatch.Mapper<VALUE, MAPPED>, options?: Stream.Options<MAPPED[], NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
-    let results: any[];
+    const results: MAPPED[] = [];
 
     const inputConsumer = input.consume((_, values) => {
       for (let i = 0, len = values.length; i < len; i++) {
         results.push(mapper(values[i]));
       }
       this.push(results);
-      results = [];
+      results.length = 0;
     });
 
     super(input, {
@@ -29,7 +29,7 @@ export class MapBatch<
         next?.(stream, consumer);
       },
       terminate(stream, reason) {
-        results = [];
+        results.length = 0;
         inputConsumer.terminate(reason);
         terminate?.(stream, reason);
       },

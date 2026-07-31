@@ -16,9 +16,9 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
     });
 
     this._input = input;
-    return new Proxy(this, {
-      get(target, p, receiver) {
-        if (p in target) return Reflect.get(target, p, receiver);
+
+    Object.defineProperty(this, input.name, {
+      get() {
         return input;
       },
     });
