@@ -10,7 +10,7 @@ export class Resolve<
   NAME extends NonEmptyString = "$resolve",
 > extends Transformer<INPUT, VALUE, NAME> {
   declare protected _options: Resolve.Options<VALUE, NAME>;
-  declare protected _metaStreams: Resolve.MetaStreams<VALUE>;
+  declare protected _metaStreams: Resolve.MetaStreams<VALUE, NAME>;
 
   constructor(input: INPUT, concurrency = 1, options?: Resolve.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
@@ -65,7 +65,7 @@ export class Resolve<
   }
 
   get $error() {
-    this._metaStreams.$error ??= new Stream({ $terminate: this.$terminate });
+    this._metaStreams.$error ??= new Stream({ name: `${this.name}MetaError`, $terminate: this.$terminate });
     return new Stream({ name: `${this.name}Error`, source: this._metaStreams.$error });
   }
 }
@@ -82,5 +82,7 @@ export namespace Resolve {
   export type Options<VALUE, NAME extends NonEmptyString> = Stream.Options<VALUE, NAME> & {
     error?: (self: Stream<VALUE, NAME>, error: unknown) => void;
   };
-  export type MetaStreams<VALUE> = Stream.MetaStreams<VALUE> & { $error?: Stream<unknown, any> };
+  export type MetaStreams<VALUE, NAME extends NonEmptyString> = Stream.MetaStreams<VALUE, NAME> & {
+    $error?: Stream<unknown, `${NAME}MetaError`>;
+  };
 }

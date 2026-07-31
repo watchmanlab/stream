@@ -23,6 +23,8 @@ import { merge } from "./transformers/merge";
 import { mapBatch } from "./transformers/map-batch";
 import { flat } from "./transformers/flat";
 import { Signal } from "./streams/signal";
+import { debug } from "./transformers/debug";
+import { batch } from "./transformers/batch";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -89,30 +91,44 @@ function consumerTest() {
 // consumerTest();
 
 function streamBench() {
-  const MAX = 100_000_000;
+  const MAX = 20_000_000;
 
   const start = performance.now();
   const stream = new Stream<number>();
-  const consumer = stream
-    .consume((consumer, v) => {
-      if (v === MAX) {
-        console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-        consumer.terminate("complete");
-        return;
-      }
+  stream
 
-      consumer.next();
-    })
-    .next();
+    .pipe(
+      tap((v, self) => {
+        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      }),
+    )
+    .pipe(
+      tap((v, self) => {
+        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      }),
+    )
+    .pipe(
+      tap((v, self) => {
+        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      }),
+    )
+    .pipe(
+      tap((v, self) => {
+        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      }),
+    )
+    .pipe(pump());
 
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);
   }
-
-  // consumer.next();
 }
 
-// streamBench(); //100 000 000 943 ms
+// streamBench();
+// 20 000 000 4242 ms
+// 20 000 000 4242 ms
+// 20 000 000 4242 ms
+// 20 000 000 4242 ms
 
 function streamTest() {
   const stream = new Stream<number>();
@@ -150,13 +166,10 @@ function streamTest() {
 // c1 3
 
 function fromIteratorTest() {
-  fromIterator([1, 2, 3].values(), { name: "$list" })
-    .pipe(tick())
-    .pipe(tap((v) => console.log("first", v)))
-    .pipe(pump())
-    .traversal.$tap.$tick.$list.pipe(passive())
-    .pipe(tap((v) => console.log("sec", v)))
-    .pipe(pump());
+  const stream = fromIterator([1, 2, 3].values(), { name: "$list" });
+  const s = stream.pipe(tap((v) => console.log("first")));
+  stream.pipe(tap((v) => console.log("sec"))).pipe(pump());
+  s.pipe(pump());
 }
 
 // fromIteratorTest();
@@ -332,14 +345,25 @@ function auditCountTest() {
 
 function takeTest() {
   fromIterable([1, 2, 3, 4, 5, 6, 7])
-    .pipe(map((v) => new Promise<number>((r) => setTimeout(() => r(v), Math.random() * 500))))
-    .pipe(resolve(3))
-    .pipe(take(4))
-    .pipe(tap((v) => console.log(v)))
-    .pipe(pump());
+    .pipe(
+      map(
+        (v) =>
+          new Promise<number>((res, rej) =>
+            setTimeout(() => {
+              v == 3 ? rej("kechmahaja") : res(v);
+            }, Math.random() * 500),
+          ),
+      ),
+    )
+
+    .pipe(resolve(4))
+    .pipe(take(3))
+    .pipe(debug())
+
+    .traversal.$take.$resolve.$error.pipe(debug());
 }
 
-takeTest();
+// takeTest();
 
 function skipTest() {
   const v = fromIterable([1, 2, 3, 4])
@@ -436,9 +460,11 @@ function terminateTest() {
 function mergeTest() {
   const s1 = fromIterable([1, 2, 3]);
   const s2 = fromIterable(["a", "b", "c"]);
+  const s3 = fromIterable([true, false, false]);
 
   s1.pipe(merge(s2))
-    .pipe(tick())
+    .pipe(merge(s3))
+    // .pipe(tick())
     .pipe(tap((v) => console.log(v)))
     .pipe(pump());
 }
@@ -466,3 +492,9 @@ function flatTest() {
     .pipe(pump());
 }
 // flatTest();
+
+function batchTest() {
+  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(batch(4)).pipe(debug("batch"));
+}
+
+batchTest();

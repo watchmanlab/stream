@@ -11,15 +11,29 @@ export class Merge<
   constructor(input: INPUT, other: OTHER, options?: Stream.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
-    const inputConsumer = input.consume((_, value) => this.push(value));
-    const otherConsumer = other.consume((_, value) => this.push(value));
+    const pending = new Array(2).fill(false);
+
+    const inputConsumer = input.consume((_, value) => {
+      pending[0] = false;
+      this.push(value);
+    });
+    const otherConsumer = other.consume((_, value) => {
+      pending[1] = false;
+      this.push(value);
+    });
 
     super(input, {
       ...rest,
       name: name ?? ("$merge" as NAME),
       next(self, consumer) {
-        inputConsumer.next();
-        otherConsumer.next();
+        if (!pending[0]) {
+          pending[0] = true;
+          inputConsumer.next();
+        }
+        if (!pending[1]) {
+          pending[1] = true;
+          otherConsumer.next();
+        }
         next?.(self, consumer);
       },
       terminate(self, reason) {

@@ -11,11 +11,12 @@ export class Tick<
     const { name, next, terminate, ...rest } = { ...options };
 
     let inputConsumer = input.consume((_, value) => this.push(value));
+
     super(input, {
       ...rest,
       name: name ?? ("$tick" as NAME),
       next(self, consumer) {
-        queueMicrotask(() => {
+        setTimeout(() => {
           inputConsumer.next();
           next?.(self, consumer);
         });
