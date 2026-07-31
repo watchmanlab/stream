@@ -14,6 +14,7 @@ export class MapBatch<
     const results: MAPPED[] = [];
 
     const inputConsumer = input.consume((_, values) => {
+      results.length = 0;
       for (let i = 0, len = values.length; i < len; i++) {
         results.push(mapper(values[i]));
       }

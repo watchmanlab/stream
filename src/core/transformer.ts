@@ -24,14 +24,12 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
     });
   }
   get traversal(): Traversal<INPUT> {
-    const { _input } = this;
-    return new Proxy(
-      {},
-      {
-        get() {
-          return _input;
-        },
+    const { _input: input } = this;
+
+    return Object.defineProperty({}, input.name, {
+      get() {
+        return input;
       },
-    ) as never;
+    }) as never;
   }
 }

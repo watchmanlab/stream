@@ -1,6 +1,6 @@
 import { Stream } from "./core/stream";
 import { Consumer } from "./core/consumer";
-import { map, Map } from "./transformers/map";
+import { map } from "./transformers/map";
 import { fromIterator, FromIterator } from "./streams/from-iterator";
 import { fromIterable } from "./streams/from-iterable";
 import { fromEventTarget } from "./streams/from-event-target";
@@ -96,24 +96,24 @@ function streamBench() {
   const start = performance.now();
   const stream = new Stream<number>();
   stream
-
+    .pipe(batch(10000))
     .pipe(
-      tap((v, self) => {
+      tapBatch((v) => {
         if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
-      tap((v, self) => {
+      tapBatch((v) => {
         if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
-      tap((v, self) => {
+      tapBatch((v) => {
         if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
-      tap((v, self) => {
+      tapBatch((v) => {
         if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       }),
     )
@@ -129,6 +129,38 @@ function streamBench() {
 // 20 000 000 4242 ms
 // 20 000 000 4242 ms
 // 20 000 000 4242 ms
+
+import { Subject, tap as rxtap } from "rxjs";
+import { tapBatch } from "./transformers/tap-batch";
+
+function rxjsBench() {
+  const MAX = 10_000_000;
+  const stream$ = new Subject<number>();
+  const start = performance.now();
+
+  stream$
+    .pipe(
+      rxtap((v) => {
+        if (v === MAX) console.log("Stage 1:", Math.round(performance.now() - start), "ms");
+      }),
+      rxtap((v) => {
+        if (v === MAX) console.log("Stage 2:", Math.round(performance.now() - start), "ms");
+      }),
+      rxtap((v) => {
+        if (v === MAX) console.log("Stage 3:", Math.round(performance.now() - start), "ms");
+      }),
+      rxtap((v) => {
+        if (v === MAX) console.log("Stage 4:", Math.round(performance.now() - start), "ms");
+      }),
+    )
+    .subscribe(); // Activates the pipeline
+
+  for (let i = 0; i <= MAX; i++) {
+    stream$.next(i);
+  }
+}
+
+rxjsBench();
 
 function streamTest() {
   const stream = new Stream<number>();
@@ -494,7 +526,10 @@ function flatTest() {
 // flatTest();
 
 function batchTest() {
-  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(batch(4)).pipe(debug("batch"));
+  const stream = fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    .pipe(batch(2))
+    .pipe(mapBatch((v) => v * 100))
+    .pipe(debug("batch"));
 }
 
-batchTest();
+// batchTest();
