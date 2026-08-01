@@ -47,7 +47,7 @@ function consumerBench() {
   }
 }
 
-// consumerBench(); //350 000 000 989 ms
+consumerBench(); //350 000 000 989 ms
 
 function consumerBench2() {
   const MAX = 10_000_000;
@@ -96,24 +96,24 @@ function streamBench() {
   const start = performance.now();
   const stream = new Stream<number>();
   stream
-    .pipe(batch(10000))
+
     .pipe(
-      tapBatch((v) => {
+      tap((v) => {
         if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
-      tapBatch((v) => {
+      tap((v) => {
         if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
-      tapBatch((v) => {
+      tap((v) => {
         if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       }),
     )
     .pipe(
-      tapBatch((v) => {
+      tap((v) => {
         if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       }),
     )
@@ -134,7 +134,7 @@ import { Subject, tap as rxtap } from "rxjs";
 import { tapBatch } from "./transformers/tap-batch";
 
 function rxjsBench() {
-  const MAX = 10_000_000;
+  const MAX = 20_000_000;
   const stream$ = new Subject<number>();
   const start = performance.now();
 
@@ -160,7 +160,11 @@ function rxjsBench() {
   }
 }
 
-rxjsBench();
+// rxjsBench();
+// Stage 1: 1756 ms
+// Stage 2: 1756 ms
+// Stage 3: 1756 ms
+// Stage 4: 1756 ms
 
 function streamTest() {
   const stream = new Stream<number>();

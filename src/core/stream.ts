@@ -104,7 +104,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     switch (consumers.size) {
       case 0:
         {
-          this.push = (value) => {
+          this._push = (value) => {
             this._pulling = false;
             this._options.push?.(this, value);
             this._metaStreams.$push?.push(value);
@@ -116,7 +116,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
         {
           const consumer = consumers.values().next().value!;
 
-          this.push = (value) => {
+          this._push = (value) => {
             this._pulling = false;
             consumer.push(value);
             this._options.push?.(this, value);
@@ -130,7 +130,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           const iter = consumers.values();
           const consumer1 = iter.next().value!;
           const consumer2 = iter.next().value!;
-          this.push = (value) => {
+          this._push = (value) => {
             this._pulling = false;
             consumer1.push(value);
             consumer2.push(value);
@@ -146,7 +146,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           const consumer1 = iter.next().value!;
           const consumer2 = iter.next().value!;
           const consumer3 = iter.next().value!;
-          this.push = (value) => {
+          this._push = (value) => {
             this._pulling = false;
             consumer1.push(value);
             consumer2.push(value);
@@ -164,7 +164,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           const consumer2 = iter.next().value!;
           const consumer3 = iter.next().value!;
           const consumer4 = iter.next().value!;
-          this.push = (value) => {
+          this._push = (value) => {
             this._pulling = false;
             consumer1.push(value);
             consumer2.push(value);
@@ -177,7 +177,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
         }
         break;
       default: {
-        this.push = (value) => {
+        this._push = (value) => {
           this._pulling = false;
           for (const consumer of consumers.values()) {
             consumer.push(value);
@@ -189,11 +189,14 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       }
     }
   }
-  push(value: VALUE): this {
+  private _push = (value: VALUE) => {
     this._pulling = false;
     this._options.push?.(this, value);
     this._metaStreams.$push?.push(value);
     return this;
+  };
+  push(value: VALUE): this {
+    return this._push(value);
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     if (this._consumers.has(handler)) return this._consumers.get(handler)!;

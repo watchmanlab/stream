@@ -28,24 +28,29 @@ export class Consumer<VALUE> implements Terminable {
   }
 
   push(value: VALUE): this {
-    const { _queue } = this;
+    const {
+      _queue,
+      _options: { enqueue },
+    } = this;
     if (this._counter > 0 && _queue.size === 0) {
       this._handler(this, value);
       this._counter--;
     } else {
       _queue.enqueue(value);
-      this._options.enqueue?.(this, value);
+      enqueue?.(this, value);
     }
     return this;
   }
 
   next(): this {
     this._counter++;
-    const { _queue } = this;
+    const {
+      _queue,
+      _options: { next, dequeue },
+    } = this;
 
     if (_queue.size === 0) {
-      this._options.next?.(this);
-
+      next?.(this);
       return this;
     }
 
@@ -53,13 +58,13 @@ export class Consumer<VALUE> implements Terminable {
 
     while (this._counter > 0) {
       const value = _queue.dequeue();
-      this._options.dequeue?.(this, value);
+      dequeue?.(this, value);
 
       if (value === EMPTY) {
         if (this._status === "drain") {
           this.terminate("complete");
         } else {
-          this._options.next?.(this);
+          next?.(this);
         }
         break;
       }
