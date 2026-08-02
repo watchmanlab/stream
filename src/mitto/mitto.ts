@@ -1,16 +1,11 @@
-import { sleep } from "bun";
-
 export class Mitto<VALUE> {
-  private _listeners: [Mitto.Listener<VALUE>][] = [];
-  private _listenersCount = 0;
-  private _threshold: number;
+  private _listener: Mitto.Listener<VALUE> | Mitto.EmptyFunction = Mitto.EMPTY_FUNCTION;
+  private _$mitto?: Mitto<VALUE>;
   private _abortSignal?: Mitto.Abort;
   private _abortSource?: Mitto.Abort;
   private _$close?: Mitto<void>;
-  private _$mitto?: Mitto<VALUE>;
   constructor(private options?: Mitto.Options<VALUE>) {
-    const { $source, $signal, threshold = 5 } = options ?? {};
-    this._threshold = threshold > 0 ? threshold : 5;
+    const { $source, $signal } = options ?? {};
 
     if ($signal) {
       this._abortSignal = $signal.listen(() => this.close());
@@ -22,35 +17,31 @@ export class Mitto<VALUE> {
       $source._$close.listen(() => this.close());
     }
   }
-  get listenersCount() {
-    return this._listenersCount;
-  }
+
   get $close() {
     this._$close ??= new Mitto();
     return new Mitto({ $source: this._$close });
   }
 
   push(value: VALUE) {
-    const listeners = this._listeners;
-    const len = listeners.length;
+    this._listener(value);
 
-    for (let i = 0; i < len; i++) {
-      listeners[i][0](value);
+    if (this._$mitto) {
+      let mitto: Mitto<VALUE> | undefined = this._$mitto;
+      while (mitto) {
+        mitto._listener(value);
+        mitto = mitto._$mitto;
+      }
     }
-    this._$mitto?.push(value);
   }
 
-  listen(listener: Mitto.Listener<VALUE>, $signal?: Mitto<any>): Mitto.Abort {
-    if (this._listeners.length >= this._threshold) {
-      this._$mitto ??= new Mitto<VALUE>({ threshold: this._threshold });
-
-      return this._$mitto.listen(listener, $signal);
+  listen(listener: Mitto.Listener<VALUE>): Mitto.Abort {
+    if (this._listener !== Mitto.EMPTY_FUNCTION) {
+      this._$mitto ??= new Mitto<VALUE>();
+      return this._$mitto.listen(listener);
     }
-    const abortSignal = $signal?.listen(() => abort());
 
-    const entry = [listener] as [Mitto.Listener<VALUE>];
-    this._listeners.push(entry);
-    this._listenersCount++;
+    this._listener = listener;
 
     this.options?.listenerAdded?.(this, listener);
 
@@ -59,24 +50,26 @@ export class Mitto<VALUE> {
     return abort;
 
     function abort() {
-      entry[0] = Mitto.EMPTY_FUNCTION;
-      self._listenersCount--;
-      if (self._listenersCount === 0) {
-        if (self._$mitto) {
-          self._listeners = self._$mitto._listeners;
-          self._listenersCount = self._$mitto._listenersCount;
-          self._$mitto = self._$mitto._$mitto;
-        } else {
-          self._listeners = [];
-        }
+      if (self._listener === Mitto.EMPTY_FUNCTION) return;
+
+      self._listener = Mitto.EMPTY_FUNCTION;
+
+      if (self._$mitto) {
+        self.options?.listenerRemoved?.(self, listener);
+
+        self._listener = self._$mitto._listener;
+        const deadChild = self._$mitto;
+        self._$mitto = self._$mitto._$mitto;
+
+        deadChild._$mitto = undefined;
+        deadChild._listener = Mitto.EMPTY_FUNCTION;
+      } else {
+        self.options?.listenerRemoved?.(self, listener);
       }
-      self.options?.listenerRemoved?.(self, listener);
-      abortSignal?.();
     }
   }
   close() {
-    this._listeners.length = 0;
-    this._listenersCount = 0;
+    this._listener = Mitto.EMPTY_FUNCTION;
     this._abortSignal?.();
     this._abortSource?.();
     this._$close?.push();
@@ -94,7 +87,6 @@ export namespace Mitto {
   export type Listener<VALUE> = (value: VALUE) => void;
   export type Abort = () => void;
   export type Options<VALUE> = {
-    threshold?: number;
     $source?: Mitto<VALUE>;
     $signal?: Mitto<any>;
     close?: (self: Mitto<VALUE>) => void;
@@ -102,6 +94,7 @@ export namespace Mitto {
     listenerRemoved?: (self: Mitto<VALUE>, listener: Listener<VALUE>) => void;
   };
   export const EMPTY_FUNCTION = () => {};
+  export type EmptyFunction = typeof EMPTY_FUNCTION;
 }
 export const map = <T, R>(fn: (val: T) => R) => {
   return (source: Mitto<T>): Mitto<R> => {
@@ -128,7 +121,7 @@ export const filter = <T>(predicate: (val: T) => boolean) => {
   };
 };
 function bench() {
-  const MAX = 20_000_000;
+  const MAX = 1_000_000;
 
   const start = performance.now();
 
@@ -148,11 +141,11 @@ function bench() {
     mitto.push(i);
   }
 }
-bench(); //20 000 000 1642 ms
+bench(); //1 000 000 37 ms
 
 function test() {
   const $source = new Mitto<number>();
-  const $mitto = new Mitto({ $source, threshold: 2 });
+  const $mitto = new Mitto({ $source });
 
   $mitto.listen((v) => console.log("c1", v));
   $mitto.listen((v) => console.log("c2", v));
@@ -194,7 +187,7 @@ function transformersTest() {
 
 function churnBench() {
   const TOTAL_EVENTS = 10000;
-  const mitto = new Mitto<number>({ threshold: 10 });
+  const mitto = new Mitto<number>();
 
   // 1. Maintain a steady state right up to the threshold boundary
   for (let i = 0; i < 4; i++) {
