@@ -1,3 +1,5 @@
+import { sleep } from "bun";
+
 export class Mitto<VALUE> {
   private _listeners: [Mitto.Listener<VALUE>][] = [];
   private _listenersCount = 0;
@@ -7,8 +9,8 @@ export class Mitto<VALUE> {
   private _$close?: Mitto<void>;
   private _$mitto?: Mitto<VALUE>;
   constructor(private options?: Mitto.Options<VALUE>) {
-    const { $source, $signal, threshold } = options ?? {};
-    this._threshold = threshold ?? 5;
+    const { $source, $signal, threshold = 5 } = options ?? {};
+    this._threshold = threshold > 0 ? threshold : 5;
 
     if ($signal) {
       this._abortSignal = $signal.listen(() => this.close());
@@ -29,28 +31,19 @@ export class Mitto<VALUE> {
   }
 
   push(value: VALUE) {
-    for (let i = 0; i < this._listeners.length; i++) {
-      this._listeners[i][0](value);
+    const listeners = this._listeners;
+    const len = listeners.length;
+
+    for (let i = 0; i < len; i++) {
+      listeners[i][0](value);
     }
-    // this._$mitto?.push(value)
+    this._$mitto?.push(value);
   }
 
   listen(listener: Mitto.Listener<VALUE>, $signal?: Mitto<any>): Mitto.Abort {
-    if (this._listeners.length > this._threshold) {
-      if (!this._$mitto) {
-        this._threshold++;
-        this._$mitto ??= new Mitto<VALUE>({
-          $source: this,
-          $signal,
-          listenerRemoved: (self) => {
-            if (self.listenersCount === 0) {
-              this._$mitto?.close();
-              this._$mitto = undefined;
-            }
-          },
-        });
-        this._threshold--;
-      }
+    if (this._listeners.length >= this._threshold) {
+      this._$mitto ??= new Mitto<VALUE>({ threshold: this._threshold });
+
       return this._$mitto.listen(listener, $signal);
     }
     const abortSignal = $signal?.listen(() => abort());
@@ -67,6 +60,16 @@ export class Mitto<VALUE> {
 
     function abort() {
       entry[0] = Mitto.EMPTY_FUNCTION;
+      self._listenersCount--;
+      if (self._listenersCount === 0) {
+        if (self._$mitto) {
+          self._listeners = self._$mitto._listeners;
+          self._listenersCount = self._$mitto._listenersCount;
+          self._$mitto = self._$mitto._$mitto;
+        } else {
+          self._listeners = [];
+        }
+      }
       self.options?.listenerRemoved?.(self, listener);
       abortSignal?.();
     }
@@ -145,7 +148,7 @@ function bench() {
     mitto.push(i);
   }
 }
-bench();
+bench(); //20 000 000 1642 ms
 
 function test() {
   const $source = new Mitto<number>();
@@ -157,8 +160,8 @@ function test() {
   $mitto.listen((v) => console.log("c4", v));
 
   $source.push(1);
-  $source.push(2);
-  $source.push(3);
+  //   $source.push(2);
+  //   $source.push(3);
 }
 
 // test();
@@ -188,3 +191,39 @@ function transformersTest() {
   numbers$.push(2); // Passes filter -> Maps 2 to 20 -> Prints "Emitted: 20"
 }
 // transformersTest();
+
+function churnBench() {
+  const TOTAL_EVENTS = 10000;
+  const mitto = new Mitto<number>({ threshold: 10 });
+
+  // 1. Maintain a steady state right up to the threshold boundary
+  for (let i = 0; i < 4; i++) {
+    mitto.listen(() => {});
+  }
+
+  let receivedCount = 0;
+  const start = performance.now();
+
+  for (let i = 0; i < TOTAL_EVENTS; i++) {
+    // 2. Rapidly flood past the threshold with short-lived subscribers
+    const unsub1 = mitto.listen((v) => {
+      receivedCount++;
+    });
+    const unsub2 = mitto.listen((v) => {
+      receivedCount++;
+    });
+
+    // 3. Fire the event (triggers branch traversal)
+    mitto.push(i);
+
+    // 4. Immediately destroy the branch via unsubscription
+    unsub1();
+    unsub2();
+  }
+
+  const duration = Math.round(performance.now() - start);
+  console.log(`Processed ${TOTAL_EVENTS.toLocaleString()} events with massive churn.`);
+  console.log(`Total callbacks triggered: ${receivedCount.toLocaleString()}`);
+  console.log(`Time taken: ${duration} ms`);
+}
+// churnBench();
