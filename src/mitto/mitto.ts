@@ -34,10 +34,10 @@ export class Mitto<VALUE> {
     this._listener(value);
 
     if (this._$nextMitto) {
-      let mitto: Mitto<VALUE> | undefined = this._$nextMitto;
-      while (mitto) {
-        mitto._listener(value);
-        mitto = mitto._$nextMitto;
+      let $nextMitto: Mitto<VALUE> | undefined = this._$nextMitto;
+      while ($nextMitto) {
+        $nextMitto._listener(value);
+        $nextMitto = $nextMitto._$nextMitto;
       }
     }
   }
@@ -49,6 +49,8 @@ export class Mitto<VALUE> {
       $prevTailMitto._$nextMitto = this._$tailMitto;
       this._$tailMitto._$prevMitto = $prevTailMitto;
     }
+
+    if (this._listener === Mitto.EMPTY_FUNCTION) this.options?.firstListenerAdded?.(this, listener);
 
     this._$tailMitto._listener = listener;
     this.options?.listenerAdded?.(this, listener);
@@ -71,10 +73,14 @@ export class Mitto<VALUE> {
   }
 
   clear() {
+    const listener = this._listener;
     this._listener = Mitto.EMPTY_FUNCTION;
+    this._abortSignal?.();
+    this._abortSource?.();
     this._$tailMitto = this;
     this._$nextMitto = undefined;
 
+    this.options?.lastListenerRemoved?.(this, listener);
     this.options?.clear?.(this);
     this._$clear?.push();
   }
@@ -121,13 +127,16 @@ function test() {
 
 export const map = <T, R>(fn: (val: T) => R) => {
   return (source: Mitto<T>): Mitto<R> => {
-    const destination = new Mitto<R>();
+    let abort: Mitto.Abort;
 
-    // Links upstream data emissions straight through the functional transform
-    const unsub = source.listen((val) => destination.push(fn(val)));
-
-    // Automatically sever pipeline links if the output node is explicitly closed
-    destination.$clear.listen(() => unsub());
+    const destination = new Mitto<R>({
+      firstListenerAdded(self, listener) {
+        abort = source.listen((val) => destination.push(fn(val)));
+      },
+      lastListenerRemoved(self, listener) {
+        abort();
+      },
+    });
 
     return destination;
   };
@@ -135,27 +144,36 @@ export const map = <T, R>(fn: (val: T) => R) => {
 
 export const filter = <T>(predicate: (val: T) => boolean) => {
   return (source: Mitto<T>): Mitto<T> => {
-    const destination = new Mitto<T>();
-    const unsub = source.listen((val) => {
-      if (predicate(val)) destination.push(val);
+    let abort: Mitto.Abort;
+
+    const destination = new Mitto<T>({
+      firstListenerAdded(self, listener) {
+        abort = source.listen((val) => {
+          if (predicate(val)) destination.push(val);
+        });
+      },
+      lastListenerRemoved(self, listener) {
+        abort();
+      },
     });
-    destination.$clear.listen(() => unsub());
     return destination;
   };
 };
 function bench() {
-  const MAX = 1_000_000;
+  const MAX = 20_000_000;
 
   const start = performance.now();
 
-  const mitto = new Mitto();
+  const mitto = new Mitto<number>();
 
   mitto
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
+    .pipe(map((v) => v + 100))
+    .pipe(map((v) => v - 100))
+    .pipe(map((v) => v + 100))
+    .pipe(map((v) => v - 100))
+    .pipe(map((v) => v + 100))
+    .pipe(map((v) => v - 100))
+
     .listen((v) => {
       if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
     });
