@@ -1,6 +1,7 @@
 export class Mitto<VALUE> {
   private _listener: Mitto.Listener<VALUE> | Mitto.EmptyFunction = Mitto.EMPTY_FUNCTION;
   private _$nextMitto?: Mitto<VALUE>;
+  private _$prevMitto?: Mitto<VALUE>;
   private _$tailMitto: Mitto<VALUE> = this;
   private _abortSignal?: Mitto.Abort;
   private _abortSource?: Mitto.Abort;
@@ -41,56 +42,41 @@ export class Mitto<VALUE> {
     }
   }
 
-  listen(listener: Mitto.Listener<VALUE>, $signal?: Mitto<any>): Mitto.Abort {
-    if (this._listener !== Mitto.EMPTY_FUNCTION) {
-      const $tailMitto = this._$tailMitto;
-      $tailMitto._$nextMitto = new Mitto<VALUE>();
-      this._$tailMitto = $tailMitto._$nextMitto;
-      return $tailMitto._$nextMitto.listen(listener, $signal);
+  listen(listener: Mitto.Listener<VALUE>): Mitto.Abort {
+    if (this._$tailMitto._listener !== Mitto.EMPTY_FUNCTION) {
+      const $prevTailMitto = this._$tailMitto;
+      this._$tailMitto = new Mitto();
+      $prevTailMitto._$nextMitto = this._$tailMitto;
+      this._$tailMitto._$prevMitto = $prevTailMitto;
     }
 
-    const abortSignal = $signal?.listen(() => abort());
-    this._listener = listener;
+    this._$tailMitto._listener = listener;
     this.options?.listenerAdded?.(this, listener);
 
-    const self = this;
-    return abort;
-
-    function abort() {
-      if (self._listener === Mitto.EMPTY_FUNCTION) return;
-      self._listener = Mitto.EMPTY_FUNCTION;
-
-      if (self._$nextMitto) {
-        console.log("dd");
-        self._listener = self._$nextMitto._listener;
-
-        const deadChild = self._$nextMitto;
-        self._$nextMitto = self._$nextMitto._$nextMitto;
-
-        deadChild._$nextMitto = undefined;
-        deadChild._listener = Mitto.EMPTY_FUNCTION;
+    const $current = this._$tailMitto;
+    return () => {
+      if (!$current._$prevMitto && !$current._$nextMitto) {
+        this.clear();
+        return;
       }
 
-      // Lazy Tail Reset: If the terminal node itself is being removed,
-      // the master tail reference is temporarily broken.
-      // We set the next subscription path to reset itself lazily.
-      // (Handled cleanly because the next listen call will evaluate the head state)
-      self.options?.listenerRemoved?.(self, listener);
+      $current._listener = Mitto.EMPTY_FUNCTION;
 
-      abortSignal?.();
-    }
+      if (!$current._$prevMitto) return;
+
+      if (!$current._$nextMitto) $current._$prevMitto._$tailMitto = $current._$prevMitto._$nextMitto!;
+
+      $current._$prevMitto._$nextMitto = $current._$nextMitto;
+    };
   }
 
   clear() {
-    this._abortSignal?.();
-    this._abortSource?.();
-    this._$clear?.push();
-    this._$clear?.clear();
-    this._$nextMitto?.clear();
-    this._$clear = this._$nextMitto = this._abortSignal = this._abortSource = undefined;
     this._listener = Mitto.EMPTY_FUNCTION;
     this._$tailMitto = this;
+    this._$nextMitto = undefined;
+
     this.options?.clear?.(this);
+    this._$clear?.push();
   }
 
   pipe<OUTPUT>(transform: (input: Mitto<VALUE>) => Mitto<OUTPUT>): Mitto<OUTPUT> {
@@ -107,10 +93,32 @@ export namespace Mitto {
     clear?: (self: Mitto<VALUE>) => void;
     listenerAdded?: (self: Mitto<VALUE>, listener: Listener<VALUE>) => void;
     listenerRemoved?: (self: Mitto<VALUE>, listener: Listener<VALUE>) => void;
+    firstListenerAdded?: (self: Mitto<VALUE>, listener: Listener<VALUE>) => void;
+    lastListenerRemoved?: (self: Mitto<VALUE>, listener: Listener<VALUE>) => void;
   };
   export const EMPTY_FUNCTION = () => {};
   export type EmptyFunction = typeof EMPTY_FUNCTION;
 }
+
+function test() {
+  const $source = new Mitto<number>();
+  const $mitto = new Mitto({ $source });
+
+  const abort1 = $mitto.listen((v) => console.log("c1", v));
+  const abort2 = $mitto.listen((v) => console.log("c2", v));
+  const abort3 = $mitto.listen((v) => console.log("c3", v));
+
+  abort1();
+  //   abort2();
+  abort3();
+  $mitto.push(1);
+  //   $mitto.clear();
+
+  $mitto.push(2);
+}
+
+// test();
+
 export const map = <T, R>(fn: (val: T) => R) => {
   return (source: Mitto<T>): Mitto<R> => {
     const destination = new Mitto<R>();
@@ -136,18 +144,18 @@ export const filter = <T>(predicate: (val: T) => boolean) => {
   };
 };
 function bench() {
-  const MAX = 30_000_000;
+  const MAX = 1_000_000;
 
   const start = performance.now();
 
   const mitto = new Mitto();
 
   mitto
-    // .pipe(map((v) => v))
-    // .pipe(map((v) => v))
-    // .pipe(map((v) => v))
-    // .pipe(map((v) => v))
-    // .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
     .listen((v) => {
       if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
     });
@@ -156,78 +164,54 @@ function bench() {
     mitto.push(i);
   }
 }
-// bench(); //1 000 000 37 ms
+bench(); //550 000 000 992 ms
 
-function test() {
-  const $source = new Mitto<number>();
-  const $mitto = new Mitto({ $source });
+// function transformersTest() {
+//   const numbers$ = new Mitto<number>();
 
-  const abort1 = $mitto.listen((v) => console.log("c1", v));
-  const abort2 = $mitto.listen((v) => console.log("c2", v));
-  //   const abort3 = $mitto.listen((v) => console.log("c3", v));
-  //   const abort4 = $mitto.listen((v) => console.log("c4", v));
+//   // 100% Isolated pipeline instances. Each has exactly 1 listener.
+//   const processedStream$ = numbers$.pipe(filter((x) => x % 2 === 0)).pipe(map((x) => x * 10));
 
-  $source.push(1);
+//   // The terminal subscriber
+//   processedStream$.listen((val) => console.log("Emitted:", val));
 
-  abort1();
-  abort2();
-  //   abort3();
-  //   abort4();
-
-  console.log($mitto.hasListenrs);
-
-  //   $source.push(2);
-  //   $source.push(3);
-}
-
-test();
-
-function transformersTest() {
-  const numbers$ = new Mitto<number>();
-
-  // 100% Isolated pipeline instances. Each has exactly 1 listener.
-  const processedStream$ = numbers$.pipe(filter((x) => x % 2 === 0)).pipe(map((x) => x * 10));
-
-  // The terminal subscriber
-  processedStream$.listen((val) => console.log("Emitted:", val));
-
-  numbers$.push(1); // Blocked by filter
-  numbers$.push(2); // Passes filter -> Maps 2 to 20 -> Prints "Emitted: 20"
-}
+//   numbers$.push(1); // Blocked by filter
+//   numbers$.push(2); // Passes filter -> Maps 2 to 20 -> Prints "Emitted: 20"
+// }
 // transformersTest();
 
-function churnBench() {
-  const TOTAL_EVENTS = 10000;
-  const mitto = new Mitto<number>();
+// function churnBench() {
+//   const TOTAL_EVENTS = 10000;
+//   const mitto = new Mitto<number>();
 
-  // 1. Maintain a steady state right up to the threshold boundary
-  for (let i = 0; i < 4; i++) {
-    mitto.listen(() => {});
-  }
+//   // 1. Maintain a steady state right up to the threshold boundary
+//   for (let i = 0; i < 4; i++) {
+//     mitto.listen(() => {});
+//   }
 
-  let receivedCount = 0;
-  const start = performance.now();
+//   let receivedCount = 0;
+//   const start = performance.now();
 
-  for (let i = 0; i < TOTAL_EVENTS; i++) {
-    // 2. Rapidly flood past the threshold with short-lived subscribers
-    const unsub1 = mitto.listen((v) => {
-      receivedCount++;
-    });
-    const unsub2 = mitto.listen((v) => {
-      receivedCount++;
-    });
+//   for (let i = 0; i < TOTAL_EVENTS; i++) {
+//     // 2. Rapidly flood past the threshold with short-lived subscribers
+//     const unsub1 = mitto.listen((v) => {
+//       receivedCount++;
+//     });
+//     const unsub2 = mitto.listen((v) => {
+//       receivedCount++;
+//     });
 
-    // 3. Fire the event (triggers branch traversal)
-    mitto.push(i);
+//     // 3. Fire the event (triggers branch traversal)
+//     mitto.push(i);
 
-    // 4. Immediately destroy the branch via unsubscription
-    unsub1();
-    unsub2();
-  }
+//     // 4. Immediately destroy the branch via unsubscription
+//     unsub1();
+//     unsub2();
+//   }
 
-  const duration = Math.round(performance.now() - start);
-  console.log(`Processed ${TOTAL_EVENTS.toLocaleString()} events with massive churn.`);
-  console.log(`Total callbacks triggered: ${receivedCount.toLocaleString()}`);
-  console.log(`Time taken: ${duration} ms`);
-}
+//   const duration = Math.round(performance.now() - start);
+//   console.log(`Processed ${TOTAL_EVENTS.toLocaleString()} events with massive churn.`);
+//   console.log(`Total callbacks triggered: ${receivedCount.toLocaleString()}`);
+//   console.log(`Time taken: ${duration} ms`);
+// }
 // churnBench();
