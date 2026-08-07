@@ -7,11 +7,11 @@ export class Debug<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$debug",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, message?: string, options?: Stream.Options<VALUE, NAME>) {
+  constructor(input: INPUT, tag?: string, options?: Stream.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
     const inputConsumer = input.consume((self, value) => {
-      message ? console.log(value, message) : console.log(value);
+      tag ? console.log(`${tag}:`, value) : console.log(value);
       this.push(value);
       self.next();
     });
@@ -32,6 +32,6 @@ export function debug<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$debug",
->(message?: string, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Debug<INPUT, VALUE, NAME>> {
-  return (input) => new Debug(input, message, options);
+>(tag?: string, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Debug<INPUT, VALUE, NAME>> {
+  return (input) => new Debug(input, tag, options);
 }
