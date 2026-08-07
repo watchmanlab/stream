@@ -28,16 +28,12 @@ export class Consumer<VALUE> implements Terminable {
   }
 
   push(value: VALUE): this {
-    const {
-      _queue,
-      _options: { enqueue },
-    } = this;
-    if (this._counter > 0 && _queue.size === 0) {
+    if (this._counter > 0 && this._queue.size === 0) {
       this._handler(this, value);
       this._counter--;
     } else {
-      _queue.enqueue(value);
-      enqueue?.(this, value);
+      this._queue.enqueue(value);
+      this._options.enqueue?.(this, value);
     }
     return this;
   }

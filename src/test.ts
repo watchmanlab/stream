@@ -91,7 +91,7 @@ function consumerTest() {
 // consumerTest();
 
 function streamBench() {
-  const MAX = 20_000_000;
+  const MAX = 1_000_000;
 
   const start = performance.now();
   const stream = new Stream<number>();
@@ -124,14 +124,13 @@ function streamBench() {
   }
 }
 
-// streamBench();
-// 20 000 000 4242 ms
-// 20 000 000 4242 ms
-// 20 000 000 4242 ms
-// 20 000 000 4242 ms
+streamBench();
+// 1 000 000 234 ms
+// 1 000 000 234 ms
+// 1 000 000 234 ms
+// 1 000 000 234 ms
 
-import { Subject, tap as rxtap } from "rxjs";
-import { tapBatch } from "./transformers/tap-batch";
+import { Subject, tap as rxtap, asyncScheduler } from "rxjs";
 
 function rxjsBench() {
   const MAX = 1_000_000;
@@ -161,10 +160,10 @@ function rxjsBench() {
 }
 
 rxjsBench();
-// Stage 1: 1756 ms
-// Stage 2: 1756 ms
-// Stage 3: 1756 ms
-// Stage 4: 1756 ms
+// Stage 1: 103 ms
+// Stage 2: 103 ms
+// Stage 3: 103 ms
+// Stage 4: 103 ms
 
 function streamTest() {
   const stream = new Stream<number>();

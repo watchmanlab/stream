@@ -1,19 +1,19 @@
 export class Mitto<VALUE> {
   private _listener: Mitto.Listener<VALUE> | Mitto.EmptyFunction = Mitto.EMPTY_FUNCTION;
-  private _$nextMitto?: Mitto<VALUE>;
-  private _$prevMitto?: Mitto<VALUE>;
-  private _$tailMitto: Mitto<VALUE> = this;
+  private _$next?: Mitto<VALUE>;
+  private _$prev?: Mitto<VALUE>;
+  private _$tail: Mitto<VALUE> = this;
   private _abortSignal?: Mitto.Abort;
   private _abortSource?: Mitto.Abort;
   private _$clear?: Mitto<void>;
+  private _listenersCount = 0;
+
+  // Track if this specific node instance has been replaced/merged
+  private _$replacedBy?: Mitto<VALUE>;
 
   constructor(private options?: Mitto.Options<VALUE>) {
     const { $source, $signal } = options ?? {};
-
-    if ($signal) {
-      this._abortSignal = $signal.listen(() => this.clear());
-    }
-
+    if ($signal) this._abortSignal = $signal.listen(() => this.clear());
     if ($source) {
       this._abortSource = $source.listen((v) => this.push(v));
       $source._$clear ??= new Mitto();
@@ -21,8 +21,8 @@ export class Mitto<VALUE> {
     }
   }
 
-  get hasListenrs() {
-    return this._listener !== Mitto.EMPTY_FUNCTION;
+  get listenersCount() {
+    return this._listenersCount;
   }
 
   get $clear() {
@@ -33,54 +33,109 @@ export class Mitto<VALUE> {
   push(value: VALUE) {
     this._listener(value);
 
-    if (this._$nextMitto) {
-      let $nextMitto: Mitto<VALUE> | undefined = this._$nextMitto;
-      while ($nextMitto) {
-        $nextMitto._listener(value);
-        $nextMitto = $nextMitto._$nextMitto;
+    let $next: Mitto<VALUE> | undefined = this._$next;
+    while ($next) {
+      if ($next._listener !== Mitto.EMPTY_FUNCTION) {
+        $next._listener(value);
       }
+      $next = $next._$next;
     }
   }
 
   listen(listener: Mitto.Listener<VALUE>): Mitto.Abort {
-    if (this._$tailMitto._listener !== Mitto.EMPTY_FUNCTION) {
-      const $prevTailMitto = this._$tailMitto;
-      this._$tailMitto = new Mitto();
-      $prevTailMitto._$nextMitto = this._$tailMitto;
-      this._$tailMitto._$prevMitto = $prevTailMitto;
+    this._listenersCount++;
+
+    // If the root node is empty, use it directly (No indirection, no allocation!)
+    if (this._listener === Mitto.EMPTY_FUNCTION && this._$next === undefined) {
+      this._listener = listener;
+      this.options?.firstListenerAdded?.(this, listener);
+      this.options?.listenerAdded?.(this, listener);
+
+      let $current = this;
+      return () => {
+        if ($current._listener === Mitto.EMPTY_FUNCTION) return;
+        this._listenersCount--;
+
+        // Resolve tracking if this node was merged into later
+        const target = $current._$replacedBy ?? $current;
+        // while (target._$replacedBy) {
+        //   target = target._$replacedBy;
+        // }
+
+        if (target === this) {
+          if (this._$next) {
+            const nextNode = this._$next;
+            this._listener = nextNode._listener;
+            this._$next = nextNode._$next;
+            if (this._$next) this._$next._$prev = this;
+            if (this._$tail === nextNode) this._$tail = this;
+            nextNode._$replacedBy = this; // Redirect closures
+          } else {
+            this._listener = Mitto.EMPTY_FUNCTION;
+            this._$tail = this;
+          }
+        } else {
+          // It became a middle/tail node due to shifts
+          this._removeNode(target);
+        }
+      };
     }
 
-    if (this._listener === Mitto.EMPTY_FUNCTION) this.options?.firstListenerAdded?.(this, listener);
+    // Otherwise, append a new Mitto node
+    const node = new Mitto<VALUE>();
+    node._listener = listener;
 
-    this._$tailMitto._listener = listener;
+    const $prevTail = this._$tail;
+    this._$tail = node;
+    node._$prev = $prevTail;
+    $prevTail._$next = node;
+
     this.options?.listenerAdded?.(this, listener);
 
-    const $current = this._$tailMitto;
+    let $current = node;
     return () => {
-      if (!$current._$prevMitto && !$current._$nextMitto) {
-        this.clear();
-        return;
+      this._listenersCount--;
+
+      // Follow the replacement chain if this node's data was shifted up
+      let target = $current;
+      while (target._$replacedBy) {
+        target = target._$replacedBy;
       }
 
-      $current._listener = Mitto.EMPTY_FUNCTION;
-
-      if (!$current._$prevMitto) return;
-
-      if (!$current._$nextMitto) $current._$prevMitto._$tailMitto = $current._$prevMitto._$nextMitto!;
-
-      $current._$prevMitto._$nextMitto = $current._$nextMitto;
+      this._removeNode(target);
     };
   }
 
+  private _removeNode(target: Mitto<VALUE>) {
+    if (target === this) {
+      if (this._$next) {
+        const nextNode = this._$next;
+        this._listener = nextNode._listener;
+        this._$next = nextNode._$next;
+        if (this._$next) this._$next._$prev = this;
+        if (this._$tail === nextNode) this._$tail = this;
+        nextNode._$replacedBy = this;
+      } else {
+        this._listener = Mitto.EMPTY_FUNCTION;
+        this._$tail = this;
+      }
+    } else if (target === this._$tail) {
+      this._$tail = target._$prev ?? this;
+      this._$tail._$next = undefined;
+    } else {
+      if (target._$prev) target._$prev._$next = target._$next;
+      if (target._$next) target._$next._$prev = target._$prev;
+    }
+  }
+
   clear() {
-    const listener = this._listener;
     this._listener = Mitto.EMPTY_FUNCTION;
+    this._$next = undefined;
+    this._$prev = undefined;
+    this._$tail = this;
+    this._listenersCount = 0;
     this._abortSignal?.();
     this._abortSource?.();
-    this._$tailMitto = this;
-    this._$nextMitto = undefined;
-
-    this.options?.lastListenerRemoved?.(this, listener);
     this.options?.clear?.(this);
     this._$clear?.push();
   }
@@ -107,18 +162,17 @@ export namespace Mitto {
 }
 
 function test() {
-  const $source = new Mitto<number>();
-  const $mitto = new Mitto({ $source });
+  const $mitto = new Mitto();
 
   const abort1 = $mitto.listen((v) => console.log("c1", v));
   const abort2 = $mitto.listen((v) => console.log("c2", v));
   const abort3 = $mitto.listen((v) => console.log("c3", v));
 
-  abort1();
-  //   abort2();
-  abort3();
+  // abort1();
+  // abort2();
+  // abort3();
+
   $mitto.push(1);
-  //   $mitto.clear();
 
   $mitto.push(2);
 }
@@ -159,8 +213,21 @@ export const filter = <T>(predicate: (val: T) => boolean) => {
     return destination;
   };
 };
+export function scan<INPUT, OUTPUT>(accumulator: (acc: OUTPUT, value: INPUT) => OUTPUT, seed: OUTPUT) {
+  return (source: Mitto<INPUT>): Mitto<OUTPUT> => {
+    const destination = new Mitto<OUTPUT>();
+    let state = seed;
+
+    source.listen((value) => {
+      state = accumulator(state, value);
+      destination.push(state);
+    });
+
+    return destination;
+  };
+}
 function bench() {
-  const MAX = 20_000_000;
+  const MAX = 1_000_000;
 
   const start = performance.now();
 
@@ -182,54 +249,40 @@ function bench() {
     mitto.push(i);
   }
 }
-bench(); //550 000 000 992 ms
+bench(); //1 000 000 50 ms
 
-// function transformersTest() {
-//   const numbers$ = new Mitto<number>();
+function churnBench() {
+  const TOTAL_EVENTS = 10_000;
+  const mitto = new Mitto<number>();
 
-//   // 100% Isolated pipeline instances. Each has exactly 1 listener.
-//   const processedStream$ = numbers$.pipe(filter((x) => x % 2 === 0)).pipe(map((x) => x * 10));
+  for (let i = 0; i < 4; i++) {
+    mitto.listen((v) => {
+      //   if (v === TOTAL_EVENTS - 1) console.log(`c${i}`, `${Math.round(performance.now() - start)}ms`);
+    });
+  }
 
-//   // The terminal subscriber
-//   processedStream$.listen((val) => console.log("Emitted:", val));
+  let receivedCount = 0;
+  const start = performance.now();
 
-//   numbers$.push(1); // Blocked by filter
-//   numbers$.push(2); // Passes filter -> Maps 2 to 20 -> Prints "Emitted: 20"
-// }
-// transformersTest();
+  for (let i = 0; i <= TOTAL_EVENTS; i++) {
+    const unsub1 = mitto.listen((v) => {
+      if (v === TOTAL_EVENTS) console.log("c101", `${Math.round(performance.now() - start)}ms`);
+      receivedCount++;
+    });
+    const unsub2 = mitto.listen((v) => {
+      if (v === TOTAL_EVENTS) console.log("c102", `${Math.round(performance.now() - start)}ms`);
+      receivedCount++;
+    });
 
-// function churnBench() {
-//   const TOTAL_EVENTS = 10000;
-//   const mitto = new Mitto<number>();
+    mitto.push(i);
 
-//   // 1. Maintain a steady state right up to the threshold boundary
-//   for (let i = 0; i < 4; i++) {
-//     mitto.listen(() => {});
-//   }
+    unsub1();
+    unsub2();
+  }
 
-//   let receivedCount = 0;
-//   const start = performance.now();
-
-//   for (let i = 0; i < TOTAL_EVENTS; i++) {
-//     // 2. Rapidly flood past the threshold with short-lived subscribers
-//     const unsub1 = mitto.listen((v) => {
-//       receivedCount++;
-//     });
-//     const unsub2 = mitto.listen((v) => {
-//       receivedCount++;
-//     });
-
-//     // 3. Fire the event (triggers branch traversal)
-//     mitto.push(i);
-
-//     // 4. Immediately destroy the branch via unsubscription
-//     unsub1();
-//     unsub2();
-//   }
-
-//   const duration = Math.round(performance.now() - start);
-//   console.log(`Processed ${TOTAL_EVENTS.toLocaleString()} events with massive churn.`);
-//   console.log(`Total callbacks triggered: ${receivedCount.toLocaleString()}`);
-//   console.log(`Time taken: ${duration} ms`);
-// }
+  const duration = Math.round(performance.now() - start);
+  console.log(`Processed ${TOTAL_EVENTS.toLocaleString()} events with massive churn.`);
+  console.log(`Total callbacks triggered: ${receivedCount.toLocaleString()}`);
+  console.log(`Time taken: ${duration} ms`);
+}
 // churnBench();

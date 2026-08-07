@@ -125,62 +125,12 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           };
         }
         break;
-      case 2:
-        {
-          const iter = consumers.values();
-          const consumer1 = iter.next().value!;
-          const consumer2 = iter.next().value!;
-          this._push = (value) => {
-            this._pulling = false;
-            consumer1.push(value);
-            consumer2.push(value);
-            this._options.push?.(this, value);
-            this._metaStreams.$push?.push(value);
-            return this;
-          };
-        }
-        break;
-      case 3:
-        {
-          const iter = consumers.values();
-          const consumer1 = iter.next().value!;
-          const consumer2 = iter.next().value!;
-          const consumer3 = iter.next().value!;
-          this._push = (value) => {
-            this._pulling = false;
-            consumer1.push(value);
-            consumer2.push(value);
-            consumer3.push(value);
-            this._options.push?.(this, value);
-            this._metaStreams.$push?.push(value);
-            return this;
-          };
-        }
-        break;
-      case 4:
-        {
-          const iter = consumers.values();
-          const consumer1 = iter.next().value!;
-          const consumer2 = iter.next().value!;
-          const consumer3 = iter.next().value!;
-          const consumer4 = iter.next().value!;
-          this._push = (value) => {
-            this._pulling = false;
-            consumer1.push(value);
-            consumer2.push(value);
-            consumer3.push(value);
-            consumer4.push(value);
-            this._options.push?.(this, value);
-            this._metaStreams.$push?.push(value);
-            return this;
-          };
-        }
-        break;
       default: {
+        const snapshot = [...consumers.values()];
         this._push = (value) => {
           this._pulling = false;
-          for (const consumer of consumers.values()) {
-            consumer.push(value);
+          for (let i = 0; i < snapshot.length; i++) {
+            snapshot[i].push(value);
           }
           this._options.push?.(this, value);
           this._metaStreams.$push?.push(value);
