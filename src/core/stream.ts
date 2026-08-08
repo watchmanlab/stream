@@ -58,6 +58,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   }
   get $terminate(): Stream<TerminateReason, `${NAME}Terminate`> {
     this._metaStreams.$terminate ??= new Stream({ name: `${this.name}MetaTerminate` }); // will be terminated manually to avoid circular refecrence
+
     return new Stream({
       name: `${this.name}Terminate`,
       source: this._metaStreams.$terminate,
@@ -139,6 +140,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       this._sourceConsumer = this._options.source?.consume((_, value) => this.push(value), {
         terminate: (_, reason) => this.terminate(reason),
       });
+
     options = { ...options };
 
     const consumer = new Consumer(handler, {

@@ -125,10 +125,10 @@ function streamBench() {
 }
 
 streamBench();
-// 1 000 000 234 ms
-// 1 000 000 234 ms
-// 1 000 000 234 ms
-// 1 000 000 234 ms
+// 1 000 000 148 ms
+// 1 000 000 148 ms
+// 1 000 000 148 ms
+// 1 000 000 149 ms
 
 import { Subject, tap as rxtap, asyncScheduler } from "rxjs";
 
@@ -159,7 +159,7 @@ function rxjsBench() {
   }
 }
 
-rxjsBench();
+// rxjsBench();
 // Stage 1: 103 ms
 // Stage 2: 103 ms
 // Stage 3: 103 ms
@@ -475,20 +475,27 @@ function terminateTest() {
   // console.log(stream.status);
 
   stream
-    .consume((self, value) => {
-      console.log("value", value);
-      self.next();
-    })
+    .consume(
+      (self, value) => {
+        console.log("value", value);
+        self.next();
+      },
+      {
+        terminate(self, reason) {
+          console.log("consumer terminated");
+        },
+      },
+    )
     .next();
 
   stream.push(1).push(2);
   // console.log(stream.status);
 
-  // stream.$terminate
-  //   .consume((self, reason) => {
-  //     console.log(reason);
-  //   })
-  //   .next();
+  stream.$terminate
+    .consume((self, reason) => {
+      console.log(reason);
+    })
+    .next();
 }
 // terminateTest();
 

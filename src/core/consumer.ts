@@ -20,13 +20,12 @@ export class Consumer<VALUE> implements Terminable {
     this._options = options;
   }
 
-  get status() {
+  get status(): Consumer.Status {
     return this._status;
   }
-  get queue() {
+  get queue(): Queue<VALUE> {
     return this._queue;
   }
-
   push(value: VALUE): this {
     if (this._counter > 0 && this._queue.size === 0) {
       this._handler(this, value);
@@ -37,7 +36,6 @@ export class Consumer<VALUE> implements Terminable {
     }
     return this;
   }
-
   next(): this {
     this._counter++;
     const {
@@ -70,7 +68,6 @@ export class Consumer<VALUE> implements Terminable {
     }
     return this;
   }
-
   terminate(reason: TerminateReason): this {
     this.push = () => this;
     if (reason === "abort") {

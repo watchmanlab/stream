@@ -23,6 +23,7 @@ export class Pump<
       name: name ?? ("$pump" as NAME),
       terminate: (self, reason) => {
         this.stop(reason);
+        this.start = this.stop = () => this;
         consumers.forEach((consumer) => consumer?.terminate(reason));
         terminate?.(self, reason);
       },
@@ -31,32 +32,37 @@ export class Pump<
     if (options?.autoStart !== false) this.start();
   }
 
-  start() {
-    if (this._inputConsumer) return;
+  start(): this {
+    if (this._inputConsumer) return this;
 
-    this._inputConsumer = this._input.consume((self, value) => {
-      this.push(value);
-      self.next();
-    });
+    this._inputConsumer = this._input.consume(
+      (self, value) => {
+        this.push(value);
+        self.next();
+      },
+      { terminate: (self, reason) => this.terminate(reason) },
+    );
     this._options.start?.(this);
     this._metaStreams.$start?.push();
     this._inputConsumer.next();
+    return this;
   }
 
-  stop(reason: TerminateReason) {
-    if (!this._inputConsumer) return;
+  stop(reason: TerminateReason): this {
+    if (!this._inputConsumer) return this;
 
     this._inputConsumer?.terminate(reason);
     this._inputConsumer = undefined;
     this._options.stop?.(this, reason);
     this._metaStreams.$stop?.push(reason);
+    return this;
   }
 
-  get $start() {
+  get $start(): Stream<void, `${NAME}Start`> {
     this._metaStreams.$start ??= new Stream({ $terminate: this.$terminate });
     return new Stream({ name: `${this.name}Start`, source: this._metaStreams.$start });
   }
-  get $stop() {
+  get $stop(): Stream<TerminateReason, `${NAME}Stop`> {
     this._metaStreams.$stop ??= new Stream({ $terminate: this.$terminate });
     return new Stream({ name: `${this.name}Stop`, source: this._metaStreams.$stop });
   }
