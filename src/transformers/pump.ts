@@ -9,7 +9,7 @@ export class Pump<
   NAME extends NonEmptyString = "$pump",
 > extends Transformer<INPUT, VALUE, NAME> {
   declare protected _options: Pump.Options<INPUT, VALUE, NAME>;
-  declare protected _metaStreams: Pump.MetaStreams<VALUE>;
+  declare protected _metaStreams: Pump.MetaStreams<VALUE, NAME>;
   private _inputConsumer?: Consumer<VALUE>;
   constructor(input: INPUT, options?: Pump.Options<INPUT, VALUE, NAME>) {
     const { name, terminate, ...rest } = options ?? {};
@@ -83,7 +83,7 @@ export namespace Pump {
     $stop?: Stream<TerminateReason, any>;
   };
 
-  export type MetaStreams<VALUE> = Stream.MetaStreams<VALUE> & {
+  export type MetaStreams<VALUE, NAME extends NonEmptyString> = Stream.MetaStreams<VALUE, NAME> & {
     $start?: Stream<void, any>;
     $stop?: Stream<TerminateReason, any>;
   };

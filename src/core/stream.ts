@@ -10,35 +10,19 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _status: Stream.Status;
   private _pulling: boolean;
+  private _sourceConsumer?: Consumer<VALUE>;
+  private _terminateConsumer?: Consumer<TerminateReason>;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
-    options = { ...options };
+    this._options = { ...options };
 
-    this._name = options.name ?? ("$root" as NAME);
+    this._name = this._options.name ?? ("$root" as NAME);
     this._consumers = new Map();
     this._status = "active";
     this._pulling = false;
     this._metaStreams = {};
 
-    let sourceConsumer = options.source?.consume((_, value) => this.push(value), {
-      terminate: (_, reason) => this.terminate(reason),
-    });
-
-    this._options = {
-      ...options,
-      next: (self, consumer) => {
-        options.next?.(self, consumer);
-        sourceConsumer?.next();
-      },
-      terminate: (self, reason) => {
-        sourceConsumer?.terminate(reason);
-        terminateConsumer?.terminate(reason);
-        sourceConsumer = terminateConsumer = undefined;
-        options.terminate?.(self, reason);
-      },
-    };
-
-    let terminateConsumer = options.$terminate?.consume((self, reason) => this.terminate(reason)).next();
+    this._terminateConsumer = this._options.$terminate?.consume((self, reason) => this.terminate(reason)).next();
   }
   get name(): NAME {
     return this._name;
@@ -151,6 +135,10 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     if (this._consumers.has(handler)) return this._consumers.get(handler)!;
 
+    if (this._consumers.size === 0)
+      this._sourceConsumer = this._options.source?.consume((_, value) => this.push(value), {
+        terminate: (_, reason) => this.terminate(reason),
+      });
     options = { ...options };
 
     const consumer = new Consumer(handler, {
@@ -160,6 +148,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
         options.next?.(self);
         if (this._pulling === false) {
           this._pulling = true;
+          this._sourceConsumer?.next();
           this._options.next?.(this, self);
           this._metaStreams.$next?.push(self);
         }
@@ -167,7 +156,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
 
       terminate: (self, reason) => {
         this._consumers.delete(handler);
-        this._optimizePush();
+        if (this._status == "active") this._optimizePush();
+        if (this._consumers.size === 0) this._sourceConsumer?.terminate("complete");
 
         this._options.consumerLeft?.(this, self);
         this._metaStreams.$consumerLeft?.push(self);
@@ -204,12 +194,15 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       this.terminate = () => this;
       this._status = "complete";
     }
+    this._sourceConsumer?.terminate(reason);
+    this._terminateConsumer?.terminate(reason);
     this._metaStreams?.$terminate?.push(reason);
     this._metaStreams?.$terminate?.terminate(reason);
     this._options?.terminate?.(this, reason);
 
-    // this._options = {};
-    // this._metaStreams = {};
+    this._options = {};
+    this._metaStreams = {};
+    this._sourceConsumer = this._terminateConsumer = undefined;
     return this;
   }
   pipe<OUTPUT extends Transformer<this, any, any> | this>(transform: Transform<this, OUTPUT>): OUTPUT {

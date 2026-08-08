@@ -2,7 +2,6 @@ import { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
 
 export class FromIterator<VALUE, NAME extends NonEmptyString = "$iterator"> extends Stream<VALUE, NAME> {
-  private _opened = false;
   constructor(iterator: Iterator<VALUE> | (() => Iterator<VALUE>), options?: Stream.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
@@ -12,7 +11,6 @@ export class FromIterator<VALUE, NAME extends NonEmptyString = "$iterator"> exte
       ...rest,
       name: name ?? ("$iterator" as NAME),
       next: (stream, consumer) => {
-        if (!this._opened) return;
         const result = iter.next();
 
         if (result.done) {
@@ -27,14 +25,6 @@ export class FromIterator<VALUE, NAME extends NonEmptyString = "$iterator"> exte
         terminate?.(stream, reason);
       },
     });
-  }
-  open(): this {
-    this._opened = true;
-    return this;
-  }
-  close(): this {
-    this._opened = false;
-    return this;
   }
 }
 

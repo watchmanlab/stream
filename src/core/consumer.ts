@@ -89,7 +89,7 @@ export class Consumer<VALUE> implements Terminable {
     this._options?.terminate?.(this, reason);
 
     this._handler = () => {};
-    // this._options = {};
+    this._options = {};
 
     return this;
   }
