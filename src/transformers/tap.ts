@@ -10,20 +10,16 @@ export class Tap<
   constructor(input: INPUT, fn: (value: VALUE, INPUT: INPUT) => void, options?: Stream.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
-    const inputConsumer = input.consume((_, value) => {
-      fn(value, input);
-      this.push(value);
-    });
     super(input, {
       ...rest,
       name: name ?? ("$tap" as NAME),
-      next(self, consumer) {
-        inputConsumer.next();
-        next?.(self, consumer);
-      },
-      terminate(self, reason) {
-        inputConsumer.terminate(reason);
-        terminate?.(self, reason);
+      source: {
+        consume: (handler, options) => {
+          return input.consume((_, value) => {
+            fn(value, input);
+            this.push(value);
+          }, options);
+        },
       },
     });
   }
