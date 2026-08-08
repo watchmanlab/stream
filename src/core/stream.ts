@@ -9,7 +9,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   protected _metaStreams: Stream.MetaStreams<VALUE, NAME>;
   private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _status: Stream.Status;
-  private _requestingNext: boolean;
+  private _pulling: boolean;
   private _sourceConsumer?: Consumer<VALUE>;
   private _terminateConsumer?: Consumer<TerminateReason>;
 
@@ -19,13 +19,10 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._name = this._options.name ?? ("$root" as NAME);
     this._consumers = new Map();
     this._status = "active";
-    this._requestingNext = false;
+    this._pulling = false;
     this._metaStreams = {};
 
     this._terminateConsumer = this._options.$terminate?.consume((self, reason) => this.terminate(reason)).next();
-    this._sourceConsumer = this._options.source?.consume((_, value) => this.push(value), {
-      terminate: (_, reason) => this.terminate(reason),
-    });
   }
   get name(): NAME {
     return this._name;
@@ -49,15 +46,15 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   }
   get $push(): Stream<VALUE, `${NAME}Push`> {
     this._metaStreams.$push ??= new Stream({ name: `${this.name}MetaPush`, $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Push`, source: this._metaStreams.$push });
+    return new Stream({ name: `${this.name}Push`, source: this._metaStreams.$push, $terminate: this.$terminate });
   }
   get $next(): Stream<Consumer<VALUE>, `${NAME}Next`> {
     this._metaStreams.$next ??= new Stream({ name: `${this.name}MetaNext`, $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Next`, source: this._metaStreams.$next });
+    return new Stream({ name: `${this.name}Next`, source: this._metaStreams.$next, $terminate: this.$terminate });
   }
   get $drain(): Stream<void, `${NAME}Drain`> {
     this._metaStreams.$drain ??= new Stream({ name: `${this.name}MetaDrain`, $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Drain`, source: this._metaStreams.$drain });
+    return new Stream({ name: `${this.name}Drain`, source: this._metaStreams.$drain, $terminate: this.$terminate });
   }
   get $terminate(): Stream<TerminateReason, `${NAME}Terminate`> {
     this._metaStreams.$terminate ??= new Stream({ name: `${this.name}MetaTerminate` }); // will be terminated manually to avoid circular refecrence
@@ -65,6 +62,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     return new Stream({
       name: `${this.name}Terminate`,
       source: this._metaStreams.$terminate,
+      $terminate: this._metaStreams.$terminate,
       consumerJoin: (self, consumer) => {
         if (this.status === "abort" || this.status === "complete") {
           consumer.push(this.status);
@@ -78,14 +76,22 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       name: `${this.name}MetaConsumerJoin`,
       $terminate: this.$terminate,
     });
-    return new Stream({ name: `${this.name}ConsumerJoin`, source: this._metaStreams.$consumerJoin });
+    return new Stream({
+      name: `${this.name}ConsumerJoin`,
+      source: this._metaStreams.$consumerJoin,
+      $terminate: this.$terminate,
+    });
   }
   get $consumerLeft(): Stream<Consumer<VALUE>, `${NAME}ConsumerLeft`> {
     this._metaStreams.$consumerLeft ??= new Stream({
       name: `${this.name}MetaConsumerLeft`,
       $terminate: this.$terminate,
     });
-    return new Stream({ name: `${this.name}ConsumerLeft`, source: this._metaStreams.$consumerLeft });
+    return new Stream({
+      name: `${this.name}ConsumerLeft`,
+      source: this._metaStreams.$consumerLeft,
+      $terminate: this.$terminate,
+    });
   }
   private _optimizePush(): void {
     const consumers = this._consumers;
@@ -93,7 +99,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       case 0:
         {
           this._push = (value) => {
-            this._requestingNext = false;
+            this._pulling = false;
             this._options.push?.(this, value);
             this._metaStreams.$push?.push(value);
             return this;
@@ -105,7 +111,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           const consumer = consumers.values().next().value!;
 
           this._push = (value) => {
-            this._requestingNext = false;
+            this._pulling = false;
             consumer.push(value);
             this._options.push?.(this, value);
             this._metaStreams.$push?.push(value);
@@ -116,7 +122,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       default: {
         const snapshot = [...consumers.values()];
         this._push = (value) => {
-          this._requestingNext = false;
+          this._pulling = false;
           for (let i = 0; i < snapshot.length; i++) {
             snapshot[i].push(value);
           }
@@ -128,7 +134,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     }
   }
   private _push = (value: VALUE) => {
-    this._requestingNext = false;
+    this._pulling = false;
     this._options.push?.(this, value);
     this._metaStreams.$push?.push(value);
     return this;
@@ -139,29 +145,34 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     if (this._consumers.has(handler)) return this._consumers.get(handler)!;
 
-    const { queue, next, terminate, ...rest } = { ...options };
+    if (this._consumers.size === 0)
+      this._sourceConsumer = this._options.source?.consume((_, value) => this.push(value));
+
+    options = { ...options };
 
     const consumer = new Consumer(handler, {
-      ...rest,
-      queue: queue ?? this._options.queueFactory?.(),
+      ...options,
+      queue: options.queue ?? this._options.queueFactory?.(),
       next: (self) => {
-        if (this._requestingNext) return;
-
-        this._requestingNext = true;
-        this._sourceConsumer?.next();
-        this._options.next?.(this, self);
-        this._metaStreams.$next?.push(self);
-        next?.(self);
+        if (this._pulling === false) {
+          this._pulling = true;
+          this._sourceConsumer?.next();
+          this._options.next?.(this, self);
+          this._metaStreams.$next?.push(self);
+        }
+        options.next?.(self);
       },
 
       terminate: (self, reason) => {
         this._consumers.delete(handler);
         if (this._status == "active") this._optimizePush();
 
+        if (this._consumers.size === 0) this._sourceConsumer?.terminate("complete");
+
         this._options.consumerLeft?.(this, self);
         this._metaStreams.$consumerLeft?.push(self);
         if (this._consumers.size === 0 && this._status === "drain") this.terminate("complete");
-        terminate?.(self, reason);
+        options.terminate?.(self, reason);
       },
     });
 

@@ -57,11 +57,11 @@ export class Pump<
 
   get $start(): Stream<void, `${NAME}Start`> {
     this._metaStreams.$start ??= new Stream({ $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Start`, source: this._metaStreams.$start });
+    return new Stream({ name: `${this.name}Start`, source: this._metaStreams.$start, $terminate: this.$terminate });
   }
   get $stop(): Stream<TerminateReason, `${NAME}Stop`> {
     this._metaStreams.$stop ??= new Stream({ $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Stop`, source: this._metaStreams.$stop });
+    return new Stream({ name: `${this.name}Stop`, source: this._metaStreams.$stop, $terminate: this.$terminate });
   }
 }
 
@@ -78,7 +78,7 @@ export namespace Pump {
     INPUT extends AnyStream,
     VALUE extends ExtractValue<INPUT>,
     NAME extends NonEmptyString,
-  > = Stream.Options<VALUE, NAME> & {
+  > = Transformer.Options<VALUE, NAME> & {
     autoStart?: boolean;
     start?: (self: Pump<INPUT, VALUE, NAME>) => void;
     stop?: (self: Pump<INPUT, VALUE, NAME>, reason: TerminateReason) => void;
