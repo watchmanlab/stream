@@ -8,18 +8,23 @@ export class Tap<
   NAME extends NonEmptyString = "$tap",
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(input: INPUT, fn: (value: VALUE, INPUT: INPUT) => void, options?: Stream.Options<VALUE, NAME>) {
-    const { name, ...rest } = options ?? {};
+    const { name, next, terminate, ...rest } = options ?? {};
+
+    const inputConsumer = input.consume((_, value) => {
+      fn(value, input);
+      this.push(value);
+    });
 
     super(input, {
       ...rest,
       name: name ?? ("$tap" as NAME),
-      source: {
-        consume: (handler, options) => {
-          return input.consume((self, value) => {
-            fn(value, input);
-            handler(self, value);
-          }, options);
-        },
+      next(self, consumer) {
+        inputConsumer.next();
+        next?.(self, consumer);
+      },
+      terminate(self, reason) {
+        inputConsumer.terminate(reason);
+        terminate?.(self, reason);
       },
     });
   }

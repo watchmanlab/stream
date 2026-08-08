@@ -5,19 +5,17 @@ export class Consumer<VALUE> implements Terminable {
   protected _options: Consumer.Options<VALUE>;
   private _status: Consumer.Status;
   private _queue: Queue<VALUE>;
-  private _counter: number;
+  private _credit: number;
 
   private _handler: Consumer.Handler<VALUE>;
 
   constructor(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>) {
-    options = { ...options };
+    this._options = { ...options };
     this._status = "active";
-    this._queue = options?.queue ?? new LinkedListQueue();
-    this._counter = 0;
+    this._queue = this._options?.queue ?? new LinkedListQueue();
+    this._credit = 0;
 
     this._handler = handler;
-
-    this._options = options;
   }
 
   get status(): Consumer.Status {
@@ -27,9 +25,9 @@ export class Consumer<VALUE> implements Terminable {
     return this._queue;
   }
   push(value: VALUE): this {
-    if (this._counter > 0 && this._queue.size === 0) {
+    if (this._credit > 0 && this._queue.size === 0) {
       this._handler(this, value);
-      this._counter--;
+      this._credit--;
     } else {
       this._queue.enqueue(value);
       this._options.enqueue?.(this, value);
@@ -37,7 +35,7 @@ export class Consumer<VALUE> implements Terminable {
     return this;
   }
   next(): this {
-    this._counter++;
+    this._credit++;
     const {
       _queue,
       _options: { next, dequeue },
@@ -48,9 +46,9 @@ export class Consumer<VALUE> implements Terminable {
       return this;
     }
 
-    if (this._counter > 1) return this;
+    if (this._credit > 1) return this;
 
-    while (this._counter > 0) {
+    while (this._credit > 0) {
       const value = _queue.dequeue();
       dequeue?.(this, value);
 
@@ -64,7 +62,7 @@ export class Consumer<VALUE> implements Terminable {
       }
 
       this._handler(this, value);
-      this._counter--;
+      this._credit--;
     }
     return this;
   }

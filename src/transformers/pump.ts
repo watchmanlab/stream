@@ -35,13 +35,10 @@ export class Pump<
   start(): this {
     if (this._inputConsumer) return this;
 
-    this._inputConsumer = this._input.consume(
-      (self, value) => {
-        this.push(value);
-        self.next();
-      },
-      { terminate: (self, reason) => this.terminate(reason) },
-    );
+    this._inputConsumer = this._input.consume((self, value) => {
+      this.push(value);
+      self.next();
+    });
     this._options.start?.(this);
     this._metaStreams.$start?.push();
     this._inputConsumer.next();

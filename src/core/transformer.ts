@@ -33,3 +33,7 @@ export abstract class Transformer<INPUT extends AnyStream, VALUE, NAME extends N
     }) as never;
   }
 }
+
+export namespace Transformer {
+  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source">;
+}
