@@ -1,9 +1,16 @@
 import { Consumer } from "./consumer";
-import type { TerminableStreamable, NonEmptyString, Queue, Source, Transform, TerminateReason } from "./types";
+import type {
+  NonEmptyString,
+  Queue,
+  Source,
+  Transform,
+  TerminateReason,
+  AnyStream,
+  Prettify,
+  GetValidName,
+} from "./types";
 
-import { Transformer } from "./transformer";
-
-export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, TerminableStreamable {
+export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE> {
   private _name: NAME;
   protected _options: Stream.Options<VALUE, NAME>;
   protected _metaStreams: Stream.MetaStreams<VALUE, NAME>;
@@ -46,21 +53,23 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   }
   get $push(): Stream<VALUE, `${NAME}Push`> {
     this._metaStreams.$push ??= new Stream({ name: `${this.name}MetaPush`, $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Push`, source: this._metaStreams.$push });
+    return new Stream({ name: `${this.name}Push`, source: this._metaStreams.$push, $terminate: this.$terminate });
   }
   get $next(): Stream<Consumer<VALUE>, `${NAME}Next`> {
     this._metaStreams.$next ??= new Stream({ name: `${this.name}MetaNext`, $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Next`, source: this._metaStreams.$next });
+    return new Stream({ name: `${this.name}Next`, source: this._metaStreams.$next, $terminate: this.$terminate });
   }
   get $drain(): Stream<void, `${NAME}Drain`> {
     this._metaStreams.$drain ??= new Stream({ name: `${this.name}MetaDrain`, $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Drain`, source: this._metaStreams.$drain });
+    return new Stream({ name: `${this.name}Drain`, source: this._metaStreams.$drain, $terminate: this.$terminate });
   }
   get $terminate(): Stream<TerminateReason, `${NAME}Terminate`> {
     this._metaStreams.$terminate ??= new Stream({ name: `${this.name}MetaTerminate` }); // will be terminated manually to avoid circular refecrence
+
     return new Stream({
       name: `${this.name}Terminate`,
       source: this._metaStreams.$terminate,
+      $terminate: this._metaStreams.$terminate,
       consumerJoin: (self, consumer) => {
         if (this.status === "abort" || this.status === "complete") {
           consumer.push(this.status);
@@ -74,14 +83,22 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       name: `${this.name}MetaConsumerJoin`,
       $terminate: this.$terminate,
     });
-    return new Stream({ name: `${this.name}ConsumerJoin`, source: this._metaStreams.$consumerJoin });
+    return new Stream({
+      name: `${this.name}ConsumerJoin`,
+      source: this._metaStreams.$consumerJoin,
+      $terminate: this.$terminate,
+    });
   }
   get $consumerLeft(): Stream<Consumer<VALUE>, `${NAME}ConsumerLeft`> {
     this._metaStreams.$consumerLeft ??= new Stream({
       name: `${this.name}MetaConsumerLeft`,
       $terminate: this.$terminate,
     });
-    return new Stream({ name: `${this.name}ConsumerLeft`, source: this._metaStreams.$consumerLeft });
+    return new Stream({
+      name: `${this.name}ConsumerLeft`,
+      source: this._metaStreams.$consumerLeft,
+      $terminate: this.$terminate,
+    });
   }
   private _optimizePush(): void {
     const consumers = this._consumers;
@@ -136,27 +153,27 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     if (this._consumers.has(handler)) return this._consumers.get(handler)!;
 
     if (this._consumers.size === 0)
-      this._sourceConsumer = this._options.source?.consume((_, value) => this.push(value), {
-        terminate: (_, reason) => this.terminate(reason),
-      });
+      this._sourceConsumer = this._options.source?.consume((_, value) => this.push(value));
+
     options = { ...options };
 
     const consumer = new Consumer(handler, {
       ...options,
       queue: options.queue ?? this._options.queueFactory?.(),
       next: (self) => {
-        options.next?.(self);
         if (this._pulling === false) {
           this._pulling = true;
           this._sourceConsumer?.next();
           this._options.next?.(this, self);
           this._metaStreams.$next?.push(self);
         }
+        options.next?.(self);
       },
 
       terminate: (self, reason) => {
         this._consumers.delete(handler);
         if (this._status == "active") this._optimizePush();
+
         if (this._consumers.size === 0) this._sourceConsumer?.terminate("complete");
 
         this._options.consumerLeft?.(this, self);
@@ -205,8 +222,27 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._sourceConsumer = this._terminateConsumer = undefined;
     return this;
   }
-  pipe<OUTPUT extends Transformer<this, any, any> | this>(transform: Transform<this, OUTPUT>): OUTPUT {
-    return transform(this);
+  pipe<OUTPUT_VALUE, OUTPUT_NAME extends NonEmptyString, OUTPUT extends Stream<OUTPUT_VALUE, OUTPUT_NAME>>(
+    transform: Transform<this, OUTPUT_VALUE, OUTPUT_NAME, OUTPUT>,
+    options?: Stream.Options<OUTPUT_VALUE, OUTPUT_NAME>,
+  ): OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>> {
+    const output = transform(this, options) as OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>>;
+
+    this.$terminate.consume((_, reason) => output.terminate(reason)).next();
+
+    const getValidName = (name = this.name as string, retry = 5) => {
+      if (--retry === 0)
+        throw new Error(
+          `The output stream "${output.name}" has the property "${this.name}" which will be overridden by the input stream with the same name.
+          Try to change the input stream name`,
+        );
+
+      if (name in output) return getValidName(`$${name}`, retry);
+
+      return name;
+    };
+
+    return Object.assign(output, { [getValidName()]: this });
   }
 }
 

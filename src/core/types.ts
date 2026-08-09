@@ -1,7 +1,6 @@
 import type { Consumer } from "./consumer";
 
-import type { Stream } from "./stream";
-import type { Transformer } from "./transformer";
+import { Stream } from "./stream";
 
 export interface Queue<VALUE> extends Iterable<VALUE>, Disposable {
   enqueue(value: VALUE): void;
@@ -44,24 +43,25 @@ export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> 
   ? ARR
   : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
 
+export type GetValidName<
+  NAME extends NonEmptyString,
+  OUTPUT extends AnyStream,
+  RETRY extends number,
+  COUNTER extends any[] = [],
+> = NAME extends keyof OUTPUT
+  ? COUNTER["length"] extends RETRY
+    ? never
+    : GetValidName<`$${NAME}`, OUTPUT, RETRY, [...COUNTER, any]>
+  : NAME;
+
 export type AnySource = Source<any>;
 export type AnyStream = Stream<any, any>;
 export type AnyConsumer = Consumer<any>;
-export type AnyTransformer = Transformer<any, any, any>;
 
-////////////////////////
-// | (`$${string}` & {})
-export type ExtractInputStream<T extends AnyTransformer> = T extends Transformer<infer INPUT, any, any> ? INPUT : never;
-export type Traversal<T extends AnyStream> = Record<T["name"], Traversable<T>>;
-export type Traversable<T extends AnyStream> = T extends AnyTransformer
-  ? Omit<T, "traversal"> & Traversal<ExtractInputStream<T>>
-  : T;
-////////////
 export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
   ? T extends
-      | Source<infer VALUE>
-      | Transformer<any, infer VALUE, any>
       | Stream<infer VALUE, any>
+      | Source<infer VALUE>
       | Consumer<infer VALUE>
       | Promise<infer VALUE>
       | Array<infer VALUE>
@@ -69,9 +69,8 @@ export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []
     ? VALUE
     : T
   : T extends
-        | Source<infer VALUE>
-        | Transformer<any, infer VALUE, any>
         | Stream<infer VALUE, any>
+        | Source<infer VALUE>
         | Consumer<infer VALUE>
         | Promise<infer VALUE>
         | Array<infer VALUE>
@@ -79,6 +78,9 @@ export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []
     ? ExtractValue<VALUE, DEPTH, [...COUNTER, any]>
     : T;
 
-export type Transform<INPUT extends AnyStream, OUTPUT extends Transformer<INPUT, any, any> | INPUT> = (
-  input: INPUT,
-) => OUTPUT;
+export type Transform<
+  INPUT extends AnyStream,
+  OUTPUT_VALUE,
+  OUTPUT_NAME extends NonEmptyString,
+  OUTPUT extends Stream<OUTPUT_VALUE, OUTPUT_NAME>,
+> = (input: INPUT, options?: Stream.Options<OUTPUT_VALUE, OUTPUT_NAME>) => OUTPUT;
