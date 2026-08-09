@@ -1,9 +1,16 @@
 import { Consumer } from "./consumer";
-import type { TerminableStreamable, NonEmptyString, Queue, Source, Transform, TerminateReason } from "./types";
+import type {
+  NonEmptyString,
+  Queue,
+  Source,
+  Transform,
+  TerminateReason,
+  AnyStream,
+  Prettify,
+  GetValidName,
+} from "./types";
 
-import { Transformer } from "./transformer";
-
-export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, TerminableStreamable {
+export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE> {
   private _name: NAME;
   protected _options: Stream.Options<VALUE, NAME>;
   protected _metaStreams: Stream.MetaStreams<VALUE, NAME>;
@@ -215,8 +222,26 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._sourceConsumer = this._terminateConsumer = undefined;
     return this;
   }
-  pipe<OUTPUT extends Transformer<this, any, any> | this>(transform: Transform<this, OUTPUT>): OUTPUT {
-    return transform(this);
+  pipe<OUTPUT_NAME extends NonEmptyString, OUTPUT extends Stream<any, OUTPUT_NAME>>(
+    transform: Transform<this, OUTPUT_NAME, OUTPUT>,
+  ): OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>> {
+    const output = transform(this) as OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>>;
+
+    this.$terminate.consume((_, reason) => output.terminate(reason)).next();
+
+    const getValidName = (name = this.name as string, retry = 5) => {
+      if (--retry === 0)
+        throw new Error(
+          `The output stream "${output.name}" has the property "${this.name}" which will be overridden by the input stream with the same name.
+          Try to change the input stream name`,
+        );
+
+      if (name in output) return getValidName(`$${name}`, retry);
+
+      return name;
+    };
+
+    return Object.assign(output, { [getValidName()]: this });
   }
 }
 

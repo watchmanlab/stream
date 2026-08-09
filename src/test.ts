@@ -94,8 +94,9 @@ function streamBench() {
   const MAX = 1_000_000;
 
   const start = performance.now();
-  const stream = new Stream<number>();
-  stream
+  const stream = new Stream<number, "$kechma">({ name: "$kechma" });
+
+  const chain = stream
 
     .pipe(
       tap((v) => {
@@ -117,7 +118,14 @@ function streamBench() {
         if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       }),
     )
+    .pipe(map((v) => v.toFixed()))
+    .pipe(map((v) => Number(v)))
+    .pipe(map((v) => v.toFixed()))
+    .pipe(map((v) => Number(v)))
+    .pipe(filter((v) => v < MAX / 2, { name: "push" }))
     .pipe(pump());
+
+  console.log(chain.$$push.$map.$map.$map.$map.$tap.$tap.$tap.$tap.$kechma.name);
 
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);
@@ -130,7 +138,7 @@ streamBench();
 // 1 000 000 148 ms
 // 1 000 000 149 ms
 
-import { Subject, tap as rxtap, asyncScheduler } from "rxjs";
+import { Subject, tap as rxtap, map as rxmap, pipe } from "rxjs";
 
 function rxjsBench() {
   const MAX = 1_000_000;
@@ -151,6 +159,10 @@ function rxjsBench() {
       rxtap((v) => {
         if (v === MAX) console.log("Stage 4:", Math.round(performance.now() - start), "ms");
       }),
+      rxmap((v) => v.toFixed()),
+      rxmap((v) => Number(v)),
+      rxmap((v) => v.toFixed()),
+      rxmap((v) => Number(v)),
     )
     .subscribe(); // Activates the pipeline
 

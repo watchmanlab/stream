@@ -1,33 +1,6 @@
 import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
 import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
-export class Map<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  MAPPED = VALUE,
-  NAME extends NonEmptyString = "$map",
-> extends Transformer<INPUT, MAPPED, NAME> {
-  constructor(input: INPUT, mapper: Map.Mapper<VALUE, MAPPED>, options?: Stream.Options<MAPPED, NAME>) {
-    const { name, next, terminate, ...rest } = options ?? {};
-
-    const inputConsumer = input.consume((_, value) => this.push(mapper(value)));
-
-    super(input, {
-      ...rest,
-      name: name ?? ("$map" as NAME),
-
-      next(stream, consumer) {
-        inputConsumer.next();
-        next?.(stream, consumer);
-      },
-      terminate(stream, reason) {
-        inputConsumer.terminate(reason);
-        terminate?.(stream, reason);
-      },
-    });
-  }
-}
 export function map<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
@@ -36,8 +9,20 @@ export function map<
 >(
   mapper: Map.Mapper<VALUE, MAPPED>,
   options?: Stream.Options<MAPPED, NAME>,
-): Transform<INPUT, Map<INPUT, VALUE, MAPPED, NAME>> {
-  return (input) => new Map(input, mapper, options);
+): Transform<INPUT, NAME, Stream<MAPPED, NAME>> {
+  return (input) => {
+    const output = new Stream({
+      ...options,
+      name: options?.name ?? ("$map" as NAME),
+      source: {
+        consume() {
+          return input.consume((self, value) => output.push(mapper(value)));
+        },
+      },
+    });
+
+    return output;
+  };
 }
 export namespace Map {
   export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;
