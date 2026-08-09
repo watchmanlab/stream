@@ -133,10 +133,11 @@ function streamBench() {
 }
 
 streamBench();
-// 1 000 000 148 ms
-// 1 000 000 148 ms
-// 1 000 000 148 ms
-// 1 000 000 149 ms
+// $kechma
+// 1 000 000 551 ms
+// 1 000 000 552 ms
+// 1 000 000 552 ms
+// 1 000 000 552 ms
 
 import { Subject, tap as rxtap, map as rxmap, pipe } from "rxjs";
 
@@ -258,7 +259,7 @@ function mapTest() {
   const stream = new Stream<number>();
 
   fromIterable([1, 2, 3])
-    .pipe(map((v) => v.toString(), { name: "$map2", source: fromIterable(["a", "b", "c"]) }))
+    .pipe(map((v) => v.toString(), { name: "$map2" }))
     .consume((c, v) => {
       console.log(v);
       setTimeout(() => {
@@ -287,7 +288,7 @@ function filterTest() {
     .pipe(filter((v) => v % 2 == 0))
     .pipe(tap((value) => console.log(value)))
     .pipe(pump())
-    .traversal.$tap.$filter.$rejected.pipe(tap((v) => console.log("rejected", v)))
+    .$tap.$filter.$rejected.pipe(tap((v) => console.log("rejected", v)))
     .pipe(pump());
 
   stream.push(1);
@@ -319,7 +320,6 @@ function signalTest() {
   const signal = new Signal();
 
   signal.push("dd");
-
   signal
     .consume((self, value) => {
       console.log("consumer", value);
@@ -342,7 +342,7 @@ function auditTimeTest() {
     .pipe(auditTime(500))
     .pipe(tap((v) => console.log("audit", v)))
     .pipe(pump())
-    .traversal.$tap.$auditTime.$passive.$asyncGenerator.pipe(tap((v) => console.log("driver", v)))
+    .$tap.$auditTime.$passive.$asyncGenerator.pipe(tap((v) => console.log("driver", v)))
     .pipe(pump());
 }
 
@@ -363,7 +363,7 @@ function passiveTest() {
     .pipe(tap((v) => console.log("active pipeline", v)))
     .pipe(pump());
 
-  const passivePipeline = activePipeline.traversal.$tap.$map.$asyncGenerator
+  const passivePipeline = activePipeline.$tap.$map.$asyncGenerator
     .pipe(passive())
     .pipe(tap((v) => console.log("passive pipeline", v)))
     .pipe(pump());
@@ -407,7 +407,7 @@ function takeTest() {
     .pipe(take(3))
     .pipe(debug())
 
-    .traversal.$take.$resolve.$error.pipe(debug());
+    .$take.$resolve.$error.pipe(debug());
 }
 
 // takeTest();
@@ -445,7 +445,7 @@ function takeUntilTest() {
     .pipe(tap((v) => console.log(v)))
     .pipe(pump())
     .pipe((input) => {
-      console.log(input.traversal.$tap.name);
+      console.log(input.$tap.name);
       return input;
     });
 }

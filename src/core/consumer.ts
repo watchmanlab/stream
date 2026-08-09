@@ -1,4 +1,4 @@
-import { Terminable, Empty, EMPTY, Queue, TerminateReason, TerminableStreamable } from "./types";
+import { Terminable, Empty, EMPTY, Queue, TerminateReason } from "./types";
 import { LinkedListQueue } from "./linked-list-queue";
 
 export class Consumer<VALUE> implements Terminable {
@@ -97,7 +97,6 @@ export namespace Consumer {
 
   export type Options<VALUE> = {
     queue?: Queue<VALUE>;
-    scope?: TerminableStreamable[];
     next?: (self: Consumer<VALUE>) => void;
     drain?: (self: Consumer<VALUE>) => void;
     terminate?: (self: Consumer<VALUE>, reason: TerminateReason) => void;
