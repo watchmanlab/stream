@@ -121,14 +121,11 @@ function streamBench() {
     .pipe(map((v) => v.toFixed()))
     .pipe(map((v) => Number(v)))
     .pipe(map((v) => v.toFixed()))
-    .pipe(map((v) => Number(v)))
-    .pipe(
-      filter((v) => v < MAX / 2),
-      { name: "push" },
-    )
+    .pipe(map((v) => Number(v), { name: "$myMap" }))
+    .pipe(filter((v) => v < MAX / 2, { name: "$myFilter" }))
     .pipe(pump());
 
-  console.log(chain.$$push.$map.$map.$map.$map.$tap.$tap.$tap.$tap.$kechma.name);
+  console.log(chain.$myFilter.$myMap.$map.$map.$map.$tap.$tap.$tap.$tap.$kechma.name);
 
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);

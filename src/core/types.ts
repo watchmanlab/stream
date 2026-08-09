@@ -58,6 +58,7 @@ export type AnySource = Source<any>;
 export type AnyStream = Stream<any, any>;
 export type AnyConsumer = Consumer<any>;
 
+export type ExtractStream<T> = T extends Stream<infer V, infer N> ? Stream<V, N> : never;
 export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
   ? T extends
       | Stream<infer VALUE, any>
@@ -80,7 +81,6 @@ export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []
 
 export type Transform<
   INPUT extends AnyStream,
-  OUTPUT_VALUE,
   OUTPUT_NAME extends NonEmptyString,
-  OUTPUT extends Stream<OUTPUT_VALUE, OUTPUT_NAME>,
-> = (input: INPUT, options?: Stream.Options<OUTPUT_VALUE, OUTPUT_NAME>) => OUTPUT;
+  OUTPUT extends Stream<any, OUTPUT_NAME>,
+> = (input: INPUT) => OUTPUT;

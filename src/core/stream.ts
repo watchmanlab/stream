@@ -8,6 +8,8 @@ import type {
   AnyStream,
   Prettify,
   GetValidName,
+  ExtractValue,
+  ExtractStream,
 } from "./types";
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE> {
@@ -222,15 +224,14 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._sourceConsumer = this._terminateConsumer = undefined;
     return this;
   }
-  pipe<OUTPUT_VALUE, OUTPUT_NAME extends NonEmptyString, OUTPUT extends Stream<OUTPUT_VALUE, OUTPUT_NAME>>(
-    transform: Transform<this, OUTPUT_VALUE, OUTPUT_NAME, OUTPUT>,
-    options?: Stream.Options<OUTPUT_VALUE, OUTPUT_NAME>,
-  ): OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>> {
-    const output = transform(this, options) as OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>>;
+  pipe<OUTPUT_NAME extends NonEmptyString, OUTPUT extends Stream<any, OUTPUT_NAME>>(
+    transform: Transform<this, OUTPUT_NAME, OUTPUT>,
+  ): ExtractStream<OUTPUT> & Prettify<Omit<OUTPUT, keyof AnyStream> & Record<GetValidName<NAME, OUTPUT, 5>, this>> {
+    const output = transform(this) as any;
 
     this.$terminate.consume((_, reason) => output.terminate(reason)).next();
 
-    const getValidName = (name = this.name as string, retry = 5) => {
+    const getValidName = (name: string, retry: number) => {
       if (--retry === 0)
         throw new Error(
           `The output stream "${output.name}" has the property "${this.name}" which will be overridden by the input stream with the same name.
@@ -242,7 +243,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       return name;
     };
 
-    return Object.assign(output, { [getValidName()]: this });
+    return Object.assign(output, { [getValidName(this.name, 5)]: this });
   }
 }
 

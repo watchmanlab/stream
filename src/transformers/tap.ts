@@ -6,11 +6,16 @@ export function tap<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$tap",
->(fn: (value: VALUE, INPUT: INPUT) => void): Transform<INPUT, VALUE, NAME, Stream<VALUE, NAME>> {
-  return (input, options) => {
+>(
+  fn: (value: VALUE, INPUT: INPUT) => void,
+  options?: Omit<Stream.Options<VALUE, NAME>, "source">,
+): Transform<INPUT, NAME, Stream<VALUE, NAME>> {
+  return (input) => {
+    const { name, ...rest } = options ?? {};
+
     const output = new Stream({
-      ...options,
-      name: options?.name ?? ("$tap" as NAME),
+      ...rest,
+      name: name ?? ("$tap" as NAME),
       source: {
         consume: () =>
           input.consume((_, value) => {
