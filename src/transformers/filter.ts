@@ -7,8 +7,11 @@ export function filter<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends NonEmptyString = "$filter",
->(predicate: Filter.Predicate<VALUE, FILTERED>): Transform<INPUT, FILTERED, NAME, Stream<FILTERED, NAME>> {
-  return (input, options) => {
+>(
+  predicate: Filter.Predicate<VALUE, FILTERED>,
+  options?: Stream.Options<FILTERED, NAME>,
+): Transform<INPUT, NAME, Stream<FILTERED, NAME>> {
+  return (input) => {
     const output = new Stream({
       ...options,
       name: options?.name ?? ("$filter" as NAME),
