@@ -222,10 +222,11 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._sourceConsumer = this._terminateConsumer = undefined;
     return this;
   }
-  pipe<OUTPUT_NAME extends NonEmptyString, OUTPUT extends Stream<any, OUTPUT_NAME>>(
-    transform: Transform<this, OUTPUT_NAME, OUTPUT>,
+  pipe<OUTPUT_VALUE, OUTPUT_NAME extends NonEmptyString, OUTPUT extends Stream<OUTPUT_VALUE, OUTPUT_NAME>>(
+    transform: Transform<this, OUTPUT_VALUE, OUTPUT_NAME, OUTPUT>,
+    options?: Stream.Options<OUTPUT_VALUE, OUTPUT_NAME>,
   ): OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>> {
-    const output = transform(this) as OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>>;
+    const output = transform(this, options) as OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>>;
 
     this.$terminate.consume((_, reason) => output.terminate(reason)).next();
 

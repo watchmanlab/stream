@@ -6,11 +6,8 @@ export function map<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   MAPPED = VALUE,
   NAME extends NonEmptyString = "$map",
->(
-  mapper: Map.Mapper<VALUE, MAPPED>,
-  options?: Stream.Options<MAPPED, NAME>,
-): Transform<INPUT, NAME, Stream<MAPPED, NAME>> {
-  return (input) => {
+>(mapper: Map.Mapper<VALUE, MAPPED>): Transform<INPUT, MAPPED, NAME, Stream<MAPPED, NAME>> {
+  return (input, options) => {
     const output = new Stream({
       ...options,
       name: options?.name ?? ("$map" as NAME),

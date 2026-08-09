@@ -80,6 +80,7 @@ export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []
 
 export type Transform<
   INPUT extends AnyStream,
+  OUTPUT_VALUE,
   OUTPUT_NAME extends NonEmptyString,
-  OUTPUT extends Stream<any, OUTPUT_NAME>,
-> = (input: INPUT) => OUTPUT;
+  OUTPUT extends Stream<OUTPUT_VALUE, OUTPUT_NAME>,
+> = (input: INPUT, options?: Stream.Options<OUTPUT_VALUE, OUTPUT_NAME>) => OUTPUT;

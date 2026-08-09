@@ -7,11 +7,8 @@ export function filter<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends NonEmptyString = "$filter",
->(
-  predicate: Filter.Predicate<VALUE, FILTERED>,
-  options?: Filter.Options<VALUE, FILTERED, NAME>,
-): Transform<INPUT, NAME, Stream<FILTERED, NAME>> {
-  return (input) => {
+>(predicate: Filter.Predicate<VALUE, FILTERED>): Transform<INPUT, FILTERED, NAME, Stream<FILTERED, NAME>> {
+  return (input, options) => {
     const output = new Stream({
       ...options,
       name: options?.name ?? ("$filter" as NAME),
@@ -36,7 +33,7 @@ export namespace Filter {
     | ((value: VALUE) => value is FILTERED)
     | ((value: VALUE) => boolean);
 
-  export type Options<VALUE, FILTERED, NAME extends NonEmptyString> = Stream.Options<FILTERED, NAME> & {
+  export type Options<VALUE, FILTERED, NAME extends NonEmptyString> = {
     rejected?: (self: Stream<FILTERED, NAME>, value: VALUE) => void;
   };
 }

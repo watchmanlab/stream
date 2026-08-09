@@ -5,8 +5,8 @@ export function pump<
   INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$pump",
->(options?: Stream.Options<VALUE, NAME>): Transform<INPUT, NAME, Stream<VALUE, NAME>> {
-  return (input) => {
+>(): Transform<INPUT, VALUE, NAME, Stream<VALUE, NAME>> {
+  return (input, options) => {
     const inputConsumer = input
       .consume((self, value) => {
         output.push(value);
