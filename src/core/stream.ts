@@ -9,6 +9,7 @@ import type {
   Prettify,
   GetValidName,
   ExtractValue,
+  ExtractStream,
 } from "./types";
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE> {
@@ -224,8 +225,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     return this;
   }
   pipe<OUTPUT_NAME extends NonEmptyString, OUTPUT extends Stream<any, OUTPUT_NAME>>(
-    transform: Transform<this, NoInfer<OUTPUT_NAME>, OUTPUT>,
-  ): OUTPUT & Prettify<Record<GetValidName<NAME, OUTPUT, 5>, this>> {
+    transform: Transform<this, OUTPUT_NAME, OUTPUT>,
+  ): ExtractStream<OUTPUT> & Prettify<Omit<OUTPUT, keyof AnyStream> & Record<GetValidName<NAME, OUTPUT, 5>, this>> {
     const output = transform(this) as any;
 
     this.$terminate.consume((_, reason) => output.terminate(reason)).next();

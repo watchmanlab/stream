@@ -8,12 +8,14 @@ export function map<
   NAME extends NonEmptyString = "$map",
 >(
   mapper: Map.Mapper<VALUE, MAPPED>,
-  options?: Stream.Options<MAPPED, NAME>,
+  options?: Omit<Stream.Options<MAPPED, NAME>, "source">,
 ): Transform<INPUT, NAME, Stream<MAPPED, NAME>> {
   return (input) => {
+    const { name, ...rest } = options ?? {};
+
     const output = new Stream({
-      ...options,
-      name: options?.name ?? ("$map" as NAME),
+      ...rest,
+      name: name ?? ("$map" as NAME),
       source: {
         consume() {
           return input.consume((self, value) => output.push(mapper(value)));

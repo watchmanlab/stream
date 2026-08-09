@@ -8,12 +8,14 @@ export function tap<
   NAME extends NonEmptyString = "$tap",
 >(
   fn: (value: VALUE, INPUT: INPUT) => void,
-  options?: Stream.Options<VALUE, NAME>,
+  options?: Omit<Stream.Options<VALUE, NAME>, "source">,
 ): Transform<INPUT, NAME, Stream<VALUE, NAME>> {
   return (input) => {
+    const { name, ...rest } = options ?? {};
+
     const output = new Stream({
-      ...options,
-      name: options?.name ?? ("$tap" as NAME),
+      ...rest,
+      name: name ?? ("$tap" as NAME),
       source: {
         consume: () =>
           input.consume((_, value) => {
