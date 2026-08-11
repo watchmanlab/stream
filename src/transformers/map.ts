@@ -18,7 +18,11 @@ export function map<
       name: name ?? ("$map" as NAME),
       source: {
         consume() {
-          return input.consume((self, value) => output.push(mapper(value)));
+          return input.consume((self, value) => output.push(mapper(value)), {
+            terminate(self, reason) {
+              output.terminate(reason);
+            },
+          });
         },
       },
     });

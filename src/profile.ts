@@ -32,16 +32,16 @@ function runMemoryProfile() {
       .pipe(map((v) => v))
       .pipe(map((v) => v))
 
-      .pipe(tap((v) => v))
-      .pipe(tap((v) => v))
-      .pipe(tap((v) => v))
-      .pipe(tap((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
+      // .pipe(tap((v) => v))
+      // .pipe(tap((v) => v))
+      // .pipe(tap((v) => v))
+      // .pipe(tap((v) => v))
+      // .pipe(map((v) => v))
+      // .pipe(map((v) => v))
+      // .pipe(map((v) => v))
+      // .pipe(map((v) => v))
+      // .pipe(map((v) => v))
+      // .pipe(map((v) => v))
       .consume((self) => self.next());
 
     // .pipe(pump());
@@ -55,7 +55,7 @@ function runMemoryProfile() {
   console.log(`Total Batch Size:      ${BATCH_SIZE.toLocaleString()} pipelines`);
   console.log(`Total Heap Increase:   ${(totalAllocatedBytes / 1024 / 1024).toFixed(2)} MB`);
   console.log(`Average Per Pipeline:  ${Math.round(bytesPerPipeline).toLocaleString()} bytes`);
-  console.log(`Average Per Stage:     ${Math.round(bytesPerPipeline / 20).toLocaleString()} bytes`);
+  console.log(`Average Per Stage:     ${Math.round(bytesPerPipeline / 10).toLocaleString()} bytes`);
   console.log("=========================================================\n");
 
   return pipelines.length;
@@ -68,7 +68,7 @@ runMemoryProfile();
 
 // =================== BENCHMARK RESULTS ===================
 // Total Batch Size:      5,000 pipelines
-// Total Heap Increase:   425.32 MB
-// Average Per Pipeline:  89,197 bytes
-// Average Per Stage:     4,460 bytes
+// Total Heap Increase:   27.80 MB
+// Average Per Pipeline:  5,831 bytes
+// Average Per Stage:     583 bytes
 // =========================================================

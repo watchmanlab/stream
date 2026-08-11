@@ -14,7 +14,6 @@ import type {
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE> {
   private _name: NAME;
   private _options: Stream.Options<VALUE, NAME>;
-  private _events: Stream.Events<VALUE, NAME>;
   private _consumers: Map<Consumer.Handler<VALUE>, Consumer<VALUE>>;
   private _status: Stream.Status;
   private _pulling: boolean;
@@ -28,80 +27,19 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._consumers = new Map();
     this._status = "active";
     this._pulling = false;
-    this._events = {};
 
-    this._terminateConsumer = this._options.$terminate?.consume((_, reason) => this.terminate(reason)).next();
+    this._terminateConsumer = this._options.signal?.consume((_, reason) => this.terminate(reason)).next();
   }
   get name(): NAME {
     return this._name;
   }
-  get consumers() {
-    const self = this;
-    return {
-      get count() {
-        return self._consumers.size;
-      },
-      get handlers() {
-        return self._consumers.keys();
-      },
-      [Symbol.iterator]() {
-        return self._consumers.values();
-      },
-    };
+  get consumersCount() {
+    return this._consumers.size;
   }
   get status(): Stream.Status {
     return this._status;
   }
 
-  get $push(): Stream<VALUE, `${NAME}Push`> {
-    this._events.$push ??= new Stream({ name: `${this.name}MetaPush`, $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Push`, source: this._events.$push, $terminate: this.$terminate });
-  }
-  get $next(): Stream<Consumer<VALUE>, `${NAME}Next`> {
-    this._events.$next ??= new Stream({ name: `${this.name}MetaNext`, $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Next`, source: this._events.$next, $terminate: this.$terminate });
-  }
-  get $drain(): Stream<void, `${NAME}Drain`> {
-    this._events.$drain ??= new Stream({ name: `${this.name}MetaDrain`, $terminate: this.$terminate });
-    return new Stream({ name: `${this.name}Drain`, source: this._events.$drain, $terminate: this.$terminate });
-  }
-  get $terminate(): Stream<TerminateReason, `${NAME}Terminate`> {
-    this._events.$terminate ??= new Stream({ name: `${this.name}MetaTerminate` }); // will be terminated manually to avoid circular refecrence
-
-    return new Stream({
-      name: `${this.name}Terminate`,
-      source: this._events.$terminate,
-      $terminate: this._events.$terminate,
-      consumerJoin: (self, consumer) => {
-        if (this.status === "abort" || this.status === "complete") {
-          consumer.push(this.status);
-          consumer.terminate("complete");
-        }
-      },
-    });
-  }
-  get $consumerJoin(): Stream<Consumer<VALUE>, `${NAME}ConsumerJoin`> {
-    this._events.$consumerJoin ??= new Stream({
-      name: `${this.name}MetaConsumerJoin`,
-      $terminate: this.$terminate,
-    });
-    return new Stream({
-      name: `${this.name}ConsumerJoin`,
-      source: this._events.$consumerJoin,
-      $terminate: this.$terminate,
-    });
-  }
-  get $consumerLeft(): Stream<Consumer<VALUE>, `${NAME}ConsumerLeft`> {
-    this._events.$consumerLeft ??= new Stream({
-      name: `${this.name}MetaConsumerLeft`,
-      $terminate: this.$terminate,
-    });
-    return new Stream({
-      name: `${this.name}ConsumerLeft`,
-      source: this._events.$consumerLeft,
-      $terminate: this.$terminate,
-    });
-  }
   private _optimizePush(): void {
     const consumers = this._consumers;
     switch (consumers.size) {
@@ -110,7 +48,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           this._push = (value) => {
             this._pulling = false;
             this._options.push?.(this, value);
-            this._events.$push?.push(value);
             return this;
           };
         }
@@ -123,7 +60,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
             this._pulling = false;
             consumer.push(value);
             this._options.push?.(this, value);
-            this._events.$push?.push(value);
             return this;
           };
         }
@@ -136,7 +72,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
             snapshot[i].push(value);
           }
           this._options.push?.(this, value);
-          this._events.$push?.push(value);
           return this;
         };
       }
@@ -145,7 +80,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   private _push = (value: VALUE) => {
     this._pulling = false;
     this._options.push?.(this, value);
-    this._events.$push?.push(value);
+
     return this;
   };
   push(value: VALUE): this {
@@ -167,7 +102,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           this._pulling = true;
           this._sourceConsumer?.next();
           this._options.next?.(this, self);
-          this._events.$next?.push(self);
         }
         options.next?.(self);
       },
@@ -176,10 +110,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
         this._consumers.delete(handler);
         if (this._status == "active") this._optimizePush();
 
-        if (this._consumers.size === 0) this._sourceConsumer?.terminate("complete");
-
         this._options.consumerLeft?.(this, self);
-        this._events.$consumerLeft?.push(self);
         if (this._consumers.size === 0 && this._status === "drain") this.terminate("complete");
         options.terminate?.(self, reason);
       },
@@ -189,7 +120,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._optimizePush();
 
     this._options.consumerJoin?.(this, consumer);
-    this._events.$consumerJoin?.push(consumer);
 
     return consumer;
   }
@@ -203,7 +133,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     } else if (this._consumers.size) {
       this._status = "drain";
       this._options?.drain?.(this);
-      this._events?.$drain?.push();
       for (const consumer of this._consumers.values()) {
         consumer.terminate(reason);
       }
@@ -213,14 +142,14 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       this.terminate = () => this;
       this._status = "complete";
     }
+    for (const consumer of this._consumers.values()) {
+      consumer.terminate(reason);
+    }
     this._sourceConsumer?.terminate(reason);
     this._terminateConsumer?.terminate(reason);
-    this._events?.$terminate?.push(reason);
-    this._events?.$terminate?.terminate(reason);
     this._options?.terminate?.(this, reason);
 
     this._options = {};
-    this._events = {};
     this._sourceConsumer = this._terminateConsumer = undefined;
     return this;
   }
@@ -228,8 +157,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     transform: Transform<this, OUTPUT_NAME, OUTPUT>,
   ): ExtractStream<OUTPUT> & Prettify<Omit<OUTPUT, keyof AnyStream> & Record<GetValidName<NAME, OUTPUT, 5>, this>> {
     const output = transform(this) as any;
-
-    this.$terminate.consume((_, reason) => output.terminate(reason)).next();
 
     const getValidName = (name: string, retry: number) => {
       if (--retry === 0)
@@ -253,7 +180,7 @@ export namespace Stream {
   export type Options<VALUE, NAME extends NonEmptyString> = {
     name?: NAME;
     source?: Source<VALUE>;
-    $terminate?: Stream<TerminateReason, any>;
+    signal?: Stream<TerminateReason, any>;
     queueFactory?: QueueFactory<VALUE>;
     push?: (self: Stream<VALUE, NAME>, value: VALUE) => void;
     next?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
@@ -261,13 +188,5 @@ export namespace Stream {
     terminate?: (self: Stream<VALUE, NAME>, reason: TerminateReason) => void;
     consumerJoin?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
     consumerLeft?: (self: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  };
-  export type Events<VALUE, NAME extends NonEmptyString> = {
-    $push?: Stream<VALUE, `${NAME}MetaPush`>;
-    $next?: Stream<Consumer<VALUE>, `${NAME}MetaNext`>;
-    $drain?: Stream<void, `${NAME}MetaDrain`>;
-    $terminate?: Stream<TerminateReason, `${NAME}MetaTerminate`>;
-    $consumerJoin?: Stream<Consumer<VALUE>, `${NAME}MetaConsumerJoin`>;
-    $consumerLeft?: Stream<Consumer<VALUE>, `${NAME}MetaConsumerLeft`>;
   };
 }
