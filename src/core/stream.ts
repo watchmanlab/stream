@@ -129,7 +129,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
         }
         break;
       default: {
-        const snapshot = [...consumers.values()];
+        const snapshot = Array.from(consumers.values());
         this._push = (value) => {
           this._pulling = false;
           for (let i = 0; i < snapshot.length; i++) {
