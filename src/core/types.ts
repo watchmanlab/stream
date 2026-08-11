@@ -22,6 +22,13 @@ export namespace Queue {
         };
   }
 }
+export interface Collection<T> {
+  add(item: T): void;
+  delete(item: T): void;
+
+  clear(): void;
+  readonly size: number;
+}
 
 export const EMPTY = Symbol.for("empty");
 export type Empty = typeof EMPTY;

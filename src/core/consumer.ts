@@ -24,6 +24,9 @@ export class Consumer<VALUE> implements Terminable {
   get queue(): Queue<VALUE> {
     return this._queue;
   }
+  get credit(): number {
+    return this._credit;
+  }
   push(value: VALUE): this {
     if (this._credit > 0 && this._queue.size === 0) {
       this._handler(this, value);
@@ -93,14 +96,14 @@ export class Consumer<VALUE> implements Terminable {
 export namespace Consumer {
   export type Status = "active" | "drain" | TerminateReason;
 
-  export type Handler<VALUE> = (self: Consumer<VALUE>, value: VALUE) => void;
+  export type Handler<VALUE> = (consumer: Consumer<VALUE>, value: VALUE) => void;
 
   export type Options<VALUE> = {
     queue?: Queue<VALUE>;
-    next?: (self: Consumer<VALUE>) => void;
-    drain?: (self: Consumer<VALUE>) => void;
-    terminate?: (self: Consumer<VALUE>, reason: TerminateReason) => void;
-    enqueue?: (self: Consumer<VALUE>, value: VALUE) => void;
-    dequeue?: (self: Consumer<VALUE>, value: VALUE | Empty) => void;
+    next?: (consumer: Consumer<VALUE>) => void;
+    drain?: (consumer: Consumer<VALUE>) => void;
+    terminate?: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
+    enqueue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
+    dequeue?: (consumer: Consumer<VALUE>, value: VALUE | Empty) => void;
   };
 }
