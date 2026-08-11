@@ -22,11 +22,21 @@ export namespace Queue {
         };
   }
 }
+export interface Collection<T> {
+  add(item: T): void;
+  delete(item: T): void;
+
+  clear(): void;
+  readonly size: number;
+}
 
 export const EMPTY = Symbol.for("empty");
 export type Empty = typeof EMPTY;
 export interface Source<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
+}
+export interface SourceLike<VALUE> {
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): AnyConsumer;
 }
 export type TerminateReason = "abort" | "complete";
 export interface Terminable {
@@ -34,9 +44,6 @@ export interface Terminable {
   terminate(reason: TerminateReason): void;
 }
 
-export interface TerminableStreamable extends Terminable {
-  readonly $terminate: Stream<TerminateReason, any>;
-}
 export type NonEmptyString = `${any}${string}`;
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
