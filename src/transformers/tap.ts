@@ -17,11 +17,7 @@ export function tap<
       ...rest,
       name: name ?? ("$tap" as NAME),
       source: {
-        consume: () =>
-          input.consume((_, value) => {
-            fn(value, input);
-            output.push(value);
-          }),
+        consume: () => input.consume((_, value) => (fn(value, input), output.push(value))),
       },
     });
 

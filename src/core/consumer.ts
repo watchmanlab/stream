@@ -4,13 +4,12 @@ import { LinkedListQueue } from "./linked-list-queue";
 export class Consumer<VALUE> implements Terminable {
   private _queueFactory: () => Queue<VALUE>;
   private _next: (consumer: Consumer<VALUE>) => void;
-  private _drain: (consumer: Consumer<VALUE>) => void;
-  private _terminate: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
   private _enqueue: (consumer: Consumer<VALUE>, value: VALUE) => void;
   private _dequeue: (consumer: Consumer<VALUE>, value: VALUE | Empty) => void;
+  private _drain: (consumer: Consumer<VALUE>) => void;
+  private _terminate: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
 
   private _status: Consumer.Status;
-
   private _queue?: Queue<VALUE>;
   private _credit: number;
 
