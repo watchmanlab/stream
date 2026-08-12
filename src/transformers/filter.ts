@@ -1,6 +1,6 @@
 import { Stream } from "../core/stream";
 
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, Source, Transform } from "../core/types";
 
 export function filter<
   INPUT extends AnyStream,
@@ -10,7 +10,7 @@ export function filter<
 >(
   predicate: Filter.Predicate<VALUE, FILTERED>,
   options?: Filter.Options<VALUE, FILTERED, NAME>,
-): Transform<INPUT, NAME, Stream<FILTERED, NAME> & { $rejected: Stream<VALUE, `${NAME}Rejected`> }> {
+): Transform<INPUT, NAME, Stream<FILTERED, NAME> & { $rejected: Source<VALUE> }> {
   return (input) => {
     const { name, rejected, ...rest } = options ?? {};
 
@@ -21,12 +21,12 @@ export function filter<
       name: name ?? ("$filter" as NAME),
       source: {
         consume() {
-          return input.consume((self, value) => {
+          return input.consume((consumer, value) => {
             if (predicate(value)) {
               output.push(value);
             } else {
               rejected?.(output, value);
-              self.next();
+              consumer.next();
             }
           });
         },
@@ -34,10 +34,9 @@ export function filter<
     });
     return Object.defineProperty(output, "$rejected", {
       get() {
-        $rejected ??= new Stream({ $terminate: output.$terminate });
-        return new Stream({ name: `${output.name}Rejected`, source: $rejected, $terminate: output.$terminate });
+        return ($rejected ??= new Stream({ lastConsumerLeft: () => ($rejected = undefined) })).asSource();
       },
-    }) as Stream<FILTERED, NAME> & { $rejected: Stream<VALUE, `${NAME}Rejected`> };
+    }) as Stream<FILTERED, NAME> & { $rejected: Source<VALUE> };
   };
 }
 
@@ -47,6 +46,6 @@ export namespace Filter {
     | ((value: VALUE) => boolean);
 
   export type Options<VALUE, FILTERED, NAME extends NonEmptyString> = Omit<Stream.Options<FILTERED, NAME>, "source"> & {
-    rejected?: (self: Stream<FILTERED, NAME>, value: VALUE) => void;
+    rejected?: (stream: Stream<FILTERED, NAME>, value: VALUE) => void;
   };
 }

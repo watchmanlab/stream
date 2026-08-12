@@ -32,6 +32,11 @@ export interface Collection<T> {
 
 export const EMPTY = Symbol.for("empty");
 export type Empty = typeof EMPTY;
+export const EMPTY_FUNCTION = () => {};
+export const EMPTY_THIS_FUNCTION = function (this: any) {
+  return this;
+};
+export type EmptyFunctions = typeof EMPTY_FUNCTION;
 export interface Source<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
