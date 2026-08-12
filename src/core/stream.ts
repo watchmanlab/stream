@@ -1,18 +1,18 @@
 import { Consumer } from "./consumer";
-import {
-  type NonEmptyString,
-  type Queue,
-  type Source,
-  type Transform,
-  type TerminateReason,
-  type AnyStream,
-  type Prettify,
-  type GetValidName,
-  type ExtractStream,
-  EMPTY_THIS_FUNCTION,
-  EMPTY_FUNCTION,
+import type {
+  NonEmptyString,
+  Queue,
+  Source,
+  Transform,
+  TerminateReason,
+  AnyStream,
+  Prettify,
+  GetValidName,
+  ExtractStream,
   Terminable,
 } from "./types";
+
+import { EMPTY_THIS_FUNCTION, EMPTY_FUNCTION } from "./consts";
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, Terminable {
   private _name: NAME;

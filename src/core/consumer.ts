@@ -1,4 +1,5 @@
-import { Terminable, EMPTY, Queue, TerminateReason, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION, Source } from "./types";
+import type { Terminable, Queue, TerminateReason, Source } from "./types";
+import { EMPTY, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION } from "./consts";
 import { LinkedListQueue } from "./linked-list-queue";
 
 export class Consumer<VALUE> implements Terminable {
