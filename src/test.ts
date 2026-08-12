@@ -125,7 +125,7 @@ function streamBench() {
     .pipe(filter((v) => v < MAX / 2, { name: "$myFilter" }))
     .pipe(pump());
 
-  console.log(chain.$myFilter.$myMap.$map.$map.$map.$tap.$tap.$tap.$tap.$kechma.name);
+  // console.log(chain.$myFilter.$myMap.$map.$map.$map.$tap.$tap.$tap.$tap.$kechma.name);
 
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);
@@ -139,7 +139,7 @@ streamBench();
 // 1 000 000 552 ms
 // 1 000 000 552 ms
 
-import { Subject, tap as rxtap, map as rxmap, pipe } from "rxjs";
+import { Subject, tap as rxtap, map as rxmap, filter as rxfilter } from "rxjs";
 
 function rxjsBench() {
   const MAX = 1_000_000;
@@ -164,6 +164,7 @@ function rxjsBench() {
       rxmap((v) => Number(v)),
       rxmap((v) => v.toFixed()),
       rxmap((v) => Number(v)),
+      rxfilter((v) => v < MAX / 2),
     )
     .subscribe(); // Activates the pipeline
 

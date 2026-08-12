@@ -11,9 +11,10 @@ import {
   type ExtractStream,
   EMPTY_THIS_FUNCTION,
   EMPTY_FUNCTION,
+  Terminable,
 } from "./types";
 
-export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE> {
+export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, Terminable {
   private _name: NAME;
   private _source?: Source<VALUE>;
 
@@ -310,7 +311,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   ): ExtractStream<OUTPUT> & Prettify<Omit<OUTPUT, keyof AnyStream> & Record<GetValidName<NAME, OUTPUT, 5>, this>> {
     const output = transform(this) as any;
 
-    // this.$terminate.consume((_, reason) => this.terminate(reason)).next();
+    // this.$terminate.consume((_, reason) => output.terminate(reason)).next();
 
     const getValidName = (name: string, retry: number) => {
       if (--retry === 0)
