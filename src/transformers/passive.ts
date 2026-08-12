@@ -12,11 +12,7 @@ export function passive<
     const output = new Stream({
       ...rest,
       name: name ?? ("$passive" as NAME),
-      source: {
-        consume() {
-          return input.$push.consume((_, value) => output.push(value));
-        },
-      },
+      source: input.$push,
     });
 
     return output;
