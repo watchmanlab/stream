@@ -13,13 +13,17 @@ import type {
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE> {
   private _name: NAME;
-  private _options: Stream.Options<VALUE, NAME>;
-  private _consumers?: Consumer<VALUE>[] | Consumer<VALUE>;
-  private _status: Stream.Status;
-  private _pulling: boolean;
-  private _sourceConsumer?: Consumer<VALUE>;
-  private _signalConsumer?: Consumer<TerminateReason>;
+  private _source?: Source<VALUE>;
+  private _signal?: Source<TerminateReason>;
+  private _queueFactory?: Stream.QueueFactory<VALUE>;
+  private _push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
+  private _next?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+  private _drain?: (stream: Stream<VALUE, NAME>) => void;
+  private _consumerJoin?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+  private _consumerLeft?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+  private _terminate?: (stream: Stream<VALUE, NAME>, reason: TerminateReason) => void;
 
+  // Events
   private _$push?: Stream<VALUE>;
   private _$next?: Stream<Consumer<VALUE>>;
   private _$drain?: Stream<void>;
@@ -27,18 +31,36 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   private _$consumerLeft?: Stream<Consumer<VALUE>>;
   private _$terminate?: Stream<TerminateReason>;
 
-  constructor(options?: Stream.Options<VALUE, NAME>) {
-    this._options = { ...options };
+  private _consumers?: Consumer<VALUE>[] | Consumer<VALUE>;
+  private _status: Stream.Status;
+  private _pulling: boolean;
+  private _sourceConsumer?: Consumer<VALUE>;
+  private _signalConsumer?: Consumer<TerminateReason>;
 
-    this._name = this._options.name ?? ("$root" as NAME);
+  constructor(options?: Stream.Options<VALUE, NAME>) {
+    const { name, source, signal, queueFactory, push, next, drain, consumerJoin, consumerLeft, terminate } =
+      options ?? {};
+
+    this._name = name ?? ("$root" as NAME);
+    this._source = source;
+    this._signal = signal;
+    this._queueFactory = queueFactory;
+    this._push = push;
+    this._next = next;
+    this._drain = drain;
+    this._consumerJoin = consumerJoin;
+    this._consumerLeft = consumerLeft;
+    this._terminate = terminate;
+
     this._status = "active";
     this._pulling = false;
 
-    this._signalConsumer = this._options.signal?.consume((_, reason) => this.terminate(reason)).next();
+    this._signalConsumer = this._signal?.consume((_, reason) => this.terminate(reason)).next();
   }
   get name(): NAME {
     return this._name;
   }
+
   get consumersCount(): number {
     return this._consumers instanceof Consumer ? 1 : (this._consumers?.length ?? 0);
   }
@@ -75,53 +97,53 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     if (Array.isArray(this._consumers)) {
       const snapshot = Array.from(this._consumers);
       const length = snapshot.length;
-      this._push = (value) => {
+      this._optimizedPush = (value) => {
         this._pulling = false;
         for (let i = 0; i < length; i++) {
           snapshot[i].push(value);
         }
-        this._options.push?.(this, value);
+        this._push?.(this, value);
         this._$push?.push(value);
         return this;
       };
     } else if (this._consumers) {
       const consumer = this._consumers;
-      this._push = (value) => {
+      this._optimizedPush = (value) => {
         this._pulling = false;
         consumer.push(value);
-        this._options.push?.(this, value);
+        this._push?.(this, value);
         this._$push?.push(value);
         return this;
       };
     } else {
-      this._push = (value: VALUE) => {
+      this._optimizedPush = (value: VALUE) => {
         this._pulling = false;
-        this._options.push?.(this, value);
+        this._push?.(this, value);
         this._$push?.push(value);
         return this;
       };
     }
   }
-  private _push = (value: VALUE) => {
+  private _optimizedPush = (value: VALUE) => {
     this._pulling = false;
-    this._options.push?.(this, value);
+    this._push?.(this, value);
     this._$push?.push(value);
     return this;
   };
   push(value: VALUE): this {
-    return this._push(value);
+    return this._optimizedPush(value);
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     options = { ...options };
 
     const consumer = new Consumer(handler, {
       ...options,
-      queue: options.queue ?? this._options.queueFactory?.(),
+      queue: options.queue ?? this._queueFactory?.(),
       next: (consumer) => {
         if (this._pulling === false) {
           this._pulling = true;
           this._sourceConsumer?.next();
-          this._options.next?.(this, consumer);
+          this._next?.(this, consumer);
           this._$next?.push(consumer);
         }
         options.next?.(consumer);
@@ -138,7 +160,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
           this._optimizePush();
         }
 
-        this._options.consumerLeft?.(this, consumer);
+        this._consumerLeft?.(this, consumer);
         this._$consumerLeft?.push(consumer);
 
         if (!this.consumersCount && this._status === "drain") this.terminate("complete");
@@ -148,7 +170,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
 
     if (!this._consumers) {
       this._consumers = consumer;
-      this._sourceConsumer = this._options.source?.consume((_, value) => this.push(value));
+      this._sourceConsumer = this._source?.consume((_, value) => this.push(value));
     } else if (Array.isArray(this._consumers)) {
       this._consumers.push(consumer);
     } else {
@@ -157,7 +179,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
 
     this._optimizePush();
 
-    this._options.consumerJoin?.(this, consumer);
+    this._consumerJoin?.(this, consumer);
     this._$consumerJoin?.push(consumer);
 
     return consumer;
@@ -171,7 +193,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       this._status = "abort";
     } else if (this.consumersCount) {
       this._status = "drain";
-      this._options?.drain?.(this);
+      this._drain?.(this);
       this._$drain?.push();
 
       if (Array.isArray(this._consumers)) {
@@ -201,11 +223,20 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._$drain?.terminate(reason);
     this._$consumerJoin?.terminate(reason);
     this._$consumerLeft?.terminate(reason);
-    this._options?.terminate?.(this, reason);
+    this._terminate?.(this, reason);
     this._$terminate?.push(reason);
+    this._$terminate?.terminate(reason);
 
-    this._options = {};
-    this._consumers =
+    this._source =
+      this._signal =
+      this._queueFactory =
+      this._push =
+      this._next =
+      this._drain =
+      this._consumerJoin =
+      this._consumerLeft =
+      this._terminate =
+      this._consumers =
       this._sourceConsumer =
       this._signalConsumer =
       this._$push =
@@ -239,10 +270,9 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     return Object.assign(output, { [getValidName(this.name, 5)]: this });
   }
   asSource(): Source<VALUE> {
-    const self = this;
     return {
-      consume(handler, options) {
-        return self.consume(handler, options);
+      consume: (handler, options) => {
+        return this.consume(handler, options);
       },
     };
   }
