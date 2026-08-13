@@ -175,32 +175,30 @@ function streamTest() {
   const stream2 = new Stream({ source: stream });
   stream2
     .consume((consumer, value) => {
-      if (value === 2) {
-        setTimeout(() => {
-          console.log("c1", value);
-          consumer.next();
-        }, 500);
-        // consumer.next();
-        return;
-      }
+      // if (value === 2) {
+      //   setTimeout(() => {
+      //     console.log("c1", value);
+      //     consumer.next();
+      //   }, 500);
+      //   // consumer.next();
+      //   return;
+      // }
       console.log("c1", value);
       consumer.next();
     })
     .next();
-  // stream
-  //   .consume((consumer, value) => {
-  //     console.log("L2", value.toString().repeat(3));
-
-  //     consumer.next();
-  //   })
-  //   .next();
+  (async () => {
+    for await (const value of stream2) {
+      console.log("c2", value);
+    }
+  })();
 
   stream.push(1);
   stream.push(2);
   stream.push(3);
 }
 
-// streamTest();
+streamTest();
 // c1 1
 // c1 2
 // c1 3

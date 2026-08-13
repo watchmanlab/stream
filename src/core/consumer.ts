@@ -2,7 +2,7 @@ import type { Terminable, Queue, TerminateReason, Source } from "./types";
 import { EMPTY, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION } from "./consts";
 import { LinkedListQueue } from "./linked-list-queue";
 
-export class Consumer<VALUE> implements Terminable {
+export class Consumer<VALUE> implements Terminable, Disposable {
   private _queueFactory: () => Queue<VALUE>;
   private _push: (consumer: Consumer<VALUE>, value: VALUE) => void;
   private _next: (consumer: Consumer<VALUE>) => void;
@@ -43,6 +43,9 @@ export class Consumer<VALUE> implements Terminable {
     if (this.status === "active") this._initCleanup = init?.(this);
   }
 
+  [Symbol.dispose]() {
+    this.terminate("abort");
+  }
   get status(): Consumer.Status {
     return this._status;
   }

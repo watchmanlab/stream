@@ -23,7 +23,7 @@ export function fromAsyncIterator<VALUE>(
           next?.(consumer);
         },
         terminate(consumer, reason) {
-          iter.return?.();
+          reason === "abort" ? iter.throw?.(reason) : iter.return?.(reason);
           terminate?.(consumer, reason);
         },
       });
