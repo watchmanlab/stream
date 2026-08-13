@@ -1,23 +1,26 @@
 import { Consumer } from "./consumer";
-import {
-  type NonEmptyString,
-  type Queue,
-  type Source,
-  type Transform,
-  type TerminateReason,
-  type AnyStream,
-  type Prettify,
-  type GetValidName,
-  type ExtractStream,
-  EMPTY_THIS_FUNCTION,
-  EMPTY_FUNCTION,
+import type {
+  NonEmptyString,
+  Queue,
+  Source,
+  Transform,
+  TerminateReason,
+  AnyStream,
+  Prettify,
+  GetValidName,
+  ExtractStream,
   Terminable,
+  ConsumerSet,
 } from "./types";
+
+import { EMPTY_THIS_FUNCTION, EMPTY_FUNCTION } from "./consts";
+import { SetConsumerSet } from "./set-consumer-set";
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, Terminable {
   private _name: NAME;
   private _source?: Source<VALUE>;
 
+  private _consumerSetFactory?: () => ConsumerSet<VALUE>;
   private _queueFactory?: () => Queue<VALUE>;
   private _push: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
   private _next: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
@@ -38,7 +41,9 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   private _$lastConsumerLeft?: Stream<Consumer<VALUE>>;
   private _$terminate?: Stream<TerminateReason>;
 
-  private _consumers?: Consumer<VALUE>[] | Consumer<VALUE>;
+  private _initCleanup?: (reason: TerminateReason) => void;
+
+  private _consumerSet?: ConsumerSet<VALUE>;
   private _status: Stream.Status;
   private _pulling: boolean;
   private _sourceConsumer?: Consumer<VALUE>;
@@ -49,7 +54,9 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       name,
       source,
       signal,
+      consumerSetFactory,
       queueFactory,
+      init,
       push,
       next,
       consumerJoin,
@@ -63,6 +70,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._name = name ?? ("$root" as NAME);
     this._source = source;
 
+    this._consumerSetFactory = consumerSetFactory;
     this._queueFactory = queueFactory;
 
     this._push = push
@@ -99,12 +107,14 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._pulling = false;
 
     this._signalConsumer = signal?.consume((_, reason) => this.terminate(reason)).next();
+
+    if (this.status === "active") this._initCleanup = init?.(this);
   }
   get name(): NAME {
     return this._name;
   }
   get consumersCount(): number {
-    return this._consumers instanceof Consumer ? 1 : (this._consumers?.length ?? 0);
+    return this._consumerSet?.size ?? 0;
   }
   get status(): Stream.Status {
     return this._status;
@@ -157,43 +167,11 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     })).asSource();
   }
 
-  private _optimizePush(): void {
-    if (Array.isArray(this._consumers)) {
-      const snapshot = Array.from(this._consumers);
-      const length = snapshot.length;
-      this._optimizedPush = (value) => {
-        this._pulling = false;
-        for (let i = 0; i < length; i++) {
-          snapshot[i].push(value);
-        }
-        this._push(this, value);
-
-        return this;
-      };
-    } else if (this._consumers) {
-      const consumer = this._consumers;
-      this._optimizedPush = (value) => {
-        this._pulling = false;
-        consumer.push(value);
-        this._push(this, value);
-
-        return this;
-      };
-    } else {
-      this._optimizedPush = (value: VALUE) => {
-        this._pulling = false;
-        this._push(this, value);
-        return this;
-      };
-    }
-  }
-  private _optimizedPush = (value: VALUE) => {
+  push(value: VALUE): this {
     this._pulling = false;
+    this._consumerSet?.push(value);
     this._push(this, value);
     return this;
-  };
-  push(value: VALUE): this {
-    return this._optimizedPush(value);
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     options = { ...options };
@@ -211,37 +189,39 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       },
 
       terminate: (consumer, reason) => {
-        if (this._status === "active") {
-          if (this._consumers === consumer) {
-            this._consumers = undefined;
-          } else if (Array.isArray(this._consumers)) {
-            this._consumers = this._consumers.filter((item) => item !== consumer);
-            if (this._consumers.length === 1) this._consumers = this._consumers[0];
+        if (deleteConsumer()) {
+          this._consumerLeft(this, consumer);
+
+          if (!this._consumerSet?.size) {
+            this._consumerSet = undefined;
+            this._lastConsumerLeft(this, consumer);
+            if (this._status === "drain") this.terminate("complete");
           }
-          this._optimizePush();
         }
 
-        this._consumerLeft(this, consumer);
-
-        if (!this.consumersCount) {
-          this._lastConsumerLeft(this, consumer);
-          if (this._status === "drain") this.terminate("complete");
-        }
         options.terminate?.(consumer, reason);
       },
     });
 
-    if (!this._consumers) {
-      this._consumers = consumer;
-      this._firstConsumerJoin(this, consumer);
-      this._sourceConsumer = this._source?.consume((_, value) => this.push(value));
-    } else if (Array.isArray(this._consumers)) {
-      this._consumers.push(consumer);
-    } else {
-      this._consumers = [this._consumers, consumer];
-    }
+    if (!this._consumerSet) this._consumerSet = this._consumerSetFactory?.() ?? new SetConsumerSet();
 
-    this._optimizePush();
+    const deleteConsumer = this._consumerSet.add(consumer);
+
+    if (this._consumerSet.size === 1) {
+      this._firstConsumerJoin(this, consumer);
+      this._sourceConsumer = this._source?.consume(
+        (_, value) => {
+          this._pulling = false;
+          this._consumerSet?.push(value);
+          this._push(this, value);
+        },
+        {
+          terminate: (_, reason) => {
+            this.terminate(reason);
+          },
+        },
+      );
+    }
 
     this._consumerJoin(this, consumer);
 
@@ -258,28 +238,17 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       this._status = "drain";
       this._drain(this);
 
-      if (Array.isArray(this._consumers)) {
-        for (let i = 0; i < this._consumers.length; i++) {
-          this._consumers[i].terminate("complete");
-        }
-      } else {
-        this._consumers?.terminate("complete");
-      }
-      this._consumers = undefined;
+      this._consumerSet?.terminate("complete");
+      this._consumerSet = undefined;
 
       return this;
     } else {
       this.terminate = EMPTY_THIS_FUNCTION;
       this._status = "complete";
     }
-    if (Array.isArray(this._consumers)) {
-      for (let i = 0; i < this._consumers.length; i++) {
-        this._consumers[i].terminate(reason);
-      }
-    } else {
-      this._consumers?.terminate(reason);
-    }
 
+    this._initCleanup?.(reason);
+    this._consumerSet?.terminate(reason);
     this._sourceConsumer?.terminate(reason);
     this._signalConsumer?.terminate(reason);
     this._$push?.terminate(reason);
@@ -294,7 +263,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
 
     this._source =
       this._queueFactory =
-      this._consumers =
+      this._consumerSet =
       this._sourceConsumer =
       this._signalConsumer =
       this._$push =
@@ -343,7 +312,9 @@ export namespace Stream {
     name?: NAME;
     source?: Source<VALUE>;
     signal?: Source<TerminateReason>;
+    consumerSetFactory?: () => ConsumerSet<VALUE>;
     queueFactory?: () => Queue<VALUE>;
+    init?: (stream: Stream<VALUE, NAME>) => undefined | ((reason: TerminateReason) => void);
     push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
     next?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
     consumerJoin?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;

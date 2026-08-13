@@ -1,4 +1,5 @@
-import { Terminable, EMPTY, Queue, TerminateReason, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION, Source } from "./types";
+import type { Terminable, Queue, TerminateReason, Source } from "./types";
+import { EMPTY, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION } from "./consts";
 import { LinkedListQueue } from "./linked-list-queue";
 
 export class Consumer<VALUE> implements Terminable {
@@ -10,6 +11,7 @@ export class Consumer<VALUE> implements Terminable {
   private _drain: (consumer: Consumer<VALUE>) => void;
   private _terminate: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
 
+  private _initCleanup?: (reason: TerminateReason) => void;
   private _status: Consumer.Status;
   private _queue?: Queue<VALUE>;
   private _credit: number;
@@ -19,7 +21,7 @@ export class Consumer<VALUE> implements Terminable {
   private _signalConsumer?: Consumer<TerminateReason>;
 
   constructor(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>) {
-    const { source, signal, queueFactory, push, next, enqueue, dequeue, drain, terminate } = options ?? {};
+    const { source, signal, queueFactory, init, push, next, enqueue, dequeue, drain, terminate } = options ?? {};
 
     this._queueFactory = queueFactory ?? (() => new LinkedListQueue());
     this._push = push ?? EMPTY_FUNCTION;
@@ -37,6 +39,8 @@ export class Consumer<VALUE> implements Terminable {
       terminate: (_, reason) => this.terminate(reason),
     });
     this._signalConsumer = signal?.consume((_, reason) => this.terminate(reason)).next();
+
+    if (this.status === "active") this._initCleanup = init?.(this);
   }
 
   get status(): Consumer.Status {
@@ -106,6 +110,7 @@ export class Consumer<VALUE> implements Terminable {
       this._status = "complete";
     }
 
+    this._initCleanup?.(reason);
     this._sourceConsumer?.terminate(reason);
     this._signalConsumer?.terminate(reason);
     this._sourceConsumer = this._signalConsumer = this._queue = undefined;
@@ -127,6 +132,7 @@ export namespace Consumer {
     source?: Source<VALUE>;
     signal?: Source<TerminateReason>;
     queueFactory?: () => Queue<VALUE>;
+    init?: (consumer: Consumer<VALUE>) => undefined | ((reason: TerminateReason) => void);
     push?: (consumer: Consumer<VALUE>, value: VALUE) => void;
     next?: (consumer: Consumer<VALUE>) => void;
     drain?: (consumer: Consumer<VALUE>) => void;

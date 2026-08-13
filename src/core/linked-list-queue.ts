@@ -1,4 +1,5 @@
-import { EMPTY, Empty, Queue } from "./types";
+import type { Empty, Queue } from "./types";
+import { EMPTY } from "./consts";
 
 export class LinkedListQueue<VALUE> implements Queue<VALUE> {
   private _head?: LinkedListQueue.Node<VALUE>;

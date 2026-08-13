@@ -1,3 +1,4 @@
+import { EMPTY, EMPTY_FUNCTION } from "./consts";
 import type { Consumer } from "./consumer";
 
 import { Stream } from "./stream";
@@ -22,21 +23,19 @@ export namespace Queue {
         };
   }
 }
-export interface Collection<T> {
-  add(item: T): void;
-  delete(item: T): void;
-
-  clear(): void;
+export interface ConsumerSet<VALUE> {
   readonly size: number;
+  push(value: VALUE): void;
+  add(consumer: Consumer<VALUE>): () => boolean;
+  terminate(reason: TerminateReason): void;
 }
 
-export const EMPTY = Symbol.for("empty");
 export type Empty = typeof EMPTY;
-export const EMPTY_FUNCTION = () => {};
-export const EMPTY_THIS_FUNCTION = function (this: any) {
-  return this;
-};
+
 export type EmptyFunctions = typeof EMPTY_FUNCTION;
+export type Result<VALUE, ERROR = any> =
+  | { ok: true; value: VALUE; error?: never }
+  | { ok: false; error: ERROR; value?: never };
 export interface Source<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
