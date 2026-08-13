@@ -8,9 +8,9 @@ export class Signal<VALUE, NAME extends NonEmptyString = "$signal"> extends Stre
     super({
       ...rest,
       name: name ?? ("$signal" as NAME),
-      push(self, value) {
-        push?.(self, value);
-        self.terminate("complete");
+      push(stream, value) {
+        push?.(stream, value);
+        stream.terminate("complete");
       },
     });
   }
