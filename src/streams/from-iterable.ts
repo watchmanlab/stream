@@ -1,6 +1,6 @@
 import type { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
-import { FromIterator } from "./from-iterator";
+import { FromIterator } from "../sources/from-iterator";
 
 export class FromIterable<VALUE, NAME extends NonEmptyString = "$iterable"> extends FromIterator<VALUE, NAME> {
   constructor(iterable: Iterable<VALUE> | (() => Iterable<VALUE>), options?: Stream.Options<VALUE, NAME>) {

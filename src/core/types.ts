@@ -26,9 +26,8 @@ export namespace Queue {
 export interface ConsumerSet<VALUE> {
   readonly size: number;
   push(value: VALUE): void;
-  add(consumer: Consumer<VALUE>): void;
-  delete(consumer: Consumer<VALUE>): boolean;
-  clear(): void;
+  add(consumer: Consumer<VALUE>): () => boolean;
+  terminate(reason: TerminateReason): void;
 }
 
 export type Empty = typeof EMPTY;

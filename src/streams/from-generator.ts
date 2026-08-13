@@ -1,6 +1,6 @@
 import type { Stream } from "../core/stream";
 import { NonEmptyString } from "../core/types";
-import { FromIterator } from "./from-iterator";
+import { FromIterator } from "../sources/from-iterator";
 
 export class FromGenerator<VALUE, NAME extends NonEmptyString = "$generator"> extends FromIterator<VALUE, NAME> {
   constructor(generatorFn: () => Generator<VALUE>, options?: Stream.Options<VALUE, NAME>) {
