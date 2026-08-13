@@ -29,7 +29,7 @@ export class SetConsumerSet<VALUE> implements ConsumerSet<VALUE> {
   }
   push(value: VALUE) {}
 
-  add(consumer: Consumer<VALUE>): () => boolean {
+  add(consumer: Consumer<VALUE>): ConsumerSet.Delete {
     if (!this._consumers) {
       this._consumers = consumer;
     } else if (this._consumers instanceof Consumer) {
