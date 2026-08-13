@@ -16,7 +16,9 @@ import type {
 import { EMPTY_THIS_FUNCTION, EMPTY_FUNCTION } from "./consts";
 import { SetConsumerSet } from "./set-consumer-set";
 
-export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Source<VALUE>, Terminable {
+export class Stream<VALUE, NAME extends NonEmptyString = "$root">
+  implements Source<VALUE>, Terminable, Disposable, AsyncIterable<VALUE>
+{
   private _name: NAME;
   private _source?: Source<VALUE>;
 
@@ -109,6 +111,26 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._signalConsumer = signal?.consume((_, reason) => this.terminate(reason)).next();
 
     if (this.status === "active") this._initCleanup = init?.(this);
+  }
+  async *[Symbol.asyncIterator]() {
+    let resolve: ((value: VALUE) => void) | undefined;
+    const consumer = this.consume((_, value) => (resolve!(value), (resolve = undefined)));
+
+    try {
+      while (consumer.status === "active" || consumer.status === "drain") {
+        const promise = new Promise<VALUE>((r) => (resolve = r));
+        consumer.next();
+        yield promise;
+      }
+    } catch (e) {
+      consumer.terminate("abort");
+    } finally {
+      consumer.terminate("complete");
+      resolve?.(null as never);
+    }
+  }
+  [Symbol.dispose]() {
+    this.terminate("abort");
   }
   get name(): NAME {
     return this._name;
@@ -298,9 +320,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   }
   asSource(): Source<VALUE> {
     return {
-      consume: (handler, options) => {
-        return this.consume(handler, options);
-      },
+      consume: this.consume.bind(this),
     };
   }
 }

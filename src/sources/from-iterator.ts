@@ -21,7 +21,7 @@ export function fromIterator<VALUE>(iterator: Iterator<VALUE> | (() => Iterator<
           next?.(consumer);
         },
         terminate(consumer, reason) {
-          iter.return?.();
+          reason === "abort" ? iter.throw?.(reason) : iter.return?.(reason);
           terminate?.(consumer, reason);
         },
       });
