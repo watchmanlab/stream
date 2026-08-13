@@ -4,12 +4,12 @@ import { LinkedListQueue } from "./linked-list-queue";
 
 export class Consumer<VALUE> implements Terminable, Disposable {
   private _queueFactory: () => Queue<VALUE>;
-  private _push: (consumer: Consumer<VALUE>, value: VALUE) => void;
-  private _next: (consumer: Consumer<VALUE>) => void;
-  private _enqueue: (consumer: Consumer<VALUE>, value: VALUE) => void;
-  private _dequeue: (consumer: Consumer<VALUE>, value: VALUE) => void;
-  private _drain: (consumer: Consumer<VALUE>) => void;
-  private _terminate: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
+  private _push?: (consumer: Consumer<VALUE>, value: VALUE) => void;
+  private _next?: (consumer: Consumer<VALUE>) => void;
+  private _enqueue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
+  private _dequeue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
+  private _drain?: (consumer: Consumer<VALUE>) => void;
+  private _terminate?: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
 
   private _initCleanup?: (reason: TerminateReason) => void;
   private _status: Consumer.Status;
@@ -24,12 +24,12 @@ export class Consumer<VALUE> implements Terminable, Disposable {
     const { source, signal, queueFactory, init, push, next, enqueue, dequeue, drain, terminate } = options ?? {};
 
     this._queueFactory = queueFactory ?? (() => new LinkedListQueue());
-    this._push = push ?? EMPTY_FUNCTION;
-    this._next = next ?? EMPTY_FUNCTION;
-    this._enqueue = enqueue ?? EMPTY_FUNCTION;
-    this._dequeue = dequeue ?? EMPTY_FUNCTION;
-    this._drain = drain ?? EMPTY_FUNCTION;
-    this._terminate = terminate ?? EMPTY_FUNCTION;
+    this._push = push;
+    this._next = next;
+    this._enqueue = enqueue;
+    this._dequeue = dequeue;
+    this._drain = drain;
+    this._terminate = terminate;
     this._handler = handler;
 
     this._status = "active";
@@ -61,9 +61,9 @@ export class Consumer<VALUE> implements Terminable, Disposable {
       this._credit--;
     } else {
       (this._queue ??= this._queueFactory()).enqueue(value);
-      this._enqueue(this, value);
+      this._enqueue?.(this, value);
     }
-    this._push(this, value);
+    this._push?.(this, value);
     return this;
   }
   next(): this {
@@ -72,7 +72,7 @@ export class Consumer<VALUE> implements Terminable, Disposable {
     const { _sourceConsumer, _queue, _next, _dequeue } = this;
 
     if (!_queue?.size) {
-      _next(this);
+      _next?.(this);
       _sourceConsumer?.next();
       return this;
     }
@@ -87,11 +87,11 @@ export class Consumer<VALUE> implements Terminable, Disposable {
         if (this._status === "drain") {
           this.terminate("complete");
         } else {
-          _next(this);
+          _next?.(this);
         }
         break;
       }
-      _dequeue(this, value);
+      _dequeue?.(this, value);
 
       this._handler(this, value);
       this._credit--;
@@ -106,7 +106,7 @@ export class Consumer<VALUE> implements Terminable, Disposable {
       this._queue?.clear();
     } else if (this._queue?.size) {
       this._status = "drain";
-      this._drain(this);
+      this._drain?.(this);
       return this;
     } else {
       this.next = this.terminate = EMPTY_THIS_FUNCTION;
@@ -116,11 +116,20 @@ export class Consumer<VALUE> implements Terminable, Disposable {
     this._initCleanup?.(reason);
     this._sourceConsumer?.terminate(reason);
     this._signalConsumer?.terminate(reason);
-    this._sourceConsumer = this._signalConsumer = this._queue = undefined;
 
-    this._terminate(this, reason);
+    this._terminate?.(this, reason);
 
-    this._handler = this._next = this._enqueue = this._dequeue = this._drain = this._terminate = EMPTY_FUNCTION;
+    this._sourceConsumer =
+      this._signalConsumer =
+      this._queue =
+      this._next =
+      this._enqueue =
+      this._dequeue =
+      this._drain =
+      this._terminate =
+        undefined;
+
+    this._handler = EMPTY_FUNCTION;
 
     return this;
   }

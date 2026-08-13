@@ -23,15 +23,15 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   private _source?: Source<VALUE>;
 
   private _consumerSetFactory?: () => ConsumerSet<VALUE>;
-  private _queueFactory?: () => Queue<VALUE>;
-  private _push: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
-  private _next: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _consumerJoin: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _consumerLeft: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _firstConsumerJoin: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _lastConsumerLeft: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _drain: (stream: Stream<VALUE, NAME>) => void;
-  private _terminate: (stream: Stream<VALUE, NAME>, reason: TerminateReason) => void;
+  private _consumerQueueFactory?: () => Queue<VALUE>;
+  private _push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
+  private _next?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+  private _consumerJoin?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+  private _consumerLeft?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+  private _firstConsumerJoin?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+  private _lastConsumerLeft?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
+  private _drain?: (stream: Stream<VALUE, NAME>) => void;
+  private _terminate?: (stream: Stream<VALUE, NAME>, reason: TerminateReason) => void;
 
   // Events
   private _$push?: Stream<VALUE>;
@@ -57,7 +57,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
       source,
       signal,
       consumerSetFactory,
-      queueFactory,
+      consumerQueueFactory,
       init,
       push,
       next,
@@ -73,37 +73,15 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
     this._source = source;
 
     this._consumerSetFactory = consumerSetFactory;
-    this._queueFactory = queueFactory;
-
-    this._push = push
-      ? (stream, value) => (push(stream, value), this._$push?.push(value))
-      : (_, value) => this._$push?.push(value);
-
-    this._next = next
-      ? (stream, consumer) => (next(stream, consumer), this._$next?.push(consumer))
-      : (_, consumer) => this._$next?.push(consumer);
-
-    this._consumerJoin = consumerJoin
-      ? (stream, consumer) => (consumerJoin(stream, consumer), this._$consumerJoin?.push(consumer))
-      : (_, consumer) => this._$consumerJoin?.push(consumer);
-
-    this._consumerLeft = consumerLeft
-      ? (stream, consumer) => (consumerLeft(stream, consumer), this._$consumerLeft?.push(consumer))
-      : (_, consumer) => this._$consumerLeft?.push(consumer);
-
-    this._firstConsumerJoin = firstConsumerJoin
-      ? (stream, consumer) => (firstConsumerJoin(stream, consumer), this._$firstConsumerJoin?.push(consumer))
-      : (_, consumer) => this._$firstConsumerJoin?.push(consumer);
-
-    this._lastConsumerLeft = lastConsumerLeft
-      ? (stream, consumer) => (lastConsumerLeft(stream, consumer), this._$lastConsumerLeft?.push(consumer))
-      : (_, consumer) => this._$lastConsumerLeft?.push(consumer);
-
-    this._drain = drain ? (stream) => (drain(stream), this._$drain?.push()) : (_) => this._$drain?.push();
-
-    this._terminate = terminate
-      ? (stream, reason) => (terminate(stream, reason), this._$terminate?.push(reason))
-      : (_, reason) => this._$terminate?.push(reason);
+    this._consumerQueueFactory = consumerQueueFactory;
+    this._push = push;
+    this._next = next;
+    this._consumerJoin = consumerJoin;
+    this._consumerLeft = consumerLeft;
+    this._firstConsumerJoin = firstConsumerJoin;
+    this._lastConsumerLeft = lastConsumerLeft;
+    this._drain = drain;
+    this._terminate = terminate;
 
     this._status = "active";
     this._pulling = false;
@@ -192,7 +170,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   push(value: VALUE): this {
     this._pulling = false;
     this._consumerSet?.push(value);
-    this._push(this, value);
+    this._push?.(this, value);
+    this._$push?.push(value);
     return this;
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
@@ -200,23 +179,28 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
 
     const consumer = new Consumer(handler, {
       ...options,
-      queueFactory: options.queueFactory ?? this._queueFactory,
+      queueFactory: options.queueFactory ?? this._consumerQueueFactory,
       next: (consumer) => {
         if (this._pulling === false) {
           this._pulling = true;
           this._sourceConsumer?.next();
-          this._next(this, consumer);
+          this._next?.(this, consumer);
+          this._$next?.push(consumer);
         }
         options.next?.(consumer);
       },
 
       terminate: (consumer, reason) => {
         if (deleteConsumer()) {
-          this._consumerLeft(this, consumer);
+          this._consumerLeft?.(this, consumer);
+          this._$consumerLeft?.push(consumer);
 
           if (!this._consumerSet?.size) {
             this._consumerSet = undefined;
-            this._lastConsumerLeft(this, consumer);
+
+            this._lastConsumerLeft?.(this, consumer);
+            this._$lastConsumerLeft?.push(consumer);
+
             if (this._status === "drain") this.terminate("complete");
           }
         }
@@ -230,12 +214,15 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
     const deleteConsumer = this._consumerSet.add(consumer);
 
     if (this._consumerSet.size === 1) {
-      this._firstConsumerJoin(this, consumer);
+      this._firstConsumerJoin?.(this, consumer);
+      this._$firstConsumerJoin?.push(consumer);
+
       this._sourceConsumer = this._source?.consume(
         (_, value) => {
           this._pulling = false;
           this._consumerSet?.push(value);
-          this._push(this, value);
+          this._push?.(this, value);
+          this._$push?.push(value);
         },
         {
           terminate: (_, reason) => {
@@ -245,7 +232,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
       );
     }
 
-    this._consumerJoin(this, consumer);
+    this._consumerJoin?.(this, consumer);
+    this._$consumerJoin?.push(consumer);
 
     return consumer;
   }
@@ -258,7 +246,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
       this._status = "abort";
     } else if (this.consumersCount) {
       this._status = "drain";
-      this._drain(this);
+      this._drain?.(this);
+      this._$drain?.push();
 
       this._consumerSet?.terminate("complete");
       this._consumerSet = undefined;
@@ -278,13 +267,23 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
     this._$drain?.terminate(reason);
     this._$consumerJoin?.terminate(reason);
     this._$consumerLeft?.terminate(reason);
-    this._terminate(this, reason);
+    this._$firstConsumerJoin?.terminate(reason);
+    this._$lastConsumerLeft?.terminate(reason);
+
+    this._terminate?.(this, reason);
+    this._$terminate?.push(reason);
     this._$terminate?.terminate(reason);
 
-    this._push = this._next = this._drain = this._consumerJoin = this._consumerLeft = this._terminate = EMPTY_FUNCTION;
-
     this._source =
-      this._queueFactory =
+      this._consumerQueueFactory =
+      this._push =
+      this._next =
+      this._consumerJoin =
+      this._consumerLeft =
+      this._firstConsumerJoin =
+      this._lastConsumerLeft =
+      this._drain =
+      this._terminate =
       this._consumerSet =
       this._sourceConsumer =
       this._signalConsumer =
@@ -333,7 +332,7 @@ export namespace Stream {
     source?: Source<VALUE>;
     signal?: Source<TerminateReason>;
     consumerSetFactory?: () => ConsumerSet<VALUE>;
-    queueFactory?: () => Queue<VALUE>;
+    consumerQueueFactory?: () => Queue<VALUE>;
     init?: (stream: Stream<VALUE, NAME>) => undefined | ((reason: TerminateReason) => void);
     push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
     next?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;

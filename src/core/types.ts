@@ -26,8 +26,11 @@ export namespace Queue {
 export interface ConsumerSet<VALUE> {
   readonly size: number;
   push(value: VALUE): void;
-  add(consumer: Consumer<VALUE>): () => boolean;
+  add(consumer: Consumer<VALUE>): ConsumerSet.Delete;
   terminate(reason: TerminateReason): void;
+}
+export namespace ConsumerSet {
+  export type Delete = () => boolean;
 }
 
 export type Empty = typeof EMPTY;
