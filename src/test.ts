@@ -1,30 +1,21 @@
-import { Stream } from "./core/stream";
+import { Subject, tap as rxtap, map as rxmap, filter as rxfilter } from "rxjs";
 import { Consumer } from "./core/consumer";
-import { map } from "./transformers/map";
+import { Stream } from "./core/stream";
 import { fromIterator } from "./sources/from-iterator";
-import { fromIterable } from "./streams/from-iterable";
-import { fromEventTarget } from "./streams/from-event-target";
+import { fromIterable } from "./sources/from-iterable";
+import { fromGenerator } from "./sources/from-generator";
+import { fromAsyncIterator } from "./sources/from-async-iterator";
+import { fromAsyncIterable } from "./sources/from-async-iterable";
+import { fromAsyncGenerator } from "./sources/from-async-generator";
+import { fromAbortSignal } from "./sources/from-abort-signal";
+import { fromAbortController } from "./sources/from-abort-controller";
+import { fromEventTarget } from "./sources/from-event-target";
+import { fromPromise } from "./sources/from-promise";
+
+import { map } from "./transformers/map";
 import { filter } from "./transformers/filter";
-import { resolve } from "./transformers/resolve";
 import { tap } from "./transformers/tap";
 import { pump } from "./transformers/pump";
-import { auditTime } from "./transformers/audit-time";
-import { fromAsyncGenerator } from "./streams/from-async-generator";
-import { passive } from "./transformers/passive";
-import { auditCount } from "./transformers/audit-count";
-import { take } from "./transformers/take";
-import { skip } from "./transformers/skip";
-import { replay } from "./transformers/replay";
-import { tick } from "./transformers/tick";
-import { takeWhile } from "./transformers/take-while";
-import { takeUntil } from "./transformers/take-until";
-import { takeWith } from "./transformers/take-with";
-import { merge } from "./transformers/merge";
-import { mapBatch } from "./transformers/map-batch";
-import { flat } from "./transformers/flat";
-import { Signal } from "./streams/signal";
-import { debug } from "./transformers/debug";
-import { batch } from "./transformers/batch";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -139,8 +130,6 @@ function streamBench() {
 // 1 000 000 552 ms
 // 1 000 000 552 ms
 
-import { Subject, tap as rxtap, map as rxmap, filter as rxfilter } from "rxjs";
-
 function rxjsBench() {
   const MAX = 1_000_000;
   const stream$ = new Subject<number>();
@@ -225,4 +214,156 @@ function fromIteratorTest() {
     .next();
 }
 
-fromIteratorTest();
+// fromIteratorTest();
+function fromIterableTest() {
+  const source = fromIterable([1, 2, 3]);
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log(value);
+      self.next();
+    })
+    .next();
+}
+
+// fromIterableTest();
+function fromGeneratorTest() {
+  const source = fromGenerator(function* () {
+    yield 1;
+    yield 2;
+    yield 3;
+  });
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log(value);
+      self.next();
+    })
+    .next();
+}
+
+// fromGeneratorTest();
+
+function fromAsyncIteratorTest() {
+  let counter = 0;
+  const source = fromAsyncIterator({
+    next() {
+      return Promise.resolve(++counter === 4 ? { value: undefined, done: true } : { value: counter });
+    },
+  });
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log(value);
+      self.next();
+    })
+    .next();
+}
+
+// fromAsyncIteratorTest();
+function fromAsyncIterableTest() {
+  const source = fromAsyncIterable({
+    [Symbol.asyncIterator]() {
+      let counter = 0;
+      return {
+        next() {
+          return Promise.resolve(++counter === 4 ? { value: undefined, done: true } : { value: counter });
+        },
+      };
+    },
+  });
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log(value);
+      self.next();
+    })
+    .next();
+}
+
+// fromAsyncIterableTest();
+function fromAsyncGeneratorTest() {
+  const source = fromAsyncGenerator(async function* () {
+    await new Promise((r) => setTimeout(r, Math.random() * 500));
+    yield 1;
+    await new Promise((r) => setTimeout(r, Math.random() * 500));
+    yield 2;
+    await new Promise((r) => setTimeout(r, Math.random() * 500));
+    yield 3;
+  });
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log(value);
+      self.next();
+    })
+    .next();
+}
+
+// fromAsyncGeneratorTest();
+
+function fromAbortSignalTest() {
+  const controller = new AbortController();
+
+  controller.abort();
+
+  const source = fromAbortSignal(controller.signal);
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log("aborted", value);
+      self.next();
+    })
+    .next();
+
+  console.log(stream.status);
+}
+
+// fromAbortSignalTest();
+function fromAbortControllerTest() {
+  const controller = new AbortController();
+
+  controller.abort();
+
+  const source = fromAbortController(controller);
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log("aborted", value);
+      self.next();
+    })
+    .next();
+
+  console.log(stream.status);
+}
+
+// fromAbortControllerTest();
+function fromEventTargetTest() {
+  const et = new EventTarget();
+
+  const source = fromEventTarget(et, "click");
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log(value.type);
+      self.next();
+    })
+    .next();
+
+  et.dispatchEvent(new Event("click"));
+  et.dispatchEvent(new Event("click"));
+}
+
+// fromEventTargetTest();
+function fromPromiseTest() {
+  const source = fromPromise(Promise.resolve(1));
+  const stream = new Stream({ source });
+  source
+    .consume((self, value) => {
+      console.log(value);
+      self.next();
+    })
+    .next();
+}
+
+fromPromiseTest();

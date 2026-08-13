@@ -41,6 +41,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
   private _$lastConsumerLeft?: Stream<Consumer<VALUE>>;
   private _$terminate?: Stream<TerminateReason>;
 
+  private _initCleanup?: (reason: TerminateReason) => void;
+
   private _consumerSet?: ConsumerSet<VALUE>;
   private _status: Stream.Status;
   private _pulling: boolean;
@@ -54,6 +56,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       signal,
       consumerSetFactory,
       queueFactory,
+      init,
       push,
       next,
       consumerJoin,
@@ -104,6 +107,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
     this._pulling = false;
 
     this._signalConsumer = signal?.consume((_, reason) => this.terminate(reason)).next();
+
+    if (this.status === "active") this._initCleanup = init?.(this);
   }
   get name(): NAME {
     return this._name;
@@ -204,10 +209,18 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
 
     if (this._consumerSet.size === 1) {
       this._firstConsumerJoin(this, consumer);
-      this._sourceConsumer = this._source?.consume((_, value) => {
-        this._pulling = false;
-        this._consumerSet?.push(value);
-      });
+      this._sourceConsumer = this._source?.consume(
+        (_, value) => {
+          this._pulling = false;
+          this._consumerSet?.push(value);
+          this._push(this, value);
+        },
+        {
+          terminate: (_, reason) => {
+            this.terminate(reason);
+          },
+        },
+      );
     }
 
     this._consumerJoin(this, consumer);
@@ -234,6 +247,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root"> implements Sou
       this._status = "complete";
     }
 
+    this._initCleanup?.(reason);
     this._consumerSet?.terminate(reason);
     this._sourceConsumer?.terminate(reason);
     this._signalConsumer?.terminate(reason);
@@ -300,6 +314,7 @@ export namespace Stream {
     signal?: Source<TerminateReason>;
     consumerSetFactory?: () => ConsumerSet<VALUE>;
     queueFactory?: () => Queue<VALUE>;
+    init?: (stream: Stream<VALUE, NAME>) => undefined | ((reason: TerminateReason) => void);
     push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
     next?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
     consumerJoin?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;

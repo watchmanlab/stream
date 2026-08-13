@@ -33,6 +33,7 @@ export interface ConsumerSet<VALUE> {
 export type Empty = typeof EMPTY;
 
 export type EmptyFunctions = typeof EMPTY_FUNCTION;
+export type Result<VALUE, ERROR = any> = { ok: true; value: VALUE } | { ok: false; error: ERROR };
 export interface Source<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
