@@ -16,6 +16,8 @@ import { map } from "./transformers/map";
 import { filter } from "./transformers/filter";
 import { tap } from "./transformers/tap";
 import { pump } from "./transformers/pump";
+import { fromInterval } from "./sources/from-interval";
+import { fromTimeout } from "./sources/from-timeout";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -305,8 +307,6 @@ function fromAsyncGeneratorTest() {
 function fromAbortSignalTest() {
   const controller = new AbortController();
 
-  controller.abort();
-
   const source = fromAbortSignal(controller.signal);
   const stream = new Stream({ source });
   stream
@@ -316,6 +316,7 @@ function fromAbortSignalTest() {
     })
     .next();
 
+  controller.abort();
   console.log(stream.status);
 }
 
@@ -356,14 +357,47 @@ function fromEventTargetTest() {
 
 // fromEventTargetTest();
 function fromPromiseTest() {
-  const source = fromPromise(Promise.resolve(1));
+  const source = fromPromise(new Promise((r) => setTimeout(() => r(33), 200)));
   const stream = new Stream({ source });
   source
     .consume((self, value) => {
-      console.log(value);
+      console.log("c1", value.value);
+      self.next();
+    })
+    .next();
+  setTimeout(() => {
+    stream
+      .consume((self, value) => {
+        console.log("c2", value.value);
+        self.next();
+      })
+      .next();
+  }, 1000);
+}
+
+// fromPromiseTest();
+
+function fromIntervalTest() {
+  const source = fromInterval(500);
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log("c1", value);
       self.next();
     })
     .next();
 }
 
-fromPromiseTest();
+// fromIntervalTest();
+function fromTimeoutTest() {
+  const source = fromTimeout(1000);
+  const stream = new Stream({ source });
+  stream
+    .consume((self, value) => {
+      console.log("c1", value);
+      self.next();
+    })
+    .next();
+}
+
+// fromTimeoutTest();
