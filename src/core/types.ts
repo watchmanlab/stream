@@ -39,11 +39,16 @@ export type EmptyFunctions = typeof EMPTY_FUNCTION;
 export type Result<VALUE, ERROR = any> =
   | { ok: true; value: VALUE; error?: never }
   | { ok: false; error: ERROR; value?: never };
+
 export interface Source<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
-export interface SourceLike<VALUE> {
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): AnyConsumer;
+
+export interface Consumable<VALUE> {
+  [Consumable.getConsumer](handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
+}
+export namespace Consumable {
+  export const getConsumer = Symbol.for("get-consumer");
 }
 export type TerminateReason = "abort" | "complete";
 export interface Terminable {

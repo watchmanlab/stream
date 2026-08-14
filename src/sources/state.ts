@@ -1,10 +1,10 @@
 import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
-import { NonEmptyString, Source } from "../core/types";
+import { Source } from "../core/types";
 
 export class State<VALUE> implements Source<VALUE> {
   private _value: VALUE;
-  private _$stream?: Stream<VALUE, "$state">;
+  private _$stream?: Stream<VALUE>;
 
   constructor(initialValue: VALUE) {
     this._value = initialValue;
@@ -16,9 +16,9 @@ export class State<VALUE> implements Source<VALUE> {
     this._value = v;
     this._$stream?.push(v);
   }
+
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
     return (this._$stream ??= new Stream({
-      name: "$state",
       lastConsumerLeft: (stream, consumer) => {
         stream.terminate("complete");
         this._$stream = undefined;

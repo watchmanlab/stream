@@ -1,5 +1,5 @@
 import { Consumer } from "./consumer";
-import type {
+import {
   NonEmptyString,
   Queue,
   Source,
@@ -11,13 +11,14 @@ import type {
   ExtractStream,
   Terminable,
   ConsumerSet,
+  Consumable,
 } from "./types";
 
-import { EMPTY_THIS_FUNCTION, EMPTY_FUNCTION } from "./consts";
+import { EMPTY_THIS_FUNCTION } from "./consts";
 import { SetConsumerSet } from "./set-consumer-set";
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root">
-  implements Source<VALUE>, Terminable, Disposable, AsyncIterable<VALUE>
+  implements Source<VALUE>, Consumable<VALUE>, Terminable, Disposable, AsyncIterable<VALUE>
 {
   private _name: NAME;
   private _consumerSet?: ConsumerSet<VALUE>;
@@ -28,7 +29,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   private _signalConsumer?: Consumer<TerminateReason>;
 
   private _source?: Source<VALUE>;
-  private _consumerSetFactory?: () => ConsumerSet<VALUE>;
+  private _consumerSetFactory?: () => ConsumerSet<VALUE> = undefined;
   private _consumerQueueFactory?: () => Queue<VALUE>;
   private _push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
   private _next?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
@@ -52,24 +53,25 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
     this._name = options?.name ?? ("$root" as NAME);
     this._source = options?.source;
 
-    if (options?.consumerSetFactory) this._consumerSetFactory = options.consumerSetFactory;
-    if (options?.consumerQueueFactory) this._consumerQueueFactory = options.consumerQueueFactory;
-    if (options?.push) this._push = options.push;
-    if (options?.next) this._next = options.next;
-    if (options?.consumerJoin) this._consumerJoin = options.consumerJoin;
-    if (options?.consumerLeft) this._consumerLeft = options.consumerLeft;
-    if (options?.firstConsumerJoin) this._firstConsumerJoin = options.firstConsumerJoin;
-    if (options?.lastConsumerLeft) this._lastConsumerLeft = options.lastConsumerLeft;
-    if (options?.drain) this._drain = options.drain;
-    if (options?.terminate) this._terminate = options.terminate;
+    this._consumerSetFactory = options?.consumerSetFactory;
+    this._consumerQueueFactory = options?.consumerQueueFactory;
+    this._push = options?.push;
+    this._next = options?.next;
+    this._consumerJoin = options?.consumerJoin;
+    this._consumerLeft = options?.consumerLeft;
+    this._firstConsumerJoin = options?.firstConsumerJoin;
+    this._lastConsumerLeft = options?.lastConsumerLeft;
+    this._drain = options?.drain;
+    this._terminate = options?.terminate;
 
     this._status = "active";
     this._pulling = false;
 
-    if (options?.signal) this._signalConsumer = options.signal.consume((_, reason) => this.terminate(reason)).next();
+    this._signalConsumer = options?.signal?.consume((_, reason) => this.terminate(reason)).next();
 
-    if (this.status === "active" && options?.init) this._initCleanup = options.init(this);
+    if (this.status === "active") this._initCleanup = options?.init?.(this);
   }
+  [Consumable.getConsumer] = this.consume.bind(this);
   async *[Symbol.asyncIterator]() {
     let resolve: ((value: VALUE) => void) | undefined;
     const consumer = this.consume((_, value) => (resolve!(value), (resolve = undefined)));

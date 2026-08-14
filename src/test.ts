@@ -357,7 +357,7 @@ function fromEventTargetTest() {
 function fromPromiseTest() {
   const source = fromPromise(new Promise((r) => setTimeout(() => r(33), 200)));
   const stream = new Stream({ source });
-  source
+  stream
     .consume((self, value) => {
       console.log("c1", value.value);
       self.next();

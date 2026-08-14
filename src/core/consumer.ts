@@ -25,20 +25,19 @@ export class Consumer<VALUE> implements Terminable, Disposable {
     this._credit = 0;
 
     this._queueFactory = options?.queueFactory ?? (() => new LinkedListQueue());
-    if (options?.push) this._push = options.push;
-    if (options?.next) this._next = options.next;
-    if (options?.enqueue) this._enqueue = options.enqueue;
-    if (options?.dequeue) this._dequeue = options.dequeue;
-    if (options?.drain) this._drain = options.drain;
-    if (options?.terminate) this._terminate = options.terminate;
+    this._push = options?.push;
+    this._next = options?.next;
+    this._enqueue = options?.enqueue;
+    this._dequeue = options?.dequeue;
+    this._drain = options?.drain;
+    this._terminate = options?.terminate;
 
-    if (options?.source)
-      this._sourceConsumer = options.source.consume((_, value) => this.push(value), {
-        terminate: (_, reason) => this.terminate(reason),
-      });
-    if (options?.signal) this._signalConsumer = options.signal.consume((_, reason) => this.terminate(reason)).next();
+    this._sourceConsumer = options?.source?.consume((_, value) => this.push(value), {
+      terminate: (_, reason) => this.terminate(reason),
+    });
+    this._signalConsumer = options?.signal?.consume((_, reason) => this.terminate(reason)).next();
 
-    if (this.status === "active" && options?.init) this._initCleanup = options.init(this);
+    if (this.status === "active") this._initCleanup = options?.init?.(this);
   }
 
   [Symbol.dispose]() {
