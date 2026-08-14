@@ -1,5 +1,5 @@
 import { Source } from "./core/source";
-import { Producer } from "./core/stream";
+import { Producer } from "./core/producer";
 import { map } from "./transformers/map";
 
 function getHeapSize(): number {
@@ -11,7 +11,7 @@ function getHeapSize(): number {
 
 function runMemoryProfile() {
   const BATCH_SIZE = 5_000;
-  const STAGES = 100;
+  const STAGES = 200;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   console.log("Initializing baseline memory profile...");
@@ -42,11 +42,10 @@ function runMemoryProfile() {
 
 // bun --expose-gc run profile.ts
 runMemoryProfile();
-// Initializing baseline memory profile...
 
 // =================== BENCHMARK RESULTS ===================
 // Total Batch Size:      5,000 pipelines
-// Total Heap Increase:   32.90 MB
-// Average Per Pipeline:  6,900 bytes
-// Average Per Stage:     69 bytes
+// Total Heap Increase:   598.87 MB
+// Average Per Pipeline:  125,591 bytes
+// Average Per Stage:     628 bytes
 // =========================================================

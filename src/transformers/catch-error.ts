@@ -1,5 +1,5 @@
 import { Consumer } from "../core/consumer";
-import { Producer } from "../core/stream";
+import { Producer } from "../core/producer";
 import { Transformer } from "../core/transformer";
 import type { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 

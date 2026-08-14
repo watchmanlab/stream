@@ -2,7 +2,7 @@ import { EMPTY, EMPTY_FUNCTION } from "./consts";
 import type { Consumer } from "./consumer";
 import { Source } from "./source";
 
-import { Producer } from "./stream";
+import { Producer } from "./producer";
 
 export interface Queue<VALUE> extends Iterable<VALUE>, Disposable {
   enqueue(value: VALUE): void;

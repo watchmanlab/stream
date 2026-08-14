@@ -1,4 +1,4 @@
-import { Producer } from "../core/stream";
+import { Producer } from "../core/producer";
 import { NonEmptyString } from "../core/types";
 
 export class Signal<VALUE, NAME extends NonEmptyString = "$signal"> extends Producer<VALUE, NAME> {

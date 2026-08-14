@@ -1,4 +1,4 @@
-import { Producer } from "./core/stream.js";
+import { Producer } from "./core/producer.js";
 import { AnyProducer } from "./core/types.js";
 
 function mapStage(index: number) {

@@ -1,6 +1,6 @@
 import { Consumer } from "./consumer";
 import { Source } from "./source";
-import { Producer } from "./stream";
+import { Producer } from "./producer";
 
 export class SourceProxy<VALUE> extends Source<VALUE> {
   protected override _producer: Producer<VALUE>;

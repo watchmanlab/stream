@@ -9,7 +9,7 @@ function getHeapSize(): number {
 
 function runMemoryProfile() {
   const BATCH_SIZE = 5_000;
-  const STAGES = 100;
+  const STAGES = 200;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   console.log("Initializing baseline memory profile...");

@@ -1,4 +1,4 @@
-import { Producer } from "../core/stream";
+import { Producer } from "../core/producer";
 
 import { AnyProducer, ExtractValue, NonEmptyString, Consumable, Transform } from "../core/types";
 

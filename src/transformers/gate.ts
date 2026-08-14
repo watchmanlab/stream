@@ -1,5 +1,5 @@
 import { Consumer } from "../core/consumer";
-import { Producer } from "../core/stream";
+import { Producer } from "../core/producer";
 import { AnyProducer, ExtractValue, NonEmptyString } from "../core/types";
 
 export function gate<

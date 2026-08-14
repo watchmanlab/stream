@@ -1,6 +1,6 @@
 import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable } from "rxjs";
 import { Consumer } from "./core/consumer.ts";
-import { Producer } from "./core/stream";
+import { Producer } from "./core/producer.ts";
 import { fromIterator } from "./sources/from-iterator";
 import { fromIterable } from "./sources/from-iterable";
 import { fromGenerator } from "./sources/from-generator";

@@ -1,4 +1,4 @@
-import { Producer } from "../core/stream";
+import { Producer } from "../core/producer";
 import { Transformer } from "../core/transformer";
 import { AnyProducer, ExtractValue, FixedArray, NonEmptyString, TerminateReason, Transform } from "../core/types";
 import { Signal } from "../streams/signal";

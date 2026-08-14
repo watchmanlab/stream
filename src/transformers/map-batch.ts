@@ -1,4 +1,4 @@
-import { Producer } from "../core/stream";
+import { Producer } from "../core/producer";
 import { ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export function mapBatch<

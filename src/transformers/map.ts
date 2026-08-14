@@ -14,11 +14,7 @@ export class Map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = Ex
     super();
   }
   consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED> | undefined): Consumer<MAPPED> {
-    return this.input.consume((consumer, value) => {
-      const mapped = this.mapper(value);
-
-      handler(consumer, mapped);
-    }, options);
+    return this.input.consume((consumer, value) => handler(consumer, this.mapper(value)), options);
   }
 }
 
