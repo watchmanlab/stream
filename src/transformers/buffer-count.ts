@@ -1,5 +1,5 @@
 import { InfosLinker } from "../core/infos-linker";
-import { LinkedListQueue } from "../core/linked-list-queue";
+import { DefaultQueue } from "../core/default-queue";
 import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
 import { AnyProducer, ExtractValue, FixedArray, NonEmptyString, Queue, Transform } from "../core/types";
@@ -17,7 +17,7 @@ export class BufferCount<
     startBufferEvery = size,
     options?: BufferCount.Options<FixedArray<VALUE, SIZE>, NAME>,
   ) {
-    const buffers = new LinkedListQueue<VALUE[]>();
+    const buffers = new DefaultQueue<VALUE[]>();
     let count = 0;
 
     super(input, {

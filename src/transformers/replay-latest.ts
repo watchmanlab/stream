@@ -1,4 +1,4 @@
-import { SizedLinkedListQueue } from "../core/sized-linked-list-queue";
+import { SizedDefaultQueue } from "../core/sized-default-queue";
 import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
 import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
@@ -8,7 +8,7 @@ export class ReplayLatest<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$replayLatest",
 > extends Transformer<INPUT, VALUE, NAME> {
-  private _queue: SizedLinkedListQueue<VALUE>;
+  private _queue: SizedDefaultQueue<VALUE>;
   constructor(input: INPUT, size: number, options?: Producer.Options<VALUE, NAME>) {
     const { name, next, consumerJoin, terminate, ...rest } = options ?? {};
 
@@ -38,7 +38,7 @@ export class ReplayLatest<
       },
     });
 
-    this._queue = new SizedLinkedListQueue(size);
+    this._queue = new SizedDefaultQueue(size);
   }
 }
 

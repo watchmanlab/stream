@@ -1,6 +1,6 @@
 import type { Terminable, Queue, TerminateReason } from "./types";
 import { EMPTY, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION } from "./consts";
-import { LinkedListQueue } from "./linked-list-queue";
+import { DefaultQueue } from "./default-queue";
 
 export class Consumer<VALUE> implements Terminable, Disposable {
   private _handler: Consumer.Handler<VALUE>;
@@ -23,7 +23,7 @@ export class Consumer<VALUE> implements Terminable, Disposable {
     this._status = "active";
     this._credit = 0;
 
-    this._queueFactory = options?.queueFactory ?? (() => new LinkedListQueue());
+    this._queueFactory = options?.queueFactory ?? (() => new DefaultQueue());
     this._push = options?.push;
     this._next = options?.next;
     this._enqueue = options?.enqueue;

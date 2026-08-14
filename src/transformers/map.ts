@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-import { AnySource, ExtractValue, Transformer } from "../core/types";
+import { AnyProducer, AnySource, ExtractValue, Transformer } from "../core/types";
 
 export class Map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>, MAPPED = VALUE>
   extends Source<MAPPED>
@@ -15,9 +15,9 @@ export class Map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = Ex
   }
   consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED> | undefined): Consumer<MAPPED> {
     return this.input.consume((consumer, value) => {
-      console.log("=========", this.mapper(value));
+      const mapped = this.mapper(value);
 
-      handler(consumer, this.mapper(value));
+      handler(consumer, mapped);
     }, options);
   }
 }

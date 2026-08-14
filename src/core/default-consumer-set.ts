@@ -2,7 +2,7 @@ import { EMPTY_FUNCTION } from "./consts";
 import { Consumer } from "./consumer";
 import { ConsumerSet, TerminateReason } from "./types";
 
-export class SetConsumerSet<VALUE> implements ConsumerSet<VALUE> {
+export class DefaultConsumerSet<VALUE> implements ConsumerSet<VALUE> {
   private _consumers?: Set<Consumer<VALUE>> | Consumer<VALUE>;
 
   get size(): number {

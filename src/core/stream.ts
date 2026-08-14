@@ -2,9 +2,10 @@ import { Consumer } from "./consumer";
 import { NonEmptyString, Queue, Consumable, TerminateReason, Terminable, ConsumerSet, AnySource } from "./types";
 
 import { EMPTY_THIS_FUNCTION } from "./consts";
-import { SetConsumerSet } from "./set-consumer-set";
+import { DefaultConsumerSet } from "./default-consumer-set";
 import { Source } from "./source";
-import { LinkedListQueue } from "./linked-list-queue";
+import { DefaultQueue } from "./default-queue";
+import { SourceProxy } from "./source-proxy";
 
 export class Producer<VALUE>
   extends Source<VALUE>
@@ -13,6 +14,7 @@ export class Producer<VALUE>
   private _consumerSet?: ConsumerSet<VALUE>;
   private _status: Producer.Status;
   private _pulling: boolean;
+  private _sourceProxy?: Source<VALUE>;
   private _initCleanup?: (reason: TerminateReason) => void;
   private _sourceConsumer?: Consumer<VALUE>;
   private _signalConsumer?: Consumer<TerminateReason>;
@@ -62,7 +64,7 @@ export class Producer<VALUE>
     if (this.status === "active") this._initCleanup = options?.init?.(this);
   }
   async *[Symbol.asyncIterator]() {
-    const buffer = new LinkedListQueue<VALUE>();
+    const buffer = new DefaultQueue<VALUE>();
     let resolve: (() => void) | undefined;
 
     const consumer = this.consume((_, value) => {
@@ -87,11 +89,9 @@ export class Producer<VALUE>
       consumer.terminate("complete");
     }
   }
-
   [Symbol.dispose]() {
     this.terminate("abort");
   }
-
   get consumersCount(): number {
     return this._consumerSet?.size ?? 0;
   }
@@ -188,7 +188,7 @@ export class Producer<VALUE>
       },
     });
 
-    if (!this._consumerSet) this._consumerSet = this._consumerSetFactory?.() ?? new SetConsumerSet();
+    if (!this._consumerSet) this._consumerSet = this._consumerSetFactory?.() ?? new DefaultConsumerSet();
 
     const deleteConsumer = this._consumerSet.add(consumer);
 
@@ -276,11 +276,8 @@ export class Producer<VALUE>
         undefined;
     return this;
   }
-
   asSource(): Consumable<VALUE> {
-    return {
-      consume: this.consume.bind(this),
-    };
+    return (this._sourceProxy ??= new SourceProxy(this));
   }
 }
 
@@ -292,14 +289,14 @@ export namespace Producer {
     signal?: Consumable<TerminateReason>;
     consumerSetFactory?: () => ConsumerSet<VALUE>;
     consumerQueueFactory?: () => Queue<VALUE>;
-    init?: (stream: Producer<VALUE>) => undefined | ((reason: TerminateReason) => void);
-    push?: (stream: Producer<VALUE>, value: VALUE) => void;
-    next?: (stream: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    consumerJoin?: (stream: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    consumerLeft?: (stream: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    firstConsumerJoin?: (stream: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    lastConsumerLeft?: (stream: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    drain?: (stream: Producer<VALUE>) => void;
-    terminate?: (stream: Producer<VALUE>, reason: TerminateReason) => void;
+    init?: (producer: Producer<VALUE>) => undefined | ((reason: TerminateReason) => void);
+    push?: (producer: Producer<VALUE>, value: VALUE) => void;
+    next?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
+    consumerJoin?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
+    consumerLeft?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
+    firstConsumerJoin?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
+    lastConsumerLeft?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
+    drain?: (producer: Producer<VALUE>) => void;
+    terminate?: (producer: Producer<VALUE>, reason: TerminateReason) => void;
   };
 }

@@ -17,6 +17,7 @@ function runMemoryProfile() {
 
   for (let i = 0; i < BATCH_SIZE; i++) {
     let stream: Observable<number> = new Subject<number>();
+
     for (let j = 0; j < STAGES; j++) {
       stream = stream.pipe(map((v) => v));
     }

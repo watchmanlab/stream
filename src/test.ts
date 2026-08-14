@@ -1,5 +1,5 @@
 import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable } from "rxjs";
-import { Consumer } from "./core/consumer";
+import { Consumer } from "./core/consumer.ts";
 import { Producer } from "./core/stream";
 import { fromIterator } from "./sources/from-iterator";
 import { fromIterable } from "./sources/from-iterable";
@@ -109,7 +109,7 @@ function rxjsBench() {
 // rxjsBench(); //rxjs:   1 000 000 362 ms
 function streamBench() {
   const MAX = 1_000_000;
-  const STAGES = 20;
+  const STAGES = 100;
 
   const stream = new Producer<number>();
 
@@ -123,7 +123,14 @@ function streamBench() {
 
   chain
     .consume((consumer, v) => {
-      if (v === MAX) console.log("stream:", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      if (v === MAX)
+        console.log(
+          "stream:",
+          `${v.toLocaleString("fr")} push ->`,
+          `${STAGES} stages in`,
+          Math.round(performance.now() - start),
+          "ms",
+        );
       consumer.next();
     })
     .next();
@@ -133,7 +140,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 1 000 000 112 ms
+streamBench(); //stream: 1 000 000 push -> 200 stages in 1037 ms
 
 function streamTest() {
   const stream = new Producer<number>();
@@ -389,7 +396,7 @@ function mapTest() {
 
   stream.push(1).push(2).push(3);
 }
-mapTest();
+// mapTest();
 // c1 3.000
 // c1 6.000
 // c1 9.000
