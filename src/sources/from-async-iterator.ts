@@ -1,9 +1,9 @@
 import { Consumer } from "../core/consumer";
-import { Source } from "../core/types";
+import { Consumable } from "../core/types";
 
 export function fromAsyncIterator<VALUE>(
   asyncItrator: AsyncIterator<VALUE> | (() => AsyncIterator<VALUE>),
-): Source<VALUE> {
+): Consumable<VALUE> {
   return {
     consume(handler, options) {
       const { next, terminate, ...rest } = options ?? {};

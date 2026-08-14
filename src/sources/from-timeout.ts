@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
-import { Source } from "../core/types";
+import { Consumable } from "../core/types";
 
-export function fromTimeout(ms: number): Source<void> {
+export function fromTimeout(ms: number): Consumable<void> {
   return {
     consume(handler, options) {
       const { init, ...rest } = options ?? {};

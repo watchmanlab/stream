@@ -91,34 +91,21 @@ function streamBench() {
 
   const chain = stream
 
-    .pipe(
-      tap((v) => {
-        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      }),
-    )
-    .pipe(
-      tap((v) => {
-        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      }),
-    )
-    .pipe(
-      tap((v) => {
-        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      }),
-    )
-    .pipe(
-      tap((v) => {
-        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      }),
-    )
-    .pipe(map((v) => v.toFixed()))
-    .pipe(map((v) => Number(v)))
-    .pipe(map((v) => v.toFixed()))
-    .pipe(map((v) => Number(v), { name: "$myMap" }))
-    .pipe(filter((v) => v < MAX / 2, { name: "$myFilter" }))
-    .pipe(pump());
-
-  // console.log(chain.$myFilter.$myMap.$map.$map.$map.$tap.$tap.$tap.$tap.$kechma.name);
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .pipe(map((v) => v))
+    .consume((consumer, v) => {
+      if (v === MAX) console.log("stream:", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      consumer.next();
+    })
+    .next();
 
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);
@@ -139,25 +126,21 @@ function rxjsBench() {
 
   stream$
     .pipe(
-      rxtap((v) => {
-        if (v === MAX) console.log("Stage 1:", Math.round(performance.now() - start), "ms");
-      }),
-      rxtap((v) => {
-        if (v === MAX) console.log("Stage 2:", Math.round(performance.now() - start), "ms");
-      }),
-      rxtap((v) => {
-        if (v === MAX) console.log("Stage 3:", Math.round(performance.now() - start), "ms");
-      }),
-      rxtap((v) => {
-        if (v === MAX) console.log("Stage 4:", Math.round(performance.now() - start), "ms");
-      }),
-      rxmap((v) => v.toFixed()),
-      rxmap((v) => Number(v)),
-      rxmap((v) => v.toFixed()),
-      rxmap((v) => Number(v)),
-      rxfilter((v) => v < MAX / 2),
+      rxmap((v) => v),
+      rxmap((v) => v),
+      rxmap((v) => v),
+      rxmap((v) => v),
+      rxmap((v) => v),
+      rxmap((v) => v),
+      rxmap((v) => v),
+      rxmap((v) => v),
+      rxmap((v) => v),
+      rxmap((v) => v),
+      rxmap((v) => v),
     )
-    .subscribe(); // Activates the pipeline
+    .subscribe((v) => {
+      if (v === MAX) console.log("rxjs:  ", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+    });
 
   for (let i = 0; i <= MAX; i++) {
     stream$.next(i);
@@ -399,3 +382,26 @@ function fromTimeoutTest() {
 }
 
 // fromTimeoutTest();
+
+function mapTest() {
+  const stream = new Stream<number>({ source: fromIterable([1, 2, 3]) });
+
+  const mapped = stream.pipe(map((v) => (v * 3).toFixed(3)));
+  mapped
+    .consume((consumer, value) => {
+      console.log("c1", value);
+      consumer.next();
+    })
+    .next();
+
+  stream
+    .pipe(map((v) => Number(v)))
+    .consume((consumer, value) => {
+      console.log("c2", value);
+      consumer.next();
+    })
+    .next();
+
+  // stream.push(1).push(2).push(3);
+}
+mapTest();

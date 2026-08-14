@@ -1,24 +1,13 @@
 import { Consumer } from "./consumer";
-import {
-  NonEmptyString,
-  Queue,
-  Source,
-  Transform,
-  TerminateReason,
-  AnyStream,
-  Prettify,
-  GetValidName,
-  ExtractStream,
-  Terminable,
-  ConsumerSet,
-  Consumable,
-} from "./types";
+import { NonEmptyString, Queue, Consumable, TerminateReason, Terminable, ConsumerSet, AnySource } from "./types";
 
 import { EMPTY_THIS_FUNCTION } from "./consts";
 import { SetConsumerSet } from "./set-consumer-set";
+import { Source } from "./source";
 
 export class Stream<VALUE, NAME extends NonEmptyString = "$root">
-  implements Source<VALUE>, Consumable<VALUE>, Terminable, Disposable, AsyncIterable<VALUE>
+  extends Source<VALUE>
+  implements Consumable<VALUE>, Terminable, Disposable, AsyncIterable<VALUE>
 {
   private _name: NAME;
   private _consumerSet?: ConsumerSet<VALUE>;
@@ -28,7 +17,7 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   private _sourceConsumer?: Consumer<VALUE>;
   private _signalConsumer?: Consumer<TerminateReason>;
 
-  private _source?: Source<VALUE>;
+  private _source?: Consumable<VALUE>;
   private _consumerSetFactory?: () => ConsumerSet<VALUE> = undefined;
   private _consumerQueueFactory?: () => Queue<VALUE>;
   private _push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
@@ -50,6 +39,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   private _$terminate?: Stream<TerminateReason>;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
+    super();
+
     this._name = options?.name ?? ("$root" as NAME);
     this._source = options?.source;
 
@@ -71,7 +62,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
 
     if (this.status === "active") this._initCleanup = options?.init?.(this);
   }
-  [Consumable.getConsumer] = this.consume.bind(this);
   async *[Symbol.asyncIterator]() {
     let resolve: ((value: VALUE) => void) | undefined;
     const consumer = this.consume((_, value) => (resolve!(value), (resolve = undefined)));
@@ -101,42 +91,42 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   get status(): Stream.Status {
     return this._status;
   }
-  get $push(): Source<VALUE> {
+  get $push(): Consumable<VALUE> {
     return (this._$push ??= new Stream<VALUE>({
       lastConsumerLeft: () => (this._$push = undefined),
     })).asSource();
   }
-  get $next(): Source<Consumer<VALUE>> {
+  get $next(): Consumable<Consumer<VALUE>> {
     return (this._$next ??= new Stream<Consumer<VALUE>>({
       lastConsumerLeft: () => (this._$next = undefined),
     })).asSource();
   }
-  get $consumerJoin(): Source<Consumer<VALUE>> {
+  get $consumerJoin(): Consumable<Consumer<VALUE>> {
     return (this._$consumerJoin ??= new Stream<Consumer<VALUE>>({
       lastConsumerLeft: () => (this._$consumerJoin = undefined),
     })).asSource();
   }
-  get $consumerLeft(): Source<Consumer<VALUE>> {
+  get $consumerLeft(): Consumable<Consumer<VALUE>> {
     return (this._$consumerLeft ??= new Stream<Consumer<VALUE>>({
       lastConsumerLeft: () => (this._$consumerLeft = undefined),
     })).asSource();
   }
-  get $firstConsumerJoin(): Source<Consumer<VALUE>> {
+  get $firstConsumerJoin(): Consumable<Consumer<VALUE>> {
     return (this._$firstConsumerJoin ??= new Stream<Consumer<VALUE>>({
       lastConsumerLeft: () => (this._$firstConsumerJoin = undefined),
     })).asSource();
   }
-  get $lastConsumerLeft(): Source<Consumer<VALUE>> {
+  get $lastConsumerLeft(): Consumable<Consumer<VALUE>> {
     return (this._$lastConsumerLeft ??= new Stream<Consumer<VALUE>>({
       lastConsumerLeft: () => (this._$lastConsumerLeft = undefined),
     })).asSource();
   }
-  get $drain(): Source<void> {
+  get $drain(): Consumable<void> {
     return (this._$drain ??= new Stream<void>({
       lastConsumerLeft: () => (this._$drain = undefined),
     })).asSource();
   }
-  get $terminate(): Source<TerminateReason> {
+  get $terminate(): Consumable<TerminateReason> {
     return (this._$terminate ??= new Stream<TerminateReason>({
       lastConsumerLeft: () => (this._$terminate = undefined),
       consumerJoin: (stream, consumer) => {
@@ -279,26 +269,8 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
         undefined;
     return this;
   }
-  pipe<OUTPUT_NAME extends NonEmptyString, OUTPUT extends Stream<any, OUTPUT_NAME>>(
-    transform: Transform<this, OUTPUT_NAME, OUTPUT>,
-  ): ExtractStream<OUTPUT> & Prettify<Omit<OUTPUT, keyof AnyStream> & Record<GetValidName<NAME, OUTPUT, 5>, this>> {
-    const output = transform(this) as any;
 
-    const getValidName = (name: string, retry: number) => {
-      if (--retry === 0)
-        throw new Error(
-          `The output stream "${output.name}" has the property "${this.name}" which will be overridden by the input stream with the same name.
-          Try to change the input stream name`,
-        );
-
-      if (name in output) return getValidName(`$${name}`, retry);
-
-      return name;
-    };
-
-    return Object.assign(output, { [getValidName(this.name, 5)]: this });
-  }
-  asSource(): Source<VALUE> {
+  asSource(): Consumable<VALUE> {
     return {
       consume: this.consume.bind(this),
     };
@@ -310,8 +282,8 @@ export namespace Stream {
 
   export type Options<VALUE, NAME extends NonEmptyString> = {
     name?: NAME;
-    source?: Source<VALUE>;
-    signal?: Source<TerminateReason>;
+    source?: Consumable<VALUE>;
+    signal?: Consumable<TerminateReason>;
     consumerSetFactory?: () => ConsumerSet<VALUE>;
     consumerQueueFactory?: () => Queue<VALUE>;
     init?: (stream: Stream<VALUE, NAME>) => undefined | ((reason: TerminateReason) => void);

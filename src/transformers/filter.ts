@@ -1,6 +1,6 @@
 import { Stream } from "../core/stream";
 
-import { AnyStream, ExtractValue, NonEmptyString, Source, Transform } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, Consumable, Transform } from "../core/types";
 
 export function filter<
   INPUT extends AnyStream,
@@ -10,7 +10,7 @@ export function filter<
 >(
   predicate: Filter.Predicate<VALUE, FILTERED>,
   options?: Filter.Options<VALUE, FILTERED, NAME>,
-): Transform<INPUT, NAME, Stream<FILTERED, NAME> & { $rejected: Source<VALUE> }> {
+): Transform<INPUT, NAME, Stream<FILTERED, NAME> & { $rejected: Consumable<VALUE> }> {
   return (input) => {
     const { name, rejected, ...rest } = options ?? {};
 
@@ -36,7 +36,7 @@ export function filter<
       get() {
         return ($rejected ??= new Stream({ lastConsumerLeft: () => ($rejected = undefined) })).asSource();
       },
-    }) as Stream<FILTERED, NAME> & { $rejected: Source<VALUE> };
+    }) as Stream<FILTERED, NAME> & { $rejected: Consumable<VALUE> };
   };
 }
 

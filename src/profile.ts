@@ -1,7 +1,5 @@
 import { Stream } from "./core/stream";
 import { map } from "./transformers/map";
-import { pump } from "./transformers/pump";
-import { tap } from "./transformers/tap";
 
 function getHeapSize(): number {
   if (globalThis.gc) {
@@ -21,10 +19,10 @@ function runMemoryProfile() {
     const rootStream = new Stream<number, "$root">();
 
     pipelines[i] = rootStream
-      .pipe(tap((v) => v))
-      .pipe(tap((v) => v))
-      .pipe(tap((v) => v))
-      .pipe(tap((v) => v))
+      .pipe(map((v) => v))
+      .pipe(map((v) => v))
+      .pipe(map((v) => v))
+      .pipe(map((v) => v))
       .pipe(map((v) => v))
       .pipe(map((v) => v))
       .pipe(map((v) => v))
@@ -32,17 +30,8 @@ function runMemoryProfile() {
       .pipe(map((v) => v))
       .pipe(map((v) => v))
 
-      // .pipe(tap((v) => v))
-      // .pipe(tap((v) => v))
-      // .pipe(tap((v) => v))
-      // .pipe(tap((v) => v))
-      // .pipe(map((v) => v))
-      // .pipe(map((v) => v))
-      // .pipe(map((v) => v))
-      // .pipe(map((v) => v))
-      // .pipe(map((v) => v))
-      // .pipe(map((v) => v))
-      .consume((self) => self.next());
+      .consume((self) => self.next())
+      .next();
 
     // .pipe(pump());
   }

@@ -1,4 +1,4 @@
-import type { Terminable, Queue, TerminateReason, Source } from "./types";
+import type { Terminable, Queue, TerminateReason } from "./types";
 import { EMPTY, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION } from "./consts";
 import { LinkedListQueue } from "./linked-list-queue";
 
@@ -9,8 +9,7 @@ export class Consumer<VALUE> implements Terminable, Disposable {
   private _credit: number;
 
   private _initCleanup?: (reason: TerminateReason) => void;
-  private _sourceConsumer?: Consumer<VALUE>;
-  private _signalConsumer?: Consumer<TerminateReason>;
+
   private _queueFactory: () => Queue<VALUE>;
   private _push?: (consumer: Consumer<VALUE>, value: VALUE) => void;
   private _next?: (consumer: Consumer<VALUE>) => void;
@@ -31,11 +30,6 @@ export class Consumer<VALUE> implements Terminable, Disposable {
     this._dequeue = options?.dequeue;
     this._drain = options?.drain;
     this._terminate = options?.terminate;
-
-    this._sourceConsumer = options?.source?.consume((_, value) => this.push(value), {
-      terminate: (_, reason) => this.terminate(reason),
-    });
-    this._signalConsumer = options?.signal?.consume((_, reason) => this.terminate(reason)).next();
 
     if (this.status === "active") this._initCleanup = options?.init?.(this);
   }
@@ -66,11 +60,10 @@ export class Consumer<VALUE> implements Terminable, Disposable {
   next(): this {
     this._credit++;
 
-    const { _sourceConsumer, _queue, _next, _dequeue } = this;
+    const { _queue, _next, _dequeue } = this;
 
     if (!_queue?.size) {
       _next?.(this);
-      _sourceConsumer?.next();
       return this;
     }
 
@@ -111,20 +104,10 @@ export class Consumer<VALUE> implements Terminable, Disposable {
     }
 
     this._initCleanup?.(reason);
-    this._sourceConsumer?.terminate(reason);
-    this._signalConsumer?.terminate(reason);
 
     this._terminate?.(this, reason);
 
-    this._sourceConsumer =
-      this._signalConsumer =
-      this._queue =
-      this._next =
-      this._enqueue =
-      this._dequeue =
-      this._drain =
-      this._terminate =
-        undefined;
+    this._queue = this._next = this._enqueue = this._dequeue = this._drain = this._terminate = undefined;
 
     this._handler = EMPTY_FUNCTION;
 
@@ -138,8 +121,6 @@ export namespace Consumer {
   export type Handler<VALUE> = (consumer: Consumer<VALUE>, value: VALUE) => void;
 
   export type Options<VALUE> = {
-    source?: Source<VALUE>;
-    signal?: Source<TerminateReason>;
     queueFactory?: () => Queue<VALUE>;
     init?: (consumer: Consumer<VALUE>) => undefined | ((reason: TerminateReason) => void);
     push?: (consumer: Consumer<VALUE>, value: VALUE) => void;

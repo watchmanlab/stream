@@ -1,8 +1,8 @@
 import { Consumer } from "../core/consumer";
 import { Stream } from "../core/stream";
-import { Source } from "../core/types";
+import { Consumable } from "../core/types";
 
-export class State<VALUE> implements Source<VALUE> {
+export class State<VALUE> implements Consumable<VALUE> {
   private _value: VALUE;
   private _$stream?: Stream<VALUE>;
 

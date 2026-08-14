@@ -1,6 +1,6 @@
-import { Source } from "../core/types";
+import { Consumable } from "../core/types";
 import { fromAsyncIterator } from "../sources/from-async-iterator";
 
-export function fromAsyncGenerator<VALUE>(asyncGeneratorFn: () => AsyncGenerator<VALUE>): Source<VALUE> {
+export function fromAsyncGenerator<VALUE>(asyncGeneratorFn: () => AsyncGenerator<VALUE>): Consumable<VALUE> {
   return fromAsyncIterator(asyncGeneratorFn);
 }

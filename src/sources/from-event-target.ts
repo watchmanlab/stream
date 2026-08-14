@@ -1,10 +1,10 @@
 import { Consumer } from "../core/consumer";
-import { Source } from "../core/types";
+import { Consumable } from "../core/types";
 
 export function fromEventTarget<EVENT_TYPE extends keyof HTMLElementEventMap | (string & {})>(
   target: EventTarget,
   eventType: EVENT_TYPE,
-): Source<EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event> {
+): Consumable<EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event> {
   return {
     consume(handler, options) {
       const { init, terminate, ...rest } = options ?? {};

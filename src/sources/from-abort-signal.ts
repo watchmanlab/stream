@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
-import { Source } from "../core/types";
+import { Consumable } from "../core/types";
 
-export function fromAbortSignal(signal: AbortSignal): Source<void> {
+export function fromAbortSignal(signal: AbortSignal): Consumable<void> {
   return {
     consume(handler, options) {
       const { init, terminate, ...rest } = options ?? {};

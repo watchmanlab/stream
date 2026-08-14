@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
-import { Result, Source } from "../core/types";
+import { Result, Consumable } from "../core/types";
 
-export function fromPromise<VALUE>(promise: Promise<VALUE>): Source<Result<VALUE>> {
+export function fromPromise<VALUE>(promise: Promise<VALUE>): Consumable<Result<VALUE>> {
   return {
     consume(handler, options) {
       const { next, init, ...rest } = options ?? {};

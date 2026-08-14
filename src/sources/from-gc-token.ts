@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
-import { Source } from "../core/types";
+import { Consumable } from "../core/types";
 
-export function fromGCToken(token: object): Source<void> {
+export function fromGCToken(token: object): Consumable<void> {
   const ref = new WeakRef(token);
   const unregisterToken = {};
   let registry: FinalizationRegistry<unknown> | undefined;
