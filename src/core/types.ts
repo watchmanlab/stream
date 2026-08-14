@@ -65,13 +65,13 @@ export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> 
 
 export type AnyConsumable = Consumable<any>;
 export type AnySource = Source<any>;
-export type AnyStream = Stream<any, any>;
+export type AnyStream = Stream<any>;
 export type AnyConsumer = Consumer<any>;
 
-export type ExtractStream<T> = T extends Stream<infer V, infer N> ? Stream<V, N> : never;
+export type ExtractStream<T> = T extends Stream<infer V> ? Stream<V> : never;
 export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
   ? T extends
-      | Stream<infer VALUE, any>
+      | Stream<infer VALUE>
       | Consumable<infer VALUE>
       | Consumer<infer VALUE>
       | Promise<infer VALUE>
@@ -80,7 +80,7 @@ export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []
     ? VALUE
     : T
   : T extends
-        | Stream<infer VALUE, any>
+        | Stream<infer VALUE>
         | Consumable<infer VALUE>
         | Consumer<infer VALUE>
         | Promise<infer VALUE>

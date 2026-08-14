@@ -1,3 +1,4 @@
+import { Source } from "./core/source";
 import { Stream } from "./core/stream";
 import { map } from "./transformers/map";
 
@@ -10,30 +11,19 @@ function getHeapSize(): number {
 
 function runMemoryProfile() {
   const BATCH_SIZE = 5_000;
+  const STAGES = 100;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   console.log("Initializing baseline memory profile...");
   const baseline = getHeapSize();
 
   for (let i = 0; i < BATCH_SIZE; i++) {
-    const rootStream = new Stream<number, "$root">();
+    let stream: Source<number> = new Stream<number>();
 
-    pipelines[i] = rootStream
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-      .pipe(map((v) => v))
-
-      .consume((self) => self.next())
-      .next();
-
-    // .pipe(pump());
+    for (let j = 0; j < STAGES; j++) {
+      stream = stream.pipe(map((v) => v));
+    }
+    pipelines[i] = stream.consume((self) => self.next()).next();
   }
 
   const finalHeap = getHeapSize();
@@ -44,7 +34,7 @@ function runMemoryProfile() {
   console.log(`Total Batch Size:      ${BATCH_SIZE.toLocaleString()} pipelines`);
   console.log(`Total Heap Increase:   ${(totalAllocatedBytes / 1024 / 1024).toFixed(2)} MB`);
   console.log(`Average Per Pipeline:  ${Math.round(bytesPerPipeline).toLocaleString()} bytes`);
-  console.log(`Average Per Stage:     ${Math.round(bytesPerPipeline / 10).toLocaleString()} bytes`);
+  console.log(`Average Per Stage:     ${Math.round(bytesPerPipeline / STAGES).toLocaleString()} bytes`);
   console.log("=========================================================\n");
 
   return pipelines.length;
@@ -56,7 +46,7 @@ runMemoryProfile();
 
 // =================== BENCHMARK RESULTS ===================
 // Total Batch Size:      5,000 pipelines
-// Total Heap Increase:   31.50 MB
-// Average Per Pipeline:  6,607 bytes
-// Average Per Stage:     661 bytes
+// Total Heap Increase:   32.90 MB
+// Average Per Pipeline:  6,900 bytes
+// Average Per Stage:     69 bytes
 // =========================================================

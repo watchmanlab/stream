@@ -1,5 +1,4 @@
 import { Consumer } from "./consumer";
-import { Stream } from "./stream";
 import { AnySource, Consumable } from "./types";
 
 export abstract class Source<VALUE> implements Consumable<VALUE> {

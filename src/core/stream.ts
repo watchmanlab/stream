@@ -4,12 +4,12 @@ import { NonEmptyString, Queue, Consumable, TerminateReason, Terminable, Consume
 import { EMPTY_THIS_FUNCTION } from "./consts";
 import { SetConsumerSet } from "./set-consumer-set";
 import { Source } from "./source";
+import { LinkedListQueue } from "./linked-list-queue";
 
-export class Stream<VALUE, NAME extends NonEmptyString = "$root">
+export class Stream<VALUE>
   extends Source<VALUE>
   implements Consumable<VALUE>, Terminable, Disposable, AsyncIterable<VALUE>
 {
-  private _name: NAME;
   private _consumerSet?: ConsumerSet<VALUE>;
   private _status: Stream.Status;
   private _pulling: boolean;
@@ -20,14 +20,14 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   private _source?: Consumable<VALUE>;
   private _consumerSetFactory?: () => ConsumerSet<VALUE> = undefined;
   private _consumerQueueFactory?: () => Queue<VALUE>;
-  private _push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
-  private _next?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _consumerJoin?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _consumerLeft?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _firstConsumerJoin?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _lastConsumerLeft?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-  private _drain?: (stream: Stream<VALUE, NAME>) => void;
-  private _terminate?: (stream: Stream<VALUE, NAME>, reason: TerminateReason) => void;
+  private _push?: (stream: Stream<VALUE>, value: VALUE) => void;
+  private _next?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+  private _consumerJoin?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+  private _consumerLeft?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+  private _firstConsumerJoin?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+  private _lastConsumerLeft?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+  private _drain?: (stream: Stream<VALUE>) => void;
+  private _terminate?: (stream: Stream<VALUE>, reason: TerminateReason) => void;
 
   private _$push?: Stream<VALUE>;
   private _$next?: Stream<Consumer<VALUE>>;
@@ -38,10 +38,9 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   private _$lastConsumerLeft?: Stream<Consumer<VALUE>>;
   private _$terminate?: Stream<TerminateReason>;
 
-  constructor(options?: Stream.Options<VALUE, NAME>) {
+  constructor(options?: Stream.Options<VALUE>) {
     super();
 
-    this._name = options?.name ?? ("$root" as NAME);
     this._source = options?.source;
 
     this._consumerSetFactory = options?.consumerSetFactory;
@@ -63,28 +62,36 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
     if (this.status === "active") this._initCleanup = options?.init?.(this);
   }
   async *[Symbol.asyncIterator]() {
-    let resolve: ((value: VALUE) => void) | undefined;
-    const consumer = this.consume((_, value) => (resolve!(value), (resolve = undefined)));
+    const buffer = new LinkedListQueue<VALUE>();
+    let resolve: (() => void) | undefined;
+
+    const consumer = this.consume((_, value) => {
+      buffer.enqueue(value);
+      resolve?.();
+    });
 
     try {
-      while (consumer.status === "active" || consumer.status === "drain") {
-        const promise = new Promise<VALUE>((r) => (resolve = r));
+      while (consumer.status === "active" || consumer.status === "drain" || buffer.size > 0) {
+        if (buffer.size === 0) {
+          await new Promise<void>((r) => (resolve = r));
+          resolve = undefined;
+        }
+        while (buffer.size > 0) {
+          yield buffer.dequeue() as VALUE;
+        }
         consumer.next();
-        yield promise;
       }
     } catch (e) {
       consumer.terminate("abort");
     } finally {
       consumer.terminate("complete");
-      resolve?.(null as never);
     }
   }
+
   [Symbol.dispose]() {
     this.terminate("abort");
   }
-  get name(): NAME {
-    return this._name;
-  }
+
   get consumersCount(): number {
     return this._consumerSet?.size ?? 0;
   }
@@ -280,20 +287,19 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
 export namespace Stream {
   export type Status = "active" | "drain" | TerminateReason;
 
-  export type Options<VALUE, NAME extends NonEmptyString> = {
-    name?: NAME;
+  export type Options<VALUE> = {
     source?: Consumable<VALUE>;
     signal?: Consumable<TerminateReason>;
     consumerSetFactory?: () => ConsumerSet<VALUE>;
     consumerQueueFactory?: () => Queue<VALUE>;
-    init?: (stream: Stream<VALUE, NAME>) => undefined | ((reason: TerminateReason) => void);
-    push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
-    next?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-    consumerJoin?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-    consumerLeft?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-    firstConsumerJoin?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-    lastConsumerLeft?: (stream: Stream<VALUE, NAME>, consumer: Consumer<VALUE>) => void;
-    drain?: (stream: Stream<VALUE, NAME>) => void;
-    terminate?: (stream: Stream<VALUE, NAME>, reason: TerminateReason) => void;
+    init?: (stream: Stream<VALUE>) => undefined | ((reason: TerminateReason) => void);
+    push?: (stream: Stream<VALUE>, value: VALUE) => void;
+    next?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    consumerJoin?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    consumerLeft?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    firstConsumerJoin?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    lastConsumerLeft?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    drain?: (stream: Stream<VALUE>) => void;
+    terminate?: (stream: Stream<VALUE>, reason: TerminateReason) => void;
   };
 }

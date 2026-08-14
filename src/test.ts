@@ -1,4 +1,4 @@
-import { Subject, tap as rxtap, map as rxmap, filter as rxfilter } from "rxjs";
+import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable } from "rxjs";
 import { Consumer } from "./core/consumer";
 import { Stream } from "./core/stream";
 import { fromIterator } from "./sources/from-iterator";
@@ -18,6 +18,8 @@ import { tap } from "./transformers/tap";
 import { pump } from "./transformers/pump";
 import { fromInterval } from "./sources/from-interval";
 import { fromTimeout } from "./sources/from-timeout";
+import { Consumable } from "./core/types";
+import { Source } from "./core/source";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -82,25 +84,44 @@ function consumerTest() {
   consumer.push(3);
 }
 // consumerTest();
-
-function streamBench() {
+function rxjsBench() {
   const MAX = 1_000_000;
+  const STAGES = 20;
+
+  const subject = new Subject<number>();
+  let chain: Observable<number> = subject.pipe(rxmap((v) => v));
+
+  for (let i = 1; i < STAGES; i++) {
+    chain = chain.pipe(rxmap((v) => v));
+  }
 
   const start = performance.now();
-  const stream = new Stream<number, "$kechma">({ name: "$kechma" });
 
-  const chain = stream
+  chain.subscribe((v) => {
+    if (v === MAX) console.log("rxjs:  ", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+  });
 
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
-    .pipe(map((v) => v))
+  for (let i = 0; i <= MAX; i++) {
+    subject.next(i);
+  }
+}
+
+rxjsBench(); //rxjs:   1 000 000 362 ms
+function streamBench() {
+  const MAX = 1_000_000;
+  const STAGES = 20;
+
+  const stream = new Stream<number>();
+
+  let chain: Source<number> = stream.pipe(map((v) => v));
+
+  for (let i = 1; i < STAGES; i++) {
+    chain = chain.pipe(map((v) => v));
+  }
+
+  const start = performance.now();
+
+  chain
     .consume((consumer, v) => {
       if (v === MAX) console.log("stream:", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
       consumer.next();
@@ -112,46 +133,7 @@ function streamBench() {
   }
 }
 
-streamBench();
-// $kechma
-// 1 000 000 551 ms
-// 1 000 000 552 ms
-// 1 000 000 552 ms
-// 1 000 000 552 ms
-
-function rxjsBench() {
-  const MAX = 1_000_000;
-  const stream$ = new Subject<number>();
-  const start = performance.now();
-
-  stream$
-    .pipe(
-      rxmap((v) => v),
-      rxmap((v) => v),
-      rxmap((v) => v),
-      rxmap((v) => v),
-      rxmap((v) => v),
-      rxmap((v) => v),
-      rxmap((v) => v),
-      rxmap((v) => v),
-      rxmap((v) => v),
-      rxmap((v) => v),
-      rxmap((v) => v),
-    )
-    .subscribe((v) => {
-      if (v === MAX) console.log("rxjs:  ", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-    });
-
-  for (let i = 0; i <= MAX; i++) {
-    stream$.next(i);
-  }
-}
-
-// rxjsBench();
-// Stage 1: 103 ms
-// Stage 2: 103 ms
-// Stage 3: 103 ms
-// Stage 4: 103 ms
+streamBench(); //stream: 1 000 000 112 ms
 
 function streamTest() {
   const stream = new Stream<number>();
