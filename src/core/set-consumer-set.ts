@@ -39,22 +39,23 @@ export class SetConsumerSet<VALUE> implements ConsumerSet<VALUE> {
     }
     this._optimizePush();
 
-    return () => {
-      const sizeBefore = this.size;
-      if (!this._consumers) {
-        return false;
-      } else if (this._consumers === consumer) {
-        this._consumers = undefined;
-      } else if (this._consumers instanceof Set) {
-        this._consumers.delete(consumer);
-        if (this._consumers.size === 1) this._consumers = this._consumers.values().next().value!;
-      }
-      if (this.size < sizeBefore) {
-        this._optimizePush();
-        return true;
-      }
+    return () => this._delete(consumer);
+  }
+  private _delete(consumer: Consumer<VALUE>) {
+    const sizeBefore = this.size;
+    if (!this._consumers) {
       return false;
-    };
+    } else if (this._consumers === consumer) {
+      this._consumers = undefined;
+    } else if (this._consumers instanceof Set) {
+      this._consumers.delete(consumer);
+      if (this._consumers.size === 1) this._consumers = this._consumers.values().next().value!;
+    }
+    if (this.size < sizeBefore) {
+      this._optimizePush();
+      return true;
+    }
+    return false;
   }
   terminate(reason: TerminateReason): void {
     if (this._consumers instanceof Set) {

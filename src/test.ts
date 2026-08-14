@@ -125,7 +125,7 @@ function streamBench() {
   }
 }
 
-// streamBench();
+streamBench();
 // $kechma
 // 1 000 000 551 ms
 // 1 000 000 552 ms
@@ -198,7 +198,7 @@ function streamTest() {
   stream.push(3);
 }
 
-streamTest();
+// streamTest();
 // c1 1
 // c1 2
 // c1 3

@@ -21,7 +21,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
 {
   private _name: NAME;
   private _source?: Source<VALUE>;
-
   private _consumerSetFactory?: () => ConsumerSet<VALUE>;
   private _consumerQueueFactory?: () => Queue<VALUE>;
   private _push?: (stream: Stream<VALUE, NAME>, value: VALUE) => void;
@@ -33,7 +32,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   private _drain?: (stream: Stream<VALUE, NAME>) => void;
   private _terminate?: (stream: Stream<VALUE, NAME>, reason: TerminateReason) => void;
 
-  // Events
   private _$push?: Stream<VALUE>;
   private _$next?: Stream<Consumer<VALUE>>;
   private _$drain?: Stream<void>;
@@ -52,43 +50,26 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   private _signalConsumer?: Consumer<TerminateReason>;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
-    const {
-      name,
-      source,
-      signal,
-      consumerSetFactory,
-      consumerQueueFactory,
-      init,
-      push,
-      next,
-      consumerJoin,
-      consumerLeft,
-      firstConsumerJoin,
-      lastConsumerLeft,
-      drain,
-      terminate,
-    } = options ?? {};
+    this._name = options?.name ?? ("$root" as NAME);
+    this._source = options?.source;
 
-    this._name = name ?? ("$root" as NAME);
-    this._source = source;
-
-    this._consumerSetFactory = consumerSetFactory;
-    this._consumerQueueFactory = consumerQueueFactory;
-    this._push = push;
-    this._next = next;
-    this._consumerJoin = consumerJoin;
-    this._consumerLeft = consumerLeft;
-    this._firstConsumerJoin = firstConsumerJoin;
-    this._lastConsumerLeft = lastConsumerLeft;
-    this._drain = drain;
-    this._terminate = terminate;
+    if (options?.consumerSetFactory) this._consumerSetFactory = options.consumerSetFactory;
+    if (options?.consumerQueueFactory) this._consumerQueueFactory = options.consumerQueueFactory;
+    if (options?.push) this._push = options.push;
+    if (options?.next) this._next = options.next;
+    if (options?.consumerJoin) this._consumerJoin = options.consumerJoin;
+    if (options?.consumerLeft) this._consumerLeft = options.consumerLeft;
+    if (options?.firstConsumerJoin) this._firstConsumerJoin = options.firstConsumerJoin;
+    if (options?.lastConsumerLeft) this._lastConsumerLeft = options.lastConsumerLeft;
+    if (options?.drain) this._drain = options.drain;
+    if (options?.terminate) this._terminate = options.terminate;
 
     this._status = "active";
     this._pulling = false;
 
-    this._signalConsumer = signal?.consume((_, reason) => this.terminate(reason)).next();
+    if (options?.signal) this._signalConsumer = options.signal.consume((_, reason) => this.terminate(reason)).next();
 
-    if (this.status === "active") this._initCleanup = init?.(this);
+    if (this.status === "active" && options?.init) this._initCleanup = options.init(this);
   }
   async *[Symbol.asyncIterator]() {
     let resolve: ((value: VALUE) => void) | undefined;
@@ -217,19 +198,20 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
       this._firstConsumerJoin?.(this, consumer);
       this._$firstConsumerJoin?.push(consumer);
 
-      this._sourceConsumer = this._source?.consume(
-        (_, value) => {
-          this._pulling = false;
-          this._consumerSet?.push(value);
-          this._push?.(this, value);
-          this._$push?.push(value);
-        },
-        {
-          terminate: (_, reason) => {
-            this.terminate(reason);
+      if (this._source)
+        this._sourceConsumer = this._source?.consume(
+          (_, value) => {
+            this._pulling = false;
+            this._consumerSet?.push(value);
+            this._push?.(this, value);
+            this._$push?.push(value);
           },
-        },
-      );
+          {
+            terminate: (_, reason) => {
+              this.terminate(reason);
+            },
+          },
+        );
     }
 
     this._consumerJoin?.(this, consumer);
@@ -300,8 +282,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
     transform: Transform<this, OUTPUT_NAME, OUTPUT>,
   ): ExtractStream<OUTPUT> & Prettify<Omit<OUTPUT, keyof AnyStream> & Record<GetValidName<NAME, OUTPUT, 5>, this>> {
     const output = transform(this) as any;
-
-    // this.$terminate.consume((_, reason) => output.terminate(reason)).next();
 
     const getValidName = (name: string, retry: number) => {
       if (--retry === 0)
