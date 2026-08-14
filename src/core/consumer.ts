@@ -3,6 +3,14 @@ import { EMPTY, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION } from "./consts";
 import { LinkedListQueue } from "./linked-list-queue";
 
 export class Consumer<VALUE> implements Terminable, Disposable {
+  private _handler: Consumer.Handler<VALUE>;
+  private _status: Consumer.Status;
+  private _queue?: Queue<VALUE>;
+  private _credit: number;
+
+  private _initCleanup?: (reason: TerminateReason) => void;
+  private _sourceConsumer?: Consumer<VALUE>;
+  private _signalConsumer?: Consumer<TerminateReason>;
   private _queueFactory: () => Queue<VALUE>;
   private _push?: (consumer: Consumer<VALUE>, value: VALUE) => void;
   private _next?: (consumer: Consumer<VALUE>) => void;
@@ -11,36 +19,26 @@ export class Consumer<VALUE> implements Terminable, Disposable {
   private _drain?: (consumer: Consumer<VALUE>) => void;
   private _terminate?: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
 
-  private _initCleanup?: (reason: TerminateReason) => void;
-  private _status: Consumer.Status;
-  private _queue?: Queue<VALUE>;
-  private _credit: number;
-
-  private _handler: Consumer.Handler<VALUE>;
-  private _sourceConsumer?: Consumer<VALUE>;
-  private _signalConsumer?: Consumer<TerminateReason>;
-
   constructor(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>) {
-    const { source, signal, queueFactory, init, push, next, enqueue, dequeue, drain, terminate } = options ?? {};
-
-    this._queueFactory = queueFactory ?? (() => new LinkedListQueue());
-    this._push = push;
-    this._next = next;
-    this._enqueue = enqueue;
-    this._dequeue = dequeue;
-    this._drain = drain;
-    this._terminate = terminate;
     this._handler = handler;
-
     this._status = "active";
     this._credit = 0;
 
-    this._sourceConsumer = source?.consume((_, value) => this.push(value), {
-      terminate: (_, reason) => this.terminate(reason),
-    });
-    this._signalConsumer = signal?.consume((_, reason) => this.terminate(reason)).next();
+    this._queueFactory = options?.queueFactory ?? (() => new LinkedListQueue());
+    if (options?.push) this._push = options.push;
+    if (options?.next) this._next = options.next;
+    if (options?.enqueue) this._enqueue = options.enqueue;
+    if (options?.dequeue) this._dequeue = options.dequeue;
+    if (options?.drain) this._drain = options.drain;
+    if (options?.terminate) this._terminate = options.terminate;
 
-    if (this.status === "active") this._initCleanup = init?.(this);
+    if (options?.source)
+      this._sourceConsumer = options.source.consume((_, value) => this.push(value), {
+        terminate: (_, reason) => this.terminate(reason),
+      });
+    if (options?.signal) this._signalConsumer = options.signal.consume((_, reason) => this.terminate(reason)).next();
+
+    if (this.status === "active" && options?.init) this._initCleanup = options.init(this);
   }
 
   [Symbol.dispose]() {

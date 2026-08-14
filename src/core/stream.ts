@@ -20,6 +20,13 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   implements Source<VALUE>, Terminable, Disposable, AsyncIterable<VALUE>
 {
   private _name: NAME;
+  private _consumerSet?: ConsumerSet<VALUE>;
+  private _status: Stream.Status;
+  private _pulling: boolean;
+  private _initCleanup?: (reason: TerminateReason) => void;
+  private _sourceConsumer?: Consumer<VALUE>;
+  private _signalConsumer?: Consumer<TerminateReason>;
+
   private _source?: Source<VALUE>;
   private _consumerSetFactory?: () => ConsumerSet<VALUE>;
   private _consumerQueueFactory?: () => Queue<VALUE>;
@@ -40,14 +47,6 @@ export class Stream<VALUE, NAME extends NonEmptyString = "$root">
   private _$firstConsumerJoin?: Stream<Consumer<VALUE>>;
   private _$lastConsumerLeft?: Stream<Consumer<VALUE>>;
   private _$terminate?: Stream<TerminateReason>;
-
-  private _initCleanup?: (reason: TerminateReason) => void;
-
-  private _consumerSet?: ConsumerSet<VALUE>;
-  private _status: Stream.Status;
-  private _pulling: boolean;
-  private _sourceConsumer?: Consumer<VALUE>;
-  private _signalConsumer?: Consumer<TerminateReason>;
 
   constructor(options?: Stream.Options<VALUE, NAME>) {
     this._name = options?.name ?? ("$root" as NAME);
