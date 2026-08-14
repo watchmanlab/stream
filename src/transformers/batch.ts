@@ -1,14 +1,14 @@
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, FixedArray, NonEmptyString, TerminateReason, Transform } from "../core/types";
+import { AnyProducer, ExtractValue, FixedArray, NonEmptyString, TerminateReason, Transform } from "../core/types";
 import { Signal } from "../streams/signal";
 
 export class Batch<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$batch",
 > extends Transformer<INPUT, VALUE[], NAME> {
-  constructor(input: INPUT, size: number, options?: Stream.Options<VALUE[], NAME>) {
+  constructor(input: INPUT, size: number, options?: Producer.Options<VALUE[], NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
     const $terminate = new Signal<TerminateReason>();
@@ -57,9 +57,9 @@ export class Batch<
 }
 
 export function batch<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$batch",
->(size: number, options?: Stream.Options<VALUE[], NAME>): Transform<INPUT, Batch<INPUT, VALUE, NAME>> {
+>(size: number, options?: Producer.Options<VALUE[], NAME>): Transform<INPUT, Batch<INPUT, VALUE, NAME>> {
   return (input) => new Batch(input, size, options);
 }

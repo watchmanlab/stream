@@ -1,22 +1,22 @@
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 
-import { AnyStream, ExtractValue, NonEmptyString, Consumable, Transform } from "../core/types";
+import { AnyProducer, ExtractValue, NonEmptyString, Consumable, Transform } from "../core/types";
 
 export function filter<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
   NAME extends NonEmptyString = "$filter",
 >(
   predicate: Filter.Predicate<VALUE, FILTERED>,
   options?: Filter.Options<VALUE, FILTERED, NAME>,
-): Transform<INPUT, NAME, Stream<FILTERED, NAME> & { $rejected: Consumable<VALUE> }> {
+): Transform<INPUT, NAME, Producer<FILTERED, NAME> & { $rejected: Consumable<VALUE> }> {
   return (input) => {
     const { name, rejected, ...rest } = options ?? {};
 
-    let $rejected: Stream<VALUE> | undefined;
+    let $rejected: Producer<VALUE> | undefined;
 
-    const output = new Stream({
+    const output = new Producer({
       ...rest,
       name: name ?? ("$filter" as NAME),
       source: {
@@ -34,9 +34,9 @@ export function filter<
     });
     return Object.defineProperty(output, "$rejected", {
       get() {
-        return ($rejected ??= new Stream({ lastConsumerLeft: () => ($rejected = undefined) })).asSource();
+        return ($rejected ??= new Producer({ lastConsumerLeft: () => ($rejected = undefined) })).asSource();
       },
-    }) as Stream<FILTERED, NAME> & { $rejected: Consumable<VALUE> };
+    }) as Producer<FILTERED, NAME> & { $rejected: Consumable<VALUE> };
   };
 }
 
@@ -45,7 +45,10 @@ export namespace Filter {
     | ((value: VALUE) => value is FILTERED)
     | ((value: VALUE) => boolean);
 
-  export type Options<VALUE, FILTERED, NAME extends NonEmptyString> = Omit<Stream.Options<FILTERED, NAME>, "source"> & {
-    rejected?: (stream: Stream<FILTERED, NAME>, value: VALUE) => void;
+  export type Options<VALUE, FILTERED, NAME extends NonEmptyString> = Omit<
+    Producer.Options<FILTERED, NAME>,
+    "source"
+  > & {
+    rejected?: (stream: Producer<FILTERED, NAME>, value: VALUE) => void;
   };
 }

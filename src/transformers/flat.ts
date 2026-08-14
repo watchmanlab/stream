@@ -1,14 +1,14 @@
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Flat<
-  INPUT extends Stream<Array<any>, any>,
+  INPUT extends Producer<Array<any>, any>,
   DEPTH extends number = 0,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$flat",
 > extends Transformer<INPUT, FlatArray<VALUE, DEPTH>, NAME> {
-  constructor(input: INPUT, depth = 0 as DEPTH, options?: Stream.Options<FlatArray<VALUE, DEPTH>, NAME>) {
+  constructor(input: INPUT, depth = 0 as DEPTH, options?: Producer.Options<FlatArray<VALUE, DEPTH>, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
     let cursor = 0;
@@ -46,13 +46,13 @@ export class Flat<
 }
 
 export function flat<
-  INPUT extends Stream<Array<any>, any>,
+  INPUT extends Producer<Array<any>, any>,
   DEPTH extends number = 0,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$flat",
 >(
   depth = 0 as DEPTH,
-  options?: Stream.Options<FlatArray<VALUE, DEPTH>, NAME>,
+  options?: Producer.Options<FlatArray<VALUE, DEPTH>, NAME>,
 ): Transform<INPUT, Flat<INPUT, DEPTH, VALUE, NAME>> {
   return (input) => new Flat(input, depth, options);
 }

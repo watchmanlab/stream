@@ -1,13 +1,13 @@
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import type { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class AuditTime<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$auditTime",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, ms: number, options?: Stream.Options<VALUE, NAME>) {
+  constructor(input: INPUT, ms: number, options?: Producer.Options<VALUE, NAME>) {
     let latest: VALUE;
     let timer: any = null;
 
@@ -38,9 +38,9 @@ export class AuditTime<
 }
 
 export function auditTime<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$auditTime",
->(ms: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, AuditTime<INPUT, VALUE, NAME>> {
+>(ms: number, options?: Producer.Options<VALUE, NAME>): Transform<INPUT, AuditTime<INPUT, VALUE, NAME>> {
   return (input) => new AuditTime(input, ms, options);
 }

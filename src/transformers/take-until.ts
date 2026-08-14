@@ -1,13 +1,13 @@
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class TakeUntil<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$takeUntil",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, predicate: TakeUntil.Predicate<VALUE>, options?: Stream.Options<VALUE, NAME>) {
+  constructor(input: INPUT, predicate: TakeUntil.Predicate<VALUE>, options?: Producer.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
     const inputConsumer = input.consume((_, value) => {
@@ -34,12 +34,12 @@ export class TakeUntil<
 }
 
 export function takeUntil<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$takeUntil",
 >(
   predicate: TakeUntil.Predicate<VALUE>,
-  options?: Stream.Options<VALUE, NAME>,
+  options?: Producer.Options<VALUE, NAME>,
 ): Transform<INPUT, TakeUntil<INPUT, VALUE, NAME>> {
   return (input) => new TakeUntil(input, predicate, options);
 }

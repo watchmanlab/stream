@@ -2,7 +2,7 @@ import { EMPTY, EMPTY_FUNCTION } from "./consts";
 import type { Consumer } from "./consumer";
 import { Source } from "./source";
 
-import { Stream } from "./stream";
+import { Producer } from "./stream";
 
 export interface Queue<VALUE> extends Iterable<VALUE>, Disposable {
   enqueue(value: VALUE): void;
@@ -65,13 +65,13 @@ export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> 
 
 export type AnyConsumable = Consumable<any>;
 export type AnySource = Source<any>;
-export type AnyStream = Stream<any>;
+export type AnyProducer = Producer<any>;
 export type AnyConsumer = Consumer<any>;
 
-export type ExtractStream<T> = T extends Stream<infer V> ? Stream<V> : never;
+export type ExtractStream<T> = T extends Producer<infer V> ? Producer<V> : never;
 export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
   ? T extends
-      | Stream<infer VALUE>
+      | Producer<infer VALUE>
       | Consumable<infer VALUE>
       | Consumer<infer VALUE>
       | Promise<infer VALUE>
@@ -80,7 +80,7 @@ export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []
     ? VALUE
     : T
   : T extends
-        | Stream<infer VALUE>
+        | Producer<infer VALUE>
         | Consumable<infer VALUE>
         | Consumer<infer VALUE>
         | Promise<infer VALUE>

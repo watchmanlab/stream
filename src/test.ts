@@ -1,6 +1,6 @@
 import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable } from "rxjs";
 import { Consumer } from "./core/consumer";
-import { Stream } from "./core/stream";
+import { Producer } from "./core/stream";
 import { fromIterator } from "./sources/from-iterator";
 import { fromIterable } from "./sources/from-iterable";
 import { fromGenerator } from "./sources/from-generator";
@@ -106,12 +106,12 @@ function rxjsBench() {
   }
 }
 
-rxjsBench(); //rxjs:   1 000 000 362 ms
+// rxjsBench(); //rxjs:   1 000 000 362 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 20;
 
-  const stream = new Stream<number>();
+  const stream = new Producer<number>();
 
   let chain: Source<number> = stream.pipe(map((v) => v));
 
@@ -133,11 +133,11 @@ function streamBench() {
   }
 }
 
-streamBench(); //stream: 1 000 000 112 ms
+// streamBench(); //stream: 1 000 000 112 ms
 
 function streamTest() {
-  const stream = new Stream<number>();
-  const stream2 = new Stream({ source: stream });
+  const stream = new Producer<number>();
+  const stream2 = new Producer({ source: stream });
   stream2
     .consume((consumer, value) => {
       // if (value === 2) {
@@ -170,7 +170,7 @@ function streamTest() {
 
 function fromIteratorTest() {
   const source = fromIterator([1, 2, 3].values());
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log(value);
@@ -182,7 +182,7 @@ function fromIteratorTest() {
 // fromIteratorTest();
 function fromIterableTest() {
   const source = fromIterable([1, 2, 3]);
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log(value);
@@ -198,7 +198,7 @@ function fromGeneratorTest() {
     yield 2;
     yield 3;
   });
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log(value);
@@ -216,7 +216,7 @@ function fromAsyncIteratorTest() {
       return Promise.resolve(++counter === 4 ? { value: undefined, done: true } : { value: counter });
     },
   });
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log(value);
@@ -237,7 +237,7 @@ function fromAsyncIterableTest() {
       };
     },
   });
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log(value);
@@ -256,7 +256,7 @@ function fromAsyncGeneratorTest() {
     await new Promise((r) => setTimeout(r, Math.random() * 500));
     yield 3;
   });
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log(value);
@@ -271,7 +271,7 @@ function fromAbortSignalTest() {
   const controller = new AbortController();
 
   const source = fromAbortSignal(controller.signal);
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log("aborted", value);
@@ -290,7 +290,7 @@ function fromAbortControllerTest() {
   controller.abort();
 
   const source = fromAbortController(controller);
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log("aborted", value);
@@ -306,7 +306,7 @@ function fromEventTargetTest() {
   const et = new EventTarget();
 
   const source = fromEventTarget(et, "click");
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log(value.type);
@@ -321,7 +321,7 @@ function fromEventTargetTest() {
 // fromEventTargetTest();
 function fromPromiseTest() {
   const source = fromPromise(new Promise((r) => setTimeout(() => r(33), 200)));
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log("c1", value.value);
@@ -342,7 +342,7 @@ function fromPromiseTest() {
 
 function fromIntervalTest() {
   const source = fromInterval(500);
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log("c1", value);
@@ -354,7 +354,7 @@ function fromIntervalTest() {
 // fromIntervalTest();
 function fromTimeoutTest() {
   const source = fromTimeout(1000);
-  const stream = new Stream({ source });
+  const stream = new Producer({ source });
   stream
     .consume((self, value) => {
       console.log("c1", value);
@@ -366,9 +366,9 @@ function fromTimeoutTest() {
 // fromTimeoutTest();
 
 function mapTest() {
-  const stream = new Stream<number>({ source: fromIterable([1, 2, 3]) });
+  const stream = new Producer<number>();
 
-  const mapped = stream.pipe(map((v) => (v * 3).toFixed(3)));
+  const mapped = stream.pipe(map((v) => (v * 3).toFixed(3))).producer;
   mapped
     .consume((consumer, value) => {
       console.log("c1", value);
@@ -376,14 +376,26 @@ function mapTest() {
     })
     .next();
 
-  stream
-    .pipe(map((v) => Number(v)))
-    .consume((consumer, value) => {
+  const c = mapped.consume((consumer, value) => {
+    setTimeout(() => {
       console.log("c2", value);
       consumer.next();
-    })
-    .next();
+    }, 1000);
+  });
 
-  // stream.push(1).push(2).push(3);
+  setTimeout(() => {
+    c.next();
+  }, 1000);
+
+  stream.push(1).push(2).push(3);
 }
 mapTest();
+// c1 3.000
+// c1 6.000
+// c1 9.000
+// ...wait 1s
+// c2 3
+// ...wait 1s
+// c2 6
+// ...wait 1s
+// c2 9

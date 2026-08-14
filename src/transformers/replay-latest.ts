@@ -1,15 +1,15 @@
 import { SizedLinkedListQueue } from "../core/sized-linked-list-queue";
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class ReplayLatest<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$replayLatest",
 > extends Transformer<INPUT, VALUE, NAME> {
   private _queue: SizedLinkedListQueue<VALUE>;
-  constructor(input: INPUT, size: number, options?: Stream.Options<VALUE, NAME>) {
+  constructor(input: INPUT, size: number, options?: Producer.Options<VALUE, NAME>) {
     const { name, next, consumerJoin, terminate, ...rest } = options ?? {};
 
     const inputConsumer = input.consume((_, value) => {
@@ -43,9 +43,9 @@ export class ReplayLatest<
 }
 
 export function replayLatest<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$replayLatest",
->(last: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, ReplayLatest<INPUT, VALUE, NAME>> {
+>(last: number, options?: Producer.Options<VALUE, NAME>): Transform<INPUT, ReplayLatest<INPUT, VALUE, NAME>> {
   return (input) => new ReplayLatest(input, last, options);
 }

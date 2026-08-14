@@ -1,9 +1,9 @@
-import { Stream } from "./core/stream.js";
-import { AnyStream } from "./core/types.js";
+import { Producer } from "./core/stream.js";
+import { AnyProducer } from "./core/types.js";
 
 function mapStage(index: number) {
-  return (input: AnyStream) => {
-    const nextStream = new Stream({ name: `$stage_${index}` });
+  return (input: AnyProducer) => {
+    const nextStream = new Producer({ name: `$stage_${index}` });
 
     // Pure, unbroken synchronous link
     const upstreamConsumer = input.consume((self, value) => {
@@ -25,7 +25,7 @@ async function runBenchmark() {
   console.log("=========================================");
   console.log(`Building a massive ${STAGES}-stage synchronous graph...`);
 
-  let sourceStream = new Stream({ name: "$source" });
+  let sourceStream = new Producer({ name: "$source" });
   let current = sourceStream;
 
   for (let i = 1; i <= STAGES; i++) {

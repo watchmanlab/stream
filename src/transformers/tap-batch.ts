@@ -1,13 +1,13 @@
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class TapBatch<
-  INPUT extends Stream<Array<any>, any>,
+  INPUT extends Producer<Array<any>, any>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
   NAME extends NonEmptyString = "$tapBatch",
 > extends Transformer<INPUT, VALUE[], NAME> {
-  constructor(input: INPUT, fn: (value: VALUE, INPUT: INPUT) => void, options?: Stream.Options<VALUE[], NAME>) {
+  constructor(input: INPUT, fn: (value: VALUE, INPUT: INPUT) => void, options?: Producer.Options<VALUE[], NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
     const inputConsumer = input.consume((_, values) => {
@@ -33,12 +33,12 @@ export class TapBatch<
 }
 
 export function tapBatch<
-  INPUT extends Stream<Array<any>, any>,
+  INPUT extends Producer<Array<any>, any>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
   NAME extends NonEmptyString = "$tapBatch",
 >(
   fn: (value: VALUE, INPUT: INPUT) => void,
-  options?: Stream.Options<VALUE[], NAME>,
+  options?: Producer.Options<VALUE[], NAME>,
 ): Transform<INPUT, TapBatch<INPUT, VALUE, NAME>> {
   return (input) => new TapBatch(input, fn, options);
 }

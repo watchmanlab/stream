@@ -1,14 +1,14 @@
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 import { merge } from "./merge";
 
 export class TakeWith<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$takeWith",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, $notifier: AnyStream, options?: Stream.Options<VALUE, NAME>) {
+  constructor(input: INPUT, $notifier: AnyProducer, options?: Producer.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
     const inputConsumer = input.consume((_, value) => this.push(value));
@@ -30,10 +30,10 @@ export class TakeWith<
 }
 
 export function takeWith<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$takeWith",
->($notifier: AnyStream, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, TakeWith<INPUT, VALUE, NAME>> {
+>($notifier: AnyProducer, options?: Producer.Options<VALUE, NAME>): Transform<INPUT, TakeWith<INPUT, VALUE, NAME>> {
   return (input) => new TakeWith(input, $notifier, options);
 }
 

@@ -1,13 +1,13 @@
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Take<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$take",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, count: number, options?: Stream.Options<VALUE, NAME>) {
+  constructor(input: INPUT, count: number, options?: Producer.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
     const inputConsumer = input.consume((_, value) => {
@@ -34,9 +34,9 @@ export class Take<
 }
 
 export function take<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$take",
->(count: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Take<INPUT, VALUE, NAME>> {
+>(count: number, options?: Producer.Options<VALUE, NAME>): Transform<INPUT, Take<INPUT, VALUE, NAME>> {
   return (input) => new Take(input, count, options);
 }

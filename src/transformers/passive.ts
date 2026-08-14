@@ -1,15 +1,15 @@
-import { Stream } from "../core/stream";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Producer } from "../core/stream";
+import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export function passive<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$passive",
->(options?: Omit<Stream.Options<VALUE, NAME>, "source">): Transform<INPUT, NAME, Stream<VALUE, NAME>> {
+>(options?: Omit<Producer.Options<VALUE, NAME>, "source">): Transform<INPUT, NAME, Producer<VALUE, NAME>> {
   return (input) => {
     const { name, ...rest } = options ?? {};
 
-    const output = new Stream({
+    const output = new Producer({
       ...rest,
       name: name ?? ("$passive" as NAME),
       source: input.$push,

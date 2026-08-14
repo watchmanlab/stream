@@ -1,5 +1,5 @@
 import { Source } from "./core/source";
-import { Stream } from "./core/stream";
+import { Producer } from "./core/stream";
 import { map } from "./transformers/map";
 
 function getHeapSize(): number {
@@ -18,7 +18,7 @@ function runMemoryProfile() {
   const baseline = getHeapSize();
 
   for (let i = 0; i < BATCH_SIZE; i++) {
-    let stream: Source<number> = new Stream<number>();
+    let stream: Source<number> = new Producer<number>();
 
     for (let j = 0; j < STAGES; j++) {
       stream = stream.pipe(map((v) => v));

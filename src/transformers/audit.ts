@@ -1,13 +1,13 @@
-import { Stream } from "../core/stream";
+import { Producer } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import type { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Audit<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$audit",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, notifier: AnyStream, options?: Stream.Options<VALUE, NAME>) {
+  constructor(input: INPUT, notifier: AnyProducer, options?: Producer.Options<VALUE, NAME>) {
     let latest: VALUE;
     const notifierConsumer = notifier
       .consume((self) => {
@@ -37,9 +37,9 @@ export class Audit<
 }
 
 export function audit<
-  INPUT extends AnyStream,
+  INPUT extends AnyProducer,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$audit",
->(notifier: AnyStream, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Audit<INPUT, VALUE, NAME>> {
+>(notifier: AnyProducer, options?: Producer.Options<VALUE, NAME>): Transform<INPUT, Audit<INPUT, VALUE, NAME>> {
   return (input) => new Audit(input, notifier, options);
 }
