@@ -115,7 +115,7 @@ function streamBench() {
 
   let chain: Source<number> = stream.pipe(map((v) => v));
 
-  for (let i = 1; i < STAGES; i++) {
+  for (let i = 0; i < STAGES; i++) {
     chain = chain.pipe(map((v) => v));
   }
 

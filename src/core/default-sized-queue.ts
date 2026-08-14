@@ -1,6 +1,6 @@
 import { DefaultQueue } from "./default-queue";
 
-export class SizedDefaultQueue<VALUE> extends DefaultQueue<VALUE> {
+export class DefaultSizedQueue<VALUE> extends DefaultQueue<VALUE> {
   constructor(
     private maxSize: number,
     values?: Iterable<VALUE>,

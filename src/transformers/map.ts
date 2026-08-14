@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-import { AnyProducer, AnySource, ExtractValue, Transformer } from "../core/types";
+import { AnySource, ExtractValue, Transformer } from "../core/types";
 
 export class Map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>, MAPPED = VALUE>
   extends Source<MAPPED>

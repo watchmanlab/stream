@@ -21,7 +21,7 @@ function runMemoryProfile() {
     let stream: Source<number> = new Producer<number>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(map((v) => v));
+      stream = stream.pipe(map((v) => v)).producer;
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }
