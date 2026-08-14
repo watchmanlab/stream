@@ -375,7 +375,7 @@ function fromTimeoutTest() {
 function mapTest() {
   const stream = new Producer<number>();
 
-  const mapped = stream.pipe(map((v) => (v * 3).toFixed(3))).producer;
+  const mapped = stream.pipe(map((v) => (v * 3).toFixed(3))).asProducer();
   mapped
     .consume((consumer, value) => {
       console.log("c1", value);

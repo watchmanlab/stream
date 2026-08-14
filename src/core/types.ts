@@ -45,9 +45,6 @@ export interface Consumable<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
 
-export namespace Consumable {
-  export const getConsumer = Symbol.for("get-consumer");
-}
 export interface Transformer<INPUT extends AnySource, VALUE> extends Source<VALUE> {
   readonly input: INPUT;
 }
