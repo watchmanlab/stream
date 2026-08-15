@@ -1,40 +1,45 @@
-import { Stream } from "../core/stream";
-import { ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+import { Consumable, ExtractValue, Transformer } from "../core/types";
 
-export function mapBatch<
-  INPUT extends Stream<any[], any>,
+export class MapBatch<
+  INPUT extends Consumable<any[]>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
   MAPPED = VALUE,
-  NAME extends NonEmptyString = "$mapBatch",
->(
-  mapper: MapBatch.Mapper<VALUE, MAPPED>,
-  options?: Stream.Options<MAPPED[], NAME>,
-): Transform<INPUT, NAME, Stream<MAPPED[], NAME>> {
-  return (input) => {
-    const { name, ...rest } = options ?? {};
-
+>
+  extends Source<MAPPED[]>
+  implements Transformer<INPUT, MAPPED[]>
+{
+  constructor(
+    readonly $input: INPUT,
+    private mapper: MapBatch.Mapper<VALUE, MAPPED>,
+  ) {
+    super();
+  }
+  consume(handler: Consumer.Handler<MAPPED[]>, options?: Consumer.Options<MAPPED[]>): Consumer<MAPPED[]> {
     const results: MAPPED[] = [];
-
-    const output = new Stream({
-      ...rest,
-      name: name ?? ("$mapBatch" as NAME),
-      source: {
-        consume() {
-          return input.consume((_, values) => {
-            results.length = 0;
-            for (let i = 0, len = values.length; i < len; i++) {
-              results.push(mapper(values[i]));
-            }
-            output.push(results);
-            results.length = 0;
-          });
-        },
+    return this.$input.consume(
+      (consumer, values) => {
+        results.length = 0;
+        for (let i = 0, len = values.length; i < len; i++) {
+          results.push(this.mapper(values[i]));
+        }
+        handler(consumer, results);
+        results.length = 0;
       },
-    });
-
-    return output;
-  };
+      { ...options },
+    );
+  }
 }
+
+export function mapBatch<
+  INPUT extends Consumable<any[]>,
+  VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
+  MAPPED = VALUE,
+>(mapper: MapBatch.Mapper<VALUE, MAPPED>) {
+  return ($input: INPUT) => new MapBatch($input, mapper);
+}
+
 export namespace MapBatch {
   export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;
 }

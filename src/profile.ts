@@ -1,5 +1,6 @@
 import { Source } from "./core/source";
 import { Stream } from "./core/stream";
+import { flat } from "./transformers/flat";
 import { map } from "./transformers/map";
 
 function getHeapSize(): number {
@@ -17,10 +18,10 @@ function runMemoryProfile() {
   const baseline = getHeapSize();
 
   for (let i = 0; i < BATCH_SIZE; i++) {
-    let stream: Source<number> = new Stream<number>();
+    let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(map((v) => v));
+      stream = stream.pipe(flat());
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }
@@ -43,8 +44,8 @@ function runMemoryProfile() {
 runMemoryProfile();
 
 // === STREAM BENCHMARK RESULTS ===
-// Total Batch Size:      5,000 pipelines of 1000 stages
-// Total Heap Increase:   514.55 MB
-// Average Per Pipeline:  107,908 bytes
-// Average Per Stage:     108 bytes
+// Total Batch Size:      5,000 pipelines of 200 stages
+// Total Heap Increase:   317.53 MB
+// Average Per Pipeline:  66,591 bytes
+// Average Per Stage:     333 bytes
 // ===============================

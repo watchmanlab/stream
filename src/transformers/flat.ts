@@ -1,58 +1,62 @@
-import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+import { Consumable, ExtractValue, Transformer } from "../core/types";
 
 export class Flat<
-  INPUT extends Stream<Array<any>, any>,
+  INPUT extends Consumable<Array<any>>,
   DEPTH extends number = 0,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$flat",
-> extends Transformer<INPUT, FlatArray<VALUE, DEPTH>, NAME> {
-  constructor(input: INPUT, depth = 0 as DEPTH, options?: Stream.Options<FlatArray<VALUE, DEPTH>, NAME>) {
-    const { name, next, terminate, ...rest } = options ?? {};
+>
+  extends Source<FlatArray<VALUE, DEPTH>>
+  implements Transformer<INPUT, FlatArray<VALUE, DEPTH>>
+{
+  constructor(
+    readonly $input: INPUT,
+    private depth = 0 as DEPTH,
+  ) {
+    super();
+  }
+
+  consume(
+    handler: Consumer.Handler<FlatArray<VALUE, DEPTH>>,
+    options?: Consumer.Options<FlatArray<VALUE, DEPTH>>,
+  ): Consumer<FlatArray<VALUE, DEPTH>> {
+    const { next, terminate, ...rest } = options ?? {};
 
     let cursor = 0;
     let values = [] as any[];
 
-    const inputConsumer = input.consume((self, value) => {
+    const inputConsumer = this.$input.consume((consumer, value) => {
       if (!value.length) {
-        self.next();
+        consumer.next();
         return;
       }
-      values = depth === 0 ? value : value.flat(depth);
+
+      values = this.depth === 0 ? value : value.flat(this.depth);
       cursor = 0;
 
-      this.push(values[cursor++]);
+      handler(outputConsumer, values[cursor++]);
     });
 
-    super(input, {
+    const outputConsumer = new Consumer<FlatArray<VALUE, DEPTH>>(handler, {
       ...rest,
-      name: name ?? ("$flat" as NAME),
-      next(self, consumer) {
+      next(consumer) {
         if (cursor === values.length) {
           inputConsumer.next();
         } else {
-          self.push(values[cursor++]);
+          handler(consumer, values[cursor++]);
         }
-        next?.(self, consumer);
+        next?.(consumer);
       },
-      terminate(self, reason) {
-        values = [];
+      terminate(consumer, reason) {
         inputConsumer.terminate(reason);
-        terminate?.(self, reason);
+        terminate?.(consumer, reason);
       },
     });
+    return outputConsumer;
   }
 }
 
-export function flat<
-  INPUT extends Stream<Array<any>, any>,
-  DEPTH extends number = 0,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$flat",
->(
-  depth = 0 as DEPTH,
-  options?: Stream.Options<FlatArray<VALUE, DEPTH>, NAME>,
-): Transform<INPUT, Flat<INPUT, DEPTH, VALUE, NAME>> {
-  return (input) => new Flat(input, depth, options);
+export function flat<INPUT extends Consumable<Array<any>>, DEPTH extends number = 0>(depth = 0 as DEPTH) {
+  return ($input: INPUT) => new Flat($input, depth);
 }
