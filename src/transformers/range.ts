@@ -1,13 +1,13 @@
-import { Producer } from "../core/producer";
+import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyProducer, ExtractValue, NonEmptyString } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString } from "../core/types";
 
 export class Range<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$range",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, start: number, offset: number, options?: Producer.Options<VALUE, NAME>) {
+  constructor(input: INPUT, start: number, offset: number, options?: Stream.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
     const inputconsumer = input.consume((self, value) => {

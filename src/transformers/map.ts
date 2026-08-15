@@ -1,5 +1,6 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
+import { Stream } from "../core/stream";
 
 import { AnySource, ExtractValue, Transformer } from "../core/types";
 
@@ -13,7 +14,10 @@ export class Map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = Ex
   ) {
     super();
   }
-  consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED> | undefined): Consumer<MAPPED> {
+  override consume(
+    handler: Consumer.Handler<MAPPED>,
+    options?: Consumer.Options<MAPPED> | undefined,
+  ): Consumer<MAPPED> {
     return this.input.consume((consumer, value) => handler(consumer, this.mapper(value)), options);
   }
 }
@@ -21,7 +25,7 @@ export class Map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = Ex
 export function map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>, MAPPED = VALUE>(
   mapper: Map.Mapper<VALUE, MAPPED>,
 ) {
-  return (input: INPUT) => new Map(input, mapper);
+  return (input: INPUT) => new Map(input, mapper); //new Stream({ source: new Map(input, mapper) });
 }
 
 export namespace Map {

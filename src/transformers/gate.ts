@@ -1,18 +1,18 @@
 import { Consumer } from "../core/consumer";
-import { Producer } from "../core/producer";
-import { AnyProducer, ExtractValue, NonEmptyString } from "../core/types";
+import { Stream } from "../core/stream";
+import { AnyStream, ExtractValue, NonEmptyString } from "../core/types";
 
 export function gate<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$gate",
->(control: Producer<boolean, any>, options?: Omit<Producer.Options<VALUE, NAME>, "source">) {
+>(control: Stream<boolean, any>, options?: Omit<Stream.Options<VALUE, NAME>, "source">) {
   return (input: INPUT) => {
     const { name, next, terminate, ...rest } = options ?? {};
 
     let inputConsumer: Consumer<VALUE> | undefined;
 
-    const output = new Producer<VALUE, NAME>({
+    const output = new Stream<VALUE, NAME>({
       ...rest,
       name: name ?? ("$gate" as NAME),
       next(self, consumer) {

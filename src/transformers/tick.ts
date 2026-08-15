@@ -1,13 +1,13 @@
-import { Producer } from "../core/producer";
+import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Tick<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$tick",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, options?: Producer.Options<VALUE, NAME>) {
+  constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = { ...options };
 
     let inputConsumer = input.consume((_, value) => this.push(value));
@@ -30,9 +30,9 @@ export class Tick<
 }
 
 export function tick<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$tick",
->(options?: Producer.Options<VALUE, NAME>): Transform<INPUT, Tick<INPUT, VALUE, NAME>> {
+>(options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Tick<INPUT, VALUE, NAME>> {
   return (input) => new Tick(input, options);
 }

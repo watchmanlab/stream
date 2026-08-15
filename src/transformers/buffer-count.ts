@@ -1,11 +1,11 @@
 import { InfosLinker } from "../core/infos-linker";
 import { DefaultQueue } from "../core/default-queue";
-import { Producer } from "../core/producer";
+import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyProducer, ExtractValue, FixedArray, NonEmptyString, Queue, Transform } from "../core/types";
+import { AnyStream, ExtractValue, FixedArray, NonEmptyString, Queue, Transform } from "../core/types";
 
 export class BufferCount<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   SIZE extends number,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "bufferCount",
@@ -85,7 +85,7 @@ export class BufferCount<
 }
 
 export function bufferCount<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   SIZE extends number,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "bufferCount",
@@ -98,7 +98,7 @@ export function bufferCount<
 }
 export namespace BufferCount {
   export type Options<VALUE, NAME extends NonEmptyString> = Omit<Transformer.Options<VALUE, NAME>, "source">;
-  export type Infos<VALUE> = Producer.Infos & {
+  export type Infos<VALUE> = Stream.Infos & {
     buffers: ArrayIterator<VALUE>[];
     size: number;
     startBufferEvery: number;

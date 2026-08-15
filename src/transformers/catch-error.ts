@@ -1,10 +1,10 @@
 import { Consumer } from "../core/consumer";
-import { Producer } from "../core/producer";
+import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import type { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class CatchError<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "catchError",
 > extends Transformer<INPUT, VALUE, NAME> {
@@ -26,7 +26,7 @@ export class CatchError<
 }
 
 export function catchError<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "catchError",
 >(

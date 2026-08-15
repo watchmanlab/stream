@@ -1,21 +1,21 @@
-import { Producer } from "../core/producer";
+import { Stream } from "../core/stream";
 import { ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export function mapBatch<
-  INPUT extends Producer<any[], any>,
+  INPUT extends Stream<any[], any>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
   MAPPED = VALUE,
   NAME extends NonEmptyString = "$mapBatch",
 >(
   mapper: MapBatch.Mapper<VALUE, MAPPED>,
-  options?: Producer.Options<MAPPED[], NAME>,
-): Transform<INPUT, NAME, Producer<MAPPED[], NAME>> {
+  options?: Stream.Options<MAPPED[], NAME>,
+): Transform<INPUT, NAME, Stream<MAPPED[], NAME>> {
   return (input) => {
     const { name, ...rest } = options ?? {};
 
     const results: MAPPED[] = [];
 
-    const output = new Producer({
+    const output = new Stream({
       ...rest,
       name: name ?? ("$mapBatch" as NAME),
       source: {

@@ -7,20 +7,20 @@ import { Source } from "./source";
 import { DefaultQueue } from "./default-queue";
 import { SourceProxy } from "./source-proxy";
 
-export class Producer<VALUE>
+export class Stream<VALUE>
   extends Source<VALUE>
   implements Consumable<VALUE>, Terminable, Disposable, AsyncIterable<VALUE>
 {
-  private _options?: Producer.Options<VALUE>;
+  private _options?: Stream.Options<VALUE>;
   private _consumerSet?: ConsumerSet<VALUE>;
-  private _status: Producer.Status;
+  private _status: Stream.Status;
   private _pulling: boolean;
   private _sourceProxy?: Source<VALUE>;
   private _initCleanup?: (reason: TerminateReason) => void;
   private _sourceConsumer?: Consumer<VALUE>;
   private _signalConsumer?: Consumer<TerminateReason>;
 
-  constructor(options?: Producer.Options<VALUE>) {
+  constructor(options?: Stream.Options<VALUE>) {
     super();
     this._options = { ...options };
     this._status = "active";
@@ -62,7 +62,7 @@ export class Producer<VALUE>
   get consumersCount(): number {
     return this._consumerSet?.size ?? 0;
   }
-  get status(): Producer.Status {
+  get status(): Stream.Status {
     return this._status;
   }
 
@@ -168,7 +168,7 @@ export class Producer<VALUE>
   }
 }
 
-export namespace Producer {
+export namespace Stream {
   export type Status = "active" | "drain" | TerminateReason;
 
   export type Options<VALUE> = {
@@ -176,14 +176,14 @@ export namespace Producer {
     signal?: Consumable<TerminateReason>;
     consumerSetFactory?: () => ConsumerSet<VALUE>;
     consumerQueueFactory?: () => Queue<VALUE>;
-    init?: (producer: Producer<VALUE>) => undefined | ((reason: TerminateReason) => void);
-    push?: (producer: Producer<VALUE>, value: VALUE) => void;
-    next?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    consumerJoin?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    consumerLeft?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    firstConsumerJoin?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    lastConsumerLeft?: (producer: Producer<VALUE>, consumer: Consumer<VALUE>) => void;
-    drain?: (producer: Producer<VALUE>) => void;
-    terminate?: (producer: Producer<VALUE>, reason: TerminateReason) => void;
+    init?: (producer: Stream<VALUE>) => undefined | ((reason: TerminateReason) => void);
+    push?: (producer: Stream<VALUE>, value: VALUE) => void;
+    next?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    consumerJoin?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    consumerLeft?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    firstConsumerJoin?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    lastConsumerLeft?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    drain?: (producer: Stream<VALUE>) => void;
+    terminate?: (producer: Stream<VALUE>, reason: TerminateReason) => void;
   };
 }

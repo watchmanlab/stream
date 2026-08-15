@@ -1,13 +1,13 @@
-import { Producer } from "../core/producer";
+import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Replay<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$replay",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, values: [VALUE, ...VALUE[]], options?: Producer.Options<VALUE, NAME>) {
+  constructor(input: INPUT, values: [VALUE, ...VALUE[]], options?: Stream.Options<VALUE, NAME>) {
     const { name, next, consumerJoin, terminate, ...rest } = options ?? {};
 
     const inputConsumer = input.consume((_, value) => {
@@ -37,9 +37,9 @@ export class Replay<
 }
 
 export function replay<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$replay",
->(values: [VALUE, ...VALUE[]], options?: Producer.Options<VALUE, NAME>): Transform<INPUT, Replay<INPUT, VALUE, NAME>> {
+>(values: [VALUE, ...VALUE[]], options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Replay<INPUT, VALUE, NAME>> {
   return (input) => new Replay(input, values, options);
 }

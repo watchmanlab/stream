@@ -1,13 +1,13 @@
-import { Producer } from "../core/producer";
+import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class Debug<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$debug",
 > extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, tag?: string, options?: Producer.Options<VALUE, NAME>) {
+  constructor(input: INPUT, tag?: string, options?: Stream.Options<VALUE, NAME>) {
     const { name, next, terminate, ...rest } = options ?? {};
 
     const inputConsumer = input.consume((self, value) => {
@@ -29,9 +29,9 @@ export class Debug<
 }
 
 export function debug<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$debug",
->(tag?: string, options?: Producer.Options<VALUE, NAME>): Transform<INPUT, Debug<INPUT, VALUE, NAME>> {
+>(tag?: string, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Debug<INPUT, VALUE, NAME>> {
   return (input) => new Debug(input, tag, options);
 }

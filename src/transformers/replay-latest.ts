@@ -1,15 +1,15 @@
 import { DefaultSizedQueue } from "../core/default-sized-queue";
-import { Producer } from "../core/producer";
+import { Stream } from "../core/stream";
 import { Transformer } from "../core/transformer";
-import { AnyProducer, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
 export class ReplayLatest<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$replayLatest",
 > extends Transformer<INPUT, VALUE, NAME> {
   private _queue: DefaultSizedQueue<VALUE>;
-  constructor(input: INPUT, size: number, options?: Producer.Options<VALUE, NAME>) {
+  constructor(input: INPUT, size: number, options?: Stream.Options<VALUE, NAME>) {
     const { name, next, consumerJoin, terminate, ...rest } = options ?? {};
 
     const inputConsumer = input.consume((_, value) => {
@@ -43,9 +43,9 @@ export class ReplayLatest<
 }
 
 export function replayLatest<
-  INPUT extends AnyProducer,
+  INPUT extends AnyStream,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   NAME extends NonEmptyString = "$replayLatest",
->(last: number, options?: Producer.Options<VALUE, NAME>): Transform<INPUT, ReplayLatest<INPUT, VALUE, NAME>> {
+>(last: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, ReplayLatest<INPUT, VALUE, NAME>> {
   return (input) => new ReplayLatest(input, last, options);
 }

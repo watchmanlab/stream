@@ -1,23 +1,23 @@
-import { Producer } from "../core/producer";
+import { Stream } from "../core/stream";
 import type { ExtractValue, NonEmptyString, TerminateReason, Transform } from "../core/types";
 import { Signal } from "../streams/signal";
 
 export function resolve<
-  INPUT extends Producer<Promise<any>, any>,
+  INPUT extends Stream<Promise<any>, any>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
   NAME extends NonEmptyString = "$resolve",
 >(
   concurrency = 1,
   options?: Resolve.Options<VALUE, NAME>,
-): Transform<INPUT, NAME, Producer<VALUE, NAME> & { $error: Producer<unknown, `${NAME}Error`> }> {
+): Transform<INPUT, NAME, Stream<VALUE, NAME> & { $error: Stream<unknown, `${NAME}Error`> }> {
   return (input) => {
     const { name, next, terminate, error, ...rest } = options ?? {};
 
     const $terminate = new Signal<TerminateReason>();
 
-    let $error: Producer<unknown> | undefined;
+    let $error: Stream<unknown> | undefined;
 
-    const output = new Producer({
+    const output = new Stream({
       ...rest,
       name: name ?? ("$resolve" as NAME),
       $terminate,
@@ -67,15 +67,15 @@ export function resolve<
 
     return Object.defineProperty(output, "$error", {
       get() {
-        $error ??= new Producer({ $terminate: output.$terminate });
-        return new Producer({ name: `${output.name}Error`, source: $error, $terminate: output.$terminate });
+        $error ??= new Stream({ $terminate: output.$terminate });
+        return new Stream({ name: `${output.name}Error`, source: $error, $terminate: output.$terminate });
       },
-    }) as Producer<VALUE, NAME> & { $error: Producer<unknown, `${NAME}Error`> };
+    }) as Stream<VALUE, NAME> & { $error: Stream<unknown, `${NAME}Error`> };
   };
 }
 
 export namespace Resolve {
-  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Producer.Options<VALUE, NAME>, "source"> & {
-    error?: (self: Producer<VALUE, NAME>, error: unknown) => void;
+  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source"> & {
+    error?: (self: Stream<VALUE, NAME>, error: unknown) => void;
   };
 }

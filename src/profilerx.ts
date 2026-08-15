@@ -1,4 +1,4 @@
-import { map, Subject, tap, filter, Observable } from "rxjs";
+import { map, Subject, Observable, share } from "rxjs";
 
 function getHeapSize(): number {
   if (globalThis.gc) {
@@ -12,7 +12,6 @@ function runMemoryProfile() {
   const STAGES = 200;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
-  console.log("Initializing baseline memory profile...");
   const baseline = getHeapSize();
 
   for (let i = 0; i < BATCH_SIZE; i++) {
@@ -29,12 +28,12 @@ function runMemoryProfile() {
   const totalAllocatedBytes = finalHeap - baseline;
   const bytesPerPipeline = totalAllocatedBytes / BATCH_SIZE;
 
-  console.log("\n=================== BENCHMARK RESULTS ===================");
-  console.log(`Total Batch Size:      ${BATCH_SIZE.toLocaleString()} pipelines`);
+  console.log("\n=== RXJS BENCHMARK RESULTS ===");
+  console.log(`Total Batch Size:      ${BATCH_SIZE.toLocaleString()} pipelines of ${STAGES} stages`);
   console.log(`Total Heap Increase:   ${(totalAllocatedBytes / 1024 / 1024).toFixed(2)} MB`);
   console.log(`Average Per Pipeline:  ${Math.round(bytesPerPipeline).toLocaleString()} bytes`);
   console.log(`Average Per Stage:     ${Math.round(bytesPerPipeline / STAGES).toLocaleString()} bytes`);
-  console.log("=========================================================\n");
+  console.log("===============================\n");
 
   return pipelines.length;
 }
