@@ -1,5 +1,6 @@
 import { EMPTY, EMPTY_FUNCTION } from "./consts";
 import type { Consumer } from "./consumer";
+import { Source } from "./source";
 
 import { Stream } from "./stream";
 
@@ -39,11 +40,13 @@ export type EmptyFunctions = typeof EMPTY_FUNCTION;
 export type Result<VALUE, ERROR = any> =
   | { ok: true; value: VALUE; error?: never }
   | { ok: false; error: ERROR; value?: never };
-export interface Source<VALUE> {
+
+export interface Consumable<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
-export interface SourceLike<VALUE> {
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): AnyConsumer;
+
+export interface Transformer<INPUT extends AnyConsumable, VALUE> extends Source<VALUE> {
+  readonly input: INPUT;
 }
 export type TerminateReason = "abort" | "complete";
 export interface Terminable {
@@ -57,26 +60,16 @@ export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> 
   ? ARR
   : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
 
-export type GetValidName<
-  NAME extends NonEmptyString,
-  OUTPUT extends AnyStream,
-  RETRY extends number,
-  COUNTER extends any[] = [],
-> = NAME extends keyof OUTPUT
-  ? COUNTER["length"] extends RETRY
-    ? never
-    : GetValidName<`$${NAME}`, OUTPUT, RETRY, [...COUNTER, any]>
-  : NAME;
-
+export type AnyConsumable = Consumable<any>;
 export type AnySource = Source<any>;
-export type AnyStream = Stream<any, any>;
+export type AnyStream = Stream<any>;
 export type AnyConsumer = Consumer<any>;
 
-export type ExtractStream<T> = T extends Stream<infer V, infer N> ? Stream<V, N> : never;
+export type ExtractStream<T> = T extends Stream<infer V> ? Stream<V> : never;
 export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
   ? T extends
-      | Stream<infer VALUE, any>
-      | Source<infer VALUE>
+      | Stream<infer VALUE>
+      | Consumable<infer VALUE>
       | Consumer<infer VALUE>
       | Promise<infer VALUE>
       | Array<infer VALUE>
@@ -84,17 +77,11 @@ export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []
     ? VALUE
     : T
   : T extends
-        | Stream<infer VALUE, any>
-        | Source<infer VALUE>
+        | Stream<infer VALUE>
+        | Consumable<infer VALUE>
         | Consumer<infer VALUE>
         | Promise<infer VALUE>
         | Array<infer VALUE>
         | Set<infer VALUE>
     ? ExtractValue<VALUE, DEPTH, [...COUNTER, any]>
     : T;
-
-export type Transform<
-  INPUT extends AnyStream,
-  OUTPUT_NAME extends NonEmptyString,
-  OUTPUT extends Stream<any, OUTPUT_NAME>,
-> = (input: INPUT) => OUTPUT;

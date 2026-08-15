@@ -1,6 +1,6 @@
-import { LinkedListQueue } from "./linked-list-queue";
+import { DefaultQueue } from "./default-queue";
 
-export class SizedLinkedListQueue<VALUE> extends LinkedListQueue<VALUE> {
+export class DefaultSizedQueue<VALUE> extends DefaultQueue<VALUE> {
   constructor(
     private maxSize: number,
     values?: Iterable<VALUE>,

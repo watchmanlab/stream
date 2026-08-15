@@ -1,33 +1,31 @@
-import { Stream } from "../core/stream";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+
+import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+
+export class Map<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>, MAPPED = VALUE>
+  extends Source<MAPPED>
+  implements Transformer<INPUT, MAPPED>
+{
+  constructor(
+    readonly input: INPUT,
+    private mapper: Map.Mapper<VALUE, MAPPED>,
+  ) {
+    super();
+  }
+  consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
+    return this.input.consume((consumer, value) => handler(consumer, this.mapper(value)), options);
+  }
+}
 
 export function map<
-  INPUT extends AnyStream,
+  INPUT extends AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   MAPPED = VALUE,
-  NAME extends NonEmptyString = "$map",
->(
-  mapper: Map.Mapper<VALUE, MAPPED>,
-  options?: Omit<Stream.Options<MAPPED, NAME>, "source">,
-): Transform<INPUT, NAME, Stream<MAPPED, NAME>> {
-  return (input) => {
-    const { name, ...rest } = options ?? {};
-
-    const output = new Stream({
-      ...rest,
-      name: name ?? ("$map" as NAME),
-      source: {
-        consume() {
-          return input.consume((_, value) => output.push(mapper(value)), {
-            terminate: (_, reason) => output.terminate(reason),
-          });
-        },
-      },
-    });
-
-    return output;
-  };
+>(mapper: Map.Mapper<VALUE, MAPPED>) {
+  return (input: INPUT) => new Map(input, mapper);
 }
+
 export namespace Map {
   export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;
 }

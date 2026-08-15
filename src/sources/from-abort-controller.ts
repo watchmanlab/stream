@@ -1,6 +1,10 @@
-import { Source } from "../core/types";
-import { fromAbortSignal } from "./from-abort-signal";
+import { FromAbortSignal } from "./from-abort-signal";
 
-export function fromAbortController(controller: AbortController): Source<void> {
-  return fromAbortSignal(controller.signal);
+export class FromAbortController extends FromAbortSignal {
+  constructor(private controller: AbortController) {
+    super(controller.signal);
+  }
+}
+export function fromAbortController(controller: AbortController): FromAbortController {
+  return new FromAbortController(controller);
 }

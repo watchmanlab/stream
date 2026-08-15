@@ -1,6 +1,9 @@
-import { Source } from "../core/types";
-import { fromAsyncIterator } from "../sources/from-async-iterator";
-
-export function fromAsyncGenerator<VALUE>(asyncGeneratorFn: () => AsyncGenerator<VALUE>): Source<VALUE> {
-  return fromAsyncIterator(asyncGeneratorFn);
+import { FromAsyncIterator } from "../sources/from-async-iterator";
+export class FromAsyncGenerator<VALUE> extends FromAsyncIterator<VALUE> {
+  constructor(asyncGeneratorFn: () => AsyncGenerator<VALUE>) {
+    super(asyncGeneratorFn);
+  }
+}
+export function fromAsyncGenerator<VALUE>(asyncGeneratorFn: () => AsyncGenerator<VALUE>): FromAsyncGenerator<VALUE> {
+  return new FromAsyncGenerator(asyncGeneratorFn);
 }

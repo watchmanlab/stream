@@ -1,6 +1,6 @@
-import { Subject, tap as rxtap, map as rxmap, filter as rxfilter } from "rxjs";
-import { Consumer } from "./core/consumer";
-import { Stream } from "./core/stream";
+import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable } from "rxjs";
+import { Consumer } from "./core/consumer.ts";
+import { Stream } from "./core/stream.ts";
 import { fromIterator } from "./sources/from-iterator";
 import { fromIterable } from "./sources/from-iterable";
 import { fromGenerator } from "./sources/from-generator";
@@ -9,7 +9,7 @@ import { fromAsyncIterable } from "./sources/from-async-iterable";
 import { fromAsyncGenerator } from "./sources/from-async-generator";
 import { fromAbortSignal } from "./sources/from-abort-signal";
 import { fromAbortController } from "./sources/from-abort-controller";
-import { fromEventTarget } from "./sources/from-event-target";
+import { fromEventTarget } from "./sources/from-event-target.ts";
 import { fromPromise } from "./sources/from-promise";
 
 import { map } from "./transformers/map";
@@ -18,6 +18,9 @@ import { tap } from "./transformers/tap";
 import { pump } from "./transformers/pump";
 import { fromInterval } from "./sources/from-interval";
 import { fromTimeout } from "./sources/from-timeout";
+import { Consumable } from "./core/types";
+import { Source } from "./core/source";
+import { share } from "./transformers/share.ts";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -82,93 +85,71 @@ function consumerTest() {
   consumer.push(3);
 }
 // consumerTest();
-
-function streamBench() {
+function rxjsBench() {
   const MAX = 1_000_000;
+  const STAGES = 100;
+
+  const subject = new Subject<number>();
+
+  let chain: Observable<number> = subject;
+
+  for (let i = 1; i < STAGES; i++) {
+    chain = chain.pipe(rxmap((v) => v));
+  }
 
   const start = performance.now();
-  const stream = new Stream<number, "$kechma">({ name: "$kechma" });
 
-  const chain = stream
+  chain.subscribe((v) => {
+    if (v === MAX)
+      console.log(
+        "rxjs:",
+        `${v.toLocaleString("fr")} push ->`,
+        `${STAGES} stages in`,
+        Math.round(performance.now() - start),
+        "ms",
+      );
+  });
 
-    .pipe(
-      tap((v) => {
-        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      }),
-    )
-    .pipe(
-      tap((v) => {
-        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      }),
-    )
-    .pipe(
-      tap((v) => {
-        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      }),
-    )
-    .pipe(
-      tap((v) => {
-        if (v === MAX) console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      }),
-    )
-    .pipe(map((v) => v.toFixed()))
-    .pipe(map((v) => Number(v)))
-    .pipe(map((v) => v.toFixed()))
-    .pipe(map((v) => Number(v), { name: "$myMap" }))
-    .pipe(filter((v) => v < MAX / 2, { name: "$myFilter" }))
-    .pipe(pump());
+  for (let i = 0; i <= MAX; i++) {
+    subject.next(i);
+  }
+}
 
-  // console.log(chain.$myFilter.$myMap.$map.$map.$map.$tap.$tap.$tap.$tap.$kechma.name);
+rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2287 ms
+function streamBench() {
+  const MAX = 1_000_000;
+  const STAGES = 100;
+
+  const stream = new Stream<number>();
+
+  let chain: Source<number> = stream;
+
+  for (let i = 0; i < STAGES; i++) {
+    chain = chain.pipe(map((v) => v));
+  }
+
+  const start = performance.now();
+
+  chain
+    .consume((consumer, v) => {
+      if (v === MAX)
+        console.log(
+          "stream:",
+          `${v.toLocaleString("fr")} push ->`,
+          `${STAGES} stages in`,
+          Math.round(performance.now() - start),
+          "ms",
+        );
+      consumer.next();
+    })
+    .next();
 
   for (let i = 0; i <= MAX; i++) {
     stream.push(i);
   }
 }
 
-// streamBench();
-// $kechma
-// 1 000 000 551 ms
-// 1 000 000 552 ms
-// 1 000 000 552 ms
-// 1 000 000 552 ms
-
-function rxjsBench() {
-  const MAX = 1_000_000;
-  const stream$ = new Subject<number>();
-  const start = performance.now();
-
-  stream$
-    .pipe(
-      rxtap((v) => {
-        if (v === MAX) console.log("Stage 1:", Math.round(performance.now() - start), "ms");
-      }),
-      rxtap((v) => {
-        if (v === MAX) console.log("Stage 2:", Math.round(performance.now() - start), "ms");
-      }),
-      rxtap((v) => {
-        if (v === MAX) console.log("Stage 3:", Math.round(performance.now() - start), "ms");
-      }),
-      rxtap((v) => {
-        if (v === MAX) console.log("Stage 4:", Math.round(performance.now() - start), "ms");
-      }),
-      rxmap((v) => v.toFixed()),
-      rxmap((v) => Number(v)),
-      rxmap((v) => v.toFixed()),
-      rxmap((v) => Number(v)),
-      rxfilter((v) => v < MAX / 2),
-    )
-    .subscribe(); // Activates the pipeline
-
-  for (let i = 0; i <= MAX; i++) {
-    stream$.next(i);
-  }
-}
-
-// rxjsBench();
-// Stage 1: 103 ms
-// Stage 2: 103 ms
-// Stage 3: 103 ms
-// Stage 4: 103 ms
+streamBench(); //stream: 1 000 000 push -> 100 stages in 533 ms
 
 function streamTest() {
   const stream = new Stream<number>();
@@ -198,7 +179,7 @@ function streamTest() {
   stream.push(3);
 }
 
-streamTest();
+// streamTest();
 // c1 1
 // c1 2
 // c1 3
@@ -357,7 +338,7 @@ function fromEventTargetTest() {
 function fromPromiseTest() {
   const source = fromPromise(new Promise((r) => setTimeout(() => r(33), 200)));
   const stream = new Stream({ source });
-  source
+  stream
     .consume((self, value) => {
       console.log("c1", value.value);
       self.next();
@@ -399,3 +380,38 @@ function fromTimeoutTest() {
 }
 
 // fromTimeoutTest();
+
+function mapTest() {
+  const stream = new Stream<number>();
+
+  const mapped = stream.pipe(map((v) => (v * 3).toFixed(3)));
+  mapped
+    .consume((consumer, value) => {
+      console.log("c1", value);
+      consumer.next();
+    })
+    .next();
+
+  const c = mapped.consume((consumer, value) => {
+    setTimeout(() => {
+      console.log("c2", value);
+      consumer.next();
+    }, 1000);
+  });
+
+  setTimeout(() => {
+    c.next();
+  }, 1000);
+
+  stream.push(1).push(2).push(3);
+}
+// mapTest();
+// c1 3.000
+// c1 6.000
+// c1 9.000
+// ...wait 1s
+// c2 3
+// ...wait 1s
+// c2 6
+// ...wait 1s
+// c2 9

@@ -1,9 +1,9 @@
 import type { Empty, Queue } from "./types";
 import { EMPTY } from "./consts";
 
-export class LinkedListQueue<VALUE> implements Queue<VALUE> {
-  private _head?: LinkedListQueue.Node<VALUE>;
-  private _tail?: LinkedListQueue.Node<VALUE>;
+export class DefaultQueue<VALUE> implements Queue<VALUE> {
+  private _head?: DefaultQueue.Node<VALUE>;
+  private _tail?: DefaultQueue.Node<VALUE>;
   private _size = 0;
 
   constructor(values?: Iterable<VALUE>) {
@@ -62,6 +62,6 @@ export class LinkedListQueue<VALUE> implements Queue<VALUE> {
     return this._size;
   }
 }
-export namespace LinkedListQueue {
+export namespace DefaultQueue {
   export type Node<VALUE> = { value: VALUE; next?: Node<VALUE> } | undefined;
 }

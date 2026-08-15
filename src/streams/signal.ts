@@ -1,17 +1,9 @@
 import { Stream } from "../core/stream";
-import { NonEmptyString } from "../core/types";
 
-export class Signal<VALUE, NAME extends NonEmptyString = "$signal"> extends Stream<VALUE, NAME> {
-  constructor(options?: Stream.Options<VALUE, NAME>) {
-    const { name, push, ...rest } = options ?? {};
-
-    super({
-      ...rest,
-      name: name ?? ("$signal" as NAME),
-      push(stream, value) {
-        push?.(stream, value);
-        stream.terminate("complete");
-      },
-    });
+export class Signal<VALUE> extends Stream<VALUE> {
+  override push(value: VALUE): this {
+    super.push(value);
+    this.terminate("complete");
+    return this;
   }
 }

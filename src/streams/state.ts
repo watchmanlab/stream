@@ -1,14 +1,10 @@
 import { Stream } from "../core/stream";
-import { NonEmptyString } from "../core/types";
 
-export class State<VALUE, NAME extends NonEmptyString = "$state"> extends Stream<VALUE, NAME> {
+export class State<VALUE> extends Stream<VALUE> {
   private _value: VALUE;
 
-  constructor(initialValue: VALUE, options?: Stream.Options<VALUE, NAME>) {
-    super({
-      ...options,
-      name: options?.name ?? ("$state" as NAME),
-    });
+  constructor(initialValue: VALUE) {
+    super();
     this._value = initialValue;
   }
   get value(): VALUE {
@@ -18,11 +14,4 @@ export class State<VALUE, NAME extends NonEmptyString = "$state"> extends Stream
     this._value = v;
     this.push(v);
   }
-}
-
-export function state<VALUE, NAME extends NonEmptyString = "$state">(
-  initialValue: VALUE,
-  options?: Stream.Options<VALUE, NAME>,
-): State<VALUE, NAME> {
-  return new State(initialValue, options);
 }
