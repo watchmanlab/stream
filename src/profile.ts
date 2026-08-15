@@ -1,5 +1,6 @@
 import { Source } from "./core/source";
 import { Stream } from "./core/stream";
+import { filter } from "./transformers/filter";
 import { flat } from "./transformers/flat";
 import { map } from "./transformers/map";
 
@@ -21,7 +22,7 @@ function runMemoryProfile() {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(flat());
+      stream = stream.pipe(filter((v) => Boolean(v)));
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }
