@@ -8,13 +8,13 @@ export class Map<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> 
   implements Transformer<INPUT, MAPPED>
 {
   constructor(
-    readonly input: INPUT,
+    readonly $input: INPUT,
     private mapper: Map.Mapper<VALUE, MAPPED>,
   ) {
     super();
   }
   consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
-    return this.input.consume((consumer, value) => handler(consumer, this.mapper(value)), options);
+    return this.$input.consume((consumer, value) => handler(consumer, this.mapper(value)), options);
   }
 }
 
