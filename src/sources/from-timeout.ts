@@ -1,27 +1,34 @@
 import { Consumer } from "../core/consumer";
-import { Consumable } from "../core/types";
+import { Source } from "../core/source";
 
-export function fromTimeout(ms: number): Consumable<void> {
-  return {
-    consume(handler, options) {
-      const { init, ...rest } = options ?? {};
+export class FromTimeout<MS extends number> extends Source<void> {
+  constructor(private ms: MS) {
+    super();
+  }
 
-      return new Consumer(handler, {
-        ...rest,
-        init(consumer) {
-          const timer = setTimeout(() => {
-            consumer.push();
-            consumer.terminate("complete");
-          }, ms);
+  consume(handler: Consumer.Handler<void>, options?: Consumer.Options<void>): Consumer<void> {
+    const { init, ...rest } = options ?? {};
 
-          const cleanup = init?.(consumer);
+    return new Consumer(handler, {
+      ...rest,
 
-          return (reason) => {
-            cleanup?.(reason);
-            clearTimeout(timer);
-          };
-        },
-      });
-    },
-  };
+      init: (consumer) => {
+        const timer = setTimeout(() => {
+          consumer.push();
+          consumer.terminate("complete");
+        }, this.ms);
+
+        const cleanup = init?.(consumer);
+
+        return (reason) => {
+          cleanup?.(reason);
+          clearTimeout(timer);
+        };
+      },
+    });
+  }
+}
+
+export function fromTimeout<MS extends number>(ms: MS): FromTimeout<MS> {
+  return new FromTimeout(ms);
 }

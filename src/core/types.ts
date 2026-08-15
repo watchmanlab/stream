@@ -45,7 +45,7 @@ export interface Consumable<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
 
-export interface Transformer<INPUT extends AnySource, VALUE> extends Source<VALUE> {
+export interface Transformer<INPUT extends AnyConsumable, VALUE> extends Source<VALUE> {
   readonly input: INPUT;
 }
 export type TerminateReason = "abort" | "complete";

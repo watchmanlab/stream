@@ -5,7 +5,7 @@ export class FromIterator<VALUE> extends Source<VALUE> {
   constructor(private iterator: Iterator<VALUE> | (() => Iterator<VALUE>)) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
 
     const iter = typeof this.iterator === "function" ? this.iterator() : this.iterator;
@@ -30,6 +30,6 @@ export class FromIterator<VALUE> extends Source<VALUE> {
   }
 }
 
-export function fromIterator<VALUE>(iterator: Iterator<VALUE> | (() => Iterator<VALUE>)): Source<VALUE> {
+export function fromIterator<VALUE>(iterator: Iterator<VALUE> | (() => Iterator<VALUE>)): FromIterator<VALUE> {
   return new FromIterator(iterator);
 }

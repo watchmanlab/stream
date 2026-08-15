@@ -1,10 +1,9 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Stream } from "../core/stream";
 
-import { AnySource, ExtractValue, Transformer } from "../core/types";
+import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
-export class Map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>, MAPPED = VALUE>
+export class Map<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>, MAPPED = VALUE>
   extends Source<MAPPED>
   implements Transformer<INPUT, MAPPED>
 {
@@ -14,18 +13,17 @@ export class Map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = Ex
   ) {
     super();
   }
-  override consume(
-    handler: Consumer.Handler<MAPPED>,
-    options?: Consumer.Options<MAPPED> | undefined,
-  ): Consumer<MAPPED> {
+  consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
     return this.input.consume((consumer, value) => handler(consumer, this.mapper(value)), options);
   }
 }
 
-export function map<INPUT extends AnySource, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>, MAPPED = VALUE>(
-  mapper: Map.Mapper<VALUE, MAPPED>,
-) {
-  return (input: INPUT) => new Map(input, mapper); //new Stream({ source: new Map(input, mapper) });
+export function map<
+  INPUT extends AnyConsumable,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  MAPPED = VALUE,
+>(mapper: Map.Mapper<VALUE, MAPPED>) {
+  return (input: INPUT) => new Map(input, mapper);
 }
 
 export namespace Map {

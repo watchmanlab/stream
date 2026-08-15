@@ -9,7 +9,7 @@ import { fromAsyncIterable } from "./sources/from-async-iterable";
 import { fromAsyncGenerator } from "./sources/from-async-generator";
 import { fromAbortSignal } from "./sources/from-abort-signal";
 import { fromAbortController } from "./sources/from-abort-controller";
-import { fromEventTarget } from "./sources/from-event-target";
+import { fromEventTarget } from "./sources/from-event-target.ts";
 import { fromPromise } from "./sources/from-promise";
 
 import { map } from "./transformers/map";
@@ -87,10 +87,11 @@ function consumerTest() {
 // consumerTest();
 function rxjsBench() {
   const MAX = 1_000_000;
-  const STAGES = 20;
+  const STAGES = 100;
 
   const subject = new Subject<number>();
-  let chain: Observable<number> = subject.pipe(rxmap((v) => v));
+
+  let chain: Observable<number> = subject;
 
   for (let i = 1; i < STAGES; i++) {
     chain = chain.pipe(rxmap((v) => v));
@@ -99,7 +100,14 @@ function rxjsBench() {
   const start = performance.now();
 
   chain.subscribe((v) => {
-    if (v === MAX) console.log("rxjs:  ", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+    if (v === MAX)
+      console.log(
+        "rxjs:",
+        `${v.toLocaleString("fr")} push ->`,
+        `${STAGES} stages in`,
+        Math.round(performance.now() - start),
+        "ms",
+      );
   });
 
   for (let i = 0; i <= MAX; i++) {
@@ -107,14 +115,14 @@ function rxjsBench() {
   }
 }
 
-// rxjsBench(); //rxjs:   1 000 000 362 ms
+rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2287 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 100;
 
   const stream = new Stream<number>();
 
-  let chain: Source<number> = stream.pipe(map((v) => v));
+  let chain: Source<number> = stream;
 
   for (let i = 0; i < STAGES; i++) {
     chain = chain.pipe(map((v) => v));
@@ -141,7 +149,7 @@ function streamBench() {
   }
 }
 
-streamBench(); //stream: 1 000 000 push -> 200 stages in 1037 ms
+streamBench(); //stream: 1 000 000 push -> 100 stages in 533 ms
 
 function streamTest() {
   const stream = new Stream<number>();
