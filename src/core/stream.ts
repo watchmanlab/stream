@@ -1,10 +1,8 @@
+import { Queue, Consumable, TerminateReason, Terminable, ConsumerSet } from "./types";
 import { Consumer } from "./consumer";
-import { Queue, Consumable, TerminateReason, Terminable, ConsumerSet, AnySource } from "./types";
-
 import { EMPTY_THIS_FUNCTION } from "./consts";
 import { DefaultConsumerSet } from "./default-consumer-set";
 import { Source } from "./source";
-import { DefaultQueue } from "./default-queue";
 import { SourceProxy } from "./source-proxy";
 
 export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposable, AsyncIterable<VALUE> {
@@ -29,7 +27,6 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
 
     if (this.status === "active") this._initCleanup = this._options?.init?.(this);
   }
-
   [Symbol.dispose]() {
     this.terminate("abort");
   }
@@ -137,14 +134,14 @@ export namespace Stream {
     signal?: Consumable<TerminateReason>;
     consumerSetFactory?: () => ConsumerSet<VALUE>;
     consumerQueueFactory?: () => Queue<VALUE>;
-    init?: (producer: Stream<VALUE>) => undefined | ((reason: TerminateReason) => void);
-    push?: (producer: Stream<VALUE>, value: VALUE) => void;
-    next?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
-    consumerJoin?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
-    consumerLeft?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
-    firstConsumerJoin?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
-    lastConsumerLeft?: (producer: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
-    drain?: (producer: Stream<VALUE>) => void;
-    terminate?: (producer: Stream<VALUE>, reason: TerminateReason) => void;
+    init?: (stream: Stream<VALUE>) => undefined | ((reason: TerminateReason) => void);
+    push?: (stream: Stream<VALUE>, value: VALUE) => void;
+    next?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    consumerJoin?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    consumerLeft?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    firstConsumerJoin?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    lastConsumerLeft?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
+    drain?: (stream: Stream<VALUE>) => void;
+    terminate?: (stream: Stream<VALUE>, reason: TerminateReason) => void;
   };
 }
