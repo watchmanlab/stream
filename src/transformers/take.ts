@@ -1,42 +1,29 @@
-import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
-export class Take<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$take",
-> extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, count: number, options?: Stream.Options<VALUE, NAME>) {
-    const { name, next, terminate, ...rest } = options ?? {};
+export class Take<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+  extends Source<VALUE>
+  implements Transformer<INPUT, VALUE>
+{
+  constructor(
+    readonly $input: INPUT,
+    private count: number,
+  ) {
+    super();
+  }
 
-    const inputConsumer = input.consume((_, value) => {
-      if (count--) {
-        this.push(value);
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume((consumer, value) => {
+      if (this.count--) {
+        handler(consumer, value);
       } else {
-        this.terminate("complete");
+        consumer.terminate("complete");
       }
-    });
-
-    super(input, {
-      ...rest,
-      name: name ?? ("$take" as NAME),
-      next(self, consumer) {
-        inputConsumer.next();
-        next?.(self, consumer);
-      },
-      terminate(self, reason) {
-        inputConsumer.terminate(reason);
-        terminate?.(self, reason);
-      },
-    });
+    }, options);
   }
 }
 
-export function take<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$take",
->(count: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Take<INPUT, VALUE, NAME>> {
-  return (input) => new Take(input, count, options);
+export function take<INPUT extends AnyConsumable>(count: number) {
+  return ($input: INPUT) => new Take($input, count);
 }

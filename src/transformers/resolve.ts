@@ -1,81 +1,70 @@
-import { Stream } from "../core/stream";
-import type { ExtractValue, NonEmptyString, TerminateReason, Transform } from "../core/types";
-import { Signal } from "../streams/signal";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+import type { Consumable, ExtractValue, Result, Transformer } from "../core/types";
 
-export function resolve<
-  INPUT extends Stream<Promise<any>, any>,
+export class Resolve<
+  INPUT extends Consumable<Promise<any>>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
-  NAME extends NonEmptyString = "$resolve",
->(
-  concurrency = 1,
-  options?: Resolve.Options<VALUE, NAME>,
-): Transform<INPUT, NAME, Stream<VALUE, NAME> & { $error: Stream<unknown, `${NAME}Error`> }> {
-  return (input) => {
-    const { name, next, terminate, error, ...rest } = options ?? {};
-
-    const $terminate = new Signal<TerminateReason>();
-
-    let $error: Stream<unknown> | undefined;
-
-    const output = new Stream({
-      ...rest,
-      name: name ?? ("$resolve" as NAME),
-      $terminate,
-      next: (self, consumer) => {
-        if (count < concurrency) inputConsumer.next();
-        next?.(self, consumer);
-      },
-      terminate(self, reason) {
-        inputConsumer.terminate(reason);
-        $terminate.terminate(reason);
-        $error?.terminate(reason);
-        $error = undefined;
-        terminate?.(self, reason);
-      },
-    });
+>
+  extends Source<Result<VALUE, any>>
+  implements Transformer<INPUT, Result<VALUE, any>>
+{
+  constructor(
+    readonly $input: INPUT,
+    private concurrency = 1,
+  ) {
+    super();
+  }
+  consume(
+    handler: Consumer.Handler<Result<VALUE, any>>,
+    options?: Consumer.Options<Result<VALUE, any>>,
+  ): Consumer<Result<VALUE, any>> {
+    const { next, terminate, ...rest } = options ?? {};
 
     let count = 0;
 
-    const inputConsumer = input.consume(
-      (self, maybePromise) => {
-        if (++count < concurrency) self.next();
+    const inputConsumer = this.$input.consume(
+      (consumer, maybePromise) => {
+        if (++count < this.concurrency) consumer.next();
 
         maybePromise
           .then((value) => {
             count--;
-            output.push(value);
+            outputConsumer.push({ ok: true, value });
           })
           .catch((error) => {
             count--;
-            error?.(output, error);
-            $error?.push(error);
-            self.next();
+            outputConsumer.push({ ok: false, error });
           })
           .finally(() => {
-            if (!count && (self.status === "abort" || self.status === "complete")) {
-              $terminate.push(self.status);
+            if (!count && (consumer.status === "abort" || consumer.status === "complete")) {
+              outputConsumer.terminate(consumer.status);
             }
           });
       },
       {
         terminate(_, reason) {
           if (count) return;
-          $terminate.push(reason);
+          outputConsumer.terminate(reason);
         },
       },
     );
 
-    return Object.defineProperty(output, "$error", {
-      get() {
-        $error ??= new Stream({ $terminate: output.$terminate });
-        return new Stream({ name: `${output.name}Error`, source: $error, $terminate: output.$terminate });
+    const outputConsumer = new Consumer(handler, {
+      ...rest,
+      next: (consumer) => {
+        if (count < this.concurrency) inputConsumer.next();
+        next?.(consumer);
       },
-    }) as Stream<VALUE, NAME> & { $error: Stream<unknown, `${NAME}Error`> };
-  };
+      terminate(consumer, reason) {
+        inputConsumer.terminate(reason);
+        terminate?.(consumer, reason);
+      },
+    });
+    return outputConsumer;
+  }
 }
 
-export namespace Resolve {
-  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Stream.Options<VALUE, NAME>, "source"> & {
-    error?: (self: Stream<VALUE, NAME>, error: unknown) => void;
-  };
+export function resolve<INPUT extends Consumable<Promise<any>>>(concurrency = 1) {
+  return ($input: INPUT) => new Resolve($input, concurrency);
 }

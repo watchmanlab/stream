@@ -1,44 +1,33 @@
-import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+import { Consumable, ExtractValue, Transformer } from "../core/types";
 
 export class TapBatch<
-  INPUT extends Stream<Array<any>, any>,
+  INPUT extends Consumable<Array<any>>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
-  NAME extends NonEmptyString = "$tapBatch",
-> extends Transformer<INPUT, VALUE[], NAME> {
-  constructor(input: INPUT, fn: (value: VALUE, INPUT: INPUT) => void, options?: Stream.Options<VALUE[], NAME>) {
-    const { name, next, terminate, ...rest } = options ?? {};
-
-    const inputConsumer = input.consume((_, values) => {
+>
+  extends Source<VALUE[]>
+  implements Transformer<INPUT, VALUE[]>
+{
+  constructor(
+    readonly $input: INPUT,
+    private callback: (value: VALUE, INPUT: INPUT) => void,
+  ) {
+    super();
+  }
+  consume(handler: Consumer.Handler<VALUE[]>, options?: Consumer.Options<VALUE[]>): Consumer<VALUE[]> {
+    return this.$input.consume((consumer, values) => {
       for (let i = 0, len = values.length; i < len; i++) {
-        fn(values[i], input);
+        this.callback(values[i], this.$input);
       }
-      this.push(values);
-    });
-
-    super(input, {
-      ...rest,
-      name: name ?? ("$tapBatch" as NAME),
-      next(self, consumer) {
-        inputConsumer.next();
-        next?.(self, consumer);
-      },
-      terminate(self, reason) {
-        inputConsumer.terminate(reason);
-        terminate?.(self, reason);
-      },
-    });
+      handler(consumer, values);
+    }, options);
   }
 }
 
 export function tapBatch<
-  INPUT extends Stream<Array<any>, any>,
+  INPUT extends Consumable<Array<any>>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
-  NAME extends NonEmptyString = "$tapBatch",
->(
-  fn: (value: VALUE, INPUT: INPUT) => void,
-  options?: Stream.Options<VALUE[], NAME>,
-): Transform<INPUT, TapBatch<INPUT, VALUE, NAME>> {
-  return (input) => new TapBatch(input, fn, options);
+>(callback: (value: VALUE, INPUT: INPUT) => void) {
+  return ($input: INPUT) => new TapBatch($input, callback);
 }
