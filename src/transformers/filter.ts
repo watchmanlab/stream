@@ -18,13 +18,11 @@ export class Filter<
   ) {
     super();
   }
-  private _$rejected?: Stream<VALUE>;
+  private _$others?: Stream<VALUE>;
 
-  get rejected(): Source<VALUE> {
-    return (this._$rejected ??= new Stream({
-      lastConsumerLeft: (stream, consumer) => {
-        this._$rejected = undefined;
-      },
+  get $others(): Source<VALUE> {
+    return (this._$others ??= new Stream({
+      lastConsumerLeft: () => (this._$others = undefined),
     })).asSource();
   }
   override consume(handler: Consumer.Handler<FILTERED>, options?: Consumer.Options<FILTERED>): Consumer<FILTERED> {
@@ -33,6 +31,8 @@ export class Filter<
         if (this.predicate(value)) {
           handler(consumer, value);
         } else {
+          this._$others?.push(value);
+          consumer.next();
         }
       },
       { ...options },

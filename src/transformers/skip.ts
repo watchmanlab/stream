@@ -1,44 +1,34 @@
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
 import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
 
-export class Skip<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$skip",
-> extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, count: number, options?: Stream.Options<VALUE, NAME>) {
-    const { name, next, terminate, ...rest } = options ?? {};
+import { AnyConsumable, AnyStream, ExtractValue, NonEmptyString, Transformer } from "../core/types";
 
-    let inputConsumer = input.consume((self, value) => {
-      if (count--) {
-        self.next();
-      } else {
-        inputConsumer.terminate("complete");
-        inputConsumer = input.consume((_, value) => this.push(value));
-        this.push(value);
-      }
-    });
-
-    super(input, {
-      ...rest,
-      name: name ?? ("$skip" as NAME),
-      next(self, consumer) {
-        inputConsumer.next();
-        next?.(self, consumer);
+export class Skip<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+  extends Source<VALUE>
+  implements Transformer<INPUT, VALUE>
+{
+  constructor(
+    readonly $input: INPUT,
+    private count: number,
+  ) {
+    super();
+  }
+  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
+    return this.$input.consume(
+      (consumer, value) => {
+        if (this.count--) {
+          consumer.next();
+        } else {
+          consumer["_handler"] = handler;
+          handler(consumer, value);
+        }
       },
-      terminate(self, reason) {
-        inputConsumer.terminate(reason);
-        terminate?.(self, reason);
-      },
-    });
+      { ...options },
+    );
   }
 }
 
-export function skip<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$skip",
->(count: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Skip<INPUT, VALUE, NAME>> {
-  return (input) => new Skip(input, count, options);
+export function skip<INPUT extends AnyConsumable>(count: number) {
+  return ($input: INPUT) => new Skip($input, count);
 }

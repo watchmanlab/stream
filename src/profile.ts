@@ -3,6 +3,7 @@ import { Stream } from "./core/stream";
 import { filter } from "./transformers/filter";
 import { flat } from "./transformers/flat";
 import { map } from "./transformers/map";
+import { share } from "./transformers/share";
 
 function getHeapSize(): number {
   if (globalThis.gc) {
@@ -12,8 +13,8 @@ function getHeapSize(): number {
 }
 
 function runMemoryProfile() {
-  const BATCH_SIZE = 5_000;
-  const STAGES = 200;
+  const BATCH_SIZE = 5000;
+  const STAGES = 100;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   const baseline = getHeapSize();

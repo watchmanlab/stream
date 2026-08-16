@@ -1,4 +1,4 @@
-import { map, Subject, Observable, mergeMap, filter } from "rxjs";
+import { map, Subject, Observable, mergeMap, filter, share } from "rxjs";
 
 function getHeapSize(): number {
   if (globalThis.gc) {
@@ -8,8 +8,8 @@ function getHeapSize(): number {
 }
 
 function runMemoryProfile() {
-  const BATCH_SIZE = 5_000;
-  const STAGES = 200;
+  const BATCH_SIZE = 5000;
+  const STAGES = 100;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   const baseline = getHeapSize();

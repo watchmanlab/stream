@@ -24,6 +24,7 @@ import { share } from "./transformers/share.ts";
 import { Signal } from "./streams/signal.ts";
 import { batch } from "./transformers/batch.ts";
 import { flat } from "./transformers/flat.ts";
+import { skip } from "./transformers/skip.ts";
 
 function consumerBench() {
   const MAX = 350_000_000;
@@ -128,7 +129,7 @@ function streamBench() {
   let chain: Source<number> = stream;
 
   for (let i = 0; i < STAGES; i++) {
-    chain = chain.pipe(map((v) => v));
+    chain = chain.pipe(filter((v) => v <= MAX));
   }
 
   const start = performance.now();
@@ -461,4 +462,28 @@ function flatTest() {
     .next();
 }
 
-flatTest();
+// flatTest();
+
+function filterTest() {
+  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    .pipe(filter((v) => v % 2 === 0))
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+}
+
+// filterTest();
+
+function skipTest() {
+  fromIterable([1, 2, 3, 4, 5, 6])
+    .pipe(skip(3))
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+}
+
+skipTest();
