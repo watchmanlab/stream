@@ -15,13 +15,13 @@ function runMemoryProfile() {
   const baseline = getHeapSize();
 
   for (let i = 0; i < BATCH_SIZE; i++) {
-    let stream: Observable<any> = new Subject<any>();
+    let subject: Observable<any> = new Subject<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(filter((v) => Boolean(v)));
+      subject = subject.pipe(map((v) => v));
     }
 
-    pipelines[i] = stream.subscribe((v) => console.log(v));
+    pipelines[i] = subject.subscribe((v) => console.log(v));
   }
 
   const finalHeap = getHeapSize();

@@ -4,17 +4,16 @@ import { DefaultQueue } from "./default-queue";
 
 export class Consumer<VALUE> implements Terminable, Disposable {
   private _handler: Consumer.Handler<VALUE>;
+  private _options?: Consumer.Options<VALUE>;
   private _status: Consumer.Status;
   private _queue?: Queue<VALUE>;
   private _credit: number;
 
   private _initCleanup?: Consumer.InitCleanup;
 
-  private _options?: Consumer.Options<VALUE>;
-
   constructor(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>) {
-    this._options = { ...options };
     this._handler = handler;
+    this._options = { ...options, next: options?.passive ? undefined : options?.next };
     this._status = "active";
     this._credit = 0;
 
@@ -105,6 +104,7 @@ export namespace Consumer {
   export type Handler<VALUE> = (consumer: Consumer<VALUE>, value: VALUE) => void;
   export type InitCleanup = (reason: TerminateReason) => void;
   export type Options<VALUE> = {
+    passive?: boolean;
     queueFactory?: () => Queue<VALUE>;
     init?: (consumer: Consumer<VALUE>) => undefined | InitCleanup;
     push?: (consumer: Consumer<VALUE>, value: VALUE) => void;

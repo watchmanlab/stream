@@ -29,6 +29,7 @@ import { resolve } from "./transformers/resolve.ts";
 import { delay } from "./transformers/delay.ts";
 import { tapBatch } from "./transformers/tap-batch.ts";
 import { passive } from "./transformers/passive.ts";
+import { merge } from "./transformers/merge.ts";
 function timeout<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
     setTimeout(() => (value instanceof Error ? rej(value) : res(value)), ms ?? Math.random() * 500),
@@ -532,11 +533,12 @@ function tapBatchTest() {
 function passiveTest() {
   const $stream = new Stream<number>();
 
-  // $stream.consume((c, v) => {
-  //   console.log(v);
-  //   c.next();
-  // });
-  // .next();
+  $stream
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
 
   // fromIterable([1, 2, 3])
   $stream
@@ -552,4 +554,19 @@ function passiveTest() {
   $stream.push(3);
 }
 
-passiveTest();
+// passiveTest();
+
+function mergeTest() {
+  const s1 = fromIterable([1, 2, 3]);
+  const s2 = fromIterable(["a", "b", "c"]);
+  const s3 = fromIterable(["foo", "bar", "baz"]);
+
+  s1.pipe(merge(s2, s3))
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+}
+
+mergeTest();
