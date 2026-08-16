@@ -25,7 +25,15 @@ import { Signal } from "./streams/signal.ts";
 import { batch } from "./transformers/batch.ts";
 import { flat } from "./transformers/flat.ts";
 import { skip } from "./transformers/skip.ts";
-
+import { resolve } from "./transformers/resolve.ts";
+import { delay } from "./transformers/delay.ts";
+import { tapBatch } from "./transformers/tap-batch.ts";
+import { passive } from "./transformers/passive.ts";
+function timeout<T>(value: T, ms?: number) {
+  return new Promise<T>((res, rej) =>
+    setTimeout(() => (value instanceof Error ? rej(value) : res(value)), ms ?? Math.random() * 500),
+  );
+}
 function consumerBench() {
   const MAX = 350_000_000;
 
@@ -486,4 +494,62 @@ function skipTest() {
     .next();
 }
 
-skipTest();
+// skipTest();
+function resolveTest() {
+  fromIterable([timeout(1), timeout(2), timeout(3)])
+    .pipe(resolve())
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+}
+
+// resolveTest();
+function delayTest() {
+  fromIterable([1, 2, 3])
+    .pipe(delay(500))
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+}
+
+// delayTest();
+function tapBatchTest() {
+  fromIterable([[1, 2], [3]])
+    .pipe(tapBatch((v) => console.log(v)))
+    .consume((c, v) => {
+      // console.log(v);
+      c.next();
+    })
+    .next();
+}
+
+// tapBatchTest();
+
+function passiveTest() {
+  const $stream = new Stream<number>();
+
+  // $stream.consume((c, v) => {
+  //   console.log(v);
+  //   c.next();
+  // });
+  // .next();
+
+  // fromIterable([1, 2, 3])
+  $stream
+    .pipe(passive())
+    .consume((c, v) => {
+      console.log("passive", v);
+      c.next();
+    })
+    .next();
+
+  $stream.push(1);
+  $stream.push(2);
+  $stream.push(3);
+}
+
+passiveTest();

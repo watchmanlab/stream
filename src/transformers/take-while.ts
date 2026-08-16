@@ -1,49 +1,31 @@
-import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
-export class TakeWhile<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$takeWhile",
-> extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, predicate: TakeWhile.Predicate<VALUE>, options?: Stream.Options<VALUE, NAME>) {
-    const { name, next, terminate, ...rest } = options ?? {};
+export class TakeWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+  extends Source<VALUE>
+  implements Transformer<INPUT, VALUE>
+{
+  constructor(
+    readonly $input: INPUT,
+    private predicate: (value: VALUE) => boolean,
+  ) {
+    super();
+  }
 
-    const inputConsumer = input.consume((_, value) => {
-      if (predicate(value)) {
-        this.push(value);
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume((consumer, value) => {
+      if (this.predicate(value)) {
+        handler(consumer, value);
       } else {
-        this.terminate("complete");
+        consumer.terminate("complete");
       }
-    });
-
-    super(input, {
-      ...rest,
-      name: name ?? ("$takeWhile" as NAME),
-      next(self, consumer) {
-        inputConsumer.next();
-        next?.(self, consumer);
-      },
-      terminate(self, reason) {
-        inputConsumer.terminate(reason);
-        terminate?.(self, reason);
-      },
-    });
+    }, options);
   }
 }
 
-export function takeWhile<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$takeWhile",
->(
-  predicate: TakeWhile.Predicate<VALUE>,
-  options?: Stream.Options<VALUE, NAME>,
-): Transform<INPUT, TakeWhile<INPUT, VALUE, NAME>> {
-  return (input) => new TakeWhile(input, predicate, options);
-}
-
-export namespace TakeWhile {
-  export type Predicate<VALUE> = (value: VALUE) => boolean;
+export function takeWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
+  predicate: (value: VALUE) => boolean,
+) {
+  return ($input: INPUT) => new TakeWhile($input, predicate);
 }

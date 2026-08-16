@@ -2,20 +2,20 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
-export class Skip<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class SkipWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
   constructor(
     readonly $input: INPUT,
-    private count: number,
+    private predicate: (value: VALUE) => boolean,
   ) {
     super();
   }
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
     return this.$input.consume(
       (consumer, value) => {
-        if (this.count--) {
+        if (this.predicate(value)) {
           consumer.next();
         } else {
           consumer["_handler"] = handler;
@@ -27,6 +27,8 @@ export class Skip<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT>
   }
 }
 
-export function skip<INPUT extends AnyConsumable>(count: number) {
-  return ($input: INPUT) => new Skip($input, count);
+export function skipWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
+  predicate: (value: VALUE) => boolean,
+) {
+  return ($input: INPUT) => new SkipWhile($input, predicate);
 }

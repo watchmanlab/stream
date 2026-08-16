@@ -1,38 +1,23 @@
-import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+import { AnyConsumable, AnyStream, ExtractValue, Transformer } from "../core/types";
 
-export class Tick<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$tick",
-> extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, options?: Stream.Options<VALUE, NAME>) {
-    const { name, next, terminate, ...rest } = { ...options };
-
-    let inputConsumer = input.consume((_, value) => this.push(value));
-
-    super(input, {
-      ...rest,
-      name: name ?? ("$tick" as NAME),
-      next(self, consumer) {
-        setTimeout(() => {
-          inputConsumer.next();
-          next?.(self, consumer);
-        });
-      },
-      terminate(self, reason) {
-        inputConsumer.terminate(reason);
-        terminate?.(self, reason);
-      },
-    });
+export class Tick<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+  extends Source<VALUE>
+  implements Transformer<INPUT, VALUE>
+{
+  constructor(readonly $input: INPUT) {
+    super();
+  }
+  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
+    return this.$input.consume((consumer, value) => {
+      queueMicrotask(() => {
+        handler(consumer, value);
+      });
+    }, options);
   }
 }
 
-export function tick<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$tick",
->(options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Tick<INPUT, VALUE, NAME>> {
-  return (input) => new Tick(input, options);
+export function tick<INPUT extends AnyConsumable>() {
+  return ($input: INPUT) => new Tick($input);
 }
