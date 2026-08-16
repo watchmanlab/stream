@@ -12,18 +12,15 @@ export class Skip<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT>
   ) {
     super();
   }
-  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    return this.$input.consume(
-      (consumer, value) => {
-        if (this.count--) {
-          consumer.next();
-        } else {
-          consumer["_handler"] = handler;
-          handler(consumer, value);
-        }
-      },
-      { ...options },
-    );
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume((consumer, value) => {
+      if (this.count--) {
+        consumer.next();
+      } else {
+        consumer["_handler"] = handler;
+        handler(consumer, value);
+      }
+    }, options);
   }
 }
 

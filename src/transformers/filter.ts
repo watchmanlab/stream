@@ -25,18 +25,15 @@ export class Filter<
       lastConsumerLeft: () => (this._$others = undefined),
     })).asSource();
   }
-  override consume(handler: Consumer.Handler<FILTERED>, options?: Consumer.Options<FILTERED>): Consumer<FILTERED> {
-    return this.$input.consume(
-      (consumer, value) => {
-        if (this.predicate(value)) {
-          handler(consumer, value);
-        } else {
-          this._$others?.push(value);
-          consumer.next();
-        }
-      },
-      { ...options },
-    );
+  consume(handler: Consumer.Handler<FILTERED>, options?: Consumer.Options<FILTERED>): Consumer<FILTERED> {
+    return this.$input.consume((consumer, value) => {
+      if (this.predicate(value)) {
+        handler(consumer, value);
+      } else {
+        this._$others?.push(value);
+        consumer.next();
+      }
+    }, options);
   }
 }
 

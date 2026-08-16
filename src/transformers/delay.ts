@@ -16,7 +16,7 @@ export class Delay<
   ) {
     super();
   }
-  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     return this.$input.consume((consumer, value) => {
       setTimeout(() => {
         handler(consumer, value);

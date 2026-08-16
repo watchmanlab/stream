@@ -561,7 +561,8 @@ function mergeTest() {
   const s2 = fromIterable(["a", "b", "c"]);
   const s3 = fromIterable(["foo", "bar", "baz"]);
 
-  s1.pipe(merge(s2, s3))
+  s1.pipe(merge(s2))
+    .pipe(merge(s3))
     .consume((c, v) => {
       console.log(v);
       c.next();
@@ -569,4 +570,4 @@ function mergeTest() {
     .next();
 }
 
-mergeTest();
+// mergeTest();
