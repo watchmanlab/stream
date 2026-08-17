@@ -3,19 +3,13 @@ import { Consumer } from "./consumer";
 import { EMPTY_THIS_FUNCTION } from "./consts";
 import { DefaultConsumerSet } from "./default-consumer-set";
 import { Source } from "./source";
-import { SourceProxy } from "./source-proxy";
 
 export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposable, AsyncIterable<VALUE> {
   private _options: Stream.Options<VALUE>;
   private _events: Stream.Events<VALUE>;
   private _consumerSet: ConsumerSet<VALUE>;
   private _status: Stream.Status;
-  private _pulling: boolean;
-
-  private _sourceProxy?: Source<VALUE>;
   private _initCleanup?: (reason: TerminateReason) => void;
-  private _sourceConsumer?: Consumer<VALUE>;
-  private _signalConsumer?: Consumer<TerminateReason>;
 
   constructor(options?: Stream.Options<VALUE>) {
     super();
@@ -24,9 +18,6 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
 
     this._consumerSet = this._options.consumerSetFactory?.() ?? new DefaultConsumerSet();
     this._status = "active";
-    this._pulling = false;
-
-    this._signalConsumer = this._options.$signal?.consume((_, reason) => this.terminate(reason)).next();
 
     if (this.status === "active") this._initCleanup = this._options?.init?.(this);
   }
@@ -40,71 +31,83 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
     return this._status;
   }
   get $push(): Source<VALUE> {
-    return (this._events.$push ??= new Stream<VALUE>({
-      lastConsumerLeft: () => (this._events.$push = undefined),
-    })).asSource();
+    return Source.from(
+      (this._events.$push ??= new Stream<VALUE>({
+        lastConsumerLeft: () => (this._events.$push = undefined),
+      })),
+    );
   }
   get $next(): Source<Consumer<VALUE>> {
-    return (this._events.$next ??= new Stream<Consumer<VALUE>>({
-      lastConsumerLeft: () => (this._events.$next = undefined),
-    })).asSource();
+    return Source.from(
+      (this._events.$next ??= new Stream<Consumer<VALUE>>({
+        lastConsumerLeft: () => (this._events.$next = undefined),
+      })),
+    );
   }
   get $consumerJoin(): Source<Consumer<VALUE>> {
-    return (this._events.$consumerJoin ??= new Stream<Consumer<VALUE>>({
-      lastConsumerLeft: () => (this._events.$consumerJoin = undefined),
-    })).asSource();
+    return Source.from(
+      (this._events.$consumerJoin ??= new Stream<Consumer<VALUE>>({
+        lastConsumerLeft: () => (this._events.$consumerJoin = undefined),
+      })),
+    );
   }
   get $consumerLeft(): Source<Consumer<VALUE>> {
-    return (this._events.$consumerLeft ??= new Stream<Consumer<VALUE>>({
-      lastConsumerLeft: () => (this._events.$consumerLeft = undefined),
-    })).asSource();
+    return Source.from(
+      (this._events.$consumerLeft ??= new Stream<Consumer<VALUE>>({
+        lastConsumerLeft: () => (this._events.$consumerLeft = undefined),
+      })),
+    );
   }
   get $firstConsumerJoin(): Source<Consumer<VALUE>> {
-    return (this._events.$firstConsumerJoin ??= new Stream<Consumer<VALUE>>({
-      lastConsumerLeft: () => (this._events.$firstConsumerJoin = undefined),
-    })).asSource();
+    return Source.from(
+      (this._events.$firstConsumerJoin ??= new Stream<Consumer<VALUE>>({
+        lastConsumerLeft: () => (this._events.$firstConsumerJoin = undefined),
+      })),
+    );
   }
   get $lastConsumerLeft(): Source<Consumer<VALUE>> {
-    return (this._events.$lastConsumerLeft ??= new Stream<Consumer<VALUE>>({
-      lastConsumerLeft: () => (this._events.$lastConsumerLeft = undefined),
-    })).asSource();
+    return Source.from(
+      (this._events.$lastConsumerLeft ??= new Stream<Consumer<VALUE>>({
+        lastConsumerLeft: () => (this._events.$lastConsumerLeft = undefined),
+      })),
+    );
   }
   get $drain(): Source<void> {
-    return (this._events.$drain ??= new Stream<void>({
-      lastConsumerLeft: () => (this._events.$drain = undefined),
-    })).asSource();
+    return Source.from(
+      (this._events.$drain ??= new Stream<void>({
+        lastConsumerLeft: () => (this._events.$drain = undefined),
+      })),
+    );
   }
   get $terminate(): Source<TerminateReason> {
-    return (this._events.$terminate ??= new Stream<TerminateReason>({
-      lastConsumerLeft: () => (this._events.$terminate = undefined),
-      consumerJoin: (stream, consumer) => {
-        if (this._status === "abort" || this._status === "complete") {
-          consumer.push(this._status);
-          consumer.terminate(this._status);
-          stream.terminate(this._status);
-        }
-      },
-    })).asSource();
+    return Source.from(
+      (this._events.$terminate ??= new Stream<TerminateReason>({
+        lastConsumerLeft: () => (this._events.$terminate = undefined),
+        consumerJoin: (stream, consumer) => {
+          if (this._status === "abort" || this._status === "complete") {
+            consumer.push(this._status);
+            consumer.terminate(this._status);
+            stream.terminate(this._status);
+          }
+        },
+      })),
+    );
   }
   push(value: VALUE): this {
-    this._pulling = false;
-    this._consumerSet.push(value);
     this._options.push?.(this, value);
     this._events.$push?.push(value);
+    this._consumerSet.push(value);
     return this;
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { queueFactory, next, terminate, ...rest } = options ?? {};
+
     const consumer = new Consumer(handler, {
       ...rest,
       queueFactory: queueFactory ?? this._options?.consumerQueueFactory,
       next: (consumer) => {
-        if (this._pulling === false) {
-          this._pulling = true;
-          this._sourceConsumer?.next();
-          this._options.next?.(this, consumer);
-          this._events.$next?.push(consumer);
-        }
+        this._options.next?.(this, consumer);
+        this._events.$next?.push(consumer);
         next?.(consumer);
       },
 
@@ -150,8 +153,6 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
 
     this._consumerSet.terminate(reason);
     this._initCleanup?.(reason);
-    this._sourceConsumer?.terminate(reason);
-    this._signalConsumer?.terminate(reason);
 
     this._options.terminate?.(this, reason);
     this._events.$terminate?.push(reason);
@@ -159,11 +160,8 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
     Object.values(this._events).forEach((stream) => stream.terminate(reason));
 
     this._options = this._events = {};
-    this._sourceConsumer = this._signalConsumer = undefined;
+
     return this;
-  }
-  asSource(): Source<VALUE> {
-    return (this._sourceProxy ??= new SourceProxy(this));
   }
   private _addConsumer(consumer: Consumer<VALUE>): ConsumerSet.Delete {
     const deleteConsumer = this._consumerSet.add(consumer);
@@ -171,17 +169,41 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
     if (this._consumerSet.size === 1) {
       this._options.firstConsumerJoin?.(this, consumer);
       this._events.$firstConsumerJoin?.push(consumer);
-      if (this._options.$source)
-        this._sourceConsumer = this._options.$source.consume((_, value) => this.push(value), {
-          terminate: (_, reason) => {
-            this.terminate(reason);
-          },
-        });
     }
 
     this._options.consumerJoin?.(this, consumer);
     this._events.$consumerJoin?.push(consumer);
     return deleteConsumer;
+  }
+  static override from<VALUE>(consumable: Consumable<VALUE>, options?: Stream.Options<VALUE>): Stream<VALUE> {
+    const { firstConsumerJoin, push, next, terminate, ...rest } = options ?? {};
+
+    let pulling = false;
+    let consumableConsumer: Consumer<VALUE>;
+
+    return new Stream({
+      ...rest,
+      firstConsumerJoin(stream, consumer) {
+        consumableConsumer = consumable.consume((_, value) => stream.push(value), {
+          terminate: (_, reason) => stream.terminate(reason),
+        });
+        firstConsumerJoin?.(stream, consumer);
+      },
+      push(stream, value) {
+        pulling = false;
+        push?.(stream, value);
+      },
+      next(stream, consumer) {
+        if (!pulling) {
+          pulling = true;
+          consumableConsumer.next();
+        }
+        next?.(stream, consumer);
+      },
+      terminate(stream, reason) {
+        terminate?.(stream, reason);
+      },
+    });
   }
 }
 
@@ -189,8 +211,6 @@ export namespace Stream {
   export type Status = "active" | "drain" | TerminateReason;
 
   export type Options<VALUE> = {
-    $source?: Consumable<VALUE>;
-    $signal?: Consumable<TerminateReason>;
     consumerSetFactory?: () => ConsumerSet<VALUE>;
     consumerQueueFactory?: () => Queue<VALUE>;
     init?: (stream: Stream<VALUE>) => undefined | ((reason: TerminateReason) => void);
