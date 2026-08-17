@@ -32,8 +32,7 @@ import { passive } from "./transformers/passive.ts";
 import { merge } from "./transformers/merge.ts";
 import { tick } from "./transformers/tick.ts";
 import { flat$ } from "./transformers/flat$.ts";
-import { debounce } from "./transformers/debounce.ts";
-import { throttle } from "./transformers/throttle.ts";
+
 function timeout<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
     setTimeout(() => (value instanceof Error ? rej(value) : res(value)), ms ?? Math.random() * 500),
@@ -603,24 +602,3 @@ function flat$Test() {
 }
 
 // flat$Test();
-
-function debounceTest() {
-  fromIterable([1, 2, 3])
-    .pipe(delay(100))
-    .pipe(debounce(500))
-    .pipe(tap((v) => console.log("debounce", v)))
-    .pipe(pump());
-}
-
-debounceTest();
-
-function throttleTest() {
-  fromIterable([1, 2, 3])
-    .pipe(delay(300))
-    .pipe(throttle(100))
-    .pipe(tap((v) => console.log("throttle", v)))
-    .consume((c) => c.next())
-    .next();
-}
-
-// throttleTest();
