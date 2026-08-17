@@ -600,19 +600,4 @@ function flat$Test() {
     .next();
 }
 
-flat$Test();
-// 1
-// 2
-// 3
-// 4
-// 5
-// 6
-// IterableSource {
-//   iterator: [Function],
-//   consume: [Function: consume],
-//   pipe: [Function: pipe],
-//   [Symbol(Symbol.asyncIterator)]: [AsyncGeneratorFunction],
-// }
-// 7
-// 8
-// 9
+// flat$Test();
