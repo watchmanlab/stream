@@ -41,11 +41,9 @@ function runMemoryProfile() {
 // bun --expose-gc run profile.ts
 runMemoryProfile();
 
-// Initializing baseline memory profile...
-
-// =================== BENCHMARK RESULTS ===================
-// Total Batch Size:      5,000 pipelines
-// Total Heap Increase:   108.59 MB
-// Average Per Pipeline:  22,774 bytes
-// Average Per Stage:     228 bytes
-// =========================================================
+// === RXJS BENCHMARK RESULTS ===
+// Total Batch Size:      5,000 pipelines of 100 stages
+// Total Heap Increase:   106.06 MB
+// Average Per Pipeline:  22,242 bytes
+// Average Per Stage:     222 bytes
+// ===============================

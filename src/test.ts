@@ -107,8 +107,8 @@ function rxjsBench() {
 
   let chain: Observable<number> = subject;
 
-  for (let i = 1; i < STAGES; i++) {
-    chain = chain.pipe(rxmap((v) => v));
+  for (let i = 0; i < STAGES; i++) {
+    chain = chain.pipe(rxmap((v) => (v * v) / v));
   }
 
   const start = performance.now();
@@ -129,7 +129,7 @@ function rxjsBench() {
   }
 }
 
-// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2287 ms
+rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 100;
@@ -139,7 +139,7 @@ function streamBench() {
   let chain: Source<number> = stream;
 
   for (let i = 0; i < STAGES; i++) {
-    chain = chain.pipe(filter((v) => v <= MAX));
+    chain = chain.pipe(map((v) => (v * v) / v));
   }
 
   const start = performance.now();
@@ -163,7 +163,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 1 000 000 push -> 100 stages in 533 ms
+streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -582,4 +582,4 @@ function streamFromTest() {
     .next();
 }
 
-streamFromTest();
+// streamFromTest();
