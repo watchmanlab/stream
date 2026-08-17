@@ -5,7 +5,7 @@ import { Source } from "../core/source";
 
 import { AnyStream, ExtractValue, FixedArray, NonEmptyString, Transformer } from "../core/types";
 
-export class BufferCount<
+export class Buffer<
   INPUT extends AnyStream,
   SIZE extends number,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
@@ -67,10 +67,10 @@ export class BufferCount<
   }
 }
 
-export function bufferCount<
+export function buffer<
   INPUT extends AnyStream,
   SIZE extends number,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 >(size: SIZE, startBufferEvery = size) {
-  return ($input) => new BufferCount($input, size, startBufferEvery);
+  return ($input) => new Buffer($input, size, startBufferEvery);
 }
