@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-export class FromEventTarget<EVENT_TYPE extends keyof HTMLElementEventMap | (string & {})> extends Source<
+export class EventTargetSource<EVENT_TYPE extends keyof HTMLElementEventMap | (string & {})> extends Source<
   EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event
 > {
   constructor(
@@ -35,6 +35,6 @@ export class FromEventTarget<EVENT_TYPE extends keyof HTMLElementEventMap | (str
 export function fromEventTarget<EVENT_TYPE extends keyof HTMLElementEventMap | (string & {})>(
   target: EventTarget,
   eventType: EVENT_TYPE,
-): FromEventTarget<EVENT_TYPE> {
-  return new FromEventTarget(target, eventType);
+): EventTargetSource<EVENT_TYPE> {
+  return new EventTargetSource(target, eventType);
 }

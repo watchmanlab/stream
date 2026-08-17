@@ -1,8 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { Stream } from "../core/stream";
-
-import { ExtractValue, Transformer, AnyConsumable, Consumable } from "../core/types";
+import { ExtractValue, Transformer, AnyConsumable } from "../core/types";
 
 export class Filter<
   INPUT extends AnyConsumable,
@@ -15,28 +14,29 @@ export class Filter<
   constructor(
     readonly $input: INPUT,
     private predicate: Filter.Predicate<VALUE, FILTERED>,
+    private complement?: (value: VALUE) => void,
   ) {
     super();
   }
   private _$others?: Stream<VALUE>;
 
   get $others(): Source<VALUE> {
-    return (this._$others ??= new Stream({
-      lastConsumerLeft: () => (this._$others = undefined),
-    })).asSource();
-  }
-  override consume(handler: Consumer.Handler<FILTERED>, options?: Consumer.Options<FILTERED>): Consumer<FILTERED> {
-    return this.$input.consume(
-      (consumer, value) => {
-        if (this.predicate(value)) {
-          handler(consumer, value);
-        } else {
-          this._$others?.push(value);
-          consumer.next();
-        }
-      },
-      { ...options },
+    return Source.from(
+      (this._$others ??= new Stream({
+        lastConsumerLeft: () => (this._$others = undefined),
+      })),
     );
+  }
+  consume(handler: Consumer.Handler<FILTERED>, options?: Consumer.Options<FILTERED>): Consumer<FILTERED> {
+    return this.$input.consume((consumer, value) => {
+      if (this.predicate(value)) {
+        handler(consumer, value);
+      } else {
+        this._$others?.push(value);
+        this.complement?.(value);
+        consumer.next();
+      }
+    }, options);
   }
 }
 
@@ -44,8 +44,8 @@ export function filter<
   INPUT extends AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
->(predicate: Filter.Predicate<VALUE, FILTERED>) {
-  return ($input: INPUT) => new Filter($input, predicate);
+>(predicate: Filter.Predicate<VALUE, FILTERED>, complement?: (value: VALUE) => void) {
+  return ($input: INPUT) => new Filter($input, predicate, complement);
 }
 
 export namespace Filter {

@@ -62,8 +62,10 @@ export class DefaultConsumerSet<VALUE> implements ConsumerSet<VALUE> {
       const snapshot = Array.from(this._consumers);
       for (let i = 0; i < snapshot.length; i++) {
         const consumer = snapshot[i];
-        if (this._consumers.has(consumer)) {
+        if (this._consumers.has?.(consumer)) {
           consumer.terminate(reason);
+        } else {
+          this.terminate(reason);
         }
       }
     } else {

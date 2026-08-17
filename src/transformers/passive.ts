@@ -9,27 +9,8 @@ export class Passive<INPUT extends AnyConsumable, VALUE extends ExtractValue<INP
   constructor(readonly $input: INPUT) {
     super();
   }
-  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    const { terminate, ...rest } = options ?? {};
-
-    const outputConsumer = new Consumer(handler, {
-      ...rest,
-      terminate(consumer, reason) {
-        inputConsumer.terminate(reason);
-        terminate?.(consumer, reason);
-      },
-    });
-
-    const inputConsumer = this.$input.consume((_, value) => outputConsumer.push(value), {
-      push(_, value) {
-        outputConsumer.push(value);
-      },
-      terminate(_, reason) {
-        outputConsumer.terminate(reason);
-      },
-    });
-
-    return outputConsumer;
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume(handler, { ...options, passive: true });
   }
 }
 

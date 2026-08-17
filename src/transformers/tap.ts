@@ -14,11 +14,11 @@ export class Tap<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> 
   ) {
     super();
   }
-  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    return this.$input.consume((consumer, value) => {
-      this.callback(value, this.$input);
-      handler(consumer, value);
-    }, options);
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume(
+      (consumer, value) => (this.callback(value, this.$input), handler(consumer, value)),
+      options,
+    );
   }
 }
 export function tap<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(

@@ -1,5 +1,6 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
+import { Stream } from "../core/stream";
 
 import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
@@ -13,7 +14,7 @@ export class Map<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> 
   ) {
     super();
   }
-  consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
+  override consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
     return this.$input.consume((consumer, value) => handler(consumer, this.mapper(value)), options);
   }
 }

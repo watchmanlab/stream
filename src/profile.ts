@@ -27,7 +27,7 @@ function runMemoryProfile() {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(passive());
+      stream = stream.pipe(map((v) => v));
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }
@@ -50,8 +50,8 @@ function runMemoryProfile() {
 runMemoryProfile();
 
 // === STREAM BENCHMARK RESULTS ===
-// Total Batch Size:      5,000 pipelines of 200 stages
-// Total Heap Increase:   317.53 MB
-// Average Per Pipeline:  66,591 bytes
-// Average Per Stage:     333 bytes
+// Total Batch Size:      5,000 pipelines of 100 stages
+// Total Heap Increase:   32.93 MB
+// Average Per Pipeline:  6,907 bytes
+// Average Per Stage:     69 bytes
 // ===============================

@@ -1,41 +1,20 @@
 import { Consumer } from "../core/consumer";
-import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import type { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Source } from "../core/source";
+import type { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
-export class CatchError<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "catchError",
-> extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, handler: Consumer.Handler<any, never, any>, options?: CatchError.Options<VALUE, NAME>) {
-    let upstream = input;
-    const consumers: Consumer.AnyConsumer[] = [];
-    do {
-      //
-    } while ((upstream as any)["$"]);
-
-    super(input, {
-      ...options,
-      name: options?.name ?? ("catchError" as NAME),
-      source: {
-        consume: (handler, options) => input.consume(handler, options),
-      },
-    });
+export class CatchError<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+  extends Source<VALUE>
+  implements Transformer<INPUT, VALUE>
+{
+  constructor(
+    readonly $input: INPUT,
+    private handler: (error: any) => void,
+  ) {
+    super();
   }
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {}
 }
 
-export function catchError<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "catchError",
->(
-  handler: Consumer.Handler<any, never, any>,
-  options?: CatchError.Options<VALUE, NAME>,
-): Transform<INPUT, NAME, CatchError<INPUT, VALUE, NAME>> {
-  return (input, name) => new CatchError(input, handler, { ...options, name: name ?? options?.name });
-}
-
-export namespace CatchError {
-  export type Options<VALUE, NAME extends NonEmptyString> = Omit<Transformer.Options<VALUE, NAME>, "source">;
+export function catchError<INPUT extends AnyConsumable>(handler: (error: any) => void) {
+  return ($input: INPUT) => new CatchError($input, handler);
 }

@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-export class FromInterval<MS extends number> extends Source<void> {
+export class IntervalSource<MS extends number> extends Source<void> {
   constructor(private ms: MS) {
     super();
   }
@@ -23,6 +23,6 @@ export class FromInterval<MS extends number> extends Source<void> {
   }
 }
 
-export function fromInterval<MS extends number>(ms: MS): FromInterval<MS> {
-  return new FromInterval(ms);
+export function fromInterval<MS extends number>(ms: MS): IntervalSource<MS> {
+  return new IntervalSource(ms);
 }

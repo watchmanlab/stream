@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-export class FromIterator<VALUE> extends Source<VALUE> {
+export class IteratorSource<VALUE> extends Source<VALUE> {
   constructor(private iterator: Iterator<VALUE> | (() => Iterator<VALUE>)) {
     super();
   }
@@ -30,6 +30,6 @@ export class FromIterator<VALUE> extends Source<VALUE> {
   }
 }
 
-export function fromIterator<VALUE>(iterator: Iterator<VALUE> | (() => Iterator<VALUE>)): FromIterator<VALUE> {
-  return new FromIterator(iterator);
+export function fromIterator<VALUE>(iterator: Iterator<VALUE> | (() => Iterator<VALUE>)): IteratorSource<VALUE> {
+  return new IteratorSource(iterator);
 }

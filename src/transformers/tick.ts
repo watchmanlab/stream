@@ -9,12 +9,8 @@ export class Tick<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT>
   constructor(readonly $input: INPUT) {
     super();
   }
-  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    return this.$input.consume((consumer, value) => {
-      queueMicrotask(() => {
-        handler(consumer, value);
-      });
-    }, options);
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume((consumer, value) => queueMicrotask(() => handler(consumer, value)), options);
   }
 }
 

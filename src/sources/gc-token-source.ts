@@ -1,8 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Consumable } from "../core/types";
 
-export class FromGCToken extends Source<void> {
+export class GCTokenSource extends Source<void> {
   private ref: WeakRef<object>;
   private registry?: FinalizationRegistry<unknown>;
   constructor(token: object) {
@@ -38,6 +37,6 @@ export class FromGCToken extends Source<void> {
   }
 }
 
-export function fromGCToken(token: object): FromGCToken {
-  return new FromGCToken(token);
+export function fromGCToken(token: object): GCTokenSource {
+  return new GCTokenSource(token);
 }
