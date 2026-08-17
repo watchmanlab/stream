@@ -24,6 +24,7 @@ export class HotDelay<
     return this.$input.consume(
       (consumer, value) => {
         //
+        //
       },
       {
         ...rest,
