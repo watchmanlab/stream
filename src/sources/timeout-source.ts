@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-export class FromTimeout<MS extends number> extends Source<void> {
+export class TimeoutSource<MS extends number> extends Source<void> {
   constructor(private ms: MS) {
     super();
   }
@@ -29,6 +29,6 @@ export class FromTimeout<MS extends number> extends Source<void> {
   }
 }
 
-export function fromTimeout<MS extends number>(ms: MS): FromTimeout<MS> {
-  return new FromTimeout(ms);
+export function fromTimeout<MS extends number>(ms: MS): TimeoutSource<MS> {
+  return new TimeoutSource(ms);
 }

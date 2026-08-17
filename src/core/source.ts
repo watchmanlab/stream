@@ -34,7 +34,7 @@ class SourceProxy<VALUE> extends Source<VALUE> {
   constructor(private $consumable: Consumable<VALUE>) {
     super();
   }
-  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     return this.$consumable.consume(handler, options);
   }
 }

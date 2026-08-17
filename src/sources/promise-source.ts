@@ -1,8 +1,8 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Result, Consumable } from "../core/types";
+import { Result } from "../core/types";
 
-export class FromPromise<VALUE> extends Source<Result<VALUE>> {
+export class PromiseSource<VALUE> extends Source<Result<VALUE>> {
   constructor(private promise: Promise<VALUE>) {
     super();
   }
@@ -25,6 +25,6 @@ export class FromPromise<VALUE> extends Source<Result<VALUE>> {
   }
 }
 
-export function fromPromise<VALUE>(promise: Promise<VALUE>): FromPromise<VALUE> {
-  return new FromPromise(promise);
+export function fromPromise<VALUE>(promise: Promise<VALUE>): PromiseSource<VALUE> {
+  return new PromiseSource(promise);
 }

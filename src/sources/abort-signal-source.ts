@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-export class FromAbortSignal extends Source<void> {
+export class AbortSignalSource extends Source<void> {
   constructor(private signal: AbortSignal) {
     super();
   }
@@ -37,6 +37,6 @@ export class FromAbortSignal extends Source<void> {
   }
 }
 
-export function fromAbortSignal(signal: AbortSignal): FromAbortSignal {
-  return new FromAbortSignal(signal);
+export function fromAbortSignal(signal: AbortSignal): AbortSignalSource {
+  return new AbortSignalSource(signal);
 }

@@ -1,6 +1,6 @@
-import { FromAsyncIterator } from "../sources/from-async-iterator";
+import { AsyncIteratorSource } from "./async-iterator-source";
 
-export class FromAsyncIterable<VALUE> extends FromAsyncIterator<VALUE> {
+export class AsyncIterableSource<VALUE> extends AsyncIteratorSource<VALUE> {
   constructor(asyncIterable: AsyncIterable<VALUE> | (() => AsyncIterable<VALUE>)) {
     super(() =>
       typeof asyncIterable === "function"
@@ -12,6 +12,6 @@ export class FromAsyncIterable<VALUE> extends FromAsyncIterator<VALUE> {
 
 export function fromAsyncIterable<VALUE>(
   asyncIterable: AsyncIterable<VALUE> | (() => AsyncIterable<VALUE>),
-): FromAsyncIterable<VALUE> {
-  return new FromAsyncIterable(asyncIterable);
+): AsyncIterableSource<VALUE> {
+  return new AsyncIterableSource(asyncIterable);
 }

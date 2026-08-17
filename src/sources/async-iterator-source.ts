@@ -1,7 +1,7 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-export class FromAsyncIterator<VALUE> extends Source<VALUE> {
+export class AsyncIteratorSource<VALUE> extends Source<VALUE> {
   constructor(private asyncItrator: AsyncIterator<VALUE> | (() => AsyncIterator<VALUE>)) {
     super();
   }
@@ -32,6 +32,6 @@ export class FromAsyncIterator<VALUE> extends Source<VALUE> {
 
 export function fromAsyncIterator<VALUE>(
   asyncItrator: AsyncIterator<VALUE> | (() => AsyncIterator<VALUE>),
-): FromAsyncIterator<VALUE> {
-  return new FromAsyncIterator(asyncItrator);
+): AsyncIteratorSource<VALUE> {
+  return new AsyncIteratorSource(asyncItrator);
 }
