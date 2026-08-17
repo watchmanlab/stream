@@ -31,6 +31,7 @@ import { tapBatch } from "./transformers/tap-batch.ts";
 import { passive } from "./transformers/passive.ts";
 import { merge } from "./transformers/merge.ts";
 import { tick } from "./transformers/tick.ts";
+import { flat$ } from "./transformers/flat$.ts";
 function timeout<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
     setTimeout(() => (value instanceof Error ? rej(value) : res(value)), ms ?? Math.random() * 500),
@@ -129,7 +130,7 @@ function rxjsBench() {
   }
 }
 
-rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
+// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 100;
@@ -163,7 +164,7 @@ function streamBench() {
   }
 }
 
-streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
+// streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -583,3 +584,35 @@ function streamFromTest() {
 }
 
 // streamFromTest();
+
+function flat$Test() {
+  fromIterable([
+    fromIterable([1, 2, 3]),
+    fromIterable([4, 5, 6, fromIterable(["a", "b", "c"] as const)]),
+    fromIterable([7, 8, 9]),
+  ])
+    .pipe(flat$(2))
+    .consume((c, v) => {
+      //(parameter) v: number | "a" | "b" | "c"
+      console.log(v);
+      c.next();
+    })
+    .next();
+}
+
+flat$Test();
+// 1
+// 2
+// 3
+// 4
+// 5
+// 6
+// IterableSource {
+//   iterator: [Function],
+//   consume: [Function: consume],
+//   pipe: [Function: pipe],
+//   [Symbol(Symbol.asyncIterator)]: [AsyncGeneratorFunction],
+// }
+// 7
+// 8
+// 9
