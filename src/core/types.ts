@@ -37,7 +37,9 @@ export namespace ConsumerSet {
 export interface Consumable<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
-
+export function isConsumable<T>(object: unknown): object is Consumable<T> {
+  return typeof object === "object" && object !== null && "consume" in object && typeof object.consume === "function";
+}
 export interface Transformer<INPUT extends AnyConsumable, VALUE> extends Source<VALUE> {
   readonly $input: INPUT;
 }

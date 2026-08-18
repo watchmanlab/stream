@@ -1,9 +1,9 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, Consumable, ExtractValue, Transformer } from "../core/types";
+import { AnyConsumable, ExtractValue, isConsumable, Transformer } from "../core/types";
 
 export class Flat$<
-  INPUT extends Consumable<AnyConsumable>,
+  INPUT extends AnyConsumable,
   DEPTH extends number = 1,
   VALUE extends ExtractValue<INPUT, DEPTH> = ExtractValue<INPUT, DEPTH>,
 >
@@ -42,7 +42,7 @@ export class Flat$<
 
     const inputConsumer = this.$input.consume(
       (_, consumable) => {
-        if (typeof consumable === "object" && "consume" in consumable) {
+        if (isConsumable<VALUE>(consumable)) {
           valueConsumer = consumable.consume(
             (_, value) => {
               outputConsumer.push(value);

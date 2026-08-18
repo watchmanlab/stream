@@ -32,6 +32,7 @@ import { passive } from "./transformers/passive.ts";
 import { merge } from "./transformers/merge.ts";
 import { tick } from "./transformers/tick.ts";
 import { flat$ } from "./transformers/flat$.ts";
+
 function timeout<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
     setTimeout(() => (value instanceof Error ? rej(value) : res(value)), ms ?? Math.random() * 500),
@@ -527,12 +528,12 @@ function tapBatchTest() {
 function passiveTest() {
   const $stream = new Stream<number>();
 
-  $stream
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
+  // $stream
+  //   .consume((c, v) => {
+  //     console.log(v);
+  //     c.next();
+  //   })
+  //   .next();
 
   // fromIterable([1, 2, 3])
   $stream
@@ -548,7 +549,7 @@ function passiveTest() {
   $stream.push(3);
 }
 
-// passiveTest();
+passiveTest();
 
 function mergeTest() {
   const s1 = fromIterable([1, 2, 3]);
