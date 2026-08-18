@@ -32,8 +32,9 @@ import { passive } from "./transformers/passive.ts";
 import { merge } from "./transformers/merge.ts";
 import { tick } from "./transformers/tick.ts";
 import { flat$ } from "./transformers/flat$.ts";
+import { pace } from "./transformers/pace.ts";
 
-function timeout<T>(value: T, ms?: number) {
+function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
     setTimeout(() => (value instanceof Error ? rej(value) : res(value)), ms ?? Math.random() * 500),
   );
@@ -492,7 +493,7 @@ function skipTest() {
 
 // skipTest();
 function resolveTest() {
-  fromIterable([timeout(1), timeout(2), timeout(3)])
+  fromIterable([asyncValue(1), asyncValue(2), asyncValue(3)])
     .pipe(resolve())
     .consume((c, v) => {
       console.log(v);
@@ -549,7 +550,7 @@ function passiveTest() {
   $stream.push(3);
 }
 
-passiveTest();
+// passiveTest();
 
 function mergeTest() {
   const s1 = fromIterable([1, 2, 3]);
@@ -602,3 +603,24 @@ function flat$Test() {
 }
 
 // flat$Test();
+
+function paceTest() {
+  const $stream = new Stream<number>();
+
+  $stream
+    .pipe(pace(1000))
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+
+  {
+    (async () => {
+      $stream.push(await asyncValue(1, 100));
+      $stream.push(await asyncValue(2, 500));
+      $stream.push(await asyncValue(3, 1000));
+    })();
+  }
+}
+paceTest();
