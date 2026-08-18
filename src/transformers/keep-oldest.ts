@@ -3,7 +3,7 @@ import { DefaultSizedQueue } from "../core/default-sized-queue";
 import { Source } from "../core/source";
 import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
-export class DropOldest<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class KeepOldest<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -17,11 +17,11 @@ export class DropOldest<INPUT extends AnyConsumable, VALUE extends ExtractValue<
     const { queueFactory, ...rest } = options ?? {};
     return this.$input.consume(handler, {
       ...rest,
-      queueFactory: () => new DefaultSizedQueue(this.maxSize, { dropStrategy: "oldest" }),
+      queueFactory: () => new DefaultSizedQueue(this.maxSize, { dropStrategy: "newest" }),
     });
   }
 }
 
-export function dropOldest<INPUT extends AnyConsumable>(maxSize: number) {
-  return ($input: INPUT) => new DropOldest($input, maxSize);
+export function keepOldest<INPUT extends AnyConsumable>(maxSize: number) {
+  return ($input: INPUT) => new KeepOldest($input, maxSize);
 }
