@@ -528,12 +528,12 @@ function tapBatchTest() {
 function passiveTest() {
   const $stream = new Stream<number>();
 
-  $stream
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
+  // $stream
+  //   .consume((c, v) => {
+  //     console.log(v);
+  //     c.next();
+  //   })
+  //   .next();
 
   // fromIterable([1, 2, 3])
   $stream
@@ -549,7 +549,7 @@ function passiveTest() {
   $stream.push(3);
 }
 
-// passiveTest();
+passiveTest();
 
 function mergeTest() {
   const s1 = fromIterable([1, 2, 3]);

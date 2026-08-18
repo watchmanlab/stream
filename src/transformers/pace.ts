@@ -18,20 +18,28 @@ export class HotDelay<
   }
 
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    const { terminate, ...rest } = options ?? {};
+    const { init, ...rest } = options ?? {};
     let timer = null as any;
+    let last: VALUE;
 
     return this.$input.consume(
       (consumer, value) => {
+        last = value;
         //
         //
       },
       {
         ...rest,
+        init: (consumer) => {
+          const cleanup = init?.(consumer);
+          timer = setTimeout(() => {
+            consumer.push(last);
+          }, this.ms);
 
-        terminate(consumer, reason) {
-          terminate?.(consumer, reason);
-          clearTimeout(timer);
+          return (reason) => {
+            cleanup?.(reason);
+            clearTimeout(timer);
+          };
         },
       },
     );
