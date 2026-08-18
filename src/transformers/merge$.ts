@@ -2,7 +2,7 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { AnyConsumable, ExtractValue, isConsumable, Transformer } from "../core/types";
 
-export class Flat$<
+export class Merge$<
   INPUT extends AnyConsumable,
   DEPTH extends number = 1,
   VALUE extends ExtractValue<INPUT, DEPTH> = ExtractValue<INPUT, DEPTH>,
@@ -12,61 +12,65 @@ export class Flat$<
 {
   constructor(
     readonly $input: INPUT,
+    private concurrent = Infinity,
     depth = 1 as DEPTH,
   ) {
     super();
 
-    let flat$: Flat$<any, any, any> = this;
+    let merge$: Merge$<any, any, any> = this;
 
     while (depth-- > 1) {
-      flat$ = new Flat$(flat$);
+      merge$ = new Merge$(merge$, concurrent);
     }
 
-    return flat$;
+    return merge$;
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
+    const { $input, concurrent } = this;
+
+    const consumers$ = new Set<Consumer<any>>();
 
     const output$ = new Consumer(handler, {
       ...rest,
       next(consumer) {
         next?.(consumer);
-        value$.next();
+        if (consumers$.size < concurrent) {
+          input$.next();
+        } else {
+        }
       },
       terminate(consumer, reason) {
         terminate?.(consumer, reason);
         input$.terminate(reason);
-        value$.terminate(reason);
       },
     });
 
-    const input$ = this.$input.consume(
+    const input$ = $input.consume(
       (_, consumable) => {
         if (isConsumable<VALUE>(consumable)) {
-          value$ = consumable.consume(
-            (_, value) => {
-              output$.push(value);
-            },
-            {
-              terminate: () => {
-                value$ = input$;
+          consumers$.add(
+            consumable.consume((c, v) => output$.push(v), {
+              terminate(c, r) {
+                consumers$.delete(c);
                 input$.next();
               },
-            },
+            }),
           );
-          value$.next();
         } else {
           output$.push(consumable);
         }
       },
       { terminate: (_, reason) => output$.terminate(reason) },
     );
-    let value$: Consumer<any> = input$;
 
     return output$;
   }
 }
 
-export function flat$<INPUT extends AnyConsumable, DEPTH extends number = 1>(depth = 1 as DEPTH) {
-  return ($input: INPUT) => new Flat$($input, depth);
+export function merge$<INPUT extends AnyConsumable, DEPTH extends number = 1>(
+  concurrent = Infinity,
+  depth = 1 as DEPTH,
+) {
+  return ($input: INPUT) => new Merge$($input, concurrent, depth);
 }

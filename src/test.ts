@@ -33,6 +33,8 @@ import { merge } from "./transformers/merge.ts";
 import { tick } from "./transformers/tick.ts";
 import { flat$ } from "./transformers/flat$.ts";
 import { pace } from "./transformers/pace.ts";
+import { debounce } from "./transformers/debounce.ts";
+import { keepNewest } from "./transformers/keep-newest.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -623,4 +625,36 @@ function paceTest() {
     })();
   }
 }
-paceTest();
+// paceTest();
+
+function keepNewestTest() {
+  fromIterable([1, 2, 3])
+    .pipe(keepNewest(1))
+    .pipe(delay(100))
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+}
+keepNewestTest();
+function debounceTest() {
+  const $stream = new Stream<number>();
+
+  $stream
+    .pipe(debounce(1000))
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+
+  {
+    (async () => {
+      $stream.push(await asyncValue(1, 100));
+      $stream.push(await asyncValue(2, 500));
+      $stream.push(await asyncValue(3, 1000));
+    })();
+  }
+}
+// debounceTest();

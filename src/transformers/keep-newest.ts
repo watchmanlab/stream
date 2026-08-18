@@ -14,11 +14,32 @@ export class KeepNewest<INPUT extends AnyConsumable, VALUE extends ExtractValue<
     super();
   }
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    const { queueFactory, ...rest } = options ?? {};
-    return this.$input.consume(handler, {
+    const { next, terminate, ...rest } = options ?? {};
+    const { $input, maxSize } = this;
+
+    const output$ = new Consumer(handler, {
       ...rest,
-      queueFactory: () => new DefaultSizedQueue(this.maxSize, { dropStrategy: "oldest" }),
+      next(consumer) {
+        next?.(consumer);
+        input$.next();
+      },
+      terminate(consumer, reason) {
+        terminate?.(consumer, reason);
+        input$.terminate(reason);
+      },
     });
+
+    const input$ = $input.consume(
+      (consumer, value) => {
+        output$.push(value);
+        consumer.next();
+      },
+      {
+        queueFactory: () => new DefaultSizedQueue(maxSize, { dropStrategy: "oldest" }),
+      },
+    );
+
+    return output$;
   }
 }
 
