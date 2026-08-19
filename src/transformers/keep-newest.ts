@@ -17,27 +17,31 @@ export class KeepNewest<INPUT extends AnyConsumable, VALUE extends ExtractValue<
     const { next, terminate, ...rest } = options ?? {};
     const { $input, maxSize } = this;
 
+    const input$ = $input
+      .consume(
+        (consumer, value) => {
+          if (output$.credit > 0) output$.push(value);
+          consumer.next();
+        },
+        {
+          queueFactory: () => new DefaultSizedQueue(maxSize, { dropStrategy: "oldest" }),
+          terminate(_, reason) {
+            output$.terminate(reason);
+          },
+        },
+      )
+      .next();
+
     const output$ = new Consumer(handler, {
       ...rest,
       next(consumer) {
         next?.(consumer);
-        input$.next();
       },
       terminate(consumer, reason) {
         terminate?.(consumer, reason);
         input$.terminate(reason);
       },
     });
-
-    const input$ = $input.consume(
-      (consumer, value) => {
-        output$.push(value);
-        consumer.next();
-      },
-      {
-        queueFactory: () => new DefaultSizedQueue(maxSize, { dropStrategy: "oldest" }),
-      },
-    );
 
     return output$;
   }

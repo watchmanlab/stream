@@ -628,14 +628,20 @@ function paceTest() {
 // paceTest();
 
 function keepNewestTest() {
-  fromIterable([1, 2, 3])
+  const stream = new Stream<number>();
+  stream
     .pipe(keepNewest(1))
-    .pipe(delay(100))
-    .consume((c, v) => {
+
+    .consume(async (c, v) => {
+      await asyncValue(3, 100);
       console.log(v);
       c.next();
     })
     .next();
+
+  stream.push(1);
+  stream.push(2);
+  stream.push(3);
 }
 keepNewestTest();
 function debounceTest() {
