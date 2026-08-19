@@ -1,17 +1,18 @@
-import { Queue, Consumable, TerminateReason, Terminable, ConsumerSet } from "./types0";
+import { TerminateReason } from "./types0";
 import { Consumer } from "./consumer0";
 import { EMPTY_THIS_FUNCTION } from "./consts";
 import { DefaultConsumerSet } from "./default-consumer-set0";
-import { Source } from "./source";
+import { Source } from "./source0";
+import { Consumable } from "./consumable0";
+import { ConsumerSet } from "./consumer-set0";
+import { Queue } from "./queue0";
 
-// 1. PURE DATA SCHEMA
-export interface Stream<VALUE> extends Consumable<VALUE> {
+export interface Stream<VALUE> extends Source<VALUE> {
   status: Stream.Status;
   readonly options: Stream.Options<VALUE>;
   readonly consumerSet: ConsumerSet<VALUE>;
   initCleanup: ((reason: TerminateReason) => void) | null;
 
-  // Flat storage for internal event hubs (No closures or dynamic getters needed)
   readonly events: {
     $push?: Stream<VALUE>;
     $next?: Stream<Consumer<VALUE>>;
@@ -43,6 +44,13 @@ export namespace Stream {
 
   export function create<VALUE>(options?: Stream.Options<VALUE>): Stream<VALUE> {
     const stream: Stream<VALUE> = {
+      [Symbol.asyncIterator]() {
+        return Consumable.toAsyncIterable(this)[Symbol.asyncIterator]();
+      },
+
+      pipe(transform) {
+        return Consumable.pipe(this, transform);
+      },
       status: "active",
       options: { ...options },
       consumerSet: options?.consumerSetFactory?.() ?? new DefaultConsumerSet(),
@@ -58,31 +66,24 @@ export namespace Stream {
     return stream;
   }
 
-  export function getEventHub<T, VALUE>(
-    stream: Stream<VALUE>,
-    key: keyof Stream<VALUE>["events"],
-    customOptions?: Options<any>,
-  ): Stream<any> {
+  export function getEventSource<T, VALUE>(stream: Stream<VALUE>, key: keyof Stream<VALUE>["events"]): Stream<any> {
     if (!stream.events[key]) {
-      // Lazy allocation of a sub-stream data block
       stream.events[key] = create<any>({
         lastConsumerLeft: () => {
           stream.events[key] = undefined;
         },
-        ...customOptions,
       });
     }
     return stream.events[key]!;
   }
 
   export function push<VALUE>(stream: Stream<VALUE>, value: VALUE): void {
-    if (stream.status !== "active") return; // Replaces `EMPTY_THIS_FUNCTION`
+    if (stream.status !== "active") return;
 
     stream.options.push?.(stream, value);
 
     if (stream.events.$push) push(stream.events.$push, value);
 
-    // Broadcast data downstream via your consumer collection primitive
     stream.consumerSet.push(value);
   }
 
@@ -162,38 +163,34 @@ export namespace Stream {
     stream.options.terminate?.(stream, reason);
     if (stream.events.$terminate) push(stream.events.$terminate, reason);
 
-    // Recursively clean out all sub-streams via standard loop iteration
     for (const key in stream.events) {
-      const subStream = stream.events[key as keyof Stream<VALUE>["events"]];
-      if (subStream) terminate(subStream as any, reason);
+      const $event = stream.events[key as keyof Stream<VALUE>["events"]];
+      if ($event) terminate($event as any, reason);
     }
   }
 
-  /**
-   * 6. CUSTOM UPSTREAM INPUT PROXYING
-   */
-  export function fromConsumable<VALUE>(consumable: Consumable<VALUE>, options?: Options<VALUE>): Stream<VALUE> {
+  export function from<VALUE>($consumable: Consumable<VALUE>, options?: Options<VALUE>): Stream<VALUE> {
     let pulling = false;
-    let consumableConsumer: Consumer<VALUE>;
+    let consumer$: Consumer<VALUE>;
 
     const stream = create<VALUE>({
       ...options,
       firstConsumerJoin(s, c) {
-        consumableConsumer = consumable.consume((_, value) => push(s, value), {
-          terminate: (_, reason) => terminate(s, reason),
-        });
         options?.firstConsumerJoin?.(s, c);
+        consumer$ = $consumable.consume((_, value) => push(s, value), {
+          terminate: (_, reason) => Stream.terminate(s, reason),
+        });
       },
       push(s, value) {
-        pulling = false;
         options?.push?.(s, value);
+        pulling = false;
       },
       next(s, c) {
+        options?.next?.(s, c);
         if (!pulling) {
           pulling = true;
-          Consumer.next(consumableConsumer);
+          Consumer.next(consumer$);
         }
-        options?.next?.(s, c);
       },
     });
 

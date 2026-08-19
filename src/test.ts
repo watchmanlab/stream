@@ -60,34 +60,6 @@ function consumerBench() {
 }
 
 consumerBench(); //class 200 000 000 827 ms
-function consumer0Bench() {
-  const MAX = 200_000_000;
-
-  const start = performance.now();
-  // Create the consumer data struct
-  const consumer = Consumer0.create<number>((consumer, v) => {
-    if (v === MAX) {
-      console.log("functional", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      // Consumer0.terminate(consumer, "complete");
-      // return;
-    }
-
-    Consumer0.next(consumer);
-  });
-
-  Consumer0.next(consumer);
-
-  const pushValue = (value: number) => {
-    Consumer0.push(consumer, value);
-  };
-
-  for (let i = 0; i <= MAX; i++) {
-    pushValue(i);
-    // push(consumer, i);
-  }
-}
-
-consumer0Bench(); //functional 200 000 000 471 ms
 
 function consumerBench2() {
   const MAX = 10_000_000;

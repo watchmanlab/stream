@@ -1,6 +1,8 @@
-import { Source } from "./core/source";
-import { Stream } from "./core/stream";
-import { map } from "./transformers/map";
+import { Source } from "./core/source0";
+import { Stream } from "./core/stream0";
+
+import { map } from "./core/map0";
+import { Consumer } from "./core/consumer0";
 
 function getHeapSize(): number {
   if (globalThis.gc) {
@@ -17,19 +19,23 @@ function runMemoryProfile() {
   const baseline = getHeapSize();
 
   for (let i = 0; i < BATCH_SIZE; i++) {
-    let stream: Source<any> = new Stream<any>();
+    let stream: Source<any> = Stream.create<any>();
 
     for (let j = 0; j < STAGES; j++) {
       stream = stream.pipe(map((v) => v));
     }
-    pipelines[i] = stream.consume((self) => self.next()).next();
+    const consumer = stream.consume((c, v) => {
+      Consumer.next(c);
+    });
+    Consumer.next(consumer);
+    pipelines[i] = consumer;
   }
 
   const finalHeap = getHeapSize();
   const totalAllocatedBytes = finalHeap - baseline;
   const bytesPerPipeline = totalAllocatedBytes / BATCH_SIZE;
 
-  console.log("\n=== STREAM BENCHMARK RESULTS ===");
+  console.log("\n=== STREAM ZERO BENCHMARK RESULTS ===");
   console.log(`Total Batch Size:      ${BATCH_SIZE.toLocaleString()} pipelines of ${STAGES} stages`);
   console.log(`Total Heap Increase:   ${(totalAllocatedBytes / 1024 / 1024).toFixed(2)} MB`);
   console.log(`Average Per Pipeline:  ${Math.round(bytesPerPipeline).toLocaleString()} bytes`);

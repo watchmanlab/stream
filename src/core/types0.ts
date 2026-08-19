@@ -37,9 +37,7 @@ export namespace ConsumerSet {
 export interface Consumable<VALUE> {
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
-export function isConsumable<T>(object: unknown): object is Consumable<T> {
-  return typeof object === "object" && object !== null && "consume" in object && typeof object.consume === "function";
-}
+
 export interface Transformer<INPUT extends AnyConsumable, VALUE> extends Source<VALUE> {
   readonly $input: INPUT;
 }
@@ -55,11 +53,9 @@ export type Result<VALUE, ERROR = any> =
   | { ok: false; error: ERROR; value?: never };
 export type TerminateReason = "abort" | "complete";
 export type AnyConsumable = Consumable<any>;
-export type AnySource = Source<any>;
-export type AnyStream = Stream<any>;
-export type AnyConsumer = Consumer<any>;
+
 export type AnyTransformer = Transformer<any, any>;
-export type NonEmptyString = `${any}${string}`;
+
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
 export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR
