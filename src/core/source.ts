@@ -1,6 +1,6 @@
 import { Consumer } from "./consumer";
 
-import { AnyConsumable, AnySource, Consumable } from "./types";
+import { AnySource, Consumable } from "./types";
 
 export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<VALUE> {
   async *[Symbol.asyncIterator]() {

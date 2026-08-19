@@ -58,7 +58,7 @@ function consumerBench() {
   }
 }
 
-consumerBench(); //class 200 000 000 827 ms
+// consumerBench(); //class 200 000 000 827 ms
 
 function consumerBench2() {
   const MAX = 10_000_000;
@@ -164,7 +164,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
+streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);

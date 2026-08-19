@@ -13,6 +13,7 @@ export class KeepNewest<INPUT extends AnyConsumable, VALUE extends ExtractValue<
   ) {
     super();
   }
+
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
     const { $input, maxSize } = this;
