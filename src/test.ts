@@ -35,7 +35,6 @@ import { flat$ } from "./transformers/flat$.ts";
 import { pace } from "./transformers/pace.ts";
 import { debounce } from "./transformers/debounce.ts";
 import { keepNewest } from "./transformers/keep-newest.ts";
-import { Consumer as Consumer0 } from "./core/consumer0.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
