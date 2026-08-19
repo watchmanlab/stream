@@ -1,97 +1,13 @@
+import { EMPTY, EMPTY_FUNCTION } from "./consts";
+import { DefaultQueue } from "./default-queue";
 import { Queue, TerminateReason } from "./types";
 
-// 1. Define the raw data state interface
-export interface Consumer<VALUE> {
+export interface Consumer<VALUE> extends Consumer.Options<VALUE> {
   handler: Consumer.Handler<VALUE>;
-  options?: Consumer.Options<VALUE>;
   status: Consumer.Status;
   queue?: Queue<VALUE>;
   credit: number;
   initCleanup?: Consumer.InitCleanup;
-}
-
-// 2. Factory function (Replaces the constructor)
-export function createConsumer<VALUE>(
-  handler: Consumer.Handler<VALUE>,
-  options?: Consumer.Options<VALUE>,
-): Consumer<VALUE> {
-  const consumer: Consumer<VALUE> = {
-    handler,
-    options: { ...options, next: options?.passive ? undefined : options?.next },
-    status: "active",
-    credit: 0,
-  };
-
-  consumer.initCleanup = options?.init?.(consumer);
-  return consumer;
-}
-
-// 3. Standalone Operations
-export function pushToConsumer<VALUE>(state: ConsumerState<VALUE>, value: VALUE): void {
-  // Prevent execution if already terminated
-  if (state.status === "abort" || state.status === "complete") return;
-
-  if (state.credit > 0 && !state.queue?.size) {
-    state.handler(state, value);
-    state.credit--;
-  } else {
-    state.queue ??= state.options?.queueFactory?.() ?? new DefaultQueue();
-    state.queue.enqueue(value);
-    state.options?.enqueue?.(state, value);
-  }
-  state.options?.push?.(state, value);
-}
-
-export function advanceConsumer<VALUE>(state: ConsumerState<VALUE>): void {
-  if (state.status === "abort" || state.status === "complete") return;
-
-  state.credit++;
-
-  if (!state.queue?.size) {
-    state.options?.next?.(state);
-    return;
-  }
-
-  if (state.credit > 1) return;
-
-  while (state.credit > 0) {
-    const value = state.queue.dequeue();
-
-    if (value === EMPTY) {
-      state.queue = undefined;
-      if (state.status === "drain") {
-        terminateConsumer(state, "complete");
-      } else {
-        state.options?.next?.(state);
-      }
-      break;
-    }
-    state.options?.dequeue?.(state, value);
-    state.handler(state, value);
-    state.credit--;
-  }
-}
-
-export function terminateConsumer<VALUE>(state: ConsumerState<VALUE>, reason: TerminateReason): void {
-  if (state.status === "abort" || state.status === "complete") return;
-
-  if (reason === "abort") {
-    state.status = "abort";
-    state.queue?.clear();
-  } else if (state.queue?.size) {
-    state.status = "drain";
-    state.options?.drain?.(state);
-    return;
-  } else {
-    state.status = "complete";
-  }
-
-  state.initCleanup?.(reason);
-  state.options?.terminate?.(state, reason);
-
-  // Clean up references for GC (Garbage Collection)
-  state.queue = state.options = undefined;
-  state.handler = EMPTY_FUNCTION;
 }
 
 export namespace Consumer {
@@ -109,4 +25,79 @@ export namespace Consumer {
     enqueue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
     dequeue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
   };
+  export function create<VALUE>(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    const consumer: Consumer<VALUE> = {
+      ...options,
+      handler,
+      status: "active",
+      credit: 0,
+      next: options?.passive ? undefined : options?.next,
+    };
+
+    consumer.initCleanup = options?.init?.(consumer);
+    return consumer;
+  }
+  export function push<VALUE>(consumer: Consumer<VALUE>, value: VALUE): void {
+    // if (consumer.status === "abort" || consumer.status === "complete") return;
+
+    if (consumer.credit > 0 && !consumer.queue?.size) {
+      consumer.handler(consumer, value);
+      consumer.credit--;
+    } else {
+      consumer.queue ??= consumer.queueFactory?.() ?? new DefaultQueue();
+      consumer.queue.enqueue(value);
+      consumer.enqueue?.(consumer, value);
+    }
+    consumer.push?.(consumer, value);
+  }
+  export function next<VALUE>(consumer: Consumer<VALUE>): void {
+    // if (consumer.status === "abort" || consumer.status === "complete") return;
+
+    consumer.credit++;
+
+    if (!consumer.queue?.size) {
+      consumer.next?.(consumer);
+      return;
+    }
+
+    if (consumer.credit > 1) return;
+
+    while (consumer.credit > 0) {
+      const value = consumer.queue.dequeue();
+
+      if (value === EMPTY) {
+        consumer.queue = undefined;
+        if (consumer.status === "drain") {
+          terminate(consumer, "complete");
+        } else {
+          consumer.next?.(consumer);
+        }
+        break;
+      }
+      consumer.dequeue?.(consumer, value);
+      consumer.handler(consumer, value);
+      consumer.credit--;
+    }
+  }
+  export function terminate<VALUE>(consumer: Consumer<VALUE>, reason: TerminateReason): void {
+    if (consumer.status === "abort" || consumer.status === "complete") return;
+
+    if (reason === "abort") {
+      consumer.status = "abort";
+      consumer.queue?.clear();
+    } else if (consumer.queue?.size) {
+      consumer.status = "drain";
+      consumer.drain?.(consumer);
+      return;
+    } else {
+      consumer.status = "complete";
+    }
+
+    consumer.initCleanup?.(reason);
+    consumer.terminate?.(consumer, reason);
+
+    // Clean up references for GC (Garbage Collection)
+    consumer.queue = undefined;
+    consumer.handler = EMPTY_FUNCTION;
+  }
 }

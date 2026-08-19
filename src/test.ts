@@ -35,6 +35,7 @@ import { flat$ } from "./transformers/flat$.ts";
 import { pace } from "./transformers/pace.ts";
 import { debounce } from "./transformers/debounce.ts";
 import { keepNewest } from "./transformers/keep-newest.ts";
+import { Consumer as Consumer0 } from "./core/consumer0.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -42,27 +43,47 @@ function asyncValue<T>(value: T, ms?: number) {
   );
 }
 function consumerBench() {
-  const MAX = 350_000_000;
+  const MAX = 200_000_000;
 
   const start = performance.now();
 
   const consumer = new Consumer<number>((self, v) => {
-    if (v === MAX) {
-      console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      self.terminate("complete");
-      return;
-    }
-
+    if (v === MAX) console.log("class", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
     self.next();
   });
 
   consumer.next();
+
   for (let i = 0; i <= MAX; i++) {
     consumer.push(i);
   }
 }
 
-// consumerBench(); //350 000 000 989 ms
+consumerBench(); //class 200 000 000 827 ms
+function consumer0Bench() {
+  const MAX = 200_000_000;
+  const start = performance.now();
+
+  // Create the consumer data struct
+  const consumer = Consumer0.create<number>((consumer, v) => {
+    if (v === MAX) console.log("functional", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+
+    Consumer0.next(consumer);
+  });
+
+  Consumer0.next(consumer);
+
+  const pushValue = (value: number) => {
+    Consumer0.push(consumer, value);
+  };
+
+  for (let i = 0; i <= MAX; i++) {
+    pushValue(i);
+    // push(consumer, i);
+  }
+}
+
+consumer0Bench(); //functional 200 000 000 471 ms
 
 function consumerBench2() {
   const MAX = 10_000_000;
@@ -643,7 +664,7 @@ function keepNewestTest() {
   stream.push(2);
   stream.push(3);
 }
-keepNewestTest();
+// keepNewestTest();
 function debounceTest() {
   const $stream = new Stream<number>();
 
