@@ -2,43 +2,49 @@ import { EMPTY, EMPTY_FUNCTION } from "./consts";
 import { DefaultQueue } from "./default-queue";
 import { Queue, TerminateReason } from "./types";
 
-export interface Consumer<VALUE> extends Consumer.Options<VALUE> {
+export interface Consumer<VALUE> {
   handler: Consumer.Handler<VALUE>;
   status: Consumer.Status;
-  queue?: Queue<VALUE>;
   credit: number;
-  initCleanup?: Consumer.InitCleanup;
+  queue?: Queue<VALUE>;
+  initCleanup?: (reason: TerminateReason) => void;
+  queueFactory?: () => Queue<VALUE>;
+  init?: (consumer: Consumer<VALUE>) => undefined | Consumer.InitCleanup;
+  push?: (consumer: Consumer<VALUE>, value: VALUE) => void;
+  next?: (consumer: Consumer<VALUE>) => void;
+  drain?: (consumer: Consumer<VALUE>) => void;
+  terminate?: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
+  enqueue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
+  dequeue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
 }
 
 export namespace Consumer {
   export type Status = "active" | "drain" | TerminateReason;
   export type Handler<VALUE> = (consumer: Consumer<VALUE>, value: VALUE) => void;
   export type InitCleanup = (reason: TerminateReason) => void;
-  export type Options<VALUE> = {
-    passive?: boolean;
-    queueFactory?: () => Queue<VALUE>;
-    init?: (consumer: Consumer<VALUE>) => undefined | InitCleanup;
-    push?: (consumer: Consumer<VALUE>, value: VALUE) => void;
-    next?: (consumer: Consumer<VALUE>) => void;
-    drain?: (consumer: Consumer<VALUE>) => void;
-    terminate?: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
-    enqueue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
-    dequeue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
-  };
+  export type Options<VALUE> = Omit<Consumer<VALUE>, "handler" | "status" | "credit" | "queue" | "initCleanup">;
   export function create<VALUE>(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const consumer: Consumer<VALUE> = {
-      ...options,
       handler,
       status: "active",
       credit: 0,
-      next: options?.passive ? undefined : options?.next,
+      queue: undefined,
+      queueFactory: options?.queueFactory,
+      init: options?.init,
+      push: options?.push,
+      next: options?.next,
+      drain: options?.drain,
+      terminate: options?.terminate,
+      enqueue: options?.enqueue,
+      dequeue: options?.dequeue,
     };
 
     consumer.initCleanup = options?.init?.(consumer);
+
     return consumer;
   }
   export function push<VALUE>(consumer: Consumer<VALUE>, value: VALUE): void {
-    // if (consumer.status === "abort" || consumer.status === "complete") return;
+    if (consumer.status === "abort" || consumer.status === "complete") return;
 
     if (consumer.credit > 0 && !consumer.queue?.size) {
       consumer.handler(consumer, value);
@@ -51,7 +57,7 @@ export namespace Consumer {
     consumer.push?.(consumer, value);
   }
   export function next<VALUE>(consumer: Consumer<VALUE>): void {
-    // if (consumer.status === "abort" || consumer.status === "complete") return;
+    if (consumer.status === "abort" || consumer.status === "complete") return;
 
     consumer.credit++;
 

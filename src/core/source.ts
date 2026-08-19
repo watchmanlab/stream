@@ -29,7 +29,7 @@ export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<
     return new SourceProxy($consumable);
   }
 }
-type Transform<INPUT extends AnyConsumable, OUTPUT extends AnySource> = ($input: INPUT) => OUTPUT;
+
 class SourceProxy<VALUE> extends Source<VALUE> {
   constructor(private $consumable: Consumable<VALUE>) {
     super();
