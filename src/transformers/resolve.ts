@@ -1,6 +1,8 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import type { Consumable, ExtractValue, Result, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import type { ExtractValue, Result } from "../core/types";
 
 export class Resolve<
   INPUT extends Consumable<Promise<any>>,

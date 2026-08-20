@@ -1,9 +1,11 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, isConsumable, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
 export class Flat$<
-  INPUT extends AnyConsumable,
+  INPUT extends Consumable.AnyConsumable,
   DEPTH extends number = 1,
   VALUE extends ExtractValue<INPUT, DEPTH> = ExtractValue<INPUT, DEPTH>,
 >
@@ -42,7 +44,7 @@ export class Flat$<
 
     const input$ = this.$input.consume(
       (_, consumable) => {
-        if (isConsumable<VALUE>(consumable)) {
+        if (Consumable.isConsumable<VALUE>(consumable)) {
           value$ = consumable.consume(
             (_, value) => {
               output$.push(value);
@@ -67,6 +69,6 @@ export class Flat$<
   }
 }
 
-export function flat$<INPUT extends AnyConsumable, DEPTH extends number = 1>(depth = 1 as DEPTH) {
+export function flat$<INPUT extends Consumable.AnyConsumable, DEPTH extends number = 1>(depth = 1 as DEPTH) {
   return ($input: INPUT) => new Flat$($input, depth);
 }

@@ -1,9 +1,11 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { DefaultSizedQueue } from "../core/default-sized-queue";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
-export class KeepOldest<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class KeepOldest<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -22,6 +24,6 @@ export class KeepOldest<INPUT extends AnyConsumable, VALUE extends ExtractValue<
   }
 }
 
-export function keepOldest<INPUT extends AnyConsumable>(maxSize: number) {
+export function keepOldest<INPUT extends Consumable.AnyConsumable>(maxSize: number) {
   return ($input: INPUT) => new KeepOldest($input, maxSize);
 }

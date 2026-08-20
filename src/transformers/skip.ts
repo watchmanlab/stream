@@ -1,8 +1,10 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
-export class Skip<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class Skip<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -24,6 +26,6 @@ export class Skip<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT>
   }
 }
 
-export function skip<INPUT extends AnyConsumable>(count: number) {
+export function skip<INPUT extends Consumable.AnyConsumable>(count: number) {
   return ($input: INPUT) => new Skip($input, count);
 }

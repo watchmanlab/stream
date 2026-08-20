@@ -1,10 +1,12 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { Stream } from "../core/stream";
-import { ExtractValue, Transformer, AnyConsumable } from "../core/types";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
 export class Filter<
-  INPUT extends AnyConsumable,
+  INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
 >
@@ -41,7 +43,7 @@ export class Filter<
 }
 
 export function filter<
-  INPUT extends AnyConsumable,
+  INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
 >(predicate: Filter.Predicate<VALUE, FILTERED>, complement?: (value: VALUE) => void) {
