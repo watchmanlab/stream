@@ -105,6 +105,7 @@ export namespace Consumer {
   export type Status = "active" | "drain" | TerminateReason;
   export type Handler<VALUE> = (consumer: Consumer<VALUE>, value: VALUE) => void;
   export type InitCleanup = (reason: TerminateReason) => void;
+
   export type Options<VALUE> = {
     passive?: boolean;
     queueFactory?: () => Queue<VALUE>;
