@@ -1,11 +1,13 @@
-import type { EMPTY, EMPTY_FUNCTION } from "./consts";
-import { Consumable } from "./consumable";
+import type { EMPTY, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION } from "./consts";
+import type { Consumable } from "./consumable";
 import type { Consumer } from "./consumer";
 import type { Source } from "./source";
 import type { Stream } from "./stream";
 
 export type Empty = typeof EMPTY;
 export type EmptyFunctions = typeof EMPTY_FUNCTION;
+export type EmptyThisFunctions = typeof EMPTY_THIS_FUNCTION;
+
 export type Result<VALUE, ERROR = any> =
   | { ok: true; value: VALUE; error?: never }
   | { ok: false; error: ERROR; value?: never };
