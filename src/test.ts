@@ -18,7 +18,7 @@ import { tap } from "./transformers/tap";
 import { pump } from "./transformers/pump";
 import { fromInterval } from "./sources/interval-source.ts";
 import { fromTimeout } from "./sources/timeout-source.ts";
-import { Consumable } from "./core/types";
+import { Consumable } from "./core/consumable.ts";
 import { Source } from "./core/source";
 import { share } from "./transformers/share.ts";
 import { Signal } from "./streams/signal.ts";
@@ -32,34 +32,33 @@ import { passive } from "./transformers/passive.ts";
 import { merge } from "./transformers/merge.ts";
 import { tick } from "./transformers/tick.ts";
 import { flat$ } from "./transformers/flat$.ts";
+import { pace } from "./transformers/pace.ts";
+import { debounce } from "./transformers/debounce.ts";
+import { keepNewest } from "./transformers/keep-newest.ts";
 
-function timeout<T>(value: T, ms?: number) {
+function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
     setTimeout(() => (value instanceof Error ? rej(value) : res(value)), ms ?? Math.random() * 500),
   );
 }
 function consumerBench() {
-  const MAX = 350_000_000;
+  const MAX = 200_000_000;
 
   const start = performance.now();
 
   const consumer = new Consumer<number>((self, v) => {
-    if (v === MAX) {
-      console.log(v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-      self.terminate("complete");
-      return;
-    }
-
+    if (v === MAX) console.log("class", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
     self.next();
   });
 
   consumer.next();
+
   for (let i = 0; i <= MAX; i++) {
     consumer.push(i);
   }
 }
 
-// consumerBench(); //350 000 000 989 ms
+// consumerBench(); //class 200 000 000 827 ms
 
 function consumerBench2() {
   const MAX = 10_000_000;
@@ -165,7 +164,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
+streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -492,7 +491,7 @@ function skipTest() {
 
 // skipTest();
 function resolveTest() {
-  fromIterable([timeout(1), timeout(2), timeout(3)])
+  fromIterable([asyncValue(1), asyncValue(2), asyncValue(3)])
     .pipe(resolve())
     .consume((c, v) => {
       console.log(v);
@@ -549,7 +548,7 @@ function passiveTest() {
   $stream.push(3);
 }
 
-passiveTest();
+// passiveTest();
 
 function mergeTest() {
   const s1 = fromIterable([1, 2, 3]);
@@ -602,3 +601,62 @@ function flat$Test() {
 }
 
 // flat$Test();
+
+function paceTest() {
+  const $stream = new Stream<number>();
+
+  $stream
+    .pipe(pace(1000))
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+
+  {
+    (async () => {
+      $stream.push(await asyncValue(1, 100));
+      $stream.push(await asyncValue(2, 500));
+      $stream.push(await asyncValue(3, 1000));
+    })();
+  }
+}
+// paceTest();
+
+function keepNewestTest() {
+  const stream = new Stream<number>();
+  stream
+    .pipe(keepNewest(1))
+
+    .consume(async (c, v) => {
+      await asyncValue(3, 100);
+      console.log(v);
+      c.next();
+    })
+    .next();
+
+  stream.push(1);
+  stream.push(2);
+  stream.push(3);
+}
+// keepNewestTest();
+function debounceTest() {
+  const $stream = new Stream<number>();
+
+  $stream
+    .pipe(debounce(1000))
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+
+  {
+    (async () => {
+      $stream.push(await asyncValue(1, 100));
+      $stream.push(await asyncValue(2, 500));
+      $stream.push(await asyncValue(3, 1000));
+    })();
+  }
+}
+// debounceTest();

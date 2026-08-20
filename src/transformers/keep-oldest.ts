@@ -3,7 +3,7 @@ import { DefaultSizedQueue } from "../core/default-sized-queue";
 import { Source } from "../core/source";
 import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
-export class DropNewest<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class KeepOldest<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -22,6 +22,6 @@ export class DropNewest<INPUT extends AnyConsumable, VALUE extends ExtractValue<
   }
 }
 
-export function dropNewest<INPUT extends AnyConsumable>(maxSize: number) {
-  return ($input: INPUT) => new DropNewest($input, maxSize);
+export function keepOldest<INPUT extends AnyConsumable>(maxSize: number) {
+  return ($input: INPUT) => new KeepOldest($input, maxSize);
 }

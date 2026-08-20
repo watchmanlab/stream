@@ -1,6 +1,7 @@
 import { EMPTY_FUNCTION } from "./consts";
 import { Consumer } from "./consumer";
-import { ConsumerSet, TerminateReason } from "./types";
+import { ConsumerSet } from "./consumer-set";
+import { TerminateReason } from "./types";
 
 export class DefaultConsumerSet<VALUE> implements ConsumerSet<VALUE> {
   private _consumers?: Set<Consumer<VALUE>> | Consumer<VALUE>;

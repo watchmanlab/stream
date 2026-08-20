@@ -1,8 +1,9 @@
+import { EMPTY } from "../core/consts";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
-export class HotDelay<
+export class Pace<
   INPUT extends AnyConsumable,
   MS extends number,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
@@ -18,30 +19,40 @@ export class HotDelay<
   }
 
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    const { init, ...rest } = options ?? {};
-    let timer = null as any;
-    let last: VALUE;
+    const { terminate, ...rest } = options ?? {};
+    const { ms, $input } = this;
 
-    return this.$input.consume(
+    let timer: any = null;
+    let nextAllowedExecutionTime = 0;
+
+    return $input.consume(
       (consumer, value) => {
-        last = value;
-        //
-        //
+        const now = performance.now();
+
+        if (now >= nextAllowedExecutionTime) {
+          nextAllowedExecutionTime = now + ms;
+          handler(consumer, value);
+        } else {
+          const delayRemainder = nextAllowedExecutionTime - now;
+          nextAllowedExecutionTime += ms;
+
+          timer = setTimeout(() => {
+            handler(consumer, value);
+          }, delayRemainder);
+        }
       },
       {
         ...rest,
-        init: (consumer) => {
-          const cleanup = init?.(consumer);
-          timer = setTimeout(() => {
-            consumer.push(last);
-          }, this.ms);
 
-          return (reason) => {
-            cleanup?.(reason);
-            clearTimeout(timer);
-          };
+        terminate(consumer, reason) {
+          terminate?.(consumer, reason);
+          clearTimeout(timer);
         },
       },
     );
   }
+}
+
+export function pace<INPUT extends AnyConsumable, MS extends number>(ms: MS) {
+  return ($input: INPUT) => new Pace($input, ms);
 }

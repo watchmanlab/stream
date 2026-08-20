@@ -1,13 +1,6 @@
 import { Source } from "./core/source";
 import { Stream } from "./core/stream";
-import { delay } from "./transformers/delay";
-import { filter } from "./transformers/filter";
-import { flat } from "./transformers/flat";
 import { map } from "./transformers/map";
-import { passive } from "./transformers/passive";
-import { share } from "./transformers/share";
-import { tap } from "./transformers/tap";
-import { tick } from "./transformers/tick";
 
 function getHeapSize(): number {
   if (globalThis.gc) {
@@ -27,7 +20,7 @@ function runMemoryProfile() {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(map((v) => v));
+      stream = stream.pipe(map((v) => (v / v) * v + 4));
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }
