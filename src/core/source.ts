@@ -1,6 +1,5 @@
+import { Consumable } from "./consumable";
 import { Consumer } from "./consumer";
-
-import { AnySource, Consumable } from "./types";
 
 export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<VALUE> {
   async *[Symbol.asyncIterator]() {
@@ -22,12 +21,15 @@ export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<
     }
   }
   abstract consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
-  pipe<OUTPUT extends AnySource>(transform: ($input: this) => OUTPUT): OUTPUT {
+  pipe<OUTPUT>(transform: ($input: this) => OUTPUT): OUTPUT {
     return transform(this);
   }
   static from<VALUE>($consumable: Consumable<VALUE>): Source<VALUE> {
     return new SourceProxy($consumable);
   }
+}
+export namespace Source {
+  export type AnySource = Source<any>;
 }
 
 class SourceProxy<VALUE> extends Source<VALUE> {

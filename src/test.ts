@@ -18,7 +18,7 @@ import { tap } from "./transformers/tap";
 import { pump } from "./transformers/pump";
 import { fromInterval } from "./sources/interval-source.ts";
 import { fromTimeout } from "./sources/timeout-source.ts";
-import { Consumable } from "./core/types";
+import { Consumable } from "./core/consumable.ts";
 import { Source } from "./core/source";
 import { share } from "./transformers/share.ts";
 import { Signal } from "./streams/signal.ts";
