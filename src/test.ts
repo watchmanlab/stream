@@ -46,9 +46,11 @@ function consumerBench() {
 
   const start = performance.now();
 
-  const consumer = new Consumer<number>((self, v) => {
-    if (v === MAX) console.log("class", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
-    self.next();
+  const consumer = new Consumer<number>({
+    handler: (self, v) => {
+      if (v === MAX) console.log("class", v.toLocaleString("fr"), Math.round(performance.now() - start), "ms");
+      self.next();
+    },
   });
 
   consumer.next();
@@ -130,7 +132,7 @@ function rxjsBench() {
   }
 }
 
-// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
+// rxjsBench(); // rxjs: 100 000 000 push -> 1 stages in 3840 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 100;
@@ -146,16 +148,18 @@ function streamBench() {
   const start = performance.now();
 
   chain
-    .consume((consumer, v) => {
-      if (v === MAX)
-        console.log(
-          "stream:",
-          `${v.toLocaleString("fr")} push ->`,
-          `${STAGES} stages in`,
-          Math.round(performance.now() - start),
-          "ms",
-        );
-      consumer.next();
+    .consume({
+      handler: (consumer, v) => {
+        if (v === MAX)
+          console.log(
+            "stream:",
+            `${v.toLocaleString("fr")} push ->`,
+            `${STAGES} stages in`,
+            Math.round(performance.now() - start),
+            "ms",
+          );
+        consumer.next();
+      },
     })
     .next();
 
@@ -164,7 +168,7 @@ function streamBench() {
   }
 }
 
-streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
+// streamBench(); //stream: 100 000 000 push -> 1 stages in 1891 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -186,7 +190,7 @@ function streamTest() {
   // stream.push(3);
 }
 
-// streamTest();
+streamTest();
 // c1 1
 // c1 2
 // c1 3

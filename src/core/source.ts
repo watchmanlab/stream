@@ -5,7 +5,7 @@ export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<
   async *[Symbol.asyncIterator]() {
     let resolve: (value: VALUE) => void;
 
-    const consumer = this.consume((_, value) => resolve(value));
+    const consumer = this.consume({ handler: (_, value) => resolve(value) });
 
     try {
       while (consumer.status === "active" || consumer.status === "drain") {
@@ -20,7 +20,7 @@ export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<
       consumer.terminate("complete");
     }
   }
-  abstract consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
+  abstract consume(options?: Consumer.Options<VALUE>): Consumer<VALUE>;
   pipe<OUTPUT>(transform: ($input: this) => OUTPUT): OUTPUT {
     return transform(this);
   }
@@ -36,7 +36,7 @@ class SourceProxy<VALUE> extends Source<VALUE> {
   constructor(private $consumable: Consumable<VALUE>) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$consumable.consume(handler, options);
+  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$consumable.consume(options);
   }
 }

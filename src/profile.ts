@@ -11,18 +11,19 @@ function getHeapSize(): number {
 
 function runMemoryProfile() {
   const BATCH_SIZE = 5000;
-  const STAGES = 100;
+  const STAGES = 300;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   const baseline = getHeapSize();
+  // const mapper = (v: number) => (v / v) * v + 4;
 
   for (let i = 0; i < BATCH_SIZE; i++) {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(map((v) => (v / v) * v + 4));
+      stream = stream.pipe(map((v: number) => (v / v) * v + 4));
     }
-    pipelines[i] = stream.consume((self) => self.next()).next();
+    pipelines[i] = stream.consume({ handler: (self) => self.next() }).next();
   }
 
   const finalHeap = getHeapSize();
@@ -43,8 +44,8 @@ function runMemoryProfile() {
 runMemoryProfile();
 
 // === STREAM BENCHMARK RESULTS ===
-// Total Batch Size:      5,000 pipelines of 100 stages
-// Total Heap Increase:   32.93 MB
-// Average Per Pipeline:  6,907 bytes
-// Average Per Stage:     69 bytes
+// Total Batch Size:      5,000 pipelines of 1000 stages
+// Total Heap Increase:   147.70 MB
+// Average Per Pipeline:  30,975 bytes
+// Average Per Stage:     31 bytes
 // ===============================

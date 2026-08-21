@@ -30,7 +30,7 @@ export class DefaultConsumerSet<VALUE> implements ConsumerSet<VALUE> {
   }
   push(value: VALUE) {}
 
-  add(consumer: Consumer<VALUE>): ConsumerSet.Delete {
+  add(consumer: Consumer<VALUE>): void {
     if (!this._consumers) {
       this._consumers = consumer;
     } else if (this._consumers instanceof Consumer) {
@@ -39,10 +39,8 @@ export class DefaultConsumerSet<VALUE> implements ConsumerSet<VALUE> {
       this._consumers.add(consumer);
     }
     this._optimizePush();
-
-    return () => this._delete(consumer);
   }
-  private _delete(consumer: Consumer<VALUE>) {
+  delete(consumer: Consumer<VALUE>): boolean {
     const sizeBefore = this.size;
     if (!this._consumers) {
       return false;
