@@ -1,10 +1,10 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Stream } from "../core/stream";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
-import { AnyConsumable, AnyStream, ExtractValue, NonEmptyString, Transformer } from "../core/types";
-
-export class Tap<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class Tap<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -21,7 +21,7 @@ export class Tap<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> 
     );
   }
 }
-export function tap<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
+export function tap<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
   callback: (value: VALUE, INPUT: INPUT) => void,
 ) {
   return ($input: INPUT) => new Tap($input, callback);

@@ -2,7 +2,6 @@ import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { Transformer } from "../core/transformer";
-
 import { ExtractValue } from "../core/types";
 
 export class Map<
@@ -19,8 +18,20 @@ export class Map<
   ) {
     super();
   }
-  override consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
-    return this.$input.consume((consumer, value) => handler(consumer, this.mapper(value)), options);
+  override consume(options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
+    return this.$input.consume(new InputConsumerOptions(this.mapper, options));
+  }
+}
+
+class InputConsumerOptions<VALUE, MAPPED> extends Consumer.DefaultOptions<MAPPED> {
+  constructor(
+    private mapper: Map.Mapper<VALUE, MAPPED>,
+    options?: Consumer.Options<MAPPED>,
+  ) {
+    super(options);
+  }
+  override handler(consumer: Consumer<MAPPED>, value: any): void {
+    this.options?.handler?.(consumer, this.mapper(value));
   }
 }
 

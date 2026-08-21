@@ -1,14 +1,16 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
-export class SkipUntil<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class SkipUntil<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
   constructor(
     readonly $input: INPUT,
-    private $notifier: AnyConsumable,
+    private $notifier: Consumable.AnyConsumable,
   ) {
     super();
   }
@@ -43,6 +45,6 @@ export class SkipUntil<INPUT extends AnyConsumable, VALUE extends ExtractValue<I
   }
 }
 
-export function skipUntil<INPUT extends AnyConsumable>($notifier: AnyConsumable) {
+export function skipUntil<INPUT extends Consumable.AnyConsumable>($notifier: Consumable.AnyConsumable) {
   return ($input: INPUT) => new SkipUntil($input, $notifier);
 }

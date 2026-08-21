@@ -1,10 +1,11 @@
-import { EMPTY } from "../core/consts";
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
 export class Pace<
-  INPUT extends AnyConsumable,
+  INPUT extends Consumable.AnyConsumable,
   MS extends number,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 >
@@ -53,6 +54,6 @@ export class Pace<
   }
 }
 
-export function pace<INPUT extends AnyConsumable, MS extends number>(ms: MS) {
+export function pace<INPUT extends Consumable.AnyConsumable, MS extends number>(ms: MS) {
   return ($input: INPUT) => new Pace($input, ms);
 }

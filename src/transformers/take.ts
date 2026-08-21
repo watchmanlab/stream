@@ -1,8 +1,10 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
-export class Take<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class Take<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -24,6 +26,6 @@ export class Take<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT>
   }
 }
 
-export function take<INPUT extends AnyConsumable>(count: number) {
+export function take<INPUT extends Consumable.AnyConsumable>(count: number) {
   return ($input: INPUT) => new Take($input, count);
 }

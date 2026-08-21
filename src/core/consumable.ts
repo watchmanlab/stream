@@ -1,7 +1,7 @@
 import { Consumer } from "./consumer";
 
 export interface Consumable<VALUE> {
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
+  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE>;
 }
 
 export namespace Consumable {

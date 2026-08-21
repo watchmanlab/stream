@@ -1,8 +1,10 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
-export class TakeWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class TakeWhile<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -24,8 +26,9 @@ export class TakeWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<I
   }
 }
 
-export function takeWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
-  predicate: (value: VALUE) => boolean,
-) {
+export function takeWhile<
+  INPUT extends Consumable.AnyConsumable,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+>(predicate: (value: VALUE) => boolean) {
   return ($input: INPUT) => new TakeWhile($input, predicate);
 }

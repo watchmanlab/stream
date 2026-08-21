@@ -1,6 +1,8 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import type { Consumable, ExtractValue, Result, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import type { ExtractValue, Result } from "../core/types";
 
 export class Resolve<
   INPUT extends Consumable<Promise<any>>,
@@ -20,48 +22,49 @@ export class Resolve<
     options?: Consumer.Options<Result<VALUE, any>>,
   ): Consumer<Result<VALUE, any>> {
     const { next, terminate, ...rest } = options ?? {};
+    const { $input, concurrency } = this;
 
     let count = 0;
 
-    const inputConsumer = this.$input.consume(
+    const input$ = $input.consume(
       (consumer, maybePromise) => {
-        if (++count < this.concurrency) consumer.next();
+        if (++count < concurrency) consumer.next();
 
         maybePromise
           .then((value) => {
             count--;
-            outputConsumer.push({ ok: true, value });
+            output$.push({ ok: true, value });
           })
           .catch((error) => {
             count--;
-            outputConsumer.push({ ok: false, error });
+            output$.push({ ok: false, error });
           })
           .finally(() => {
             if (!count && (consumer.status === "abort" || consumer.status === "complete")) {
-              outputConsumer.terminate(consumer.status);
+              output$.terminate(consumer.status);
             }
           });
       },
       {
         terminate(_, reason) {
           if (count) return;
-          outputConsumer.terminate(reason);
+          output$.terminate(reason);
         },
       },
     );
 
-    const outputConsumer = new Consumer(handler, {
+    const output$ = new Consumer(handler, {
       ...rest,
       next: (consumer) => {
-        if (count < this.concurrency) inputConsumer.next();
+        if (count < concurrency) input$.next();
         next?.(consumer);
       },
       terminate(consumer, reason) {
-        inputConsumer.terminate(reason);
+        input$.terminate(reason);
         terminate?.(consumer, reason);
       },
     });
-    return outputConsumer;
+    return output$;
   }
 }
 

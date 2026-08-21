@@ -1,17 +1,17 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Consumable } from "../core/types";
 
 export class IteratorSource<VALUE> extends Source<VALUE> {
   constructor(private iterator: Iterator<VALUE> | (() => Iterator<VALUE>)) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
 
     const iter = typeof this.iterator === "function" ? this.iterator() : this.iterator;
 
-    return new Consumer(handler, {
+    return new Consumer({
       ...rest,
       next(consumer) {
         const result = iter.next();

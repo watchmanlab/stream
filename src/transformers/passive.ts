@@ -1,8 +1,10 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { Transformer } from "../core/transformer";
+import { ExtractValue } from "../core/types";
 
-export class Passive<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class Passive<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -14,6 +16,6 @@ export class Passive<INPUT extends AnyConsumable, VALUE extends ExtractValue<INP
   }
 }
 
-export function passive<INPUT extends AnyConsumable>() {
+export function passive<INPUT extends Consumable.AnyConsumable>() {
   return ($input: INPUT) => new Passive($input);
 }
