@@ -19,19 +19,19 @@ export class Map<
     super();
   }
   override consume(options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
-    return this.$input.consume(new InputConsumerOptions(this.mapper, options));
+    return this.$input.consume(new ConsumerOptions(this.mapper, options));
   }
 }
 
-class InputConsumerOptions<VALUE, MAPPED> extends Consumer.DefaultOptions<MAPPED> {
+class ConsumerOptions extends Consumer.DefaultOptions<any> {
   constructor(
-    private mapper: Map.Mapper<VALUE, MAPPED>,
-    options?: Consumer.Options<MAPPED>,
+    private mapper: Map.Mapper<any, any>,
+    options?: Consumer.Options<any>,
   ) {
     super(options);
   }
-  override handler(consumer: Consumer<MAPPED>, value: any): void {
-    this.options?.handler?.(consumer, this.mapper(value));
+  override handler(consumer: Consumer<any>, value: any): void {
+    super.handler(consumer, this.mapper(value));
   }
 }
 

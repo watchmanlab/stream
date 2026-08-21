@@ -19,7 +19,7 @@ function runMemoryProfile() {
     let subject: Observable<any> = new Subject<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      subject = subject.pipe(map((v: number) => (v / v) * v + 4));
+      subject = subject.pipe(filter((v) => v / 3 > 0));
     }
 
     pipelines[i] = subject.subscribe((v) => console.log(v));

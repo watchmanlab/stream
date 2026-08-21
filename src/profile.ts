@@ -1,5 +1,6 @@
 import { Source } from "./core/source";
 import { Stream } from "./core/stream";
+import { filter } from "./transformers/filter";
 import { map } from "./transformers/map";
 
 function getHeapSize(): number {
@@ -21,7 +22,7 @@ function runMemoryProfile() {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(map((v: number) => (v / v) * v + 4));
+      stream = stream.pipe(filter((v) => v / 3 > 0));
     }
     pipelines[i] = stream.consume({ handler: (self) => self.next() }).next();
   }
