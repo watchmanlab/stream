@@ -221,7 +221,7 @@ class ConsumerOptions<VALUE> extends Consumer.DefaultOptions<VALUE> {
   override next(consumer: Consumer<VALUE>): void {
     this.stream["_options"]?.next?.(this.stream, consumer);
     this.stream["_events"].$next?.push(consumer);
-    this.options?.next?.(consumer);
+    super.next(consumer);
   }
   override terminate(consumer: Consumer<VALUE>, reason: TerminateReason): void {
     if (this.stream["_consumerSet"].delete(consumer)) {
@@ -234,7 +234,7 @@ class ConsumerOptions<VALUE> extends Consumer.DefaultOptions<VALUE> {
         if (this.stream["_status"] === "drain") this.stream.terminate("complete");
       }
     }
-    this.options?.terminate?.(consumer, reason);
+    super.terminate(consumer, reason);
   }
 }
 
@@ -247,28 +247,29 @@ class StreamFromOptions<VALUE> extends Stream.DefaultOptions<VALUE> {
   ) {
     super(options);
   }
-  override push(stream: Stream<VALUE>, value: VALUE): void {
-    this.context.pulling = false;
-    this.options?.push?.(stream, value);
-  }
+
   override next(stream: Stream<VALUE>, consumer: Consumer<VALUE>): void {
-    this.options?.next?.(stream, consumer);
     if (!this.context.pulling) {
       this.context.pulling = true;
       this.context.consumableConsumer?.next();
     }
+    super.next(stream, consumer);
   }
   override firstConsumerJoin(stream: Stream<VALUE>, consumer: Consumer<VALUE>): void {
-    this.context.consumableConsumer = this.consumable.consume(new ConsumableConsumerOptions(stream));
-    this.options?.firstConsumerJoin?.(stream, consumer);
+    this.context.consumableConsumer = this.consumable.consume(new ConsumableConsumerOptions(stream, this.context));
+    super.firstConsumerJoin(stream, consumer);
   }
 }
 
 class ConsumableConsumerOptions<VALUE> extends Consumer.DefaultOptions<VALUE> {
-  constructor(private stream: Stream<VALUE>) {
+  constructor(
+    private stream: Stream<VALUE>,
+    private context: StreamFromContext<VALUE>,
+  ) {
     super();
   }
   override handler(consumer: Consumer<VALUE>, value: VALUE): void | undefined {
+    this.context.pulling = false;
     this.stream.push(value);
   }
   override terminate(consumer: Consumer<VALUE>, reason: TerminateReason): void {

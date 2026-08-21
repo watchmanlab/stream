@@ -107,7 +107,7 @@ export namespace Consumer {
   export class DefaultOptions<VALUE> implements Required<Options<VALUE>> {
     constructor(protected options?: Options<VALUE>) {}
     get passive(): boolean {
-      return true;
+      return false;
     }
 
     handler(consumer: Consumer<VALUE>, value: VALUE): void {
