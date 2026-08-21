@@ -13,7 +13,7 @@ export class Filter<
   extends Source<FILTERED>
   implements Transformer<INPUT, FILTERED>
 {
-  private _$others?: Stream<VALUE>;
+  private _$complement?: Stream<VALUE>;
   constructor(
     readonly $input: INPUT,
     private predicate: Filter.Predicate<VALUE, FILTERED>,
@@ -22,10 +22,10 @@ export class Filter<
     super();
   }
 
-  get $others(): Source<VALUE> {
+  get $complement(): Source<VALUE> {
     return Source.from(
-      (this._$others ??= new Stream({
-        lastConsumerLeft: () => (this._$others = undefined),
+      (this._$complement ??= new Stream({
+        lastConsumerLeft: () => (this._$complement = undefined),
       })),
     );
   }
@@ -45,7 +45,8 @@ class ConsumerOptions extends Consumer.DefaultOptions<any> {
     if (this.filter["predicate"](value)) {
       super.handler(consumer, value);
     } else {
-      this.filter["_$others"]?.push(value);
+      this.filter["_$complement"]?.push(value);
+      this.filter["complement"]?.(value);
       consumer.next();
     }
   }

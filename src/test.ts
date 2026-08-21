@@ -171,23 +171,25 @@ function streamBench() {
 // streamBench(); //stream: 100 000 000 push -> 1 stages in 1891 ms
 
 function streamTest() {
-  const stream = fromIterable([1, 2, 3]);
+  const stream = new Stream(); //fromIterable([1, 2, 3]);
   const stream2 = Stream.from(stream);
-  // stream2
-  //   .consume((consumer, value) => {
-  //     console.log("c1", value);
-  //     consumer.next();
-  //   })
-  //   .next();
-  (async () => {
-    for await (const value of stream) {
-      console.log(value);
-    }
-  })();
+  stream2
+    .consume({
+      handler: (consumer, value) => {
+        console.log("c1", value);
+        consumer.next();
+      },
+    })
+    .next();
+  // (async () => {
+  //   for await (const value of stream2) {
+  //     console.log(value);
+  //   }
+  // })();
 
-  // stream.push(1);
-  // stream.push(2);
-  // stream.push(3);
+  stream.push(1);
+  stream.push(2);
+  stream.push(3);
 }
 
 streamTest();

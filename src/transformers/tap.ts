@@ -10,19 +10,28 @@ export class Tap<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractVa
 {
   constructor(
     readonly $input: INPUT,
-    private callback: (value: VALUE, input: INPUT) => void,
+    private callback: (value: VALUE) => void,
   ) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$input.consume(
-      (consumer, value) => (this.callback(value, this.$input), handler(consumer, value)),
-      options,
-    );
+  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume(new ConsumerOptions(this.callback, options));
   }
 }
 export function tap<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
-  callback: (value: VALUE, INPUT: INPUT) => void,
+  callback: (value: VALUE) => void,
 ) {
   return ($input: INPUT) => new Tap($input, callback);
+}
+class ConsumerOptions extends Consumer.DefaultOptions<any> {
+  constructor(
+    private callback: (value: any) => void,
+    options?: Consumer.Options<any>,
+  ) {
+    super(options);
+  }
+  override handler(consumer: Consumer<any>, value: any): void {
+    this.callback(value);
+    super.handler(consumer, value);
+  }
 }

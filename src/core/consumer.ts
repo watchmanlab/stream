@@ -110,7 +110,7 @@ export namespace Consumer {
       return true;
     }
 
-    handler(consumer: Consumer<VALUE>, value: VALUE) {
+    handler(consumer: Consumer<VALUE>, value: VALUE): void {
       return this.options?.handler?.(consumer, value);
     }
 

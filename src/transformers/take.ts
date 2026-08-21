@@ -15,17 +15,27 @@ export class Take<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractV
     super();
   }
 
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$input.consume((consumer, value) => {
-      if (this.count--) {
-        handler(consumer, value);
-      } else {
-        consumer.terminate("complete");
-      }
-    }, options);
+  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume(new ConsumerOptions(this.count, options));
   }
 }
 
 export function take<INPUT extends Consumable.AnyConsumable>(count: number) {
   return ($input: INPUT) => new Take($input, count);
+}
+
+class ConsumerOptions extends Consumer.DefaultOptions<any> {
+  constructor(
+    private count: number,
+    options?: Consumer.Options<any>,
+  ) {
+    super(options);
+  }
+  override handler(consumer: Consumer<any>, value: any): void {
+    if (this.count--) {
+      super.handler(consumer, value);
+    } else {
+      consumer.terminate("complete");
+    }
+  }
 }
