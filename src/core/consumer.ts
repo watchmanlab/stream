@@ -4,16 +4,18 @@ import { DefaultQueue } from "./default-queue";
 import { Queue } from "./queue";
 
 export class Consumer<VALUE> implements Disposable {
-  protected _options?: Consumer.Options<VALUE>;
+  protected _options: Consumer.DefaultOptions<VALUE>;
   protected _status: Consumer.Status;
   protected _queue?: Queue<VALUE>;
   protected _credit: number;
 
   constructor(options?: Consumer.Options<VALUE>) {
-    this._options = options;
+    this._options = options instanceof Consumer.DefaultOptions ? options : new Consumer.DefaultOptions(options);
     this._status = "active";
     this._queue = undefined;
     this._credit = 0;
+
+    this._options.init(this);
   }
   [Symbol.dispose]() {
     this.terminate("abort");
@@ -29,20 +31,20 @@ export class Consumer<VALUE> implements Disposable {
   }
   push(value: VALUE): this {
     if (this._credit > 0 && !this._queue?.size) {
-      this._options?.handler?.(this, value);
+      this._options.handler(this, value);
       this._credit--;
     } else {
       this.queue.enqueue(value);
-      this._options?.enqueue?.(this, value);
+      this._options.enqueue(this, value);
     }
-    this._options?.push?.(this, value);
+    this._options.push(this, value);
     return this;
   }
   next(): this {
     this._credit++;
 
     if (!this._queue?.size) {
-      if (!this._options?.passive) this._options?.next?.(this);
+      this._options.next(this);
       return this;
     }
 
@@ -56,13 +58,13 @@ export class Consumer<VALUE> implements Disposable {
         if (this._status === "drain") {
           this.terminate("complete");
         } else {
-          this._options?.next?.(this);
+          this._options.next(this);
         }
         break;
       }
-      this._options?.dequeue?.(this, value);
+      this._options.dequeue(this, value);
 
-      this._options?.handler?.(this, value);
+      this._options.handler(this, value);
       this._credit--;
     }
     return this;
@@ -75,16 +77,16 @@ export class Consumer<VALUE> implements Disposable {
       this._queue?.clear();
     } else if (this._queue?.size) {
       this._status = "drain";
-      this._options?.drain?.(this);
+      this._options.drain(this);
       return this;
     } else {
       this.next = this.terminate = EMPTY_THIS_FUNCTION;
       this._status = "complete";
     }
 
-    this._options?.terminate?.(this, reason);
+    this._options.terminate(this, reason);
 
-    this._queue = this._options = undefined;
+    this._queue = undefined;
 
     return this;
   }
@@ -96,6 +98,7 @@ export namespace Consumer {
 
   export interface Options<VALUE> {
     readonly passive?: boolean;
+    init?: (consumer: Consumer<VALUE>) => void;
     handler?: (consumer: Consumer<VALUE>, value: VALUE) => void;
     push?(consumer: Consumer<VALUE>, value: VALUE): void;
     next?(consumer: Consumer<VALUE>): void;
@@ -109,7 +112,9 @@ export namespace Consumer {
     get passive(): boolean {
       return false;
     }
-
+    init(consumer: Consumer<VALUE>) {
+      return this.options?.init?.(consumer);
+    }
     handler(consumer: Consumer<VALUE>, value: VALUE): void {
       return this.options?.handler?.(consumer, value);
     }

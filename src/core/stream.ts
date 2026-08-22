@@ -7,17 +7,19 @@ import { Consumable } from "./consumable";
 import { ConsumerSet } from "./consumer-set";
 
 export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIterable<VALUE> {
-  protected _options?: Stream.Options<VALUE>;
+  protected _options: Stream.DefaultOptions<VALUE>;
   protected _events: Stream.Events<VALUE>;
   protected _consumerSet: ConsumerSet<VALUE>;
   protected _status: Stream.Status;
 
   constructor(options?: Stream.Options<VALUE>) {
     super();
-    this._options = options;
+    this._options = options instanceof Stream.DefaultOptions ? options : new Stream.DefaultOptions(options);
     this._events = {};
     this._consumerSet = options?.consumerSet ?? new DefaultConsumerSet();
     this._status = "active";
+
+    this._options.init(this);
   }
   [Symbol.dispose]() {
     this.terminate("abort");
@@ -94,7 +96,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
   }
 
   push(value: VALUE): this {
-    this._options?.push?.(this, value);
+    this._options.push(this, value);
     this._events.$push?.push(value);
     this._consumerSet.push(value);
     return this;
@@ -105,11 +107,11 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
     this._consumerSet.add(consumer);
 
     if (this._consumerSet.size === 1) {
-      this._options?.firstConsumerJoin?.(this, consumer);
+      this._options.firstConsumerJoin(this, consumer);
       this._events.$firstConsumerJoin?.push(consumer);
     }
 
-    this._options?.consumerJoin?.(this, consumer);
+    this._options.consumerJoin(this, consumer);
     this._events.$consumerJoin?.push(consumer);
 
     return consumer;
@@ -123,7 +125,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       this._status = "abort";
     } else if (this.consumersCount) {
       this._status = "drain";
-      this._options?.drain?.(this);
+      this._options.drain(this);
       this._events.$drain?.push();
 
       this._consumerSet.terminate("complete");
@@ -136,19 +138,17 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
 
     this._consumerSet.terminate(reason);
 
-    this._options?.terminate?.(this, reason);
+    this._options.terminate(this, reason);
     this._events.$terminate?.push(reason);
 
     Object.values(this._events).forEach((stream) => stream.terminate(reason));
 
-    this._options = this._events = {};
+    this._events = {};
 
     return this;
   }
 
   static override from<VALUE>(consumable: Consumable<VALUE>, options?: Stream.Options<VALUE>): Stream<VALUE> {
-    const { firstConsumerJoin, push, next, terminate, ...rest } = options ?? {};
-
     const context = { pulling: false, consumableConsumer: undefined } satisfies StreamFromContext<VALUE>;
 
     return new Stream(new StreamFromOptions(consumable, context, options));
@@ -161,6 +161,7 @@ export namespace Stream {
 
   export interface Options<VALUE> {
     consumerSet?: ConsumerSet<VALUE>;
+    init?(stream: Stream<VALUE>): void;
     push?(stream: Stream<VALUE>, value: VALUE): void;
     next?(stream: Stream<VALUE>, consumer: Consumer<VALUE>): void;
     consumerJoin?(stream: Stream<VALUE>, consumer: Consumer<VALUE>): void;
@@ -184,6 +185,9 @@ export namespace Stream {
     constructor(protected options?: Options<VALUE>) {}
     get consumerSet(): ConsumerSet<VALUE> {
       return new DefaultConsumerSet();
+    }
+    init(stream: Stream<VALUE>): void {
+      return this.options?.init?.(stream);
     }
     push(stream: Stream<VALUE>, value: VALUE): void {
       return this.options?.push?.(stream, value);
@@ -219,22 +223,22 @@ class ConsumerOptions<VALUE> extends Consumer.DefaultOptions<VALUE> {
     super(options);
   }
   override next(consumer: Consumer<VALUE>): void {
-    this.stream["_options"]?.next?.(this.stream, consumer);
+    this.stream["_options"].next(this.stream, consumer);
     this.stream["_events"].$next?.push(consumer);
-    super.next(consumer);
+    this.options?.next?.(consumer);
   }
   override terminate(consumer: Consumer<VALUE>, reason: TerminateReason): void {
     if (this.stream["_consumerSet"].delete(consumer)) {
-      this.stream["_options"]?.consumerLeft?.(this.stream, consumer);
+      this.stream["_options"].consumerLeft(this.stream, consumer);
       this.stream["_events"].$consumerLeft?.push(consumer);
 
       if (!this.stream["_consumerSet"].size) {
-        this.stream["_options"]?.lastConsumerLeft?.(this.stream, consumer);
+        this.stream["_options"].lastConsumerLeft(this.stream, consumer);
         this.stream["_events"].$lastConsumerLeft?.push(consumer);
         if (this.stream["_status"] === "drain") this.stream.terminate("complete");
       }
     }
-    super.terminate(consumer, reason);
+    this.options?.terminate?.(consumer, reason);
   }
 }
 
@@ -253,14 +257,13 @@ class StreamFromOptions<VALUE> extends Stream.DefaultOptions<VALUE> {
       this.context.pulling = true;
       this.context.consumableConsumer?.next();
     }
-    super.next(stream, consumer);
+    this.options?.next?.(stream, consumer);
   }
   override firstConsumerJoin(stream: Stream<VALUE>, consumer: Consumer<VALUE>): void {
     this.context.consumableConsumer = this.consumable.consume(new ConsumableConsumerOptions(stream, this.context));
-    super.firstConsumerJoin(stream, consumer);
+    super.options?.firstConsumerJoin?.(stream, consumer);
   }
 }
-
 class ConsumableConsumerOptions<VALUE> extends Consumer.DefaultOptions<VALUE> {
   constructor(
     private stream: Stream<VALUE>,

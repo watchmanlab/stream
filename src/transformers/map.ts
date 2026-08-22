@@ -31,7 +31,7 @@ class ConsumerOptions extends Consumer.DefaultOptions<any> {
     super(options);
   }
   override handler(consumer: Consumer<any>, value: any): void {
-    super.handler(consumer, this.mapper(value));
+    this.options?.handler?.(consumer, this.mapper(value));
   }
 }
 

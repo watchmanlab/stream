@@ -15,14 +15,8 @@ export class TakeWhile<INPUT extends Consumable.AnyConsumable, VALUE extends Ext
     super();
   }
 
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$input.consume((consumer, value) => {
-      if (this.predicate(value)) {
-        handler(consumer, value);
-      } else {
-        consumer.terminate("complete");
-      }
-    }, options);
+  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume(new ConsumerOptions(this.predicate, options));
   }
 }
 
@@ -31,4 +25,20 @@ export function takeWhile<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 >(predicate: (value: VALUE) => boolean) {
   return ($input: INPUT) => new TakeWhile($input, predicate);
+}
+
+class ConsumerOptions extends Consumer.DefaultOptions<any> {
+  constructor(
+    private predicate: (value: any) => boolean,
+    options?: Consumer.Options<any>,
+  ) {
+    super(options);
+  }
+  override handler(consumer: Consumer<any>, value: any): void {
+    if (this.predicate(value)) {
+      super.handler(consumer, value);
+    } else {
+      consumer.terminate("complete");
+    }
+  }
 }

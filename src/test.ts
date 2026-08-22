@@ -132,7 +132,7 @@ function rxjsBench() {
   }
 }
 
-// rxjsBench(); // rxjs: 100 000 000 push -> 1 stages in 3840 ms
+// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2474 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 100;
@@ -168,7 +168,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 100 000 000 push -> 1 stages in 1891 ms
+streamBench(); //stream: 1 000 000 push -> 100 stages in 21 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -187,7 +187,7 @@ function streamTest() {
   // stream.push(3);
 }
 
-streamTest();
+// streamTest();
 // c1 1
 // c1 2
 // c1 3
@@ -392,28 +392,19 @@ function fromTimeoutTest() {
 function mapTest() {
   const stream = new Stream<number>();
 
-  const mapped = stream.pipe(map((v) => (v * 3).toFixed(3)));
+  const mapped = stream.pipe(map((v) => v * 10)).pipe(map((v) => v.toFixed(1)));
   mapped
-    .consume((consumer, value) => {
-      console.log("c1", value);
-      consumer.next();
+    .consume({
+      handler: (consumer, value) => {
+        console.log("c1", value);
+        consumer.next();
+      },
     })
     .next();
 
-  const c = mapped.consume((consumer, value) => {
-    setTimeout(() => {
-      console.log("c2", value);
-      consumer.next();
-    }, 1000);
-  });
-
-  setTimeout(() => {
-    c.next();
-  }, 1000);
-
   stream.push(1).push(2).push(3);
 }
-// mapTest();
+mapTest();
 // c1 3.000
 // c1 6.000
 // c1 9.000
