@@ -13,23 +13,33 @@ export class TapBatch<
 {
   constructor(
     readonly $input: INPUT,
-    private callback: (value: VALUE, INPUT: INPUT) => void,
+    private callback: (value: VALUE) => void,
   ) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE[]>, options?: Consumer.Options<VALUE[]>): Consumer<VALUE[]> {
-    return this.$input.consume((consumer, values) => {
-      for (let i = 0, len = values.length; i < len; i++) {
-        this.callback(values[i], this.$input);
-      }
-      handler(consumer, values);
-    }, options);
+  consume(options?: Consumer.Options<VALUE[]>): Consumer<VALUE[]> {
+    return this.$input.consume(new ConsumerOptions(this.callback, options));
   }
 }
 
 export function tapBatch<
   INPUT extends Consumable<Array<any>>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
->(callback: (value: VALUE, INPUT: INPUT) => void) {
+>(callback: (value: VALUE) => void) {
   return ($input: INPUT) => new TapBatch($input, callback);
+}
+
+class ConsumerOptions<T> extends Consumer.DefaultOptions<T[]> {
+  constructor(
+    private callback: (values: T) => void,
+    options?: Consumer.Options<T[]>,
+  ) {
+    super(options);
+  }
+  override handler(consumer: Consumer<T[]>, values: T[]): void {
+    for (let i = 0, len = values.length; i < len; i++) {
+      this.callback(values[i]);
+    }
+    super.handler(consumer, values);
+  }
 }

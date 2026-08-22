@@ -35,6 +35,7 @@ import { flat$ } from "./transformers/flat$.ts";
 import { pace } from "./transformers/pace.ts";
 import { debounce } from "./transformers/debounce.ts";
 import { keepNewest } from "./transformers/keep-newest.ts";
+import { skipWhile } from "./transformers/skip-while.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -132,7 +133,7 @@ function rxjsBench() {
   }
 }
 
-// rxjsBench(); // rxjs: 100 000 000 push -> 1 stages in 3840 ms
+// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2474 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 100;
@@ -168,29 +169,26 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 100 000 000 push -> 1 stages in 1891 ms
+// streamBench(); //stream: 1 000 000 push -> 100 stages in 21 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
   const stream2 = Stream.from(stream);
-  // stream2
-  //   .consume((consumer, value) => {
-  //     console.log("c1", value);
-  //     consumer.next();
-  //   })
-  //   .next();
-  (async () => {
-    for await (const value of stream) {
-      console.log(value);
-    }
-  })();
+  stream2
+    .consume({
+      handler: (consumer, value) => {
+        console.log("c1", value);
+        consumer.next();
+      },
+    })
+    .next();
 
   // stream.push(1);
   // stream.push(2);
   // stream.push(3);
 }
 
-streamTest();
+// streamTest();
 // c1 1
 // c1 2
 // c1 3
@@ -395,37 +393,19 @@ function fromTimeoutTest() {
 function mapTest() {
   const stream = new Stream<number>();
 
-  const mapped = stream.pipe(map((v) => (v * 3).toFixed(3)));
+  const mapped = stream.pipe(map((v) => v * 10)).pipe(map((v) => v.toFixed(1)));
   mapped
-    .consume((consumer, value) => {
-      console.log("c1", value);
-      consumer.next();
+    .consume({
+      handler: (consumer, value) => {
+        console.log("c1", value);
+        consumer.next();
+      },
     })
     .next();
 
-  const c = mapped.consume((consumer, value) => {
-    setTimeout(() => {
-      console.log("c2", value);
-      consumer.next();
-    }, 1000);
-  });
-
-  setTimeout(() => {
-    c.next();
-  }, 1000);
-
   stream.push(1).push(2).push(3);
 }
-// mapTest();
-// c1 3.000
-// c1 6.000
-// c1 9.000
-// ...wait 1s
-// c2 3
-// ...wait 1s
-// c2 6
-// ...wait 1s
-// c2 9
+mapTest();
 
 function signalTest() {
   const $signal = new Signal();
@@ -486,14 +466,29 @@ function filterTest() {
 function skipTest() {
   fromIterable([1, 2, 3, 4, 5, 6])
     .pipe(skip(3))
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
+    .consume({
+      handler: (c, v) => {
+        console.log(v);
+        c.next();
+      },
     })
     .next();
 }
 
 // skipTest();
+function skipWhileTest() {
+  fromIterable([1, 2, 3, 4, 5, 6])
+    .pipe(skipWhile((v) => v < 3))
+    .consume({
+      handler: (c, v) => {
+        console.log(v);
+        c.next();
+      },
+    })
+    .next();
+}
+
+// skipWhileTest();
 function resolveTest() {
   fromIterable([asyncValue(1), asyncValue(2), asyncValue(3)])
     .pipe(resolve())

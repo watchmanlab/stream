@@ -14,18 +14,28 @@ export class Skip<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractV
   ) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$input.consume((consumer, value) => {
-      if (this.count--) {
-        consumer.next();
-      } else {
-        consumer["_handler"] = handler;
-        handler(consumer, value);
-      }
-    }, options);
+  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume(new ConsumerOptions(this.count, options));
   }
 }
 
 export function skip<INPUT extends Consumable.AnyConsumable>(count: number) {
   return ($input: INPUT) => new Skip($input, count);
+}
+
+class ConsumerOptions extends Consumer.DefaultOptions<any> {
+  constructor(
+    private count: number,
+    options?: Consumer.Options<any>,
+  ) {
+    super(options);
+  }
+  override handler(consumer: Consumer<any>, value: any): void {
+    if (this.count > 0) {
+      this.count--;
+      consumer.next();
+    } else {
+      this.options?.handler?.(consumer, value);
+    }
+  }
 }

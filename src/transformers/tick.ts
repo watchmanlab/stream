@@ -11,11 +11,20 @@ export class Tick<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractV
   constructor(readonly $input: INPUT) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$input.consume((consumer, value) => queueMicrotask(() => handler(consumer, value)), options);
+  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume(new ConsumerOptions(options));
   }
 }
 
 export function tick<INPUT extends Consumable.AnyConsumable>() {
   return ($input: INPUT) => new Tick($input);
+}
+
+class ConsumerOptions extends Consumer.DefaultOptions<any> {
+  constructor(options?: Consumer.Options<any>) {
+    super(options);
+  }
+  override handler(consumer: Consumer<any>, value: any): void | undefined {
+    queueMicrotask(() => super.handler(consumer, value));
+  }
 }
