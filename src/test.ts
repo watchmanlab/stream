@@ -35,6 +35,7 @@ import { flat$ } from "./transformers/flat$.ts";
 import { pace } from "./transformers/pace.ts";
 import { debounce } from "./transformers/debounce.ts";
 import { keepNewest } from "./transformers/keep-newest.ts";
+import { skipWhile } from "./transformers/skip-while.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -168,7 +169,7 @@ function streamBench() {
   }
 }
 
-streamBench(); //stream: 1 000 000 push -> 100 stages in 21 ms
+// streamBench(); //stream: 1 000 000 push -> 100 stages in 21 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -404,16 +405,7 @@ function mapTest() {
 
   stream.push(1).push(2).push(3);
 }
-mapTest();
-// c1 3.000
-// c1 6.000
-// c1 9.000
-// ...wait 1s
-// c2 3
-// ...wait 1s
-// c2 6
-// ...wait 1s
-// c2 9
+// mapTest();
 
 function signalTest() {
   const $signal = new Signal();
@@ -474,14 +466,29 @@ function filterTest() {
 function skipTest() {
   fromIterable([1, 2, 3, 4, 5, 6])
     .pipe(skip(3))
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
+    .consume({
+      handler: (c, v) => {
+        console.log(v);
+        c.next();
+      },
     })
     .next();
 }
 
 // skipTest();
+function skipWhileTest() {
+  fromIterable([1, 2, 3, 4, 5, 6])
+    .pipe(skipWhile((v) => v < 3))
+    .consume({
+      handler: (c, v) => {
+        console.log(v);
+        c.next();
+      },
+    })
+    .next();
+}
+
+skipWhileTest();
 function resolveTest() {
   fromIterable([asyncValue(1), asyncValue(2), asyncValue(3)])
     .pipe(resolve())

@@ -45,11 +45,7 @@ class NotifierConsumerOptions extends Consumer.DefaultOptions<any> {
     super();
   }
   override handler(consumer: Consumer<any>, value: any): void {
-    if (value === "abort") {
-      this.inuputConsumer.terminate("abort");
-      return;
-    }
-    this.inuputConsumer.terminate("complete");
+    consumer.terminate("complete");
   }
   override terminate(consumer: Consumer<any>, reason: TerminateReason): void {
     this.inuputConsumer.terminate(reason);

@@ -14,15 +14,8 @@ export class SkipWhile<INPUT extends Consumable.AnyConsumable, VALUE extends Ext
   ) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$input.consume((consumer, value) => {
-      if (this.predicate(value)) {
-        consumer.next();
-      } else {
-        consumer["_handler"] = handler;
-        handler(consumer, value);
-      }
-    }, options);
+  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume(new ConsumerOptions(this.predicate, options));
   }
 }
 
@@ -31,4 +24,28 @@ export function skipWhile<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 >(predicate: (value: VALUE) => boolean) {
   return ($input: INPUT) => new SkipWhile($input, predicate);
+}
+
+class ConsumerOptions extends Consumer.DefaultOptions<any> {
+  private skipping = true;
+
+  constructor(
+    private predicate: (value: any) => boolean,
+    options?: Consumer.Options<any>,
+  ) {
+    super(options);
+  }
+
+  override handler(consumer: Consumer<any>, value: any): void {
+    if (this.skipping) {
+      if (this.predicate(value)) {
+        consumer.next();
+        return;
+      }
+
+      this.skipping = false;
+    }
+
+    this.options?.handler?.(consumer, value);
+  }
 }

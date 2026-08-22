@@ -44,7 +44,7 @@ export class Consumer<VALUE> implements Disposable {
     this._credit++;
 
     if (!this._queue?.size) {
-      this._options.next(this);
+      if (!this._options.passive) this._options.next(this);
       return this;
     }
 
