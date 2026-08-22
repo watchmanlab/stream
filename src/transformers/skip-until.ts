@@ -22,19 +22,8 @@ export class SkipUntil<INPUT extends Consumable.AnyConsumable, VALUE extends Ext
 export function skipUntil<INPUT extends Consumable.AnyConsumable>($notifier: Consumable.AnyConsumable) {
   return ($input: INPUT) => new SkipUntil($input, $notifier);
 }
+type ConsumerContext = { skipping: boolean };
 
-class ConsumerOptions extends Consumer.DefaultOptions<any> {
-  private skipping = true;
-
-  constructor(
-    private predicate: (value: any) => boolean,
-    options?: Consumer.Options<any>,
-  ) {
-    super(options);
-  }
-
-  override handler(consumer: Consumer<any>, value: any): void {}
-}
 class InputConsumerOptions extends Consumer.DefaultOptions<any> {
   private notifierConsumer!: Consumer<any>;
   skipping = true;

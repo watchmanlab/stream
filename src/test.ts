@@ -405,7 +405,7 @@ function mapTest() {
 
   stream.push(1).push(2).push(3);
 }
-// mapTest();
+mapTest();
 
 function signalTest() {
   const $signal = new Signal();
@@ -488,7 +488,7 @@ function skipWhileTest() {
     .next();
 }
 
-skipWhileTest();
+// skipWhileTest();
 function resolveTest() {
   fromIterable([asyncValue(1), asyncValue(2), asyncValue(3)])
     .pipe(resolve())

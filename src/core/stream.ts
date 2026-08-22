@@ -102,7 +102,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
     return this;
   }
   consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    const consumer = new Consumer(new ConsumerOptions(this, options));
+    const consumer = new Consumer(new Stream.ConsumerOptions(this, options));
 
     this._consumerSet.add(consumer);
 
@@ -153,6 +153,32 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
 
     return new Stream(new StreamFromOptions(consumable, context, options));
   }
+  private static ConsumerOptions = class<VALUE> extends Consumer.DefaultOptions<VALUE> {
+    constructor(
+      private stream: Stream<VALUE>,
+      options?: Consumer.Options<VALUE>,
+    ) {
+      super(options);
+    }
+    override next(consumer: Consumer<VALUE>): void {
+      this.stream._options.next(this.stream, consumer);
+      this.stream._events.$next?.push(consumer);
+      this.options?.next?.(consumer);
+    }
+    override terminate(consumer: Consumer<VALUE>, reason: TerminateReason): void {
+      if (this.stream._consumerSet.delete(consumer)) {
+        this.stream._options.consumerLeft(this.stream, consumer);
+        this.stream._events.$consumerLeft?.push(consumer);
+
+        if (!this.stream._consumerSet.size) {
+          this.stream._options.lastConsumerLeft(this.stream, consumer);
+          this.stream._events.$lastConsumerLeft?.push(consumer);
+          if (this.stream._status === "drain") this.stream.terminate("complete");
+        }
+      }
+      this.options?.terminate?.(consumer, reason);
+    }
+  };
 }
 
 export namespace Stream {
@@ -213,32 +239,6 @@ export namespace Stream {
     terminate(stream: Stream<VALUE>, reason: TerminateReason): void {
       return this.options?.terminate?.(stream, reason);
     }
-  }
-}
-class ConsumerOptions<VALUE> extends Consumer.DefaultOptions<VALUE> {
-  constructor(
-    private stream: Stream<VALUE>,
-    options?: Consumer.Options<VALUE>,
-  ) {
-    super(options);
-  }
-  override next(consumer: Consumer<VALUE>): void {
-    this.stream["_options"].next(this.stream, consumer);
-    this.stream["_events"].$next?.push(consumer);
-    this.options?.next?.(consumer);
-  }
-  override terminate(consumer: Consumer<VALUE>, reason: TerminateReason): void {
-    if (this.stream["_consumerSet"].delete(consumer)) {
-      this.stream["_options"].consumerLeft(this.stream, consumer);
-      this.stream["_events"].$consumerLeft?.push(consumer);
-
-      if (!this.stream["_consumerSet"].size) {
-        this.stream["_options"].lastConsumerLeft(this.stream, consumer);
-        this.stream["_events"].$lastConsumerLeft?.push(consumer);
-        if (this.stream["_status"] === "drain") this.stream.terminate("complete");
-      }
-    }
-    this.options?.terminate?.(consumer, reason);
   }
 }
 
