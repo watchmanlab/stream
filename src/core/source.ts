@@ -1,11 +1,12 @@
 import { Consumable } from "./consumable";
 import { Consumer } from "./consumer";
+import { ExtractValue } from "./types";
 
 export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<VALUE> {
   async *[Symbol.asyncIterator]() {
     let resolve: (value: VALUE) => void;
 
-    const consumer = this.consume({ handler: (_, value) => resolve(value) });
+    const consumer = this.consume((_, value) => resolve(value));
 
     try {
       while (consumer.status === "active" || consumer.status === "drain") {
@@ -20,12 +21,20 @@ export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<
       consumer.terminate("complete");
     }
   }
-  abstract consume(options?: Consumer.Options<VALUE>): Consumer<VALUE>;
-  pipe<OUTPUT>(transform: ($input: this) => OUTPUT): OUTPUT {
-    return transform(this);
+  abstract consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
+  pipe<OUTPUT extends Consumable.AnyConsumableLike>(
+    transform: ($input: this) => OUTPUT,
+  ): OUTPUT extends (...args: any) => any ? Source<ExtractValue<ReturnType<OUTPUT>>> : OUTPUT {
+    const output = transform(this);
+
+    if (output instanceof Source) {
+      return output as never;
+    } else {
+      return Source.from(output) as never;
+    }
   }
-  static from<VALUE>($consumable: Consumable<VALUE>): Source<VALUE> {
-    return new SourceProxy($consumable);
+  static from<VALUE>(consumableLike: Consumable.ConsumableLike<VALUE>): Source<VALUE> {
+    return new SourceProxy(consumableLike);
   }
 }
 export namespace Source {
@@ -33,10 +42,12 @@ export namespace Source {
 }
 
 class SourceProxy<VALUE> extends Source<VALUE> {
-  constructor(private $consumable: Consumable<VALUE>) {
+  private _consume: Consumable.Consume<VALUE>;
+  constructor(consumableLike: Consumable.ConsumableLike<VALUE>) {
     super();
+    this._consume = typeof consumableLike === "function" ? consumableLike : consumableLike.consume;
   }
-  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$consumable.consume(options);
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this._consume(handler, options);
   }
 }
