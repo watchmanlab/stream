@@ -1,30 +1,36 @@
 import { Consumable } from "./consumable";
 import { Consumer } from "./consumer";
 
-export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<VALUE> {
+class ThisConsumer<T> extends Consumer<T> {
+  resolve?: (value: T) => void;
+  protected override handler(consumer: Consumer<T>, value: T): void {
+    this.resolve?.(value);
+  }
+}
+export abstract class Source<T> implements Consumable<T>, AsyncIterable<T> {
   async *[Symbol.asyncIterator]() {
-    let resolve: (value: VALUE) => void;
-
-    const consumer = this.consume({ handler: (_, value) => resolve(value) });
+    const consumer = this.consume(new ThisConsumer<T>());
+    consumer.resolve;
 
     try {
-      while (consumer.status === "active" || consumer.status === "drain") {
-        yield new Promise<VALUE>((r) => {
-          resolve = r;
-          consumer.next();
+      while (Consumer.getState(consumer) === "active" || Consumer.getState(consumer) === "drain") {
+        yield new Promise<T>((r) => {
+          consumer.resolve = r;
+
+          Consumer.next(consumer);
         });
       }
     } catch (e) {
-      consumer.terminate("abort");
+      Consumer.terminate(consumer, "abort");
     } finally {
-      consumer.terminate("complete");
+      Consumer.terminate(consumer, "complete");
     }
   }
-  abstract consume(options?: Consumer.Options<VALUE>): Consumer<VALUE>;
+  abstract consume<C extends Consumer<T>>(consumer: C): C;
   pipe<OUTPUT>(transform: ($input: this) => OUTPUT): OUTPUT {
     return transform(this);
   }
-  static from<VALUE>($consumable: Consumable<VALUE>): Source<VALUE> {
+  static from<T>($consumable: Consumable<T>): Source<T> {
     return new SourceProxy($consumable);
   }
 }
@@ -32,11 +38,11 @@ export namespace Source {
   export type AnySource = Source<any>;
 }
 
-class SourceProxy<VALUE> extends Source<VALUE> {
-  constructor(private $consumable: Consumable<VALUE>) {
+class SourceProxy<T> extends Source<T> {
+  constructor(private $consumable: Consumable<T>) {
     super();
   }
-  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$consumable.consume(options);
+  override consume<C extends Consumer<T>>(consumer: C): C {
+    return this.$consumable.consume(consumer);
   }
 }
