@@ -1,40 +1,39 @@
 import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single } from "rxjs";
 import { Consumer } from "./core/consumer.ts";
 import { Stream } from "./core/stream.ts";
-import { fromIterator } from "./sources/iterator-source.ts";
-import { fromIterable } from "./sources/iterable-source.ts";
-import { fromGenerator } from "./sources/generator-source.ts";
-import { fromAsyncIterator } from "./sources/async-iterator-source.ts";
-import { fromAsyncIterable } from "./sources/async-iterable-source.ts";
-import { fromAsyncGenerator } from "./sources/async-generator-source.ts";
-import { fromAbortSignal } from "./sources/abort-signal-source.ts";
-import { fromAbortController } from "./sources/abort-controller-source.ts";
-import { fromEventTarget } from "./sources/event-target-source.ts";
-import { fromPromise } from "./sources/promise-source.ts";
+// import { fromIterator } from "./sources/iterator-source.ts";
+// import { fromIterable } from "./sources/iterable-source.ts";
+// import { fromGenerator } from "./sources/generator-source.ts";
+// import { fromAsyncIterator } from "./sources/async-iterator-source.ts";
+// import { fromAsyncIterable } from "./sources/async-iterable-source.ts";
+// import { fromAsyncGenerator } from "./sources/async-generator-source.ts";
+// import { fromAbortSignal } from "./sources/abort-signal-source.ts";
+// import { fromAbortController } from "./sources/abort-controller-source.ts";
+// import { fromEventTarget } from "./sources/event-target-source.ts";
+// import { fromPromise } from "./sources/promise-source.ts";
 
 import { map } from "./transformers/map";
-import { filter } from "./transformers/filter";
-import { tap } from "./transformers/tap";
-import { pump } from "./transformers/pump";
-import { fromInterval } from "./sources/interval-source.ts";
-import { fromTimeout } from "./sources/timeout-source.ts";
-import { Consumable } from "./core/types";
+// import { filter } from "./transformers/filter";
+// import { tap } from "./transformers/tap";
+// import { pump } from "./transformers/pump";
+// import { fromInterval } from "./sources/interval-source.ts";
+// import { fromTimeout } from "./sources/timeout-source.ts";
 import { Source } from "./core/source";
-import { share } from "./transformers/share.ts";
-import { Signal } from "./streams/signal.ts";
-import { batch } from "./transformers/batch.ts";
-import { flat } from "./transformers/flat.ts";
-import { skip } from "./transformers/skip.ts";
-import { resolve } from "./transformers/resolve.ts";
-import { delay } from "./transformers/delay.ts";
-import { tapBatch } from "./transformers/tap-batch.ts";
-import { passive } from "./transformers/passive.ts";
-import { merge } from "./transformers/merge.ts";
-import { tick } from "./transformers/tick.ts";
-import { flat$ } from "./transformers/flat$.ts";
-import { pace } from "./transformers/pace.ts";
-import { debounce } from "./transformers/debounce.ts";
-import { keepNewest } from "./transformers/keep-newest.ts";
+// import { share } from "./transformers/share.ts";
+// import { Signal } from "./streams/signal.ts";
+// import { batch } from "./transformers/batch.ts";
+// import { flat } from "./transformers/flat.ts";
+// import { skip } from "./transformers/skip.ts";
+// import { resolve } from "./transformers/resolve.ts";
+// import { delay } from "./transformers/delay.ts";
+// import { tapBatch } from "./transformers/tap-batch.ts";
+// import { passive } from "./transformers/passive.ts";
+// import { merge } from "./transformers/merge.ts";
+// import { tick } from "./transformers/tick.ts";
+// import { flat$ } from "./transformers/flat$.ts";
+// import { pace } from "./transformers/pace.ts";
+// import { debounce } from "./transformers/debounce.ts";
+// import { keepNewest } from "./transformers/keep-newest.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -164,7 +163,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
+streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -413,15 +412,6 @@ function mapTest() {
   stream.push(1).push(2).push(3);
 }
 // mapTest();
-// c1 3.000
-// c1 6.000
-// c1 9.000
-// ...wait 1s
-// c2 3
-// ...wait 1s
-// c2 6
-// ...wait 1s
-// c2 9
 
 function signalTest() {
   const $signal = new Signal();
