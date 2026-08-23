@@ -4,10 +4,6 @@ import type { Source } from "./source";
 import type { Stream } from "./stream";
 import type { Consumable } from "./consumable";
 
-export interface Transformer<INPUT extends Consumable.AnyConsumable, VALUE> extends Source<VALUE> {
-  readonly $input: INPUT;
-}
-
 export interface Terminable {
   readonly status: TerminateReason | (string & {});
   terminate(reason: TerminateReason): void;
@@ -21,9 +17,10 @@ export type Result<VALUE, ERROR = any> =
 export type TerminateReason = "abort" | "complete";
 
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
-export type FixedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
+export type SizedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR
-  : FixedArray<VALUE, SIZE, [...ARR, VALUE]>;
+  : SizedArray<VALUE, SIZE, [...ARR, VALUE]>;
+export type ZipedArray<T extends Consumable<any>[]> = [...{ [K in keyof T]: ExtractValue<T[K]> }];
 
 export type ExtractStream<T> = T extends Stream<infer V> ? Stream<V> : never;
 export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH

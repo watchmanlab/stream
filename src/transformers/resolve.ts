@@ -1,15 +1,12 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import type { ExtractValue, Result, Transformer } from "../core/types";
+import type { ExtractValue, Result } from "../core/types";
 
 export class Resolve<
   INPUT extends Consumable<Promise<any>>,
   VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
->
-  extends Source<Result<VALUE, any>>
-  implements Transformer<INPUT, Result<VALUE, any>>
-{
+> extends Source<Result<VALUE, any>> {
   constructor(
     readonly $input: INPUT,
     private concurrency = 1,

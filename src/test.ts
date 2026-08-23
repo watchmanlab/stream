@@ -22,6 +22,7 @@ import { skip } from "./transformers/skip.ts";
 import { skipWhile } from "./transformers/skip-while.ts";
 import { skipUntil } from "./transformers/skip-until.ts";
 import { resolve } from "./transformers/resolve.ts";
+import { passive } from "./transformers/passive.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -480,3 +481,26 @@ function resolveTest() {
 }
 
 // resolveTest();
+
+function passiveTest() {
+  const source = fromIterable([1, 2, 3]);
+
+  source.consume((c, v) => {
+    console.log(v);
+    c.next();
+  });
+  // .next();
+  source
+    .pipe(passive())
+    .consume((c, v) => {
+      console.log("passive", v);
+      c.next();
+    })
+    .next();
+
+  // source.push(1);
+  // source.push(2);
+  // source.push(3);
+}
+
+// passiveTest();
