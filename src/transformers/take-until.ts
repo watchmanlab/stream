@@ -1,14 +1,15 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { ExtractValue, Transformer } from "../core/types";
 
-export class TakeUntil<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class TakeUntil<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
   constructor(
     readonly $input: INPUT,
-    private $notifier: AnyConsumable,
+    private $notifier: Consumable.AnyConsumable,
   ) {
     super();
   }
@@ -34,6 +35,6 @@ export class TakeUntil<INPUT extends AnyConsumable, VALUE extends ExtractValue<I
   }
 }
 
-export function takeUntil<INPUT extends AnyConsumable>($notifier: AnyConsumable) {
+export function takeUntil<INPUT extends Consumable.AnyConsumable>($notifier: Consumable.AnyConsumable) {
   return ($input: INPUT) => new TakeUntil($input, $notifier);
 }
