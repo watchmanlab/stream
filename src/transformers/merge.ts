@@ -1,20 +1,18 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-import { AnyConsumable, AnyConsumer, ExtractValue, Transformer } from "../core/types";
+import { ExtractValue } from "../core/types";
 
 export class Merge<
-  INPUT extends AnyConsumable,
-  OTHERS extends [other: AnyConsumable, ...others: AnyConsumable[]],
+  INPUT extends Consumable.AnyConsumable,
+  OTHERS extends [other: Consumable.AnyConsumable, ...others: Consumable.AnyConsumable[]],
   VALUE extends ExtractValue<INPUT> | ExtractValue<OTHERS[number]> = ExtractValue<INPUT> | ExtractValue<OTHERS[number]>,
->
-  extends Source<VALUE>
-  implements Transformer<INPUT, VALUE>
-{
+> extends Source<VALUE> {
   private _consumables: OTHERS;
   constructor(
     readonly $input: INPUT,
-    ...others: OTHERS
+    others: OTHERS,
   ) {
     super();
     this._consumables = others;
@@ -24,7 +22,7 @@ export class Merge<
     const { next, terminate, ...rest } = options ?? {};
     const { _consumables } = this;
 
-    type Entry = { consumer: AnyConsumer; pending: boolean };
+    type Entry = { consumer: Consumer.AnyConsumer; pending: boolean };
 
     const outputConsumer = new Consumer(handler, {
       ...rest,
@@ -81,8 +79,9 @@ export class Merge<
   }
 }
 
-export function merge<INPUT extends AnyConsumable, OTHERS extends [other: AnyConsumable, ...others: AnyConsumable[]]>(
-  ...others: OTHERS
-) {
-  return ($input: INPUT) => new Merge($input, ...others);
+export function merge<
+  INPUT extends Consumable.AnyConsumable,
+  OTHERS extends [other: Consumable.AnyConsumable, ...others: Consumable.AnyConsumable[]],
+>(...others: OTHERS) {
+  return ($input: INPUT) => new Merge($input, others);
 }
