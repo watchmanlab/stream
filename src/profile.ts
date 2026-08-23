@@ -2,6 +2,7 @@ import { Source } from "./core/source";
 import { Stream } from "./core/stream";
 import { filter } from "./transformers/filter";
 import { map } from "./transformers/map";
+import { passive } from "./transformers/passive";
 import { resolve } from "./transformers/resolve";
 import { skip } from "./transformers/skip";
 
@@ -23,7 +24,7 @@ function runMemoryProfile() {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(resolve(3));
+      stream = stream.pipe(passive());
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }

@@ -2,16 +2,13 @@ import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-import { ExtractValue, Transformer } from "../core/types";
+import { ExtractValue } from "../core/types";
 
 export class Map<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   MAPPED = VALUE,
->
-  extends Source<MAPPED>
-  implements Transformer<INPUT, MAPPED>
-{
+> extends Source<MAPPED> {
   constructor(
     readonly $input: INPUT,
     private mapper: Map.Mapper<VALUE, MAPPED>,

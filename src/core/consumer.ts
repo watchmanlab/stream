@@ -19,8 +19,6 @@ export class Consumer<VALUE> implements Terminable, Disposable {
     this._queue = undefined;
     this._credit = 0;
 
-    if (this._options?.next && this._options.passive) this._options.next = undefined;
-
     this._initCleanup = this._options?.init?.(this);
   }
 
@@ -108,7 +106,6 @@ export namespace Consumer {
   export type Handler<VALUE> = (consumer: Consumer<VALUE>, value: VALUE) => void;
   export type InitCleanup = (reason: TerminateReason) => void;
   export type Options<VALUE> = {
-    passive?: boolean;
     queueFactory?: () => Queue<VALUE>;
     init?: (consumer: Consumer<VALUE>) => undefined | InitCleanup;
     push?: (consumer: Consumer<VALUE>, value: VALUE) => void;
