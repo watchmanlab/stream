@@ -14,9 +14,11 @@ export class Consumer<VALUE> implements Terminable, Disposable {
 
   constructor(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>) {
     this._handler = handler;
-    this._options = { ...options, next: options?.passive ? undefined : options?.next };
+    this._options = options;
     this._status = "active";
     this._credit = 0;
+
+    if (this._options?.next && this._options.passive) this._options.next = undefined;
 
     this._initCleanup = this._options?.init?.(this);
   }
