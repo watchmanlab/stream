@@ -129,7 +129,7 @@ function rxjsBench() {
   }
 }
 
-// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
+rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 100;
@@ -163,7 +163,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
+streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -400,7 +400,7 @@ function mapTest() {
 
   stream.push(1).push(2).push(3);
 }
-mapTest();
+// mapTest();
 
 function signalTest() {
   const $signal = new Signal();
