@@ -23,6 +23,7 @@ import { skipWhile } from "./transformers/skip-while.ts";
 import { skipUntil } from "./transformers/skip-until.ts";
 import { resolve } from "./transformers/resolve.ts";
 import { passive } from "./transformers/passive.ts";
+import { zip } from "./transformers/zip.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -504,3 +505,45 @@ function passiveTest() {
 }
 
 // passiveTest();
+
+function zipTest() {
+  const s1 = new Stream<number>();
+  const s2 = new Stream<string>();
+  const s3 = new Stream<boolean>();
+
+  const zipped = s1.pipe(zip(s2, s3));
+  zipped
+    .consume((c, v) => {
+      console.log(v);
+      c.next();
+    })
+    .next();
+
+  zipped.$rest
+    .consume((c, v) => {
+      console.log("rest", v);
+      c.next();
+    })
+    .next();
+
+  asyncValue(1, 500).then((v) => s1.push(v));
+  asyncValue(2, 700).then((v) => s1.push(v));
+  asyncValue(3, 900).then((v) => s1.push(v));
+
+  asyncValue("a", 500).then((v) => s2.push(v));
+  // asyncValue("b", 700).then((v) => s2.push(v));
+  asyncValue("c", 900).then((v) => s2.push(v));
+
+  asyncValue(true, 500).then((v) => s3.push(v));
+  asyncValue(false, 700).then((v) => s3.push(v));
+  asyncValue(true, 900).then((v) => s3.push(v));
+
+  setTimeout(() => {
+    s1.terminate("abort");
+  }, 1000);
+}
+
+zipTest();
+// [ 1, "a", true ]
+// [ 2, "c", false ]
+// rest [ 3, Symbol(empty), true ]

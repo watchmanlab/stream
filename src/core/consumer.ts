@@ -102,6 +102,7 @@ export class Consumer<VALUE> implements Terminable, Disposable {
 }
 
 export namespace Consumer {
+  export type AnyConsumer = Consumer<any>;
   export type Status = "active" | "drain" | TerminateReason;
   export type Handler<VALUE> = (consumer: Consumer<VALUE>, value: VALUE) => void;
   export type InitCleanup = (reason: TerminateReason) => void;
