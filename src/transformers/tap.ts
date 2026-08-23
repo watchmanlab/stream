@@ -1,37 +1,28 @@
-import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Transformer } from "../core/transformer";
-import { ExtractValue } from "../core/types";
+import { Stream } from "../core/stream";
 
-export class Tap<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+import { AnyConsumable, AnyStream, ExtractValue, NonEmptyString, Transformer } from "../core/types";
+
+export class Tap<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
   constructor(
     readonly $input: INPUT,
-    private callback: (value: VALUE) => void,
+    private callback: (value: VALUE, input: INPUT) => void,
   ) {
     super();
   }
-  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$input.consume(new ConsumerOptions(this.callback, options));
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume(
+      (consumer, value) => (this.callback(value, this.$input), handler(consumer, value)),
+      options,
+    );
   }
 }
-export function tap<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
-  callback: (value: VALUE) => void,
+export function tap<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
+  callback: (value: VALUE, INPUT: INPUT) => void,
 ) {
   return ($input: INPUT) => new Tap($input, callback);
-}
-class ConsumerOptions extends Consumer.DefaultOptions<any> {
-  constructor(
-    private callback: (value: any) => void,
-    options?: Consumer.Options<any>,
-  ) {
-    super(options);
-  }
-  override handler(consumer: Consumer<any>, value: any): void {
-    this.callback(value);
-    super.handler(consumer, value);
-  }
 }

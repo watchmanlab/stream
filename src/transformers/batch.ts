@@ -1,10 +1,9 @@
-import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Transformer } from "../core/transformer";
-import { ExtractValue } from "../core/types";
+import { AnyConsumable, ExtractValue, TerminateReason, Transformer } from "../core/types";
+import { Signal } from "../streams/signal";
 
-export class Batch<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class Batch<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE[]>
   implements Transformer<INPUT, VALUE[]>
 {
@@ -48,6 +47,6 @@ export class Batch<INPUT extends Consumable.AnyConsumable, VALUE extends Extract
   }
 }
 
-export function batch<INPUT extends Consumable.AnyConsumable>(size: number) {
+export function batch<INPUT extends AnyConsumable>(size: number) {
   return (input: INPUT) => new Batch(input, size);
 }

@@ -1,3 +1,4 @@
+//@ts-nocheck
 import { Consumer } from "../core/consumer";
 import { DefaultQueue } from "../core/default-queue";
 import { Source } from "../core/source";

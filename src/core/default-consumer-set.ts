@@ -1,7 +1,6 @@
 import { EMPTY_FUNCTION } from "./consts";
 import { Consumer } from "./consumer";
-import { ConsumerSet } from "./consumer-set";
-import { TerminateReason } from "./types";
+import { ConsumerSet, TerminateReason } from "./types";
 
 export class DefaultConsumerSet<VALUE> implements ConsumerSet<VALUE> {
   private _consumers?: Set<Consumer<VALUE>> | Consumer<VALUE>;
@@ -30,7 +29,7 @@ export class DefaultConsumerSet<VALUE> implements ConsumerSet<VALUE> {
   }
   push(value: VALUE) {}
 
-  add(consumer: Consumer<VALUE>): void {
+  add(consumer: Consumer<VALUE>): ConsumerSet.Delete {
     if (!this._consumers) {
       this._consumers = consumer;
     } else if (this._consumers instanceof Consumer) {
@@ -39,8 +38,10 @@ export class DefaultConsumerSet<VALUE> implements ConsumerSet<VALUE> {
       this._consumers.add(consumer);
     }
     this._optimizePush();
+
+    return () => this._delete(consumer);
   }
-  delete(consumer: Consumer<VALUE>): boolean {
+  private _delete(consumer: Consumer<VALUE>) {
     const sizeBefore = this.size;
     if (!this._consumers) {
       return false;

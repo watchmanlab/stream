@@ -1,10 +1,8 @@
-import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Transformer } from "../core/transformer";
-import { ExtractValue } from "../core/types";
+import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
-export class SkipWhile<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class SkipWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -14,38 +12,20 @@ export class SkipWhile<INPUT extends Consumable.AnyConsumable, VALUE extends Ext
   ) {
     super();
   }
-  consume(options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$input.consume(new ConsumerOptions(this.predicate, options));
-  }
-}
-
-export function skipWhile<
-  INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
->(predicate: (value: VALUE) => boolean) {
-  return ($input: INPUT) => new SkipWhile($input, predicate);
-}
-
-class ConsumerOptions extends Consumer.DefaultOptions<any> {
-  private skipping = true;
-
-  constructor(
-    private predicate: (value: any) => boolean,
-    options?: Consumer.Options<any>,
-  ) {
-    super(options);
-  }
-
-  override handler(consumer: Consumer<any>, value: any): void {
-    if (this.skipping) {
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    return this.$input.consume((consumer, value) => {
       if (this.predicate(value)) {
         consumer.next();
-        return;
+      } else {
+        consumer["_handler"] = handler;
+        handler(consumer, value);
       }
-
-      this.skipping = false;
-    }
-
-    this.options?.handler?.(consumer, value);
+    }, options);
   }
+}
+
+export function skipWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
+  predicate: (value: VALUE) => boolean,
+) {
+  return ($input: INPUT) => new SkipWhile($input, predicate);
 }
