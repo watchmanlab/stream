@@ -16,6 +16,7 @@ export class Consumer<VALUE> implements Terminable, Disposable {
     this._handler = handler;
     this._options = options;
     this._status = "active";
+    this._queue = undefined;
     this._credit = 0;
 
     if (this._options?.next && this._options.passive) this._options.next = undefined;

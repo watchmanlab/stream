@@ -1,6 +1,5 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Consumable } from "../core/types";
 
 export class IteratorSource<VALUE> extends Source<VALUE> {
   constructor(private iterator: Iterator<VALUE> | (() => Iterator<VALUE>)) {
@@ -31,6 +30,6 @@ export class IteratorSource<VALUE> extends Source<VALUE> {
   }
 }
 
-export function fromIterator<VALUE>(iterator: Iterator<VALUE> | (() => Iterator<VALUE>)): Consumable<VALUE> {
+export function fromIterator<VALUE>(iterator: Iterator<VALUE> | (() => Iterator<VALUE>)): IteratorSource<VALUE> {
   return new IteratorSource(iterator);
 }

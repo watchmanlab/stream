@@ -1,6 +1,6 @@
+import { Consumable } from "../core/consumable";
 import { Stream } from "../core/stream";
-import { AnyConsumable } from "../core/types";
 
-export function share<INPUT extends AnyConsumable>() {
+export function share<INPUT extends Consumable.AnyConsumable>() {
   return ($input: INPUT) => Stream.from($input);
 }

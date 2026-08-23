@@ -1,3 +1,4 @@
+import { fromIterable } from "../sources/iterable-source";
 import { Consumable } from "./consumable";
 import { Consumer } from "./consumer";
 

@@ -1,8 +1,9 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { ExtractValue, Transformer } from "../core/types";
 
-export class Skip<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class Skip<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -13,8 +14,9 @@ export class Skip<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT>
     super();
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+    let count = this.count;
     return this.$input.consume((consumer, value) => {
-      if (this.count--) {
+      if (count--) {
         consumer.next();
       } else {
         consumer["_handler"] = handler;
@@ -24,6 +26,6 @@ export class Skip<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT>
   }
 }
 
-export function skip<INPUT extends AnyConsumable>(count: number) {
+export function skip<INPUT extends Consumable.AnyConsumable>(count: number) {
   return ($input: INPUT) => new Skip($input, count);
 }

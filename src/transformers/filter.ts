@@ -1,10 +1,11 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { Stream } from "../core/stream";
-import { ExtractValue, Transformer, AnyConsumable } from "../core/types";
+import { ExtractValue, Transformer } from "../core/types";
 
 export class Filter<
-  INPUT extends AnyConsumable,
+  INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
 >
@@ -18,12 +19,12 @@ export class Filter<
   ) {
     super();
   }
-  private _$others?: Stream<VALUE>;
+  private _$complements?: Stream<VALUE>;
 
-  get $others(): Source<VALUE> {
+  get $complements(): Source<VALUE> {
     return Source.from(
-      (this._$others ??= new Stream({
-        lastConsumerLeft: () => (this._$others = undefined),
+      (this._$complements ??= new Stream({
+        lastConsumerLeft: () => (this._$complements = undefined),
       })),
     );
   }
@@ -32,7 +33,7 @@ export class Filter<
       if (this.predicate(value)) {
         handler(consumer, value);
       } else {
-        this._$others?.push(value);
+        this._$complements?.push(value);
         this.complement?.(value);
         consumer.next();
       }
@@ -41,7 +42,7 @@ export class Filter<
 }
 
 export function filter<
-  INPUT extends AnyConsumable,
+  INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
 >(predicate: Filter.Predicate<VALUE, FILTERED>, complement?: (value: VALUE) => void) {

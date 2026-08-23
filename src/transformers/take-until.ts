@@ -1,39 +1,40 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { ExtractValue, Transformer } from "../core/types";
 
-export class TakeUntil<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class TakeUntil<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
   constructor(
     readonly $input: INPUT,
-    private $notifier: AnyConsumable,
+    private $notifier: Consumable.AnyConsumable,
   ) {
     super();
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { terminate, ...rest } = options ?? {};
 
-    const inputConsumer = this.$input.consume(handler, {
+    const output$ = this.$input.consume(handler, {
       ...rest,
       terminate(consumer, reason) {
-        notifierConsumer.terminate(reason);
+        notifier$.terminate(reason);
         terminate?.(consumer, reason);
       },
     });
 
-    const notifierConsumer = this.$notifier
+    const notifier$ = this.$notifier
       .consume((consumer) => {
-        inputConsumer.terminate("complete");
+        output$.terminate("complete");
         consumer.terminate("complete");
       })
       .next();
 
-    return inputConsumer;
+    return output$;
   }
 }
 
-export function takeUntil<INPUT extends AnyConsumable>($notifier: AnyConsumable) {
+export function takeUntil<INPUT extends Consumable.AnyConsumable>($notifier: Consumable.AnyConsumable) {
   return ($input: INPUT) => new TakeUntil($input, $notifier);
 }

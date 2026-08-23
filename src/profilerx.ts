@@ -1,4 +1,4 @@
-import { map, Subject, Observable, mergeMap, filter, share } from "rxjs";
+import { map, Subject, Observable, mergeMap, filter, share, from, takeWhile } from "rxjs";
 
 function getHeapSize(): number {
   if (globalThis.gc) {
@@ -18,7 +18,7 @@ function runMemoryProfile() {
     let subject: Observable<any> = new Subject<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      subject = subject.pipe(map((v) => (v / v) * v));
+      subject = subject.pipe(filter((v) => (v / v) * v > 0));
     }
 
     pipelines[i] = subject.subscribe((v) => console.log(v));
