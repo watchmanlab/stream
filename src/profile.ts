@@ -43,8 +43,7 @@ function runMemoryProfile() {
 runMemoryProfile();
 
 // === STREAM BENCHMARK RESULTS ===
-// Total Batch Size:      5,000 pipelines of 100 stages
-// Total Heap Increase:   32.93 MB
-// Average Per Pipeline:  6,907 bytes
-// Average Per Stage:     69 bytes
-// ===============================
+// Total Batch Size:      5,000 pipelines of 200 stages
+// Total Heap Increase:   140.89 MB
+// Average Per Pipeline:  29,546 bytes
+// Average Per Stage:     148 bytes

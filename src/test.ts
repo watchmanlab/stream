@@ -57,7 +57,7 @@ function consumerBench() {
   }
 }
 
-consumerBench(); //class 200 000 000 827 ms
+// consumerBench(); //class 200 000 000 827 ms
 
 function consumerBench2() {
   const MAX = 10_000_000;
@@ -390,7 +390,7 @@ function fromTimeoutTest() {
 function mapTest() {
   const stream = new Stream<number>();
 
-  const mapped = stream.pipe(map((v) => (v * 3).toFixed(3)));
+  const mapped = stream.pipe(map((v) => v * 3)).pipe(map((v) => v.toFixed(2)));
   mapped
     .consume((consumer, value) => {
       console.log("c1", value);
@@ -398,20 +398,9 @@ function mapTest() {
     })
     .next();
 
-  const c = mapped.consume((consumer, value) => {
-    setTimeout(() => {
-      console.log("c2", value);
-      consumer.next();
-    }, 1000);
-  });
-
-  setTimeout(() => {
-    c.next();
-  }, 1000);
-
   stream.push(1).push(2).push(3);
 }
-// mapTest();
+mapTest();
 
 function signalTest() {
   const $signal = new Signal();

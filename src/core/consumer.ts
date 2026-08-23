@@ -38,7 +38,7 @@ export class Consumer<VALUE> implements Terminable, Disposable {
       this._handler(this, value);
       this._credit--;
     } else {
-      (this._queue ??= this._options?.queueFactory?.() ?? new DefaultQueue()).enqueue(value);
+      this.queue.enqueue(value);
       this._options?.enqueue?.(this, value);
     }
     this._options?.push?.(this, value);
