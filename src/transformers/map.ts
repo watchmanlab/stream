@@ -8,6 +8,18 @@ export function map<
   MAPPED = VALUE,
 >(mapper: (value: VALUE) => MAPPED) {
   return ($input: INPUT) =>
-    (handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> =>
-      $input.consume((consumer, value) => handler(consumer, mapper(value)), options);
+    (consumer: Consumer<VALUE>): Consumer<MAPPED> =>
+      $input.consume(new InputConsumer(consumer, mapper));
+}
+
+class InputConsumer extends Consumer<any> {
+  constructor(
+    private consumer: Consumer<any>,
+    private mapper: (value: any) => any,
+  ) {
+    super();
+  }
+  protected override handler(consumer: Consumer<any>, value: any): void {
+    Consumer.push(this.consumer, this.mapper(value));
+  }
 }

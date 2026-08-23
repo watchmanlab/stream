@@ -23,7 +23,7 @@ function consumerBench() {
   const push = (i: number) => Consumer.push(consumer, i);
 
   for (let i = 0; i <= MAX; i++) {
-    push(i);
+    Consumer.push(consumer, i);
   }
 }
 
