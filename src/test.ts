@@ -1,39 +1,27 @@
 import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single } from "rxjs";
 import { Consumer } from "./core/consumer.ts";
 import { Stream } from "./core/stream.ts";
-// import { fromIterator } from "./sources/iterator-source.ts";
-// import { fromIterable } from "./sources/iterable-source.ts";
-// import { fromGenerator } from "./sources/generator-source.ts";
-// import { fromAsyncIterator } from "./sources/async-iterator-source.ts";
-// import { fromAsyncIterable } from "./sources/async-iterable-source.ts";
-// import { fromAsyncGenerator } from "./sources/async-generator-source.ts";
-// import { fromAbortSignal } from "./sources/abort-signal-source.ts";
-// import { fromAbortController } from "./sources/abort-controller-source.ts";
-// import { fromEventTarget } from "./sources/event-target-source.ts";
-// import { fromPromise } from "./sources/promise-source.ts";
+import { Source } from "./core/source";
+import { fromIterator } from "./sources/iterator-source.ts";
+import { fromIterable } from "./sources/iterable-source.ts";
+import { fromGenerator } from "./sources/generator-source.ts";
+import { fromAsyncIterator } from "./sources/async-iterator-source.ts";
+import { fromAsyncIterable } from "./sources/async-iterable-source.ts";
+import { fromAsyncGenerator } from "./sources/async-generator-source.ts";
+import { fromAbortSignal } from "./sources/abort-signal-source.ts";
+import { fromAbortController } from "./sources/abort-controller-source.ts";
+import { fromEventTarget } from "./sources/event-target-source.ts";
+import { fromPromise } from "./sources/promise-source.ts";
+import { fromInterval } from "./sources/interval-source.ts";
+import { fromTimeout } from "./sources/timeout-source.ts";
 
 import { map } from "./transformers/map";
-// import { filter } from "./transformers/filter";
-// import { tap } from "./transformers/tap";
-// import { pump } from "./transformers/pump";
-// import { fromInterval } from "./sources/interval-source.ts";
-// import { fromTimeout } from "./sources/timeout-source.ts";
-import { Source } from "./core/source";
-// import { share } from "./transformers/share.ts";
-// import { Signal } from "./streams/signal.ts";
-// import { batch } from "./transformers/batch.ts";
-// import { flat } from "./transformers/flat.ts";
-// import { skip } from "./transformers/skip.ts";
-// import { resolve } from "./transformers/resolve.ts";
-// import { delay } from "./transformers/delay.ts";
-// import { tapBatch } from "./transformers/tap-batch.ts";
-// import { passive } from "./transformers/passive.ts";
-// import { merge } from "./transformers/merge.ts";
-// import { tick } from "./transformers/tick.ts";
-// import { flat$ } from "./transformers/flat$.ts";
-// import { pace } from "./transformers/pace.ts";
-// import { debounce } from "./transformers/debounce.ts";
-// import { keepNewest } from "./transformers/keep-newest.ts";
+import { takeUntil } from "./transformers/take-until.ts";
+import { filter } from "./transformers/filter.ts";
+import { skip } from "./transformers/skip.ts";
+import { skipWhile } from "./transformers/skip-while.ts";
+import { skipUntil } from "./transformers/skip-until.ts";
+import { resolve } from "./transformers/resolve.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -129,7 +117,7 @@ function rxjsBench() {
   }
 }
 
-rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
+// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 100;
@@ -163,7 +151,7 @@ function streamBench() {
   }
 }
 
-streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
+// streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -402,95 +390,25 @@ function mapTest() {
 }
 // mapTest();
 
-function signalTest() {
-  const $signal = new Signal();
-
-  $signal
-    .consume((consumer, value) => {
-      console.log(value);
-      consumer.next();
-    })
-    .next();
-
-  $signal.push(1);
-  $signal.push(2);
-  console.log($signal.status);
-}
-
-// signalTest();
-
-function batchTest() {
-  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9])
-    .pipe(batch(2))
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
-}
-
-// batchTest();
-
-function flatTest() {
-  fromIterable([
-    [1, [2, 3]],
-    [4, [5, 6]],
-  ])
-    .pipe(flat())
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
-}
-
-// flatTest();
-
 function filterTest() {
-  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9])
-    .pipe(filter((v) => v % 2 === 0))
+  const filtered = fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(filter((v) => v % 2 === 0));
+
+  filtered.$complements
+    .consume((c, v) => {
+      console.log("complements", v);
+      c.next();
+    })
+    .next();
+
+  filtered
     .consume((c, v) => {
       console.log(v);
       c.next();
     })
     .next();
 }
-
 // filterTest();
 
-function skipTest() {
-  fromIterable([1, 2, 3, 4, 5, 6])
-    .pipe(skip(3))
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
-}
-
-// skipTest();
-function resolveTest() {
-  fromIterable([asyncValue(1), asyncValue(2), asyncValue(3)])
-    .pipe(resolve())
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
-}
-
-// resolveTest();
-function delayTest() {
-  fromIterable([1, 2, 3])
-    .pipe(delay(500))
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
-}
-
-// delayTest();
 function tapBatchTest() {
   fromIterable([[1, 2], [3]])
     .pipe(tapBatch((v) => console.log(v)))
@@ -501,141 +419,64 @@ function tapBatchTest() {
     .next();
 }
 
-// tapBatchTest();
-
-function passiveTest() {
-  const $stream = new Stream<number>();
-
-  // $stream
-  //   .consume((c, v) => {
-  //     console.log(v);
-  //     c.next();
-  //   })
-  //   .next();
-
-  // fromIterable([1, 2, 3])
-  $stream
-    .pipe(passive())
-    .consume((c, v) => {
-      console.log("passive", v);
-      c.next();
-    })
-    .next();
-
-  $stream.push(1);
-  $stream.push(2);
-  $stream.push(3);
-}
-
-// passiveTest();
-
-function mergeTest() {
-  const s1 = fromIterable([1, 2, 3]);
-  const s2 = fromIterable(["a", "b", "c"]);
-  const s3 = fromIterable(["foo", "bar", "baz"]);
-
-  s1.pipe(merge(s2))
-    .pipe(merge(s3))
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
-}
-
-// mergeTest();
-
-function streamFromTest() {
-  const stream = Stream.from(fromIterable([1, 2, 3]));
-
-  stream.$push
-    .consume((c, v) => {
-      console.log("c1", v);
-      c.next();
-    })
-    .next();
+async function takeUntilTest() {
+  const stream = new Stream();
+  const notifier = new Stream();
+  asyncValue(2, 1000).then((v) => notifier.push(v));
   stream
+    .pipe(takeUntil(notifier))
     .consume((c, v) => {
-      console.log("c2", v);
+      console.log(v);
+
       c.next();
     })
     .next();
+
+  stream.push(await asyncValue(1, 500));
+  stream.push(await asyncValue(2, 500));
 }
+// takeUntilTest();
 
-// streamFromTest();
-
-function flat$Test() {
-  fromIterable([
-    fromIterable([1, 2, 3]),
-    fromIterable([4, 5, 6, fromIterable(["a", "b", "c"] as const)]),
-    fromIterable([7, 8, 9]),
-  ])
-    .pipe(flat$(2))
+function skipTest() {
+  fromIterable([1, 2, 3, 4])
+    .pipe(skip(1))
+    .pipe(skipWhile((v) => v <= 3))
     .consume((c, v) => {
-      //(parameter) v: number | "a" | "b" | "c"
       console.log(v);
       c.next();
     })
     .next();
 }
 
-// flat$Test();
+// skipTest();
 
-function paceTest() {
-  const $stream = new Stream<number>();
+async function skipUntilTest() {
+  const stream = new Stream();
+  const notifier = new Stream();
 
-  $stream
-    .pipe(pace(1000))
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
+  asyncValue("", 600).then(() => notifier.push(""));
 
-  {
-    (async () => {
-      $stream.push(await asyncValue(1, 100));
-      $stream.push(await asyncValue(2, 500));
-      $stream.push(await asyncValue(3, 1000));
-    })();
-  }
-}
-// paceTest();
-
-function keepNewestTest() {
-  const stream = new Stream<number>();
   stream
-    .pipe(keepNewest(1))
-
-    .consume(async (c, v) => {
-      await asyncValue(3, 100);
-      console.log(v);
-      c.next();
-    })
-    .next();
-
-  stream.push(1);
-  stream.push(2);
-  stream.push(3);
-}
-// keepNewestTest();
-function debounceTest() {
-  const $stream = new Stream<number>();
-
-  $stream
-    .pipe(debounce(1000))
+    .pipe(skipUntil(notifier))
     .consume((c, v) => {
       console.log(v);
       c.next();
     })
     .next();
 
-  {
-    (async () => {
-      $stream.push(await asyncValue(1, 100));
-      $stream.push(await asyncValue(2, 500));
-      $stream.push(await asyncValue(3, 1000));
-    })();
-  }
+  stream.push(await asyncValue(1, 500));
+  stream.push(await asyncValue(2, 500));
 }
-// debounceTest();
+// skipUntilTest();
+
+function resolveTest() {
+  fromIterable([asyncValue(1), asyncValue(2), asyncValue(3)])
+    .pipe(resolve(1))
+    .consume((c, v) => {
+      console.log(v.value);
+      c.next();
+    })
+    .next();
+}
+
+// resolveTest();

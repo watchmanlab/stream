@@ -1,14 +1,15 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { ExtractValue, Transformer } from "../core/types";
 
-export class SkipUntil<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class SkipUntil<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
   constructor(
     readonly $input: INPUT,
-    private $notifier: AnyConsumable,
+    private $notifier: Consumable.AnyConsumable,
   ) {
     super();
   }
@@ -16,7 +17,7 @@ export class SkipUntil<INPUT extends AnyConsumable, VALUE extends ExtractValue<I
     const { terminate, ...rest } = options ?? {};
 
     let skip = true;
-    const notifierConsumer = this.$notifier
+    const notifier$ = this.$notifier
       .consume((consumer) => {
         skip = false;
         consumer.terminate("complete");
@@ -35,7 +36,7 @@ export class SkipUntil<INPUT extends AnyConsumable, VALUE extends ExtractValue<I
       {
         ...rest,
         terminate(consumer, reason) {
-          notifierConsumer.terminate(reason);
+          notifier$.terminate(reason);
           terminate?.(consumer, reason);
         },
       },
@@ -43,6 +44,6 @@ export class SkipUntil<INPUT extends AnyConsumable, VALUE extends ExtractValue<I
   }
 }
 
-export function skipUntil<INPUT extends AnyConsumable>($notifier: AnyConsumable) {
+export function skipUntil<INPUT extends Consumable.AnyConsumable>($notifier: Consumable.AnyConsumable) {
   return ($input: INPUT) => new SkipUntil($input, $notifier);
 }

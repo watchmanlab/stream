@@ -1,6 +1,6 @@
-import { AnyConsumable } from "../core/types";
+import { Consumable } from "../core/consumable";
 
-export function pump<INPUT extends AnyConsumable>() {
+export function pump<INPUT extends Consumable.AnyConsumable>() {
   return ($input: INPUT) => {
     $input.consume((c) => c.next()).next();
     return $input;

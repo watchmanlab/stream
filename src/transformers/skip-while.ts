@@ -1,8 +1,9 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { ExtractValue, Transformer } from "../core/types";
 
-export class SkipWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
+export class SkipWhile<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
   extends Source<VALUE>
   implements Transformer<INPUT, VALUE>
 {
@@ -24,8 +25,9 @@ export class SkipWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<I
   }
 }
 
-export function skipWhile<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
-  predicate: (value: VALUE) => boolean,
-) {
+export function skipWhile<
+  INPUT extends Consumable.AnyConsumable,
+  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+>(predicate: (value: VALUE) => boolean) {
   return ($input: INPUT) => new SkipWhile($input, predicate);
 }

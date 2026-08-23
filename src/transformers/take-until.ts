@@ -16,22 +16,22 @@ export class TakeUntil<INPUT extends Consumable.AnyConsumable, VALUE extends Ext
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { terminate, ...rest } = options ?? {};
 
-    const inputConsumer = this.$input.consume(handler, {
+    const output$ = this.$input.consume(handler, {
       ...rest,
       terminate(consumer, reason) {
-        notifierConsumer.terminate(reason);
+        notifier$.terminate(reason);
         terminate?.(consumer, reason);
       },
     });
 
-    const notifierConsumer = this.$notifier
+    const notifier$ = this.$notifier
       .consume((consumer) => {
-        inputConsumer.terminate("complete");
+        output$.terminate("complete");
         consumer.terminate("complete");
       })
       .next();
 
-    return inputConsumer;
+    return output$;
   }
 }
 

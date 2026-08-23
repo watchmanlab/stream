@@ -2,8 +2,8 @@ import { Source } from "./core/source";
 import { Stream } from "./core/stream";
 import { filter } from "./transformers/filter";
 import { map } from "./transformers/map";
-import { takeUntil } from "./transformers/take-until";
-import { takeWhile } from "./transformers/take-while";
+import { resolve } from "./transformers/resolve";
+import { skip } from "./transformers/skip";
 
 function getHeapSize(): number {
   if (globalThis.gc) {
@@ -14,17 +14,16 @@ function getHeapSize(): number {
 
 function runMemoryProfile() {
   const BATCH_SIZE = 5000;
-  const STAGES = 1;
+  const STAGES = 200;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   const baseline = getHeapSize();
-  const notifier = new Stream();
 
   for (let i = 0; i < BATCH_SIZE; i++) {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(takeUntil(notifier));
+      stream = stream.pipe(resolve(3));
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }
