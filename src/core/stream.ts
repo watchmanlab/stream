@@ -22,93 +22,52 @@ export class Stream<T> extends Source<T> implements Disposable, AsyncIterable<T>
     Stream.terminate(this, "abort");
   }
 
-  get $push(): Source<T> {
-    return Source.from(
-      (this._events.$push ??= new Stream<T>({
-        lastConsumerLeft: () => (this._events.$push = undefined),
-      })),
-    );
-  }
-  get $next(): Source<Consumer<T>> {
-    return Source.from(
-      (this._events.$next ??= new Stream<Consumer<T>>({
-        lastConsumerLeft: () => (this._events.$next = undefined),
-      })),
-    );
-  }
-  get $consumerJoin(): Source<Consumer<T>> {
-    return Source.from(
-      (this._events.$consumerJoin ??= new Stream<Consumer<T>>({
-        lastConsumerLeft: () => (this._events.$consumerJoin = undefined),
-      })),
-    );
-  }
-  get $consumerLeft(): Source<Consumer<T>> {
-    return Source.from(
-      (this._events.$consumerLeft ??= new Stream<Consumer<T>>({
-        lastConsumerLeft: () => (this._events.$consumerLeft = undefined),
-      })),
-    );
-  }
-  get $firstConsumerJoin(): Source<Consumer<T>> {
-    return Source.from(
-      (this._events.$firstConsumerJoin ??= new Stream<Consumer<T>>({
-        lastConsumerLeft: () => (this._events.$firstConsumerJoin = undefined),
-      })),
-    );
-  }
-  get $lastConsumerLeft(): Source<Consumer<T>> {
-    return Source.from(
-      (this._events.$lastConsumerLeft ??= new Stream<Consumer<T>>({
-        lastConsumerLeft: () => (this._events.$lastConsumerLeft = undefined),
-      })),
-    );
-  }
-  get $drain(): Source<void> {
-    return Source.from(
-      (this._events.$drain ??= new Stream<void>({
-        lastConsumerLeft: () => (this._events.$drain = undefined),
-      })),
-    );
-  }
-  get $terminate(): Source<TerminateReason> {
-    return Source.from(
-      (this._events.$terminate ??= new Stream<TerminateReason>({
-        lastConsumerLeft: () => (this._events.$terminate = undefined),
-        consumerJoin: (stream, consumer) => {
-          if (this._status === "abort" || this._status === "complete") {
-            consumer.push(this._status);
-            consumer.terminate(this._status);
-            stream.terminate(this._status);
-          }
-        },
-      })),
-    );
-  }
+  // get $terminate(): Source<TerminateReason> {
+  //   return Source.from(
+  //     (this._events.$terminate ??= new Stream<TerminateReason>({
+  //       lastConsumerLeft: () => (this._events.$terminate = undefined),
+  //       consumerJoin: (stream, consumer) => {
+  //         if (this._status === "abort" || this._status === "complete") {
+  //           consumer.push(this._status);
+  //           consumer.terminate(this._status);
+  //           stream.terminate(this._status);
+  //         }
+  //       },
+  //     })),
+  //   );
+  // }
 
-  consume(consumer: Consumer<T>): Consumer<T> {
-    const { _options, _events, _consumerSet } = this;
+  private static Consumer = class<T> extends Consumer<T> {
+    constructor(
+      private $stream: Stream<T>,
+      private consumer: Consumer<T>,
+    ) {
+      super();
+    }
+    protected override handler(consumer: Consumer<T>, value: T): void {
+      Consumer.push(consumer, value);
+    }
+    protected override next(consumer: Consumer<T>): void {
+      this.$stream.next(this.$stream, this);
+      if (this.$stream.events?.$next) Stream.push(this.$stream.events.$next, this);
+      Consumer.next(consumer);
+    }
+    protected override terminate(consumer: Consumer<T>, reason: TerminateReason): void {
+      if (this.$stream.consumerSet.delete(consumer)) {
+        _options?.consumerLeft?.(this, consumer);
+        _events.$consumerLeft?.push(consumer);
 
-    const consumer = new Consumer(handler, {
-      next: (consumer) => {
-        _options?.next?.(this, consumer);
-        _events.$next?.push(consumer);
-        options?.next?.(consumer);
-      },
-      terminate: (consumer, reason) => {
-        if (_consumerSet.delete(consumer)) {
-          _options?.consumerLeft?.(this, consumer);
-          _events.$consumerLeft?.push(consumer);
-
-          if (!_consumerSet.size) {
-            _options?.lastConsumerLeft?.(this, consumer);
-            _events.$lastConsumerLeft?.push(consumer);
-            if (this._status === "drain") this.terminate("complete");
-          }
+        if (!_consumerSet.size) {
+          _options?.lastConsumerLeft?.(this, consumer);
+          _events.$lastConsumerLeft?.push(consumer);
+          if (this._status === "drain") this.terminate("complete");
         }
-        options?.terminate?.(consumer, reason);
-      },
-    });
+      }
+      options?.terminate?.(consumer, reason);
+    }
+  };
+  consume(consumer: Consumer<T>): Consumer<T> {
+    const consumer = new Consumer();
 
     this._consumerSet.add(consumer);
 
@@ -158,28 +117,8 @@ export class Stream<T> extends Source<T> implements Disposable, AsyncIterable<T>
 
     return stream;
   }
-
-  static override from<T>(consumable: Consumable<T>, options?: Stream.Options<T>): Stream<T> {
-    let pulling = false;
-    let consumableConsumer: Consumer<T>;
-    return new Stream({
-      firstConsumerJoin(stream, consumer) {
-        consumableConsumer = consumable.consume(
-          (_, value) => {
-            pulling = false;
-            stream.push(value);
-          },
-          {
-            terminate(consumer, reason) {
-              stream.terminate(reason);
-            },
-          },
-        );
-        options?.firstConsumerJoin?.(stream, consumer);
-      },
-
-      next(stream, consumer) {},
-    });
+  static override from<T>($consumable: Consumable<T>): Stream<T> {
+    return new StreamFrom($consumable);
   }
 }
 
@@ -192,14 +131,12 @@ class StreamFrom<T> extends Stream<T> {
   }
   protected override firstConsumerJoin($stream: Stream<T>, consumer: Consumer<T>): void {
     this.consumableConsumer = this.$consumable.consume(new StreamFrom.ConsumableConsumer(this));
-    super.firstConsumerJoin($stream, consumer);
   }
   protected override next($stream: Stream<T>, consumer: Consumer<T>): void {
-    if (!pulling) {
-      pulling = true;
-      consumableConsumer.next();
+    if (!this.pulling) {
+      this.pulling = true;
+      Consumer.next(this.consumableConsumer);
     }
-    super.next();
   }
   private static ConsumableConsumer = class<T> extends Consumer<T> {
     constructor(private $streamFrom: StreamFrom<T>) {
