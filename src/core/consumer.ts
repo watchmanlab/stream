@@ -1,6 +1,7 @@
-import type { Terminable, Queue, TerminateReason } from "./types";
+import type { Terminable, TerminateReason } from "./types";
 import { EMPTY, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION } from "./consts";
 import { DefaultQueue } from "./default-queue";
+import { Queue } from "./queue";
 
 export class Consumer<VALUE> implements Terminable, Disposable {
   private _handler: Consumer.Handler<VALUE>;
@@ -37,7 +38,7 @@ export class Consumer<VALUE> implements Terminable, Disposable {
       this._handler(this, value);
       this._credit--;
     } else {
-      (this._queue ??= this._options?.queueFactory?.() ?? new DefaultQueue()).enqueue(value);
+      this.queue.enqueue(value);
       this._options?.enqueue?.(this, value);
     }
     this._options?.push?.(this, value);
