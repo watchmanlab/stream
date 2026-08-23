@@ -1,19 +1,16 @@
-import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import { ExtractValue } from "../core/types";
+import { ExtractValue, Transformer, AnyConsumable } from "../core/types";
 
 export class Filter<
-  INPUT extends Consumable.AnyConsumable,
+  INPUT extends AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
 >
   extends Source<FILTERED>
   implements Transformer<INPUT, FILTERED>
 {
-  private _$complement?: Stream<VALUE>;
   constructor(
     readonly $input: INPUT,
     private predicate: Filter.Predicate<VALUE, FILTERED>,
@@ -21,39 +18,30 @@ export class Filter<
   ) {
     super();
   }
+  private _$others?: Stream<VALUE>;
 
-  get $complement(): Source<VALUE> {
+  get $others(): Source<VALUE> {
     return Source.from(
-      (this._$complement ??= new Stream({
-        lastConsumerLeft: () => (this._$complement = undefined),
+      (this._$others ??= new Stream({
+        lastConsumerLeft: () => (this._$others = undefined),
       })),
     );
   }
-  consume(options?: Consumer.Options<FILTERED>): Consumer<FILTERED> {
-    return this.$input.consume(new ConsumerOptions(this, options));
-  }
-}
-
-class ConsumerOptions extends Consumer.DefaultOptions<any> {
-  constructor(
-    private filter: Filter<any>,
-    options?: Consumer.Options<any>,
-  ) {
-    super(options);
-  }
-  override handler(consumer: Consumer<any>, value: any): void | undefined {
-    if (this.filter["predicate"](value)) {
-      super.handler(consumer, value);
-    } else {
-      this.filter["_$complement"]?.push(value);
-      this.filter["complement"]?.(value);
-      consumer.next();
-    }
+  consume(handler: Consumer.Handler<FILTERED>, options?: Consumer.Options<FILTERED>): Consumer<FILTERED> {
+    return this.$input.consume((consumer, value) => {
+      if (this.predicate(value)) {
+        handler(consumer, value);
+      } else {
+        this._$others?.push(value);
+        this.complement?.(value);
+        consumer.next();
+      }
+    }, options);
   }
 }
 
 export function filter<
-  INPUT extends Consumable.AnyConsumable,
+  INPUT extends AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
 >(predicate: Filter.Predicate<VALUE, FILTERED>, complement?: (value: VALUE) => void) {

@@ -1,8 +1,6 @@
-import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Transformer } from "../core/transformer";
-import { ExtractValue } from "../core/types";
+import { Consumable, ExtractValue, Transformer } from "../core/types";
 
 export class MapBatch<
   INPUT extends Consumable<any[]>,

@@ -1,11 +1,9 @@
-import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Transformer } from "../core/transformer";
-import { ExtractValue } from "../core/types";
+import { AnyConsumable, ExtractValue, Transformer } from "../core/types";
 
 export class Delay<
-  INPUT extends Consumable.AnyConsumable,
+  INPUT extends AnyConsumable,
   MS extends number,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 >
@@ -27,6 +25,6 @@ export class Delay<
   }
 }
 
-export function delay<INPUT extends Consumable.AnyConsumable, MS extends number>(ms: MS) {
+export function delay<INPUT extends AnyConsumable, MS extends number>(ms: MS) {
   return ($input: INPUT) => new Delay($input, ms);
 }

@@ -1,4 +1,4 @@
-import { map, Subject, Observable, mergeMap, filter, share, tap } from "rxjs";
+import { map, Subject, Observable, mergeMap, filter, share } from "rxjs";
 
 function getHeapSize(): number {
   if (globalThis.gc) {
@@ -9,17 +9,16 @@ function getHeapSize(): number {
 
 function runMemoryProfile() {
   const BATCH_SIZE = 5000;
-  const STAGES = 300;
+  const STAGES = 100;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   const baseline = getHeapSize();
-  // const mapper = (v: number) => (v / v) * v + 4;
 
   for (let i = 0; i < BATCH_SIZE; i++) {
     let subject: Observable<any> = new Subject<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      subject = subject.pipe(tap((v) => v / 3 > 0));
+      subject = subject.pipe(map((v) => v));
     }
 
     pipelines[i] = subject.subscribe((v) => console.log(v));
@@ -43,8 +42,8 @@ function runMemoryProfile() {
 runMemoryProfile();
 
 // === RXJS BENCHMARK RESULTS ===
-// Total Batch Size:      5,000 pipelines of 1000 stages
-// Total Heap Increase:   1279.50 MB
-// Average Per Pipeline:  268,331 bytes
-// Average Per Stage:     268 bytes
+// Total Batch Size:      5,000 pipelines of 100 stages
+// Total Heap Increase:   106.06 MB
+// Average Per Pipeline:  22,242 bytes
+// Average Per Stage:     222 bytes
 // ===============================

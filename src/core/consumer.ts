@@ -1,91 +1,117 @@
-import type { TerminateReason } from "./types";
-import { EMPTY } from "./consts";
+import type { Terminable, Queue, TerminateReason } from "./types";
+import { EMPTY, EMPTY_FUNCTION, EMPTY_THIS_FUNCTION } from "./consts";
 import { DefaultQueue } from "./default-queue";
-import { Queue } from "./queue";
 
-export abstract class Consumer<T> {
-  private status: Consumer.Status = "active";
-  private queue?: Queue<T>;
-  private credit = 0;
-  protected abstract handler(consumer: Consumer<T>, value: T): void;
-  protected push(consumer: Consumer<T>, value: T) {}
-  protected next(consumer: Consumer<T>) {}
-  protected drain(consumer: Consumer<T>) {}
-  protected enqueue(consumer: Consumer<T>, value: T) {}
-  protected dequeue(consumer: Consumer<T>, value: T) {}
-  protected terminate(consumer: Consumer<T>, reason: TerminateReason) {}
-  static push<T>(consumer: Consumer<T>, value: T): Consumer<T> {
-    if (consumer.credit > 0 && !consumer.queue?.size) {
-      consumer.handler(consumer, value);
-      consumer.credit--;
-    } else {
-      (consumer.queue ??= new DefaultQueue()).enqueue(value);
-      consumer.enqueue(consumer, value);
-    }
-    consumer.push(consumer, value);
-    return consumer;
+export class Consumer<VALUE> implements Terminable, Disposable {
+  private _handler: Consumer.Handler<VALUE>;
+  private _options?: Consumer.Options<VALUE>;
+  private _status: Consumer.Status;
+  private _queue?: Queue<VALUE>;
+  private _credit: number;
+
+  private _initCleanup?: Consumer.InitCleanup;
+
+  constructor(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>) {
+    this._handler = handler;
+    this._options = { ...options, next: options?.passive ? undefined : options?.next };
+    this._status = "active";
+    this._credit = 0;
+
+    this._initCleanup = this._options?.init?.(this);
   }
-  static next<T>(consumer: Consumer<T>): Consumer<T> {
-    consumer.credit++;
 
-    if (!consumer.queue?.size) {
-      consumer.next(consumer);
-      return consumer;
+  [Symbol.dispose]() {
+    this.terminate("abort");
+  }
+  get status(): Consumer.Status {
+    return this._status;
+  }
+  get queue(): Queue<VALUE> {
+    return (this._queue ??= this._options?.queueFactory?.() ?? new DefaultQueue());
+  }
+  get credit(): number {
+    return this._credit;
+  }
+  push(value: VALUE): this {
+    if (this._credit > 0 && !this._queue?.size) {
+      this._handler(this, value);
+      this._credit--;
+    } else {
+      (this._queue ??= this._options?.queueFactory?.() ?? new DefaultQueue()).enqueue(value);
+      this._options?.enqueue?.(this, value);
+    }
+    this._options?.push?.(this, value);
+    return this;
+  }
+  next(): this {
+    this._credit++;
+
+    if (!this._queue?.size) {
+      this._options?.next?.(this);
+      return this;
     }
 
-    if (consumer.credit > 1) return consumer;
+    if (this._credit > 1) return this;
 
-    while (consumer.credit > 0) {
-      const value = consumer.queue.dequeue();
+    while (this._credit > 0) {
+      const value = this._queue.dequeue();
 
       if (value === EMPTY) {
-        consumer.queue = undefined;
-        if (consumer.status === "drain") {
-          consumer.terminate(consumer, "complete");
+        this._queue = undefined;
+        if (this._status === "drain") {
+          this.terminate("complete");
         } else {
-          consumer.next(consumer);
+          this._options?.next?.(this);
         }
         break;
       }
-      consumer.dequeue(consumer, value);
+      this._options?.dequeue?.(this, value);
 
-      consumer.handler(consumer, value);
-      consumer.credit--;
+      this._handler(this, value);
+      this._credit--;
     }
-    return consumer;
+    return this;
   }
-  static terminate<T>(consumer: Consumer<T>, reason: TerminateReason): Consumer<T> {
+  terminate(reason: TerminateReason): this {
+    this.push = EMPTY_THIS_FUNCTION;
     if (reason === "abort") {
-      consumer.status = "abort";
-      consumer.queue?.clear();
-    } else if (consumer.queue?.size) {
-      consumer.status = "drain";
-      consumer.drain(consumer);
-      return consumer;
+      this.next = this.terminate = EMPTY_THIS_FUNCTION;
+      this._status = "abort";
+      this._queue?.clear();
+    } else if (this._queue?.size) {
+      this._status = "drain";
+      this._options?.drain?.(this);
+      return this;
     } else {
-      consumer.status = "complete";
+      this.next = this.terminate = EMPTY_THIS_FUNCTION;
+      this._status = "complete";
     }
 
-    consumer.terminate(consumer, reason);
+    this._initCleanup?.(reason);
 
-    consumer.queue = undefined;
-    return consumer;
-  }
-  static getState<T>(consumer: Consumer<T>) {
-    return consumer.status;
-  }
-  static getCredit<T>(consumer: Consumer<T>) {
-    return consumer.credit;
-  }
-  static getQueueSize<T>(consumer: Consumer<T>) {
-    return consumer.queue?.size ?? 0;
-  }
-  static getQueueValues<T>(consumer: Consumer<T>): Queue.Iterator<T> {
-    return consumer.queue?.values() ?? { next: () => ({ value: EMPTY, done: true }) };
+    this._options?.terminate?.(this, reason);
+
+    this._queue = this._options = undefined;
+
+    this._handler = EMPTY_FUNCTION;
+
+    return this;
   }
 }
 
 export namespace Consumer {
-  export type AnyConsumer = Consumer<any>;
   export type Status = "active" | "drain" | TerminateReason;
+  export type Handler<VALUE> = (consumer: Consumer<VALUE>, value: VALUE) => void;
+  export type InitCleanup = (reason: TerminateReason) => void;
+  export type Options<VALUE> = {
+    passive?: boolean;
+    queueFactory?: () => Queue<VALUE>;
+    init?: (consumer: Consumer<VALUE>) => undefined | InitCleanup;
+    push?: (consumer: Consumer<VALUE>, value: VALUE) => void;
+    next?: (consumer: Consumer<VALUE>) => void;
+    drain?: (consumer: Consumer<VALUE>) => void;
+    terminate?: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
+    enqueue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
+    dequeue?: (consumer: Consumer<VALUE>, value: VALUE) => void;
+  };
 }
