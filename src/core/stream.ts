@@ -115,7 +115,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       },
 
       terminate: (consumer, reason) => {
-        if (deleteConsumer()) {
+        if (this._consumerSet.delete(consumer)) {
           this._options.consumerLeft?.(this, consumer);
           this._events.$consumerLeft?.push(consumer);
 
@@ -130,7 +130,15 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       },
     });
 
-    const deleteConsumer = this._addConsumer(consumer);
+    this._consumerSet.add(consumer);
+
+    if (this._consumerSet.size === 1) {
+      this._options.firstConsumerJoin?.(this, consumer);
+      this._events.$firstConsumerJoin?.push(consumer);
+    }
+
+    this._options.consumerJoin?.(this, consumer);
+    this._events.$consumerJoin?.push(consumer);
 
     return consumer;
   }
@@ -166,18 +174,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
 
     return this;
   }
-  private _addConsumer(consumer: Consumer<VALUE>): ConsumerSet.Delete {
-    const deleteConsumer = this._consumerSet.add(consumer);
 
-    if (this._consumerSet.size === 1) {
-      this._options.firstConsumerJoin?.(this, consumer);
-      this._events.$firstConsumerJoin?.push(consumer);
-    }
-
-    this._options.consumerJoin?.(this, consumer);
-    this._events.$consumerJoin?.push(consumer);
-    return deleteConsumer;
-  }
   static override from<VALUE>(consumable: Consumable<VALUE>, options?: Stream.Options<VALUE>): Stream<VALUE> {
     const { firstConsumerJoin, push, next, terminate, ...rest } = options ?? {};
 

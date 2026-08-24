@@ -28,7 +28,7 @@ export class Consumer<VALUE> implements Disposable {
   get status(): Consumer.Status {
     return this._status;
   }
-  get queue(): Queue<VALUE> {
+  get queue(): Queue<VALUE> | undefined {
     return (this._queue ??= this._options?.queueFactory?.() ?? new DefaultQueue());
   }
   get credit(): number {
@@ -39,7 +39,7 @@ export class Consumer<VALUE> implements Disposable {
       this._handler(this, value);
       this._credit--;
     } else {
-      this.queue.enqueue(value);
+      this.queue?.enqueue(value);
       this._options?.enqueue?.(this, value);
     }
     this._options?.push?.(this, value);
