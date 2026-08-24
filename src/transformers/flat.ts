@@ -1,15 +1,13 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Consumable, ExtractValue, Transformer } from "../core/types";
+import { ExtractValue } from "../core/types";
 
 export class Flat<
   INPUT extends Consumable<Array<any>>,
   DEPTH extends number = 0,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
->
-  extends Source<FlatArray<VALUE, DEPTH>>
-  implements Transformer<INPUT, FlatArray<VALUE, DEPTH>>
-{
+> extends Source<FlatArray<VALUE, DEPTH>> {
   constructor(
     readonly $input: INPUT,
     private depth = 0 as DEPTH,
@@ -26,7 +24,23 @@ export class Flat<
     let cursor = 0;
     let values = [] as any[];
 
-    const inputConsumer = this.$input.consume((consumer, value) => {
+    const output$ = new Consumer<FlatArray<VALUE, DEPTH>>(handler, {
+      ...rest,
+      next(consumer) {
+        if (cursor === values.length) {
+          input$.next();
+        } else {
+          handler(consumer, values[cursor++]);
+        }
+        next?.(consumer);
+      },
+      terminate(consumer, reason) {
+        input$.terminate(reason);
+        terminate?.(consumer, reason);
+      },
+    });
+
+    const input$ = this.$input.consume((consumer, value) => {
       if (!value.length) {
         consumer.next();
         return;
@@ -35,25 +49,9 @@ export class Flat<
       values = this.depth === 0 ? value : value.flat(this.depth);
       cursor = 0;
 
-      handler(outputConsumer, values[cursor++]);
+      handler(output$, values[cursor++]);
     });
-
-    const outputConsumer = new Consumer<FlatArray<VALUE, DEPTH>>(handler, {
-      ...rest,
-      next(consumer) {
-        if (cursor === values.length) {
-          inputConsumer.next();
-        } else {
-          handler(consumer, values[cursor++]);
-        }
-        next?.(consumer);
-      },
-      terminate(consumer, reason) {
-        inputConsumer.terminate(reason);
-        terminate?.(consumer, reason);
-      },
-    });
-    return outputConsumer;
+    return output$;
   }
 }
 

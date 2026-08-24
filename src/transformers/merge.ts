@@ -24,7 +24,7 @@ export class Merge<
 
     type Entry = { consumer: Consumer.AnyConsumer; pending: boolean };
 
-    const outputConsumer = new Consumer(handler, {
+    const output$ = new Consumer(handler, {
       ...rest,
       next(consumer) {
         for (let i = 0; i < _consumables.length; i++) {
@@ -51,7 +51,7 @@ export class Merge<
       const entry: Entry = {
         consumer: this._consumables[i].consume((_, value) => {
           entry.pending = false;
-          outputConsumer.push(value);
+          output$.push(value);
         }),
         pending: false,
       };
@@ -63,11 +63,11 @@ export class Merge<
       consumer: this.$input.consume(
         (_, value) => {
           inputEntry.pending = false;
-          outputConsumer.push(value);
+          output$.push(value);
         },
         {
           terminate(_, reason) {
-            outputConsumer.terminate(reason);
+            output$.terminate(reason);
           },
         },
       ),
@@ -75,7 +75,7 @@ export class Merge<
     };
     _consumables.push(inputEntry as any);
 
-    return outputConsumer;
+    return output$;
   }
 }
 
