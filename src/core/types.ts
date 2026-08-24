@@ -4,10 +4,6 @@ import type { Source } from "./source";
 import type { Stream } from "./stream";
 import type { Consumable } from "./consumable";
 
-export interface Terminable {
-  readonly status: TerminateReason | (string & {});
-  terminate(reason: TerminateReason): void;
-}
 export type Empty = typeof EMPTY;
 export type EmptyFunctions = typeof EMPTY_FUNCTION;
 export type EmptyThisFunctions = typeof EMPTY_THIS_FUNCTION;

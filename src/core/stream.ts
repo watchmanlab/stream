@@ -1,4 +1,4 @@
-import { TerminateReason, Terminable } from "./types";
+import { TerminateReason } from "./types";
 import { Consumer } from "./consumer";
 import { EMPTY_THIS_FUNCTION } from "./consts";
 import { DefaultConsumerSet } from "./default-consumer-set";
@@ -7,7 +7,7 @@ import { ConsumerSet } from "./consumer-set";
 import { Consumable } from "./consumable";
 import { Queue } from "./queue";
 
-export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposable, AsyncIterable<VALUE> {
+export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIterable<VALUE> {
   private _options: Stream.Options<VALUE>;
   private _events: Stream.Events<VALUE>;
   private _consumerSet: ConsumerSet<VALUE>;
