@@ -24,6 +24,9 @@ import { skipUntil } from "./transformers/skip-until.ts";
 import { resolve } from "./transformers/resolve.ts";
 import { passive } from "./transformers/passive.ts";
 import { zip } from "./transformers/zip.ts";
+import { dependOn } from "./transformers/depend-on.ts";
+import { tap } from "./transformers/tap.ts";
+import { pump } from "./transformers/pump.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -543,7 +546,20 @@ function zipTest() {
   }, 1000);
 }
 
-zipTest();
+// zipTest();
 // [ 1, "a", true ]
 // [ 2, "c", false ]
 // rest [ 3, Symbol(empty), true ]
+
+function dependOnTest() {
+  const s1 = fromTimeout(1600);
+  const s2 = fromTimeout(600);
+
+  fromInterval(500)
+    .pipe(map((v) => Math.floor(Math.random() * 10 + 1)))
+    .pipe(dependOn(s1, s2))
+    .pipe(tap(console.log))
+    .pipe(pump());
+}
+
+dependOnTest();
