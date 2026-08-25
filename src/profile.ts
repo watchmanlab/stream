@@ -4,6 +4,7 @@ import { dependOn } from "./transformers/depend-on";
 import { filter } from "./transformers/filter";
 import { map } from "./transformers/map";
 import { passive } from "./transformers/passive";
+import { replay } from "./transformers/replay";
 import { replayLatest } from "./transformers/replay-latest";
 import { resolve } from "./transformers/resolve";
 import { skip } from "./transformers/skip";
@@ -27,7 +28,7 @@ function runMemoryProfile() {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(replayLatest(5));
+      stream = stream.pipe(replay([44, 55]));
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }

@@ -7,6 +7,7 @@ export class IntervalSource<MS extends number> extends Source<void> {
   }
   consume(handler: Consumer.Handler<void>, options?: Consumer.Options<void>): Consumer<void> {
     const { init, ...rest } = options ?? {};
+
     return new Consumer(handler, {
       ...rest,
       init: (consumer) => {

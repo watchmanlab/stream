@@ -22,12 +22,13 @@ export class DefaultSizedQueue<VALUE> extends DefaultQueue<VALUE> {
     if (this.size === this.maxSize) {
       if (this.options?.dropStrategy === "newest") {
         this.options?.drop?.(this, value);
+        return;
       } else {
         const dropped = this.dequeue() as VALUE;
         this.options?.drop?.(this, dropped);
       }
-      return;
     }
+
     super.enqueue(value);
   }
 }

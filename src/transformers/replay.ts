@@ -14,7 +14,27 @@ export class Replay<
     super();
   }
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    return this.$input.consume(handler, options).pushBatch(this.values);
+    const { next, terminate, ...rest } = options ?? {};
+
+    const input$ = this.$input.consume((c, v) => output$.push(v), {
+      terminate(consumer, reason) {
+        output$.terminate(reason);
+      },
+    });
+
+    const output$ = new Consumer(handler, {
+      ...rest,
+      next(consumer) {
+        input$.next();
+        next?.(consumer);
+      },
+      terminate(consumer, reason) {
+        input$.terminate(reason);
+        terminate?.(consumer, reason);
+      },
+    }).pushBatch(this.values);
+
+    return output$;
   }
 }
 

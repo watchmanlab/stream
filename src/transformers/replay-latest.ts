@@ -2,8 +2,6 @@ import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { DefaultSizedQueue } from "../core/default-sized-queue";
 import { Source } from "../core/source";
-import { Stream } from "../core/stream";
-
 import { ExtractValue } from "../core/types";
 
 export class ReplayLatest<
@@ -11,7 +9,6 @@ export class ReplayLatest<
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 > extends Source<VALUE> {
   private queue?: DefaultSizedQueue<VALUE>;
-
   constructor(
     private $input: INPUT,
     last: number,
@@ -19,14 +16,43 @@ export class ReplayLatest<
     super();
 
     this.$input
-      .consume((consumer, value) => ((this.queue ??= new DefaultSizedQueue(last)).enqueue(value), consumer.next()), {
-        terminate: () => (this.queue?.clear(), (this.queue = undefined)),
-      })
+      .consume(
+        (c, v) => {
+          (this.queue ??= new DefaultSizedQueue(last)).enqueue(v);
+          c.next();
+        },
+        {
+          terminate: () => {
+            this.queue?.clear();
+            this.queue = undefined;
+          },
+        },
+      )
       .next();
   }
 
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    return this.$input.consume(handler, options).pushBatch([...(this.queue ?? [])]);
+    const { next, terminate, ...rest } = options ?? {};
+
+    const input$ = this.$input.consume((c, v) => output$.push(v), {
+      terminate(consumer, reason) {
+        output$.terminate(reason);
+      },
+    });
+
+    const output$ = new Consumer(handler, {
+      ...rest,
+      next(consumer) {
+        input$.next();
+        next?.(consumer);
+      },
+      terminate(consumer, reason) {
+        input$.terminate(reason);
+        terminate?.(consumer, reason);
+      },
+    }).pushBatch([...(this.queue ?? [])]);
+
+    return output$;
   }
 }
 

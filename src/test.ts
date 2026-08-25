@@ -29,6 +29,9 @@ import { tap } from "./transformers/tap.ts";
 import { pump } from "./transformers/pump.ts";
 import { merge } from "./transformers/merge.ts";
 import { replayLatest } from "./transformers/replay-latest.ts";
+import { share } from "./transformers/share.ts";
+import { replay } from "./transformers/replay.ts";
+import { DefaultQueue } from "./core/default-queue.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -579,9 +582,11 @@ function mergeTest() {
 // mergeTest();
 
 function replayLatestTest() {
-  const s1 = fromInterval(300)
+  const s1 = fromInterval(200)
     .pipe(map((_, index) => index))
-    .pipe(replayLatest(2));
+    .pipe(replayLatest(3));
+  // .pipe(tap(console.log))
+  // .pipe(pump());
 
   setTimeout(() => {
     s1.pipe(tap(console.log)).pipe(pump());
