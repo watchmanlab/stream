@@ -579,12 +579,12 @@ function mergeTest() {
 // mergeTest();
 
 function replayLatestTest() {
-  const s1 = fromInterval(500)
+  const s1 = fromInterval(300)
     .pipe(map((_, index) => index))
-    .pipe(replayLatest(0));
+    .pipe(replayLatest(2));
 
   setTimeout(() => {
     s1.pipe(tap(console.log)).pipe(pump());
-  }, 4000);
+  }, 2000);
 }
-// replayLatestTest();
+replayLatestTest();
