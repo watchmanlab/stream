@@ -10,23 +10,23 @@ export class ReplayLatest<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 > extends Source<VALUE> {
-  private _queue: DefaultSizedQueue<VALUE>;
+  private queue?: DefaultSizedQueue<VALUE>;
+
   constructor(
     private $input: INPUT,
-    private last: number,
+    last: number,
   ) {
     super();
 
-    this._queue = new DefaultSizedQueue(last);
+    this.$input
+      .consume((consumer, value) => ((this.queue ??= new DefaultSizedQueue(last)).enqueue(value), consumer.next()), {
+        terminate: () => (this.queue?.clear(), (this.queue = undefined)),
+      })
+      .next();
   }
 
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    const input$ = this.$input.consume((_, value) => {
-      // this.push(value);
-      this._queue.enqueue(value);
-    });
-
-    return input$;
+    return this.$input.consume(handler, options).pushBatch([...(this.queue ?? [])]);
   }
 }
 

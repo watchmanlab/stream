@@ -28,6 +28,7 @@ import { dependOn } from "./transformers/depend-on.ts";
 import { tap } from "./transformers/tap.ts";
 import { pump } from "./transformers/pump.ts";
 import { merge } from "./transformers/merge.ts";
+import { replayLatest } from "./transformers/replay-latest.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -576,3 +577,14 @@ function mergeTest() {
 }
 
 // mergeTest();
+
+function replayLatestTest() {
+  const s1 = fromInterval(500)
+    .pipe(map((_, index) => index))
+    .pipe(replayLatest(0));
+
+  setTimeout(() => {
+    s1.pipe(tap(console.log)).pipe(pump());
+  }, 4000);
+}
+// replayLatestTest();
