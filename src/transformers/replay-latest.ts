@@ -1,51 +1,35 @@
+import { Consumable } from "../core/consumable";
+import { Consumer } from "../core/consumer";
 import { DefaultSizedQueue } from "../core/default-sized-queue";
+import { Source } from "../core/source";
 import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+
+import { ExtractValue } from "../core/types";
 
 export class ReplayLatest<
-  INPUT extends AnyStream,
+  INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$replayLatest",
-> extends Transformer<INPUT, VALUE, NAME> {
+> extends Source<VALUE> {
   private _queue: DefaultSizedQueue<VALUE>;
-  constructor(input: INPUT, size: number, options?: Stream.Options<VALUE, NAME>) {
-    const { name, next, consumerJoin, terminate, ...rest } = options ?? {};
+  constructor(
+    private $input: INPUT,
+    private last: number,
+  ) {
+    super();
 
-    const inputConsumer = input.consume((_, value) => {
-      this.push(value);
+    this._queue = new DefaultSizedQueue(last);
+  }
+
+  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
+    const input$ = this.$input.consume((_, value) => {
+      // this.push(value);
       this._queue.enqueue(value);
     });
 
-    super(input, {
-      ...rest,
-      name: name ?? ("$replayLatest" as NAME),
-      next(self, consumer) {
-        inputConsumer.next();
-        next?.(self, consumer);
-      },
-      consumerJoin: (self, consumer) => {
-        for (const value of this._queue) {
-          consumer.push(value);
-        }
-
-        consumerJoin?.(self, consumer);
-      },
-      terminate: (self, reason) => {
-        this._queue.clear();
-        inputConsumer.terminate(reason);
-        terminate?.(self, reason);
-      },
-    });
-
-    this._queue = new DefaultSizedQueue(size);
+    return input$;
   }
 }
 
-export function replayLatest<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$replayLatest",
->(last: number, options?: Stream.Options<VALUE, NAME>): Transform<INPUT, ReplayLatest<INPUT, VALUE, NAME>> {
-  return (input) => new ReplayLatest(input, last, options);
+export function replayLatest<INPUT extends Consumable.AnyConsumable>(last: number) {
+  return ($input: INPUT) => new ReplayLatest($input, last);
 }

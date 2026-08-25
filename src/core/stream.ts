@@ -101,6 +101,15 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
     this._consumerSet.push(value);
     return this;
   }
+  pushMany(...values: [VALUE, ...VALUE[]]): this {
+    return this.pushBatch(values);
+  }
+  pushBatch(values: VALUE[]): this {
+    for (let i = 0; i < values.length; i++) {
+      this.push(values[i]);
+    }
+    return this;
+  }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { queueFactory, next, terminate, ...rest } = options ?? {};
 
