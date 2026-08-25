@@ -556,7 +556,7 @@ function dependOnTest() {
   const s2 = fromTimeout(600);
 
   fromInterval(500)
-    .pipe(map((v) => Math.floor(Math.random() * 10 + 1)))
+    .pipe(map(() => Math.floor(Math.random() * 10 + 1)))
     .pipe(dependOn(s1, s2))
     .pipe(tap(console.log))
     .pipe(pump());

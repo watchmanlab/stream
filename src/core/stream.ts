@@ -5,7 +5,6 @@ import { DefaultConsumerSet } from "./default-consumer-set";
 import { Source } from "./source";
 import { ConsumerSet } from "./consumer-set";
 import { Consumable } from "./consumable";
-import { Queue } from "./queue";
 
 export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIterable<VALUE> {
   private _options: Stream.Options<VALUE>;
@@ -107,7 +106,6 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
 
     const consumer = new Consumer(handler, {
       ...rest,
-      queueFactory: queueFactory ?? this._options?.consumerQueueFactory,
       next: (consumer) => {
         this._options.next?.(this, consumer);
         this._events.$next?.push(consumer);
@@ -213,7 +211,6 @@ export namespace Stream {
 
   export type Options<VALUE> = {
     consumerSetFactory?: () => ConsumerSet<VALUE>;
-    consumerQueueFactory?: () => Queue<VALUE>;
     init?: (stream: Stream<VALUE>) => undefined | ((reason: TerminateReason) => void);
     push?: (stream: Stream<VALUE>, value: VALUE) => void;
     next?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;

@@ -11,16 +11,16 @@ export class Merge<
 > extends Source<VALUE> {
   constructor(
     readonly $input: INPUT,
-    private others: OTHERS,
+    private $others: OTHERS,
   ) {
     super();
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
-    let consumables = this.others;
+    let consumables = this.$others;
     consumables.reverse();
 
-    const others$ = this.others.map((other) =>
+    const others$ = this.$others.map((other) =>
       other.consume((c, v) => {
         output$.push(v);
       }),
