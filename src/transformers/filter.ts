@@ -26,8 +26,9 @@ export class Filter<
     );
   }
   consume(handler: Consumer.Handler<FILTERED>, options?: Consumer.Options<FILTERED>): Consumer<FILTERED> {
+    let index = 0;
     return this.$input.consume((consumer, value) => {
-      if (this.predicate(value)) {
+      if (this.predicate(value, index++)) {
         handler(consumer, value);
       } else {
         this._$complements?.push(value);
@@ -48,6 +49,6 @@ export function filter<
 
 export namespace Filter {
   export type Predicate<VALUE, FILTERED extends VALUE> =
-    | ((value: VALUE) => value is FILTERED)
-    | ((value: VALUE) => boolean);
+    | ((value: VALUE, index: number) => value is FILTERED)
+    | ((value: VALUE, index: number) => boolean);
 }

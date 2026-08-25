@@ -20,12 +20,6 @@ export class Merge<
     let consumables = this.$others;
     consumables.reverse();
 
-    const others$ = this.$others.map((other) =>
-      other.consume((c, v) => {
-        output$.push(v);
-      }),
-    );
-
     type Entry = { consumer: Consumer.AnyConsumer; pending: boolean };
 
     const output$ = new Consumer(handler, {

@@ -27,6 +27,7 @@ import { zip } from "./transformers/zip.ts";
 import { dependOn } from "./transformers/depend-on.ts";
 import { tap } from "./transformers/tap.ts";
 import { pump } from "./transformers/pump.ts";
+import { merge } from "./transformers/merge.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -562,4 +563,16 @@ function dependOnTest() {
     .pipe(pump());
 }
 
-dependOnTest();
+// dependOnTest();
+
+function mergeTest() {
+  const s1 = fromInterval(1000).pipe(map((_, index) => index));
+  const s3 = fromInterval(1000).pipe(map((_, index) => index * 100));
+  const s2 = fromInterval(1000)
+    .pipe(map((_, index) => index.toFixed(3)))
+    .pipe(merge(s1, s3))
+    .pipe(tap(console.log))
+    .pipe(pump());
+}
+
+// mergeTest();
