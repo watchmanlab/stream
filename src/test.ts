@@ -630,7 +630,13 @@ function bufferTest() {
 // bufferTest();
 
 function bufferLatestTest() {
-  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(bufferLatest(2)).pipe(delay(100)).pipe(print()).pipe(pump());
+  const s = fromInterval(300).pipe(index()).pipe(share());
+
+  const buffered = s.pipe(bufferLatest(2));
+
+  setTimeout(() => {
+    buffered.pipe(print()).pipe(pump());
+  }, 2000);
 }
 
 bufferLatestTest();
