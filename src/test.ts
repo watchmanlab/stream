@@ -639,4 +639,4 @@ function bufferLatestTest() {
   }, 2000);
 }
 
-bufferLatestTest();
+// bufferLatestTest();

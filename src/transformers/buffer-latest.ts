@@ -25,12 +25,6 @@ export class BufferLatest<
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
 
-    const input$ = this.$input.consume((c, v) => output$.push(v), {
-      terminate(consumer, reason) {
-        output$.terminate(reason);
-      },
-    });
-
     const output$ = new Consumer(handler, {
       ...rest,
       next(consumer) {
@@ -45,6 +39,12 @@ export class BufferLatest<
 
     this.queue?.clear();
     this.queue = undefined;
+
+    const input$ = this.$input.consume((c, v) => output$.push(v), {
+      terminate(consumer, reason) {
+        output$.terminate(reason);
+      },
+    });
     return output$;
   }
 }
