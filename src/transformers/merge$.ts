@@ -1,15 +1,13 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { AnyConsumable, ExtractValue, isConsumable, Transformer } from "../core/types";
+import { ExtractValue } from "../core/types";
 
 export class Merge$<
-  INPUT extends AnyConsumable,
+  INPUT extends Consumable.AnyConsumable,
   DEPTH extends number = 1,
   VALUE extends ExtractValue<INPUT, DEPTH> = ExtractValue<INPUT, DEPTH>,
->
-  extends Source<VALUE>
-  implements Transformer<INPUT, VALUE>
-{
+> extends Source<VALUE> {
   constructor(
     readonly $input: INPUT,
     private concurrent = Infinity,
@@ -48,7 +46,7 @@ export class Merge$<
 
     const input$ = $input.consume(
       (_, consumable) => {
-        if (isConsumable<VALUE>(consumable)) {
+        if (Consumable.isConsumable<VALUE>(consumable)) {
           consumers$.add(
             consumable.consume((c, v) => output$.push(v), {
               terminate(c, r) {
@@ -68,7 +66,7 @@ export class Merge$<
   }
 }
 
-export function merge$<INPUT extends AnyConsumable, DEPTH extends number = 1>(
+export function merge$<INPUT extends Consumable.AnyConsumable, DEPTH extends number = 1>(
   concurrent = Infinity,
   depth = 1 as DEPTH,
 ) {

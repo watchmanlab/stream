@@ -32,6 +32,12 @@ import { replayLatest } from "./transformers/replay-latest.ts";
 import { share } from "./transformers/share.ts";
 import { replay } from "./transformers/replay.ts";
 import { DefaultQueue } from "./core/default-queue.ts";
+import { take } from "./transformers/take.ts";
+import { toArray } from "./transformers/to-array.ts";
+import { range } from "./transformers/range.ts";
+import { index } from "./transformers/index.ts";
+import { print } from "./transformers/print.ts";
+import { pace } from "./transformers/pace.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -592,4 +598,25 @@ function replayLatestTest() {
     s1.pipe(tap(console.log)).pipe(pump());
   }, 2000);
 }
-replayLatestTest();
+// replayLatestTest();
+
+async function toArrayTest() {
+  const s = await fromInterval(300)
+    .pipe(map((_, i) => i))
+    .pipe(take(10))
+    .pipe(toArray());
+  console.log(s);
+}
+
+// toArrayTest();
+
+async function rangeTest() {
+  (await fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"]).pipe(range(1, 2)).pipe(toArray())).print();
+}
+
+// rangeTest();
+
+function paceTest() {
+  fromInterval(100).pipe(index()).pipe(range(3, 3)).pipe(pace(1000)).pipe(print()).pipe(pump());
+}
+// paceTest();
