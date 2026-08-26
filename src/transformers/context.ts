@@ -7,7 +7,7 @@ export class Context<
   INPUT extends Consumable.AnyConsumable,
   CTX,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-> extends Source<Context.Wrapper<VALUE, CTX>> {
+> extends Source<Context.Value<VALUE, CTX>> {
   constructor(
     private $input: INPUT,
     private context: CTX,
@@ -16,16 +16,16 @@ export class Context<
   }
 
   override consume(
-    handler: Consumer.Handler<Context.Wrapper<VALUE, CTX>>,
-    options?: Consumer.Options<Context.Wrapper<VALUE, CTX>> | undefined,
-  ): Consumer<Context.Wrapper<VALUE, CTX>> {
+    handler: Consumer.Handler<Context.Value<VALUE, CTX>>,
+    options?: Consumer.Options<Context.Value<VALUE, CTX>> | undefined,
+  ): Consumer<Context.Value<VALUE, CTX>> {
     const { context } = this;
     return this.$input.consume((c, value) => handler(c, { value, context }), options);
   }
 }
 
 export namespace Context {
-  export type Wrapper<VALUE, CTX> = { value: VALUE; context: CTX };
+  export type Value<VALUE, CTX> = { value: VALUE; context: CTX };
 }
 
 export function context<INPUT extends Consumable.AnyConsumable, CTX>(context: CTX) {

@@ -137,7 +137,7 @@ function rxjsBench() {
   }
 }
 
-rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2469 ms
+// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2469 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 500;
@@ -171,7 +171,7 @@ function streamBench() {
   }
 }
 
-streamBench(); //stream: 1 000 000 push -> 100 stages in 838 ms
+// streamBench(); //stream: 1 000 000 push -> 100 stages in 838 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -644,10 +644,10 @@ function bufferLatestTest() {
 
 function contextTest() {
   fromIterable([1, 2, 3, 4, 5])
-    .pipe(context({ count: 100 }))
+    .pipe(context(() => ({ count: 100 })))
     .pipe(tap((v) => v.context.count++))
     .pipe(print())
     .pipe(pump());
 }
 
-// contextTest();
+contextTest();
