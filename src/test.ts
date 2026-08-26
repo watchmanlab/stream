@@ -39,6 +39,8 @@ import { index } from "./transformers/index.ts";
 import { print } from "./transformers/print.ts";
 import { pace } from "./transformers/pace.ts";
 import { buffer } from "./transformers/buffer.ts";
+import { bufferLatest } from "./transformers/buffer-latest.ts";
+import { delay } from "./transformers/delay.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -625,4 +627,10 @@ function paceTest() {
 function bufferTest() {
   fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(buffer(2)).pipe(print()).pipe(pump());
 }
-bufferTest();
+// bufferTest();
+
+function bufferLatestTest() {
+  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(bufferLatest(2)).pipe(delay(100)).pipe(print()).pipe(pump());
+}
+
+bufferLatestTest();

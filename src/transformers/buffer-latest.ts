@@ -4,21 +4,22 @@ import { DefaultSizedQueue } from "../core/default-sized-queue";
 import { Source } from "../core/source";
 import { ExtractValue } from "../core/types";
 
-export class ReplayLatest<
+export class BufferLatest<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 > extends Source<VALUE> {
   private queue?: DefaultSizedQueue<VALUE>;
+
   constructor(
-    private $input: INPUT,
-    last: number,
+    readonly $input: INPUT,
+    private maxSize: number,
   ) {
     super();
 
     $input
       .consume(
         (c, v) => {
-          (this.queue ??= new DefaultSizedQueue(last)).enqueue(v);
+          (this.queue ??= new DefaultSizedQueue(maxSize)).enqueue(v);
           c.next();
         },
         {
@@ -30,7 +31,6 @@ export class ReplayLatest<
       )
       .next();
   }
-
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
 
@@ -56,6 +56,6 @@ export class ReplayLatest<
   }
 }
 
-export function replayLatest<INPUT extends Consumable.AnyConsumable>(last: number) {
-  return ($input: INPUT) => new ReplayLatest($input, last);
+export function bufferLatest<INPUT extends Consumable.AnyConsumable>(maxSize: number) {
+  return ($input: INPUT) => new BufferLatest($input, maxSize);
 }
