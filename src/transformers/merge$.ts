@@ -32,15 +32,15 @@ export class Merge$<
     const output$ = new Consumer(handler, {
       ...rest,
       next(consumer) {
-        next?.(consumer);
         if (consumers$.size < concurrent) {
           input$.next();
         } else {
         }
+        next?.(consumer);
       },
       terminate(consumer, reason) {
-        terminate?.(consumer, reason);
         input$.terminate(reason);
+        terminate?.(consumer, reason);
       },
     });
 
