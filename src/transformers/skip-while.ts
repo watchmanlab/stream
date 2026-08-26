@@ -18,7 +18,7 @@ export class SkipWhile<
       if (this.predicate(value)) {
         consumer.next();
       } else {
-        consumer["_handler"] = handler;
+        consumer.handler = handler;
         handler(consumer, value);
       }
     }, options);

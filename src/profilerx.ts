@@ -9,7 +9,7 @@ function getHeapSize(): number {
 
 function runMemoryProfile() {
   const BATCH_SIZE = 5000;
-  const STAGES = 20;
+  const STAGES = 200;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   const baseline = getHeapSize();
@@ -18,7 +18,7 @@ function runMemoryProfile() {
     let subject: Observable<any> = new Subject<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      subject = subject.pipe(filter((v) => (v / v) * v > 0));
+      subject = subject.pipe(map((v) => (v / v) * v));
     }
 
     pipelines[i] = subject.subscribe((v) => console.log(v));

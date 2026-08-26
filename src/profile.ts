@@ -18,7 +18,7 @@ function getHeapSize(): number {
 
 function runMemoryProfile() {
   const BATCH_SIZE = 5000;
-  const STAGES = 20;
+  const STAGES = 200;
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   const baseline = getHeapSize();
@@ -28,7 +28,7 @@ function runMemoryProfile() {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(replay([44, 55]));
+      stream = stream.pipe(map((v) => (v / v) * v));
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }

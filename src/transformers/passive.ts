@@ -12,7 +12,7 @@ export class Passive<
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const input$ = this.$input.consume(handler, options);
-    if (input$["_options"]) input$["_options"]["next"] = options?.next;
+    input$.setOption("next", options?.next);
     return input$;
   }
 }

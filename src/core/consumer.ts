@@ -29,6 +29,24 @@ export class Consumer<VALUE> implements Disposable {
   [Symbol.dispose]() {
     this.terminate("abort");
   }
+  get handler(): Consumer.Handler<VALUE> {
+    return this._handler;
+  }
+  set handler(handler: Consumer.Handler<VALUE>) {
+    this._handler = handler;
+  }
+  get options(): Consumer.Options<VALUE> {
+    return this._options;
+  }
+  set options(options: Consumer.Options<VALUE>) {
+    this._options = options;
+  }
+  getOption<NAME extends keyof Consumer.Options<VALUE>>(name: NAME): Consumer.Options<VALUE>[NAME] {
+    return this._options[name];
+  }
+  setOption<NAME extends keyof Consumer.Options<VALUE>>(name: NAME, value: Consumer.Options<VALUE>[NAME]) {
+    this._options[name] = value;
+  }
   get status(): Consumer.Status {
     return this._status;
   }
@@ -87,6 +105,7 @@ export class Consumer<VALUE> implements Disposable {
       })),
     );
   }
+
   push(value: VALUE): this {
     if (this._credit > 0 && !this._queue?.size) {
       this._handler(this, value);

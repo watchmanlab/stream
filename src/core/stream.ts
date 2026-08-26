@@ -15,7 +15,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
 
   constructor(options?: Stream.Options<VALUE>) {
     super();
-    this._options = { ...options };
+    this._options = options ?? {};
     this._events = {};
 
     this._consumerSet = this._options.consumerSetFactory?.() ?? new DefaultConsumerSet();
@@ -25,6 +25,18 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
   }
   [Symbol.dispose]() {
     this.terminate("abort");
+  }
+  get options(): Stream.Options<VALUE> {
+    return this._options;
+  }
+  set options(options: Stream.Options<VALUE>) {
+    this._options = options;
+  }
+  getOption<NAME extends keyof Stream.Options<VALUE>>(name: NAME): Stream.Options<VALUE>[NAME] {
+    return this._options[name];
+  }
+  setOption<NAME extends keyof Stream.Options<VALUE>>(name: NAME, value: Stream.Options<VALUE>[NAME]) {
+    this._options[name] = value;
   }
   get consumersCount(): number {
     return this._consumerSet?.size ?? 0;
