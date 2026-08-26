@@ -41,6 +41,7 @@ import { pace } from "./transformers/pace.ts";
 import { buffer } from "./transformers/buffer.ts";
 import { bufferLatest } from "./transformers/buffer-latest.ts";
 import { delay } from "./transformers/delay.ts";
+import { context } from "./transformers/context.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -108,7 +109,7 @@ function consumerTest() {
 // consumerTest();
 function rxjsBench() {
   const MAX = 1_000_000;
-  const STAGES = 100;
+  const STAGES = 500;
 
   const subject = new Subject<number>();
 
@@ -136,10 +137,10 @@ function rxjsBench() {
   }
 }
 
-// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
+rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2469 ms
 function streamBench() {
   const MAX = 1_000_000;
-  const STAGES = 100;
+  const STAGES = 500;
 
   const stream = new Stream<number>();
 
@@ -170,7 +171,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
+streamBench(); //stream: 1 000 000 push -> 100 stages in 838 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -640,3 +641,13 @@ function bufferLatestTest() {
 }
 
 // bufferLatestTest();
+
+function contextTest() {
+  fromIterable([1, 2, 3, 4, 5])
+    .pipe(context({ count: 100 }))
+    .pipe(tap((v) => v.context.count++))
+    .pipe(print())
+    .pipe(pump());
+}
+
+// contextTest();
