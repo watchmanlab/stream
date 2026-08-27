@@ -12,7 +12,7 @@ export class Filter<
   constructor(
     readonly $input: INPUT,
     private predicate: Filter.Predicate<VALUE, FILTERED>,
-    private complement?: (value: VALUE) => void,
+    private complement?: (value: VALUE, index: number) => void,
   ) {
     super();
   }
@@ -32,7 +32,7 @@ export class Filter<
         handler(consumer, value);
       } else {
         this._$complements?.push(value);
-        this.complement?.(value);
+        this.complement?.(value, index++);
         consumer.next();
       }
     }, options);
@@ -43,7 +43,7 @@ export function filter<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
   FILTERED extends VALUE = VALUE,
->(predicate: Filter.Predicate<VALUE, FILTERED>, complement?: (value: VALUE) => void) {
+>(predicate: Filter.Predicate<VALUE, FILTERED>, complement?: (value: VALUE, index: number) => void) {
   return ($input: INPUT) => new Filter($input, predicate, complement);
 }
 

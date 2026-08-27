@@ -47,7 +47,9 @@ import { listen } from "./transformers/listen.ts";
 import { first } from "./transformers/first.ts";
 import { last } from "./transformers/last.ts";
 import { tapBatch } from "./transformers/tap-batch.ts";
-import { unwrap } from "./transformers/unwrap.ts";
+import { reduce } from "./transformers/reduce.ts";
+import { catchError } from "./transformers/catch-error.ts";
+import { safe } from "./transformers/safe.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -55,7 +57,7 @@ function asyncValue<T>(value: T, ms?: number) {
   );
 }
 function consumerBench() {
-  const MAX = 200_000_000;
+  const MAX = 300_000_000;
 
   const start = performance.now();
 
@@ -87,7 +89,7 @@ function consumerBench2() {
 
       self.next();
     });
-    consumer.terminate("complete");
+    consumer.terminate("abort");
   }
   console.log(Math.round(performance.now() - start), "ms");
 }
@@ -115,7 +117,7 @@ function consumerTest() {
 // consumerTest();
 function rxjsBench() {
   const MAX = 1_000_000;
-  const STAGES = 500;
+  const STAGES = 100;
 
   const subject = new Subject<number>();
 
@@ -146,7 +148,7 @@ function rxjsBench() {
 // rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2469 ms
 function streamBench() {
   const MAX = 1_000_000;
-  const STAGES = 500;
+  const STAGES = 100;
 
   const stream = new Stream<number>();
 
@@ -672,10 +674,33 @@ function listenTest() {
 // listenTest();
 
 function firstTest() {
-  of(1, 2, 3, 4, 5).pipe(first()).pipe(unwrap()).pipe(listen(console.log));
+  of(1, 2, 3, 4, 5).pipe(first()).pipe(catchError()).pipe(listen(console.log));
 }
-firstTest();
+// firstTest();
 function lastTest() {
-  of(1, 2, 3, 4, 5).pipe(last()).pipe(unwrap()).pipe(listen(console.log));
+  of(1, 2, 3, 4, 5).pipe(last()).pipe(catchError()).pipe(listen(console.log));
 }
-lastTest();
+// lastTest();
+
+function reduceTest() {
+  of(1, 2, 3, 4)
+    .pipe(reduce(0, (acc, v) => acc + v))
+    .pipe(listen(console.log));
+}
+// reduceTest();
+
+function safeTest() {
+  of(1, 2, 3, 4)
+    .pipe(
+      safe(
+        map((v) => {
+          if (v === 3) throw "kechmahaja";
+          return v.toFixed(2);
+        }),
+      ),
+    )
+    .pipe(catchError(console.log))
+    .pipe(listen(console.log));
+}
+
+safeTest();

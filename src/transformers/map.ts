@@ -16,7 +16,7 @@ export class Map<
     super();
   }
   override consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
-    let index = 1;
+    let index = 0;
 
     return this.$input.consume((consumer, value) => handler(consumer, this.mapper(value, index++)), options);
   }
