@@ -50,6 +50,7 @@ import { tapBatch } from "./transformers/tap-batch.ts";
 import { reduce } from "./transformers/reduce.ts";
 import { unwrap } from "./transformers/unwrap.ts";
 import { result } from "./transformers/result.ts";
+import { distinct } from "./transformers/distinct.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -689,7 +690,7 @@ function reduceTest() {
 }
 // reduceTest();
 
-function safeTest() {
+function resultTest() {
   of(1, 2, 3, 4)
     .pipe(
       result(
@@ -703,4 +704,12 @@ function safeTest() {
     .pipe(listen(console.log));
 }
 
-safeTest();
+// resultTest();
+
+function distinctTest() {
+  of({ id: 1, name: "a" }, { id: 1, name: "b" }, { id: 2, name: "a" })
+    .pipe(distinct((v) => v.name))
+    .pipe(listen(console.log));
+}
+
+distinctTest();
