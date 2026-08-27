@@ -48,8 +48,8 @@ import { first } from "./transformers/first.ts";
 import { last } from "./transformers/last.ts";
 import { tapBatch } from "./transformers/tap-batch.ts";
 import { reduce } from "./transformers/reduce.ts";
-import { catchError } from "./transformers/catch-error.ts";
-import { safe } from "./transformers/safe.ts";
+import { unwrap } from "./transformers/unwrap.ts";
+import { result } from "./transformers/result.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -674,11 +674,11 @@ function listenTest() {
 // listenTest();
 
 function firstTest() {
-  of(1, 2, 3, 4, 5).pipe(first()).pipe(catchError()).pipe(listen(console.log));
+  of(1, 2, 3, 4, 5).pipe(first()).pipe(unwrap()).pipe(listen(console.log));
 }
 // firstTest();
 function lastTest() {
-  of(1, 2, 3, 4, 5).pipe(last()).pipe(catchError()).pipe(listen(console.log));
+  of(1, 2, 3, 4, 5).pipe(last()).pipe(unwrap()).pipe(listen(console.log));
 }
 // lastTest();
 
@@ -692,14 +692,14 @@ function reduceTest() {
 function safeTest() {
   of(1, 2, 3, 4)
     .pipe(
-      safe(
+      result(
         map((v) => {
           if (v === 3) throw "kechmahaja";
           return v.toFixed(2);
         }),
       ),
     )
-    .pipe(catchError(console.log))
+    .pipe(unwrap(console.log))
     .pipe(listen(console.log));
 }
 

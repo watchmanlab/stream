@@ -3,13 +3,13 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ExtractValue, Result } from "../core/types";
 
-export class CatchError<
+export class Unwrap<
   INPUT extends Consumable<Result<any, any>>,
   RESULT extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 > extends Source<RESULT["value"]> {
   constructor(
     private $input: INPUT,
-    private callback?: (error: RESULT["error"]) => void,
+    private errorHandler?: (error: RESULT["error"]) => void,
   ) {
     super();
   }
@@ -18,22 +18,22 @@ export class CatchError<
     handler: Consumer.Handler<RESULT["value"]>,
     options?: Consumer.Options<RESULT["value"]> | undefined,
   ): Consumer<RESULT["value"]> {
-    const { callback } = this;
+    const { errorHandler } = this;
 
     return this.$input.consume((c, v) => {
       if (v.ok) {
         handler(c, v.value);
       } else {
-        callback?.(v.error);
+        errorHandler?.(v.error);
         c.next();
       }
     }, options);
   }
 }
 
-export function catchError<
+export function unwrap<
   INPUT extends Consumable<Result<any, any>>,
   RESULT extends ExtractValue<INPUT> = ExtractValue<INPUT>,
->(callback?: (error: RESULT["error"]) => void) {
-  return ($input: INPUT) => new CatchError($input, callback);
+>(errorHandler?: (error: RESULT["error"]) => void) {
+  return ($input: INPUT) => new Unwrap($input, errorHandler);
 }
