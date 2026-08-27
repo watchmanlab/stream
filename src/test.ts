@@ -26,7 +26,6 @@ import { passive } from "./transformers/passive.ts";
 import { zip } from "./transformers/zip.ts";
 import { dependOn } from "./transformers/depend-on.ts";
 import { tap } from "./transformers/tap.ts";
-import { pump } from "./transformers/pump.ts";
 import { merge } from "./transformers/merge.ts";
 import { replayLatest } from "./transformers/replay-latest.ts";
 import { share } from "./transformers/share.ts";
@@ -43,6 +42,12 @@ import { keepLatest } from "./transformers/keep-latest.ts";
 import { delay } from "./transformers/delay.ts";
 import { context } from "./transformers/context.ts";
 import { gate } from "./transformers/gate.ts";
+import { of } from "./sources/of.ts";
+import { listen } from "./transformers/listen.ts";
+import { first } from "./transformers/first.ts";
+import { last } from "./transformers/last.ts";
+import { tapBatch } from "./transformers/tap-batch.ts";
+import { unwrap } from "./transformers/unwrap.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -575,7 +580,7 @@ function dependOnTest() {
     .pipe(map(() => Math.floor(Math.random() * 10 + 1)))
     .pipe(dependOn(s1, s2))
     .pipe(tap(console.log))
-    .pipe(pump());
+    .pipe(listen());
 }
 
 // dependOnTest();
@@ -587,7 +592,7 @@ function mergeTest() {
     .pipe(map((_, index) => index.toFixed(3)))
     .pipe(merge(s1, s3))
     .pipe(tap(console.log))
-    .pipe(pump());
+    .pipe(listen());
 }
 
 // mergeTest();
@@ -597,10 +602,10 @@ function replayLatestTest() {
     .pipe(map((_, index) => index))
     .pipe(replayLatest(3));
   // .pipe(tap(console.log))
-  // .pipe(pump());
+  // .pipe(listen());
 
   setTimeout(() => {
-    s1.pipe(tap(console.log)).pipe(pump());
+    s1.pipe(tap(console.log)).pipe(listen());
   }, 2000);
 }
 // replayLatestTest();
@@ -622,12 +627,12 @@ async function rangeTest() {
 // rangeTest();
 
 function paceTest() {
-  fromInterval(100).pipe(index()).pipe(range(3, 3)).pipe(pace(1000)).pipe(print()).pipe(pump());
+  fromInterval(100).pipe(index()).pipe(range(3, 3)).pipe(pace(1000)).pipe(print()).pipe(listen());
 }
 // paceTest();
 
 function bufferTest() {
-  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(buffer(2)).pipe(print()).pipe(pump());
+  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(buffer(2)).pipe(print()).pipe(listen());
 }
 // bufferTest();
 
@@ -637,7 +642,7 @@ function keepLatestTest() {
   const buffered = s.pipe(keepLatest(2));
 
   setTimeout(() => {
-    buffered.pipe(print()).pipe(pump());
+    buffered.pipe(print()).pipe(listen());
   }, 2000);
 }
 
@@ -648,14 +653,29 @@ function contextTest() {
     .pipe(context({ count: 100 }))
     .pipe(tap((v) => v.context.count++))
     .pipe(print())
-    .pipe(pump());
+    .pipe(listen());
 }
 
 // contextTest();
 
 function gateTest() {
   const control = fromInterval(3000).pipe(map((_, i) => i % 2 === 0));
-  fromInterval(500).pipe(gate(control)).pipe(index()).pipe(print()).pipe(pump());
+  fromInterval(500).pipe(gate(control)).pipe(index()).pipe(print()).pipe(listen());
 }
 
 // gateTest();
+
+function listenTest() {
+  of(1, 2, 3, 4, 5).pipe(listen(console.log));
+}
+
+// listenTest();
+
+function firstTest() {
+  of(1, 2, 3, 4, 5).pipe(first()).pipe(unwrap()).pipe(listen(console.log));
+}
+firstTest();
+function lastTest() {
+  of(1, 2, 3, 4, 5).pipe(last()).pipe(unwrap()).pipe(listen(console.log));
+}
+lastTest();
