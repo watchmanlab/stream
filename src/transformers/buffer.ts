@@ -35,7 +35,7 @@ export class Buffer<
         for (const buffer of buffers) {
           buffer.push(value);
           if (buffer.length === this.size) {
-            buffers.dequeue(); //safe
+            buffers.dequeue(); //result
             handler(self, [...buffer] as SizedArray<VALUE, SIZE>);
           }
         }

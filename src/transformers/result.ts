@@ -1,13 +1,13 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue, isResult, Result } from "../core/types";
+import { ExtractValue, Result as ResultType } from "../core/types";
 
-export class Safe<
+export class Result<
   INPUT extends Consumable.AnyConsumable,
   OUTPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<OUTPUT> = ExtractValue<OUTPUT>,
-> extends Source<Result<VALUE, any>> {
+> extends Source<ResultType<VALUE, any>> {
   constructor(
     private $input: INPUT,
     private fn: ($input: INPUT) => OUTPUT,
@@ -15,9 +15,9 @@ export class Safe<
     super();
   }
   override consume(
-    handler: Consumer.Handler<Result<VALUE, any>>,
-    options?: Consumer.Options<Result<VALUE, any>> | undefined,
-  ): Consumer<Result<VALUE, any>> {
+    handler: Consumer.Handler<ResultType<VALUE, any>>,
+    options?: Consumer.Options<ResultType<VALUE, any>> | undefined,
+  ): Consumer<ResultType<VALUE, any>> {
     const $output = this.fn(this.$input);
 
     return $output.consume((c, v) => {
@@ -30,8 +30,8 @@ export class Safe<
   }
 }
 
-export function safe<INPUT extends Consumable.AnyConsumable, OUTPUT extends Consumable.AnyConsumable>(
+export function result<INPUT extends Consumable.AnyConsumable, OUTPUT extends Consumable.AnyConsumable>(
   fn: ($input: INPUT) => OUTPUT,
 ) {
-  return ($input: INPUT) => new Safe($input, fn);
+  return ($input: INPUT) => new Result($input, fn);
 }

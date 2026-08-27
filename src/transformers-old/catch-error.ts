@@ -4,12 +4,12 @@ import { Transformer } from "../transformer";
 export class CatchError<
   INPUT extends Mitto.AnyMitto,
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
-  NAME extends string = catchError.Name,
+  NAME extends string = unwrap.Name,
 > extends Transformer<INPUT, VALUE, NAME> {
   constructor(
-    name = catchError.NAME as NAME,
+    name = unwrap.NAME as NAME,
     input: INPUT,
-    public readonly handler: catchError.Handler<VALUE>,
+    public readonly handler: unwrap.Handler<VALUE>,
   ) {
     super(name, input, {
       source: () => {
@@ -26,15 +26,15 @@ export class CatchError<
   }
 }
 
-export function catchError<
+export function unwrap<
   INPUT extends Mitto.AnyMitto,
   VALUE extends Mitto.ExtractValue<INPUT> = Mitto.ExtractValue<INPUT>,
-  NAME extends string = catchError.Name,
->(handler: catchError.Handler<VALUE>): Mitto.Transform<INPUT, NAME, CatchError<INPUT, VALUE, NAME>> {
+  NAME extends string = unwrap.Name,
+>(handler: unwrap.Handler<VALUE>): Mitto.Transform<INPUT, NAME, CatchError<INPUT, VALUE, NAME>> {
   return (input, name) => new CatchError(name, input, handler);
 }
-export namespace catchError {
-  export const NAME = "catchError";
+export namespace unwrap {
+  export const NAME = "unwrap";
   export type Name = typeof NAME;
   export type Handler<VALUE> = (error: any) => VALUE;
 }
