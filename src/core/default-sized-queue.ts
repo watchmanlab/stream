@@ -18,13 +18,17 @@ export class DefaultSizedQueue<VALUE> extends DefaultQueue<VALUE> {
       this.options?.drop?.(this, value);
       return;
     }
+
     if (this.size === this.maxSize) {
       if (this.options?.dropStrategy === "newest") {
         this.options?.drop?.(this, value);
         return;
+      } else {
+        const dropped = this.dequeue() as VALUE;
+        this.options?.drop?.(this, dropped);
       }
-      this.options?.drop?.(this, this.dequeue() as VALUE);
     }
+
     super.enqueue(value);
   }
 }

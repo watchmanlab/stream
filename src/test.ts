@@ -24,6 +24,32 @@ import { skipUntil } from "./transformers/skip-until.ts";
 import { resolve } from "./transformers/resolve.ts";
 import { passive } from "./transformers/passive.ts";
 import { zip } from "./transformers/zip.ts";
+import { dependOn } from "./transformers/depend-on.ts";
+import { tap } from "./transformers/tap.ts";
+import { merge } from "./transformers/merge.ts";
+import { replayLatest } from "./transformers/replay-latest.ts";
+import { share } from "./transformers/share.ts";
+import { replay } from "./transformers/replay.ts";
+import { DefaultQueue } from "./core/default-queue.ts";
+import { take } from "./transformers/take.ts";
+import { toArray } from "./transformers/to-array.ts";
+import { range } from "./transformers/range.ts";
+import { index } from "./transformers/index.ts";
+import { print } from "./transformers/print.ts";
+import { pace } from "./transformers/pace.ts";
+import { buffer } from "./transformers/buffer.ts";
+import { keepLatest } from "./transformers/keep-latest.ts";
+import { delay } from "./transformers/delay.ts";
+import { context } from "./transformers/context.ts";
+import { gate } from "./transformers/gate.ts";
+import { of } from "./sources/of.ts";
+import { listen } from "./transformers/listen.ts";
+import { first } from "./transformers/first.ts";
+import { last } from "./transformers/last.ts";
+import { tapBatch } from "./transformers/tap-batch.ts";
+import { reduce } from "./transformers/reduce.ts";
+import { catchError } from "./transformers/catch-error.ts";
+import { safe } from "./transformers/safe.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -31,7 +57,7 @@ function asyncValue<T>(value: T, ms?: number) {
   );
 }
 function consumerBench() {
-  const MAX = 200_000_000;
+  const MAX = 300_000_000;
 
   const start = performance.now();
 
@@ -63,7 +89,7 @@ function consumerBench2() {
 
       self.next();
     });
-    consumer.terminate("complete");
+    consumer.terminate("abort");
   }
   console.log(Math.round(performance.now() - start), "ms");
 }
@@ -119,7 +145,7 @@ function rxjsBench() {
   }
 }
 
-// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2518 ms
+// rxjsBench(); // rxjs: 1 000 000 push -> 100 stages in 2469 ms
 function streamBench() {
   const MAX = 1_000_000;
   const STAGES = 100;
@@ -153,7 +179,7 @@ function streamBench() {
   }
 }
 
-// streamBench(); //stream: 1 000 000 push -> 100 stages in 1231 ms
+// streamBench(); //stream: 1 000 000 push -> 100 stages in 838 ms
 
 function streamTest() {
   const stream = fromIterable([1, 2, 3]);
@@ -543,7 +569,138 @@ function zipTest() {
   }, 1000);
 }
 
-zipTest();
+// zipTest();
 // [ 1, "a", true ]
 // [ 2, "c", false ]
 // rest [ 3, Symbol(empty), true ]
+
+function dependOnTest() {
+  const s1 = fromTimeout(1600);
+  const s2 = fromTimeout(600);
+
+  fromInterval(500)
+    .pipe(map(() => Math.floor(Math.random() * 10 + 1)))
+    .pipe(dependOn(s1, s2))
+    .pipe(tap(console.log))
+    .pipe(listen());
+}
+
+// dependOnTest();
+
+function mergeTest() {
+  const s1 = fromInterval(1000).pipe(map((_, index) => index));
+  const s3 = fromInterval(1000).pipe(map((_, index) => index * 100));
+  const s2 = fromInterval(1000)
+    .pipe(map((_, index) => index.toFixed(3)))
+    .pipe(merge(s1, s3))
+    .pipe(tap(console.log))
+    .pipe(listen());
+}
+
+// mergeTest();
+
+function replayLatestTest() {
+  const s1 = fromInterval(200)
+    .pipe(map((_, index) => index))
+    .pipe(replayLatest(3));
+  // .pipe(tap(console.log))
+  // .pipe(listen());
+
+  setTimeout(() => {
+    s1.pipe(tap(console.log)).pipe(listen());
+  }, 2000);
+}
+// replayLatestTest();
+
+async function toArrayTest() {
+  const s = await fromInterval(300)
+    .pipe(map((_, i) => i))
+    .pipe(take(10))
+    .pipe(toArray());
+  console.log(s);
+}
+
+// toArrayTest();
+
+async function rangeTest() {
+  (await fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"]).pipe(range(1, 2)).pipe(toArray())).print();
+}
+
+// rangeTest();
+
+function paceTest() {
+  fromInterval(100).pipe(index()).pipe(range(3, 3)).pipe(pace(1000)).pipe(print()).pipe(listen());
+}
+// paceTest();
+
+function bufferTest() {
+  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(buffer(2)).pipe(print()).pipe(listen());
+}
+// bufferTest();
+
+function keepLatestTest() {
+  const s = fromInterval(300).pipe(index()).pipe(share());
+
+  const buffered = s.pipe(keepLatest(2));
+
+  setTimeout(() => {
+    buffered.pipe(print()).pipe(listen());
+  }, 2000);
+}
+
+// keepLatestTest();
+
+function contextTest() {
+  fromIterable([1, 2, 3, 4, 5])
+    .pipe(context({ count: 100 }))
+    .pipe(tap((v) => v.context.count++))
+    .pipe(print())
+    .pipe(listen());
+}
+
+// contextTest();
+
+function gateTest() {
+  const control = fromInterval(3000).pipe(map((_, i) => i % 2 === 0));
+  fromInterval(500).pipe(gate(control)).pipe(index()).pipe(print()).pipe(listen());
+}
+
+// gateTest();
+
+function listenTest() {
+  of(1, 2, 3, 4, 5).pipe(listen(console.log));
+}
+
+// listenTest();
+
+function firstTest() {
+  of(1, 2, 3, 4, 5).pipe(first()).pipe(catchError()).pipe(listen(console.log));
+}
+// firstTest();
+function lastTest() {
+  of(1, 2, 3, 4, 5).pipe(last()).pipe(catchError()).pipe(listen(console.log));
+}
+// lastTest();
+
+function reduceTest() {
+  of(1, 2, 3, 4)
+    .pipe(reduce(0, (acc, v) => acc + v))
+    .pipe(listen(console.log));
+}
+// reduceTest();
+
+function safeTest() {
+  of(1, 2, 3, 4)
+    .pipe(
+      safe(
+        map((v) => {
+          if (v === 3) throw "kechmahaja";
+          return v.toFixed(2);
+        }),
+      ),
+    )
+    .pipe(catchError(console.log))
+    .pipe(listen(console.log));
+}
+
+safeTest();

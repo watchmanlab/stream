@@ -16,7 +16,9 @@ export class Map<
     super();
   }
   override consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
-    return this.$input.consume((consumer, value) => handler(consumer, this.mapper(value)), options);
+    let index = 0;
+
+    return this.$input.consume((consumer, value) => handler(consumer, this.mapper(value, index++)), options);
   }
 }
 
@@ -29,5 +31,5 @@ export function map<
 }
 
 export namespace Map {
-  export type Mapper<VALUE, MAPPED> = (value: VALUE) => MAPPED;
+  export type Mapper<VALUE, MAPPED> = (value: VALUE, index: number) => MAPPED;
 }

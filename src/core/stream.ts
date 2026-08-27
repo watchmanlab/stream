@@ -1,13 +1,12 @@
-import { TerminateReason, Terminable } from "./types";
+import { TerminateReason } from "./types";
 import { Consumer } from "./consumer";
 import { EMPTY_THIS_FUNCTION } from "./consts";
 import { DefaultConsumerSet } from "./default-consumer-set";
 import { Source } from "./source";
 import { ConsumerSet } from "./consumer-set";
 import { Consumable } from "./consumable";
-import { Queue } from "./queue";
 
-export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposable, AsyncIterable<VALUE> {
+export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIterable<VALUE> {
   private _options: Stream.Options<VALUE>;
   private _events: Stream.Events<VALUE>;
   private _consumerSet: ConsumerSet<VALUE>;
@@ -16,7 +15,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
 
   constructor(options?: Stream.Options<VALUE>) {
     super();
-    this._options = { ...options };
+    this._options = options ?? {};
     this._events = {};
 
     this._consumerSet = this._options.consumerSetFactory?.() ?? new DefaultConsumerSet();
@@ -26,6 +25,18 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
   }
   [Symbol.dispose]() {
     this.terminate("abort");
+  }
+  get options(): Stream.Options<VALUE> {
+    return this._options;
+  }
+  set options(options: Stream.Options<VALUE>) {
+    this._options = options;
+  }
+  getOption<NAME extends keyof Stream.Options<VALUE>>(name: NAME): Stream.Options<VALUE>[NAME] {
+    return this._options[name];
+  }
+  setOption<NAME extends keyof Stream.Options<VALUE>>(name: NAME, value: Stream.Options<VALUE>[NAME]) {
+    this._options[name] = value;
   }
   get consumersCount(): number {
     return this._consumerSet?.size ?? 0;
@@ -102,12 +113,20 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
     this._consumerSet.push(value);
     return this;
   }
+  pushMany(...values: [VALUE, ...VALUE[]]): this {
+    return this.pushBatch(values);
+  }
+  pushBatch(values: VALUE[]): this {
+    for (let i = 0; i < values.length; i++) {
+      this.push(values[i]);
+    }
+    return this;
+  }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { queueFactory, next, terminate, ...rest } = options ?? {};
 
     const consumer = new Consumer(handler, {
       ...rest,
-      queueFactory: queueFactory ?? this._options?.consumerQueueFactory,
       next: (consumer) => {
         this._options.next?.(this, consumer);
         this._events.$next?.push(consumer);
@@ -115,7 +134,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
       },
 
       terminate: (consumer, reason) => {
-        if (deleteConsumer()) {
+        if (this._consumerSet.delete(consumer)) {
           this._options.consumerLeft?.(this, consumer);
           this._events.$consumerLeft?.push(consumer);
 
@@ -130,7 +149,15 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
       },
     });
 
-    const deleteConsumer = this._addConsumer(consumer);
+    this._consumerSet.add(consumer);
+
+    if (this._consumerSet.size === 1) {
+      this._options.firstConsumerJoin?.(this, consumer);
+      this._events.$firstConsumerJoin?.push(consumer);
+    }
+
+    this._options.consumerJoin?.(this, consumer);
+    this._events.$consumerJoin?.push(consumer);
 
     return consumer;
   }
@@ -166,18 +193,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Terminable, Disposab
 
     return this;
   }
-  private _addConsumer(consumer: Consumer<VALUE>): ConsumerSet.Delete {
-    const deleteConsumer = this._consumerSet.add(consumer);
 
-    if (this._consumerSet.size === 1) {
-      this._options.firstConsumerJoin?.(this, consumer);
-      this._events.$firstConsumerJoin?.push(consumer);
-    }
-
-    this._options.consumerJoin?.(this, consumer);
-    this._events.$consumerJoin?.push(consumer);
-    return deleteConsumer;
-  }
   static override from<VALUE>(consumable: Consumable<VALUE>, options?: Stream.Options<VALUE>): Stream<VALUE> {
     const { firstConsumerJoin, push, next, terminate, ...rest } = options ?? {};
 
@@ -216,7 +232,6 @@ export namespace Stream {
 
   export type Options<VALUE> = {
     consumerSetFactory?: () => ConsumerSet<VALUE>;
-    consumerQueueFactory?: () => Queue<VALUE>;
     init?: (stream: Stream<VALUE>) => undefined | ((reason: TerminateReason) => void);
     push?: (stream: Stream<VALUE>, value: VALUE) => void;
     next?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;

@@ -15,3 +15,7 @@ export class State<VALUE> extends Stream<VALUE> {
     this.push(v);
   }
 }
+
+export function state<VALUE>(initialValue: VALUE) {
+  return new State(initialValue);
+}

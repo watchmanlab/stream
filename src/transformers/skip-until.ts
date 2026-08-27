@@ -29,7 +29,7 @@ export class SkipUntil<
         if (skip) {
           consumer.next();
         } else {
-          consumer["_handler"] = handler;
+          consumer.handler = handler;
           handler(consumer, value);
         }
       },

@@ -19,7 +19,7 @@ export class Skip<
       if (count--) {
         consumer.next();
       } else {
-        consumer["_handler"] = handler;
+        consumer.handler = handler;
         handler(consumer, value);
       }
     }, options);

@@ -1,5 +1,6 @@
-import type { Empty, Queue } from "./types";
+import type { Empty } from "./types";
 import { EMPTY } from "./consts";
+import { Queue } from "./queue";
 
 export class DefaultQueue<VALUE> implements Queue<VALUE> {
   private _head?: DefaultQueue.Node<VALUE>;

@@ -1,20 +1,39 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import type { AnyConsumable, ExtractValue, Transformer } from "../core/types";
+import { ExtractValue, Result } from "../core/types";
 
-export class CatchError<INPUT extends AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>
-  extends Source<VALUE>
-  implements Transformer<INPUT, VALUE>
-{
+export class CatchError<
+  INPUT extends Consumable<Result<any, any>>,
+  RESULT extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+> extends Source<RESULT["value"]> {
   constructor(
-    readonly $input: INPUT,
-    private handler: (error: any) => void,
+    private $input: INPUT,
+    private callback?: (error: RESULT["error"]) => void,
   ) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {}
+
+  override consume(
+    handler: Consumer.Handler<RESULT["value"]>,
+    options?: Consumer.Options<RESULT["value"]> | undefined,
+  ): Consumer<RESULT["value"]> {
+    const { callback } = this;
+
+    return this.$input.consume((c, v) => {
+      if (v.ok) {
+        handler(c, v.value);
+      } else {
+        callback?.(v.error);
+        c.next();
+      }
+    }, options);
+  }
 }
 
-export function catchError<INPUT extends AnyConsumable>(handler: (error: any) => void) {
-  return ($input: INPUT) => new CatchError($input, handler);
+export function catchError<
+  INPUT extends Consumable<Result<any, any>>,
+  RESULT extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+>(callback?: (error: RESULT["error"]) => void) {
+  return ($input: INPUT) => new CatchError($input, callback);
 }

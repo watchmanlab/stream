@@ -1,45 +1,45 @@
-import { Stream } from "../core/stream";
-import { Transformer } from "../core/transformer";
-import { AnyStream, ExtractValue, NonEmptyString, Transform } from "../core/types";
+import { Consumable } from "../core/consumable";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+import { ExtractValue } from "../core/types";
 
 export class Replay<
-  INPUT extends AnyStream,
+  INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$replay",
-> extends Transformer<INPUT, VALUE, NAME> {
-  constructor(input: INPUT, values: [VALUE, ...VALUE[]], options?: Stream.Options<VALUE, NAME>) {
-    const { name, next, consumerJoin, terminate, ...rest } = options ?? {};
+> extends Source<VALUE> {
+  constructor(
+    private $input: INPUT,
+    private values: [VALUE, ...VALUE[]],
+  ) {
+    super();
+  }
+  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
+    const { next, terminate, ...rest } = options ?? {};
 
-    const inputConsumer = input.consume((_, value) => {
-      this.push(value);
+    const input$ = this.$input.consume((c, v) => output$.push(v), {
+      terminate(consumer, reason) {
+        output$.terminate(reason);
+      },
     });
 
-    super(input, {
+    const output$ = new Consumer(handler, {
       ...rest,
-      name: name ?? ("$replay" as NAME),
-      next(self, consumer) {
-        inputConsumer.next();
-        next?.(self, consumer);
+      next(consumer) {
+        input$.next();
+        next?.(consumer);
       },
-      consumerJoin(self, consumer) {
-        for (let i = 0, len = values.length; i < len; i++) {
-          consumer.push(values[i]);
-        }
-        consumerJoin?.(self, consumer);
+      terminate(consumer, reason) {
+        input$.terminate(reason);
+        terminate?.(consumer, reason);
       },
-      terminate(self, reason) {
-        values.length = 0;
-        inputConsumer.terminate(reason);
-        terminate?.(self, reason);
-      },
-    });
+    }).pushBatch(this.values);
+
+    return output$;
   }
 }
 
-export function replay<
-  INPUT extends AnyStream,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$replay",
->(values: [VALUE, ...VALUE[]], options?: Stream.Options<VALUE, NAME>): Transform<INPUT, Replay<INPUT, VALUE, NAME>> {
-  return (input) => new Replay(input, values, options);
+export function replay<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
+  values: [VALUE, ...VALUE[]],
+) {
+  return ($input: INPUT) => new Replay($input, values);
 }

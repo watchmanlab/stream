@@ -1,8 +1,11 @@
 import { Source } from "./core/source";
 import { Stream } from "./core/stream";
+import { dependOn } from "./transformers/depend-on";
 import { filter } from "./transformers/filter";
 import { map } from "./transformers/map";
 import { passive } from "./transformers/passive";
+import { replay } from "./transformers/replay";
+import { replayLatest } from "./transformers/replay-latest";
 import { resolve } from "./transformers/resolve";
 import { skip } from "./transformers/skip";
 
@@ -19,12 +22,13 @@ function runMemoryProfile() {
   const pipelines: any[] = new Array(BATCH_SIZE);
 
   const baseline = getHeapSize();
+  const s1 = new Stream();
 
   for (let i = 0; i < BATCH_SIZE; i++) {
     let stream: Source<any> = new Stream<any>();
 
     for (let j = 0; j < STAGES; j++) {
-      stream = stream.pipe(passive());
+      stream = stream.pipe(map((v) => (v / v) * v));
     }
     pipelines[i] = stream.consume((self) => self.next()).next();
   }

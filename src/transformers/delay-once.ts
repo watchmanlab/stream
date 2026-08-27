@@ -3,32 +3,28 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ExtractValue } from "../core/types";
 
-export class Range<
+export class DelayOnce<
   INPUT extends Consumable.AnyConsumable,
+  MS extends number,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 > extends Source<VALUE> {
   constructor(
     private $input: INPUT,
-    private start: number,
-    private offset: number,
+    private ms: MS,
   ) {
     super();
   }
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    let index = 0;
-
+    let ms = this.ms;
     return this.$input.consume((c, v) => {
-      if (++index < this.start) {
-        c.next();
-      } else if (index < this.start + this.offset) {
+      setTimeout(() => {
         handler(c, v);
-      } else {
-        c.terminate("complete");
-      }
+        c.handler = handler;
+      }, ms);
     }, options);
   }
 }
 
-export function range<INPUT extends Consumable.AnyConsumable>(start: number, offset: number) {
-  return ($input: INPUT) => new Range($input, start, offset);
+export function delayOnce<INPUT extends Consumable.AnyConsumable, MS extends number>(ms: MS) {
+  return ($input: INPUT) => new DelayOnce($input, ms);
 }
