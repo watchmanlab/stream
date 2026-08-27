@@ -1,45 +1,59 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
-import { Stream } from "../core/stream";
-import { AnyStream, ExtractValue, NonEmptyString } from "../core/types";
+import { Source } from "../core/source";
+import { ExtractValue } from "../core/types";
 
-export function gate<
-  INPUT extends AnyStream,
+export class Gate<
+  INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-  NAME extends NonEmptyString = "$gate",
->(control: Stream<boolean, any>, options?: Omit<Stream.Options<VALUE, NAME>, "source">) {
-  return (input: INPUT) => {
-    const { name, next, terminate, ...rest } = options ?? {};
+> extends Source<VALUE> {
+  constructor(
+    private $input: INPUT,
+    private control: Consumable<boolean>,
+  ) {
+    super();
+  }
+  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
+    const { next, terminate, ...rest } = options ?? {};
 
-    let inputConsumer: Consumer<VALUE> | undefined;
+    let input$: Consumer<VALUE> | undefined;
 
-    const output = new Stream<VALUE, NAME>({
+    const output$ = new Consumer<VALUE>(handler, {
       ...rest,
-      name: name ?? ("$gate" as NAME),
-      next(self, consumer) {
-        inputConsumer?.next();
-        next?.(self, consumer);
+      next(consumer) {
+        input$?.next();
+        next?.(consumer);
       },
-      terminate(self, reason) {
-        inputConsumer?.terminate(reason);
-        controlConsumer.terminate(reason);
-        terminate?.(self, reason);
+      terminate(consumer, reason) {
+        input$?.terminate(reason);
+        control$.terminate(reason);
+        terminate?.(consumer, reason);
       },
     });
 
-    const controlConsumer = control
-      .consume((self, value) => {
-        if (value) {
-          inputConsumer = input.consume((self, value) => {
-            output.push(value);
-          });
-        } else {
-          inputConsumer?.terminate("complete");
-          inputConsumer = undefined;
-        }
-        self.next();
-      })
+    const control$ = this.control
+      .consume(
+        (self, value) => {
+          if (value) {
+            input$ = this.$input.consume((_, value) => output$.push(value)).next();
+          } else {
+            input$?.terminate("complete");
+            input$ = undefined;
+          }
+          self.next();
+        },
+        {
+          terminate(consumer, reason) {
+            output$.terminate(reason);
+          },
+        },
+      )
       .next();
 
-    return output;
-  };
+    return output$;
+  }
+}
+
+export function gate<INPUT extends Consumable.AnyConsumable>(control: Consumable<boolean>) {
+  return ($input: INPUT) => new Gate($input, control);
 }

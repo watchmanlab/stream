@@ -4,7 +4,7 @@ import { DefaultSizedQueue } from "../core/default-sized-queue";
 import { Source } from "../core/source";
 import { ExtractValue } from "../core/types";
 
-export class BufferLatest<
+export class KeepLatest<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
 > extends Source<VALUE> {
@@ -49,6 +49,6 @@ export class BufferLatest<
   }
 }
 
-export function bufferLatest<INPUT extends Consumable.AnyConsumable>(maxSize: number) {
-  return ($input: INPUT) => new BufferLatest($input, maxSize);
+export function keepLatest<INPUT extends Consumable.AnyConsumable>(maxSize: number) {
+  return ($input: INPUT) => new KeepLatest($input, maxSize);
 }

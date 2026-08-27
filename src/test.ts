@@ -39,9 +39,10 @@ import { index } from "./transformers/index.ts";
 import { print } from "./transformers/print.ts";
 import { pace } from "./transformers/pace.ts";
 import { buffer } from "./transformers/buffer.ts";
-import { bufferLatest } from "./transformers/buffer-latest.ts";
+import { keepLatest } from "./transformers/keep-latest.ts";
 import { delay } from "./transformers/delay.ts";
 import { context } from "./transformers/context.ts";
+import { gate } from "./transformers/gate.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -630,24 +631,31 @@ function bufferTest() {
 }
 // bufferTest();
 
-function bufferLatestTest() {
+function keepLatestTest() {
   const s = fromInterval(300).pipe(index()).pipe(share());
 
-  const buffered = s.pipe(bufferLatest(2));
+  const buffered = s.pipe(keepLatest(2));
 
   setTimeout(() => {
     buffered.pipe(print()).pipe(pump());
   }, 2000);
 }
 
-// bufferLatestTest();
+// keepLatestTest();
 
 function contextTest() {
   fromIterable([1, 2, 3, 4, 5])
-    .pipe(context(() => ({ count: 100 })))
+    .pipe(context({ count: 100 }))
     .pipe(tap((v) => v.context.count++))
     .pipe(print())
     .pipe(pump());
 }
 
-contextTest();
+// contextTest();
+
+function gateTest() {
+  const control = fromInterval(3000).pipe(map((_, i) => i % 2 === 0));
+  fromInterval(500).pipe(gate(control)).pipe(index()).pipe(print()).pipe(pump());
+}
+
+// gateTest();
