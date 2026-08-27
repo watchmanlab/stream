@@ -1,7 +1,7 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue, Result } from "../core/types";
+import { ExtractValue, isResult, Result } from "../core/types";
 
 export class Safe<
   INPUT extends Consumable.AnyConsumable,

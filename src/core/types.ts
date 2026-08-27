@@ -10,6 +10,9 @@ export type EmptyThisFunctions = typeof EMPTY_THIS_FUNCTION;
 export type Result<VALUE, ERROR = any> =
   | { ok: true; value: VALUE; error?: never }
   | { ok: false; error: ERROR; value?: never };
+export function isResult<T, E>(object: unknown): object is Result<T, E> {
+  return object !== null && typeof object === "object" && "ok" in object && typeof object.ok === "boolean";
+}
 export type TerminateReason = "abort" | "complete";
 
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
