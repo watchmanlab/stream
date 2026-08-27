@@ -1,7 +1,7 @@
-import { AnyConsumable } from "../core/types";
-import { KeepNewest } from "./keep-latest";
-import { pace } from "./pace";
+import { Consumable } from "../core/consumable";
 
-export function debounce<INPUT extends AnyConsumable, MS extends number>(ms: MS) {
-  return ($input: INPUT) => new KeepNewest($input, 1).pipe(pace(ms));
+export class Debounce<INPUT extends Consumable.AnyConsumable, MS extends number> {}
+
+export function debounce<INPUT extends Consumable.AnyConsumable, MS extends number>(ms: MS) {
+  return ($input: INPUT) => new Debounce();
 }
