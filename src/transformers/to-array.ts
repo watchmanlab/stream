@@ -16,17 +16,18 @@ class ToArray<
     options?: Consumer.Options<VALUE[]> | undefined,
   ): Consumer<VALUE[]> {
     const { terminate, ...rest } = options ?? {};
-    const array = new Array<VALUE>();
+    let array: VALUE[] | null = new Array<VALUE>();
 
     return this.$input.consume(
       (c, v) => {
-        array.push(v);
+        array!.push(v);
         c.next();
       },
       {
         ...rest,
         terminate(consumer, reason) {
-          handler(consumer, array);
+          handler(consumer, array!);
+          array = null;
           terminate?.(consumer, reason);
         },
       },

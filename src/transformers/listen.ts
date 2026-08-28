@@ -6,11 +6,13 @@ export function listen<INPUT extends Consumable.AnyConsumable, VALUE extends Ext
   callback?: (value: VALUE) => void,
 ) {
   return ($input: INPUT) => {
-    return $input
+    $input
       .consume((c, v) => {
         callback?.(v);
         c.next();
       })
       .next();
+
+    return $input;
   };
 }
