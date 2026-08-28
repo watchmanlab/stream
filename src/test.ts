@@ -51,6 +51,8 @@ import { reduce } from "./transformers/reduce.ts";
 import { unwrap } from "./transformers/unwrap.ts";
 import { result } from "./transformers/result.ts";
 import { distinct } from "./transformers/distinct.ts";
+import { find } from "./transformers/find.ts";
+import { toConsole } from "./transformers/to-console.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -712,3 +714,12 @@ function distinctTest() {
 }
 
 // distinctTest();
+
+function findTest() {
+  of(1, 2, 3, 4, 5)
+    .pipe(find((v) => v > 3))
+    .pipe(unwrap())
+    .pipe(toConsole());
+}
+
+findTest();

@@ -2,7 +2,6 @@ import { EMPTY } from "../core/consts";
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Stream } from "../core/stream";
 import { Empty, ExtractValue, Result } from "../core/types";
 
 export class Last<

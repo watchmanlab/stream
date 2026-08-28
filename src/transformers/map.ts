@@ -1,7 +1,6 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-
 import { ExtractValue } from "../core/types";
 
 export class Map<
