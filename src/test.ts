@@ -53,6 +53,7 @@ import { result } from "./transformers/result.ts";
 import { distinct } from "./transformers/distinct.ts";
 import { find } from "./transformers/find.ts";
 import { toConsole } from "./transformers/to-console.ts";
+import { fromRange } from "./sources/range-source.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -406,6 +407,11 @@ function fromTimeoutTest() {
 
 // fromTimeoutTest();
 
+function fromRangeTest() {
+  fromRange(20, 100).pipe(toConsole());
+}
+fromRangeTest();
+
 function mapTest() {
   const stream = new Stream<number>();
 
@@ -722,4 +728,4 @@ function findTest() {
     .pipe(toConsole());
 }
 
-findTest();
+// findTest();
