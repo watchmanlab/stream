@@ -1,22 +1,26 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-export class TimeoutSource<MS extends number> extends Source<void> {
-  constructor(private ms: MS) {
+export class TimeoutSource<MS extends number, VALUE = void> extends Source<VALUE> {
+  constructor(
+    private ms: MS,
+    private value?: VALUE,
+  ) {
     super();
   }
 
-  consume(handler: Consumer.Handler<void>, options?: Consumer.Options<void>): Consumer<void> {
+  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { init, ...rest } = options ?? {};
+    const { ms, value } = this;
 
     return new Consumer(handler, {
       ...rest,
 
       init: (consumer) => {
         const timer = setTimeout(() => {
-          consumer.push();
+          consumer.push(value as VALUE);
           consumer.terminate("complete");
-        }, this.ms);
+        }, ms);
 
         const cleanup = init?.(consumer);
 
@@ -29,6 +33,6 @@ export class TimeoutSource<MS extends number> extends Source<void> {
   }
 }
 
-export function fromTimeout<MS extends number>(ms: MS): TimeoutSource<MS> {
-  return new TimeoutSource(ms);
+export function fromTimeout<MS extends number, VALUE = void>(ms: MS, value?: VALUE): TimeoutSource<MS, VALUE> {
+  return new TimeoutSource(ms, value);
 }

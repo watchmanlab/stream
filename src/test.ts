@@ -11,7 +11,6 @@ import { fromAsyncGenerator } from "./sources/async-generator-source.ts";
 import { fromAbortSignal } from "./sources/abort-signal-source.ts";
 import { fromAbortController } from "./sources/abort-controller-source.ts";
 import { fromEventTarget } from "./sources/event-target-source.ts";
-import { fromPromise } from "./sources/promise-source.ts";
 import { fromInterval } from "./sources/interval-source.ts";
 import { fromTimeout } from "./sources/timeout-source.ts";
 
@@ -54,6 +53,7 @@ import { distinct } from "./transformers/distinct.ts";
 import { find } from "./transformers/find.ts";
 import { toConsole } from "./transformers/to-console.ts";
 import { fromRange } from "./sources/range-source.ts";
+import { fromFunction } from "./sources/from-function.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -361,26 +361,6 @@ function fromEventTargetTest() {
 }
 
 // fromEventTargetTest();
-function fromPromiseTest() {
-  const $source = fromPromise(new Promise((r) => setTimeout(() => r(33), 200)));
-  const stream = Stream.from($source);
-  stream
-    .consume((self, value) => {
-      console.log("c1", value.value);
-      self.next();
-    })
-    .next();
-  setTimeout(() => {
-    stream
-      .consume((self, value) => {
-        console.log("c2", value.value);
-        self.next();
-      })
-      .next();
-  }, 1000);
-}
-
-// fromPromiseTest();
 
 function fromIntervalTest() {
   const $source = fromInterval(500);
@@ -395,7 +375,7 @@ function fromIntervalTest() {
 
 // fromIntervalTest();
 function fromTimeoutTest() {
-  const $source = fromTimeout(1000);
+  const $source = fromTimeout(1000, "hey");
   const stream = Stream.from($source);
   stream
     .consume((self, value) => {
@@ -408,9 +388,17 @@ function fromTimeoutTest() {
 // fromTimeoutTest();
 
 function fromRangeTest() {
-  fromRange(20, 100).pipe(toConsole());
+  fromRange(20, 25).pipe(toConsole());
 }
-fromRangeTest();
+// fromRangeTest();
+
+function fromFunctionTest() {
+  fromFunction(() => Math.floor(Math.random() * 10))
+    .pipe(toConsole())
+    .pipe(toConsole())
+    .pipe(toConsole());
+}
+fromFunctionTest();
 
 function mapTest() {
   const stream = new Stream<number>();
