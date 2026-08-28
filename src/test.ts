@@ -1,4 +1,4 @@
-import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single } from "rxjs";
+import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single, pipe } from "rxjs";
 import { Consumer } from "./core/consumer.ts";
 import { Stream } from "./core/stream.ts";
 import { Source } from "./core/source";
@@ -603,28 +603,27 @@ function mergeTest() {
 function replayLatestTest() {
   const s1 = fromInterval(200)
     .pipe(map((_, index) => index))
+    .pipe(share())
     .pipe(replayLatest(3));
-  // .pipe(tap(console.log))
-  // .pipe(listen());
 
   setTimeout(() => {
-    s1.pipe(tap(console.log)).pipe(listen());
+    s1.pipe(listen(console.log));
   }, 2000);
 }
 // replayLatestTest();
 
-async function toArrayTest() {
-  const s = await fromInterval(300)
+function toArrayTest() {
+  fromInterval(300)
     .pipe(map((_, i) => i))
     .pipe(take(10))
-    .pipe(toArray());
-  console.log(s);
+    .pipe(toArray())
+    .pipe(listen(console.log));
 }
 
 // toArrayTest();
 
 async function rangeTest() {
-  (await fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"]).pipe(range(1, 2)).pipe(toArray())).print();
+  fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"]).pipe(range(1, 2)).pipe(toArray()).pipe(listen(console.log));
 }
 
 // rangeTest();
@@ -712,4 +711,4 @@ function distinctTest() {
     .pipe(listen(console.log));
 }
 
-distinctTest();
+// distinctTest();
