@@ -1,4 +1,5 @@
 import { Consumable } from "../core/consumable";
+import { Source } from "../core/source";
 
 import { ValueOfConsumable } from "../core/types";
 
@@ -14,6 +15,6 @@ export function listen<
       })
       .next();
 
-    return $input;
+    return $input instanceof Source ? $input : Source.from($input);
   };
 }

@@ -21,7 +21,7 @@ export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<
     }
   }
   abstract consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
-  pipe<OUTPUT>(transform: ($input: this) => OUTPUT): OUTPUT {
+  pipe<OUTPUT>(transform: ($input: Consumable<VALUE>) => OUTPUT): OUTPUT {
     return transform(this);
   }
   static from<VALUE>($consumable: Consumable<VALUE>): Source<VALUE> {
