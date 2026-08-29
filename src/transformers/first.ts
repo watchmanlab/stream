@@ -1,11 +1,11 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue, Result } from "../core/types";
+import { ValueOfConsumable, Result } from "../core/types";
 
 export class First<
   INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 > extends Source<Result<VALUE, "not-found">> {
   constructor(private $input: INPUT) {
     super();

@@ -2,12 +2,14 @@ import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-import { ExtractValue } from "../core/types";
+import { ValueOfConsumable } from "../core/types";
 
 export class Merge<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [other: Consumable.AnyConsumable, ...others: Consumable.AnyConsumable[]],
-  VALUE extends ExtractValue<INPUT> | ExtractValue<OTHERS[number]> = ExtractValue<INPUT> | ExtractValue<OTHERS[number]>,
+  VALUE extends ValueOfConsumable<INPUT> | ValueOfConsumable<OTHERS[number]> =
+    | ValueOfConsumable<INPUT>
+    | ValueOfConsumable<OTHERS[number]>,
 > extends Source<VALUE> {
   constructor(
     readonly $input: INPUT,

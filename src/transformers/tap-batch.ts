@@ -1,11 +1,11 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue } from "../core/types";
+import { ValueOfConsumable } from "../core/types";
 
 export class TapBatch<
   INPUT extends Consumable<Array<any>>,
-  VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
+  VALUE extends ValueOfConsumable<INPUT, 1> = ValueOfConsumable<INPUT, 1>,
 > extends Source<VALUE[]> {
   constructor(
     readonly $input: INPUT,
@@ -25,7 +25,7 @@ export class TapBatch<
 
 export function tapBatch<
   INPUT extends Consumable<Array<any>>,
-  VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
+  VALUE extends ValueOfConsumable<INPUT, 1> = ValueOfConsumable<INPUT, 1>,
 >(callback: (value: VALUE, INPUT: INPUT) => void) {
   return ($input: INPUT) => new TapBatch($input, callback);
 }

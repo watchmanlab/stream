@@ -1,12 +1,12 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue } from "../core/types";
+import { ValueOfConsumable } from "../core/types";
 
 export class Flat<
   INPUT extends Consumable<Array<any>>,
   DEPTH extends number = 0,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 > extends Source<FlatArray<VALUE, DEPTH>> {
   constructor(
     readonly $input: INPUT,

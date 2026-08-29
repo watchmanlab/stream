@@ -19,29 +19,20 @@ export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]:
 export type SizedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> = []> = ARR["length"] extends SIZE
   ? ARR
   : SizedArray<VALUE, SIZE, [...ARR, VALUE]>;
-export type ZipedArray<T extends Consumable<any>[]> = [...{ [K in keyof T]: ExtractValue<T[K]> }];
+export type ZipedArray<T extends Consumable<any>[]> = [...{ [K in keyof T]: ValueOfConsumable<T[K]> }];
 
 export type ExtractStream<T> = T extends Stream<infer V> ? Stream<V> : never;
-export type ExtractValue<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
-  ? T extends
-      | Consumable<infer VALUE>
-      | Consumer<infer VALUE>
-      | Source<infer VALUE>
-      | Stream<infer VALUE>
-      | Transformer<any, infer VALUE>
-      | Promise<infer VALUE>
-      | Array<infer VALUE>
-      | Set<infer VALUE>
+export type ValueOfConsumable<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
+  ? T extends Consumable<infer VALUE>
     ? VALUE
     : T
-  : T extends
-        | Consumable<infer VALUE>
-        | Consumer<infer VALUE>
-        | Source<infer VALUE>
-        | Stream<infer VALUE>
-        | Transformer<any, infer VALUE>
-        | Promise<infer VALUE>
-        | Array<infer VALUE>
-        | Set<infer VALUE>
-    ? ExtractValue<VALUE, DEPTH, [...COUNTER, any]>
+  : T extends Consumable<infer VALUE>
+    ? ValueOfConsumable<VALUE, DEPTH, [...COUNTER, any]>
+    : T;
+export type ValueOfPromise<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
+  ? T extends Promise<infer VALUE>
+    ? VALUE
+    : T
+  : T extends Promise<infer VALUE>
+    ? ValueOfPromise<VALUE, DEPTH, [...COUNTER, any]>
     : T;

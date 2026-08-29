@@ -53,7 +53,8 @@ import { distinct } from "./transformers/distinct.ts";
 import { find } from "./transformers/find.ts";
 import { toConsole } from "./transformers/to-console.ts";
 import { fromRange } from "./sources/range-source.ts";
-import { fromFunction } from "./sources/from-function.ts";
+import { fromFunction } from "./sources/function-source.ts";
+import { switch$ } from "./transformers/switch$.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -398,7 +399,7 @@ function fromFunctionTest() {
     .pipe(toConsole())
     .pipe(toConsole());
 }
-fromFunctionTest();
+// fromFunctionTest();
 
 function mapTest() {
   const stream = new Stream<number>();
@@ -717,3 +718,13 @@ function findTest() {
 }
 
 // findTest();
+
+function switchTest() {
+  const s1 = fromInterval(300).pipe(map(() => "a"));
+  const s2 = fromInterval(300).pipe(map(() => "b"));
+  const s3 = fromInterval(300).pipe(map(() => "c"));
+
+  of(s1, s2, s3).pipe(delay(500)).pipe(switch$()).pipe(toConsole());
+}
+
+switchTest();

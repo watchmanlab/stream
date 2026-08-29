@@ -3,12 +3,12 @@ import { Consumer } from "../core/consumer";
 import { DefaultQueue } from "../core/default-queue";
 import { Source } from "../core/source";
 
-import { ExtractValue, SizedArray } from "../core/types";
+import { ValueOfConsumable, SizedArray } from "../core/types";
 
 export class Buffer<
   INPUT extends Consumable.AnyConsumable,
   SIZE extends number,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 > extends Source<SizedArray<VALUE, SIZE>> {
   constructor(
     private $input: INPUT,
