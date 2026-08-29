@@ -721,8 +721,8 @@ function findTest() {
 
 function switchTest() {
   const s1 = fromInterval(300).pipe(map(() => "a"));
-  const s2 = fromInterval(300).pipe(map(() => "b"));
-  const s3 = fromInterval(300).pipe(map(() => "c"));
+  const s2 = fromInterval(500).pipe(map(() => "b"));
+  const s3 = fromInterval(600).pipe(map(() => "c"));
 
   of(s1, s2, s3).pipe(delay(500)).pipe(switch$()).pipe(toConsole());
 }

@@ -22,6 +22,7 @@ export type SizedArray<VALUE, SIZE extends number = 2, ARR extends Array<VALUE> 
 export type ZipedArray<T extends Consumable<any>[]> = [...{ [K in keyof T]: ValueOfConsumable<T[K]> }];
 
 export type ExtractStream<T> = T extends Stream<infer V> ? Stream<V> : never;
+
 export type ValueOfConsumable<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
   ? T extends Consumable<infer VALUE>
     ? VALUE
@@ -35,4 +36,11 @@ export type ValueOfPromise<T, DEPTH extends number = 0, COUNTER extends any[] = 
     : T
   : T extends Promise<infer VALUE>
     ? ValueOfPromise<VALUE, DEPTH, [...COUNTER, any]>
+    : T;
+export type ValueOfArray<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
+  ? T extends Array<infer VALUE>
+    ? VALUE
+    : T
+  : T extends Array<infer VALUE>
+    ? ValueOfArray<VALUE, DEPTH, [...COUNTER, any]>
     : T;

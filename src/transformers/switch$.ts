@@ -33,7 +33,7 @@ export class Switch$<
       current$?.terminate("abort");
 
       c.next();
-      current$ = v.consume((c, v) => output$.push(v)).next();
+      current$ = v.consume((c, v) => (c === current$ ? output$.push(v) : void 0)).next();
     });
 
     return output$;
