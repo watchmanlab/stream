@@ -21,40 +21,43 @@ export class Combine<
     const { next, terminate, ...rest } = options ?? {};
 
     const buffer = new Array(this.$inputs.length).fill(EMPTY);
-    let count = buffer.length;
-
-    const consumers$ = this.$inputs.map(($input, index) =>
-      $input.consume(
-        (_, value) => {
-          buffer[index] = value;
-
-          if (!--count) {
-            count = buffer.length;
-            const values = [...buffer];
-            buffer.fill(EMPTY);
-            output$.push(values as any);
-          }
-        },
-        {
-          terminate(consumer, reason) {
-            output$.terminate(reason);
-          },
-        },
-      ),
-    );
 
     const output$ = new Consumer<VALUE>(handler, {
       ...rest,
       next(consumer) {
-        consumers$.forEach((c) => c.next());
+        consumers.forEach((entry) => {
+          if (!entry.pending) {
+            entry.pending = true;
+            entry.consumer$.next();
+          }
+        });
         next?.(consumer);
       },
       terminate: (consumer, reason) => {
-        consumers$.forEach((c) => c.terminate(reason));
-        consumers$.length = 0;
+        consumers.forEach((entry) => entry.consumer$.terminate(reason));
+        consumers.length = 0;
         buffer.length = 0;
         terminate?.(consumer, reason);
       },
+    });
+
+    const consumers = this.$inputs.map(($input, index) => {
+      const entry = {
+        consumer$: $input.consume(
+          (_, value) => {
+            buffer[index] = value;
+            entry.pending = false;
+            output$.push([...buffer] as any);
+          },
+          {
+            terminate(consumer, reason) {
+              output$.terminate(reason);
+            },
+          },
+        ),
+        pending: false,
+      };
+      return entry;
     });
     return output$;
   }

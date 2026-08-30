@@ -55,6 +55,7 @@ import { toConsole } from "./transformers/to-console.ts";
 import { fromRange } from "./sources/range-source.ts";
 import { fromFunction } from "./sources/function-source.ts";
 import { switch$ } from "./transformers/switch$.ts";
+import { combine } from "./transformers/combine.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -586,10 +587,10 @@ function dependOnTest() {
 // dependOnTest();
 
 function mergeTest() {
-  const s1 = fromInterval(1000).pipe(map((_, index) => index));
-  const s3 = fromInterval(1000).pipe(map((_, index) => index * 100));
-  const s2 = fromInterval(1000)
-    .pipe(map((_, index) => index.toFixed(3)))
+  const s1 = fromInterval(500).pipe(map((_, index) => `${index}S1`));
+  const s3 = fromInterval(1000).pipe(map((_, index) => `${index * 100}S3`));
+  const s2 = fromInterval(1200)
+    .pipe(map((_, index) => index.toFixed(3) + "S2"))
     .pipe(merge(s1, s3))
     .pipe(tap(console.log))
     .pipe(listen());
@@ -729,3 +730,11 @@ function switchTest() {
 }
 
 // switchTest();
+
+function combineTest() {
+  const s1 = of(1, 2, 3, 4).pipe(delay(100));
+  const s2 = of("a", "b", "c", "d").pipe(delay(200));
+
+  s1.pipe(combine(s2)).pipe(toConsole());
+}
+// combineTest();
