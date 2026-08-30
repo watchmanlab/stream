@@ -41,7 +41,7 @@ import { keepLatest } from "./transformers/keep-latest.ts";
 import { delay } from "./transformers/delay.ts";
 import { context } from "./transformers/context.ts";
 import { gate } from "./transformers/gate.ts";
-import { of } from "./sources/of.ts";
+import { of } from "./sources/of-source.ts";
 import { listen } from "./transformers/listen.ts";
 import { first } from "./transformers/first.ts";
 import { last } from "./transformers/last.ts";
@@ -728,4 +728,4 @@ function switchTest() {
   of(1, 2, s3, fromTimeout(400, 44)).pipe(delay(2000)).pipe(switch$()).pipe(toConsole());
 }
 
-switchTest();
+// switchTest();
