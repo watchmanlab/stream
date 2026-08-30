@@ -725,7 +725,7 @@ function switchTest() {
   const s3 = fromInterval(300).pipe(map(() => "c"));
   // .pipe(scope(fromTimeout(3000)));
 
-  of(s1, s2, s3, 4).pipe(delay(2000)).pipe(switch$()).pipe(toConsole());
+  of(1, 2, s3, fromTimeout(400, 44)).pipe(delay(2000)).pipe(switch$()).pipe(toConsole());
 }
 
 switchTest();

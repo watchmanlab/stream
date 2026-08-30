@@ -18,8 +18,7 @@ export class Switch$<
     const output$ = new Consumer(handler, {
       ...rest,
       next(c) {
-        if (!current$) input$.next();
-        else current$?.next();
+        current$?.next();
         next?.(c);
       },
       terminate(c, r) {
@@ -29,24 +28,21 @@ export class Switch$<
       },
     });
 
-    const input$ = this.$input.consume((_, v) => {
-      current$?.terminate("abort");
-      current$ = null;
+    const input$ = this.$input
+      .consume((_, v) => {
+        current$?.terminate("abort");
+        current$ = null;
 
-      if (!Consumable.isConsumable<VALUE>(v)) {
-        output$.push(v);
-        return;
-      }
+        if (!Consumable.isConsumable<VALUE>(v)) {
+          output$.push(v);
+          input$.next();
+          return;
+        }
 
-      current$ = v
-        .consume((c, v) => (c === current$ ? output$.push(v) : void 0), {
-          terminate() {
-            input$.next();
-          },
-        })
-        .next();
-      input$.next();
-    });
+        current$ = v.consume((c, v) => (c === current$ ? output$.push(v) : void 0)).next();
+        input$.next();
+      })
+      .next();
 
     return output$;
   }
