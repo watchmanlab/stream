@@ -1,11 +1,11 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue, Result } from "../core/types";
+import { ValueOfConsumable, Result } from "../core/types";
 
 export class Unwrap<
   INPUT extends Consumable<Result<any, any>>,
-  RESULT extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  RESULT extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 > extends Source<RESULT["value"]> {
   constructor(
     private $input: INPUT,
@@ -33,7 +33,7 @@ export class Unwrap<
 
 export function unwrap<
   INPUT extends Consumable<Result<any, any>>,
-  RESULT extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  RESULT extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 >(errorHandler?: (error: RESULT["error"]) => void) {
   return ($input: INPUT) => new Unwrap($input, errorHandler);
 }

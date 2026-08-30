@@ -1,15 +1,13 @@
+import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Consumable, ExtractValue, Transformer } from "../core/types";
+import { ValueOfConsumable, ValueOfArray } from "../core/types";
 
 export class MapBatch<
   INPUT extends Consumable<any[]>,
-  VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
+  VALUE extends ValueOfArray<ValueOfConsumable<INPUT>> = ValueOfArray<ValueOfConsumable<INPUT>>,
   MAPPED = VALUE,
->
-  extends Source<MAPPED[]>
-  implements Transformer<INPUT, MAPPED[]>
-{
+> extends Source<MAPPED[]> {
   constructor(
     readonly $input: INPUT,
     private mapper: MapBatch.Mapper<VALUE, MAPPED>,
@@ -34,7 +32,7 @@ export class MapBatch<
 
 export function mapBatch<
   INPUT extends Consumable<any[]>,
-  VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
+  VALUE extends ValueOfArray<ValueOfConsumable<INPUT>> = ValueOfArray<ValueOfConsumable<INPUT>>,
   MAPPED = VALUE,
 >(mapper: MapBatch.Mapper<VALUE, MAPPED>) {
   return ($input: INPUT) => new MapBatch($input, mapper);

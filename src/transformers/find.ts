@@ -3,37 +3,49 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ValueOfConsumable, Result } from "../core/types";
 
-export class First<
+export class Find<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 > extends Source<Result<VALUE, "not-found">> {
-  constructor(private $input: INPUT) {
+  constructor(
+    private $input: INPUT,
+    private predicate: (value: VALUE, index: number) => boolean,
+  ) {
     super();
   }
+
   override consume(
     handler: Consumer.Handler<Result<VALUE, "not-found">>,
     options?: Consumer.Options<Result<VALUE, "not-found">> | undefined,
   ): Consumer<Result<VALUE, "not-found">> {
     const { terminate, ...rest } = options ?? {};
+    const { predicate } = this;
     let found = false;
-
+    let index = 0;
     return this.$input.consume(
       (c, value) => {
-        found = true;
-        c.terminate("complete");
-        handler(c, { ok: true, value });
+        if (predicate(value, index++)) {
+          found = true;
+          c.terminate("complete");
+          handler(c, { ok: true, value });
+        } else {
+          c.next();
+        }
       },
       {
         ...rest,
-        terminate(consumer, reason) {
-          if (!found) handler(consumer, { ok: false, error: "not-found" });
-          terminate?.(consumer, reason);
+        terminate(c, r) {
+          if (!found) handler(c, { ok: false, error: "not-found" });
+          terminate?.(c, r);
         },
       },
     );
   }
 }
 
-export function first<INPUT extends Consumable.AnyConsumable>() {
-  return ($input: INPUT) => new First($input);
+export function find<
+  INPUT extends Consumable.AnyConsumable,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
+>(predicate: (value: VALUE, index: number) => boolean) {
+  return ($input: INPUT) => new Find($input, predicate);
 }

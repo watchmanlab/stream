@@ -2,76 +2,65 @@ import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
-import { ExtractValue } from "../core/types";
+import { ValueOfConsumable } from "../core/types";
 
 export class Merge<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [other: Consumable.AnyConsumable, ...others: Consumable.AnyConsumable[]],
-  VALUE extends ExtractValue<INPUT> | ExtractValue<OTHERS[number]> = ExtractValue<INPUT> | ExtractValue<OTHERS[number]>,
+  VALUE extends ValueOfConsumable<INPUT> | ValueOfConsumable<OTHERS[number]> =
+    | ValueOfConsumable<INPUT>
+    | ValueOfConsumable<OTHERS[number]>,
 > extends Source<VALUE> {
+  private $inputs: [INPUT, ...OTHERS];
   constructor(
     readonly $input: INPUT,
-    private $others: OTHERS,
+    $others: OTHERS,
   ) {
     super();
+
+    this.$inputs = [$input, ...$others];
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
-    let consumables = this.$others;
-    consumables.reverse();
-
-    type Entry = { consumer: Consumer.AnyConsumer; pending: boolean };
 
     const output$ = new Consumer(handler, {
       ...rest,
       next(consumer) {
-        for (let i = 0; i < consumables.length; i++) {
-          const entry = consumables[i] as unknown as Entry;
+        consumers.forEach((entry) => {
           if (!entry.pending) {
             entry.pending = true;
             entry.consumer.next();
           }
-        }
+        });
 
         next?.(consumer);
       },
       terminate(consumer, reason) {
-        for (let i = 0; i < consumables.length; i++) {
-          const entry = consumables[i] as unknown as Entry;
-          entry.consumer.terminate(reason);
-        }
-        consumables.length = 0;
+        consumers.forEach((entry) => entry.consumer.terminate(reason));
+        consumers.length = 0;
         terminate?.(consumer, reason);
       },
     });
 
-    for (let i = 0; i < consumables.length; i++) {
-      const entry: Entry = {
-        consumer: consumables[i].consume((_, value) => {
-          entry.pending = false;
-          output$.push(value);
-        }),
+    const consumers = this.$inputs.map(($input, index) => {
+      const entry = {
+        consumer: $input.consume(
+          (_, value) => {
+            entry.pending = false;
+            output$.push(value);
+          },
+          index === 0
+            ? {
+                terminate(_, reason) {
+                  output$.terminate(reason);
+                },
+              }
+            : undefined,
+        ),
         pending: false,
       };
-
-      consumables[i] = entry as any;
-    }
-
-    const inputEntry: Entry = {
-      consumer: this.$input.consume(
-        (_, value) => {
-          inputEntry.pending = false;
-          output$.push(value);
-        },
-        {
-          terminate(_, reason) {
-            output$.terminate(reason);
-          },
-        },
-      ),
-      pending: false,
-    };
-    consumables.push(inputEntry as any);
+      return entry;
+    });
 
     return output$;
   }

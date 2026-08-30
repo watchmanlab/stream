@@ -1,39 +1,40 @@
 import { Consumable } from "../core/consumable";
-import { ExtractValue } from "../core/types";
+import { Consumer } from "../core/consumer";
+import { Source } from "../core/source";
+import { ValueOfConsumable } from "../core/types";
 import { fromIterable } from "../sources/iterable-source";
 
-class Array<
+class ToArray<
   INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
-> extends globalThis.Array<VALUE> {
-  asSource() {
-    return fromIterable(this);
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
+> extends Source<VALUE[]> {
+  constructor(private $input: INPUT) {
+    super();
   }
-  print() {
-    console.log(this);
+  override consume(
+    handler: Consumer.Handler<VALUE[]>,
+    options?: Consumer.Options<VALUE[]> | undefined,
+  ): Consumer<VALUE[]> {
+    const { terminate, ...rest } = options ?? {};
+    let array: VALUE[] | null = new Array<VALUE>();
+
+    return this.$input.consume(
+      (c, v) => {
+        array!.push(v);
+        c.next();
+      },
+      {
+        ...rest,
+        terminate(consumer, reason) {
+          handler(consumer, array!);
+          array = null;
+          terminate?.(consumer, reason);
+        },
+      },
+    );
   }
 }
 
-export function toArray<
-  INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
->() {
-  return async ($input: INPUT) => {
-    const array = new Array<VALUE>();
-    return new Promise<Array<VALUE>>((resolve) => {
-      $input
-        .consume(
-          (c, v) => {
-            array.push(v);
-            c.next();
-          },
-          {
-            terminate(consumer, reason) {
-              resolve(array);
-            },
-          },
-        )
-        .next();
-    });
-  };
+export function toArray<INPUT extends Consumable.AnyConsumable>() {
+  return ($input: INPUT) => new ToArray($input);
 }

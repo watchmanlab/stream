@@ -1,4 +1,4 @@
-import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single } from "rxjs";
+import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single, pipe } from "rxjs";
 import { Consumer } from "./core/consumer.ts";
 import { Stream } from "./core/stream.ts";
 import { Source } from "./core/source";
@@ -11,7 +11,6 @@ import { fromAsyncGenerator } from "./sources/async-generator-source.ts";
 import { fromAbortSignal } from "./sources/abort-signal-source.ts";
 import { fromAbortController } from "./sources/abort-controller-source.ts";
 import { fromEventTarget } from "./sources/event-target-source.ts";
-import { fromPromise } from "./sources/promise-source.ts";
 import { fromInterval } from "./sources/interval-source.ts";
 import { fromTimeout } from "./sources/timeout-source.ts";
 
@@ -24,7 +23,7 @@ import { skipUntil } from "./transformers/skip-until.ts";
 import { resolve } from "./transformers/resolve.ts";
 import { passive } from "./transformers/passive.ts";
 import { zip } from "./transformers/zip.ts";
-import { dependOn } from "./transformers/depend-on.ts";
+import { scope } from "./transformers/scope.ts";
 import { tap } from "./transformers/tap.ts";
 import { merge } from "./transformers/merge.ts";
 import { replayLatest } from "./transformers/replay-latest.ts";
@@ -42,7 +41,7 @@ import { keepLatest } from "./transformers/keep-latest.ts";
 import { delay } from "./transformers/delay.ts";
 import { context } from "./transformers/context.ts";
 import { gate } from "./transformers/gate.ts";
-import { of } from "./sources/of.ts";
+import { of } from "./sources/of-source.ts";
 import { listen } from "./transformers/listen.ts";
 import { first } from "./transformers/first.ts";
 import { last } from "./transformers/last.ts";
@@ -51,6 +50,12 @@ import { reduce } from "./transformers/reduce.ts";
 import { unwrap } from "./transformers/unwrap.ts";
 import { result } from "./transformers/result.ts";
 import { distinct } from "./transformers/distinct.ts";
+import { find } from "./transformers/find.ts";
+import { toConsole } from "./transformers/to-console.ts";
+import { fromRange } from "./sources/range-source.ts";
+import { fromFunction } from "./sources/function-source.ts";
+import { switch$ } from "./transformers/switch$.ts";
+import { combine } from "./transformers/combine.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -358,26 +363,6 @@ function fromEventTargetTest() {
 }
 
 // fromEventTargetTest();
-function fromPromiseTest() {
-  const $source = fromPromise(new Promise((r) => setTimeout(() => r(33), 200)));
-  const stream = Stream.from($source);
-  stream
-    .consume((self, value) => {
-      console.log("c1", value.value);
-      self.next();
-    })
-    .next();
-  setTimeout(() => {
-    stream
-      .consume((self, value) => {
-        console.log("c2", value.value);
-        self.next();
-      })
-      .next();
-  }, 1000);
-}
-
-// fromPromiseTest();
 
 function fromIntervalTest() {
   const $source = fromInterval(500);
@@ -392,7 +377,7 @@ function fromIntervalTest() {
 
 // fromIntervalTest();
 function fromTimeoutTest() {
-  const $source = fromTimeout(1000);
+  const $source = fromTimeout(1000, "hey");
   const stream = Stream.from($source);
   stream
     .consume((self, value) => {
@@ -403,6 +388,19 @@ function fromTimeoutTest() {
 }
 
 // fromTimeoutTest();
+
+function fromRangeTest() {
+  fromRange(20, 25).pipe(toConsole());
+}
+// fromRangeTest();
+
+function fromFunctionTest() {
+  fromFunction(() => Math.floor(Math.random() * 10))
+    .pipe(toConsole())
+    .pipe(toConsole())
+    .pipe(toConsole());
+}
+// fromFunctionTest();
 
 function mapTest() {
   const stream = new Stream<number>();
@@ -581,7 +579,7 @@ function dependOnTest() {
 
   fromInterval(500)
     .pipe(map(() => Math.floor(Math.random() * 10 + 1)))
-    .pipe(dependOn(s1, s2))
+    .pipe(scope(s1, s2))
     .pipe(tap(console.log))
     .pipe(listen());
 }
@@ -589,10 +587,10 @@ function dependOnTest() {
 // dependOnTest();
 
 function mergeTest() {
-  const s1 = fromInterval(1000).pipe(map((_, index) => index));
-  const s3 = fromInterval(1000).pipe(map((_, index) => index * 100));
-  const s2 = fromInterval(1000)
-    .pipe(map((_, index) => index.toFixed(3)))
+  const s1 = fromInterval(500).pipe(map((_, index) => `${index}S1`));
+  const s3 = fromInterval(1000).pipe(map((_, index) => `${index * 100}S3`));
+  const s2 = fromInterval(1200)
+    .pipe(map((_, index) => index.toFixed(3) + "S2"))
     .pipe(merge(s1, s3))
     .pipe(tap(console.log))
     .pipe(listen());
@@ -603,28 +601,27 @@ function mergeTest() {
 function replayLatestTest() {
   const s1 = fromInterval(200)
     .pipe(map((_, index) => index))
+    .pipe(share())
     .pipe(replayLatest(3));
-  // .pipe(tap(console.log))
-  // .pipe(listen());
 
   setTimeout(() => {
-    s1.pipe(tap(console.log)).pipe(listen());
+    s1.pipe(listen(console.log));
   }, 2000);
 }
 // replayLatestTest();
 
-async function toArrayTest() {
-  const s = await fromInterval(300)
+function toArrayTest() {
+  fromInterval(300)
     .pipe(map((_, i) => i))
     .pipe(take(10))
-    .pipe(toArray());
-  console.log(s);
+    .pipe(toArray())
+    .pipe(listen(console.log));
 }
 
 // toArrayTest();
 
 async function rangeTest() {
-  (await fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"]).pipe(range(1, 2)).pipe(toArray())).print();
+  fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"]).pipe(range(1, 2)).pipe(toArray()).pipe(listen(console.log));
 }
 
 // rangeTest();
@@ -712,4 +709,32 @@ function distinctTest() {
     .pipe(listen(console.log));
 }
 
-distinctTest();
+// distinctTest();
+
+function findTest() {
+  of(1, 2, 3, 4, 5)
+    .pipe(find((v) => v > 3))
+    .pipe(unwrap())
+    .pipe(toConsole());
+}
+
+// findTest();
+
+function switchTest() {
+  const s1 = fromInterval(300).pipe(map(() => "a"));
+  const s2 = fromInterval(300).pipe(map(() => "b"));
+  const s3 = fromInterval(300).pipe(map(() => "c"));
+  // .pipe(scope(fromTimeout(3000)));
+
+  of(1, 2, s3, fromTimeout(400, 44)).pipe(delay(2000)).pipe(switch$()).pipe(toConsole());
+}
+
+// switchTest();
+
+function combineTest() {
+  const s1 = of(1, 2, 3, 4).pipe(delay(100));
+  const s2 = of("a", "b", "c", "d").pipe(delay(200));
+
+  s1.pipe(combine(s2)).pipe(toConsole());
+}
+// combineTest();

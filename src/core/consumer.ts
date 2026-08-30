@@ -56,6 +56,13 @@ export class Consumer<VALUE> implements Disposable {
   get credit(): number {
     return this._credit;
   }
+  get $handle(): Source<VALUE> {
+    return Source.from(
+      (this._events.$handle ??= new Stream<VALUE>({
+        lastConsumerLeft: () => (this._events.$handle = undefined),
+      })),
+    );
+  }
   get $push(): Source<VALUE> {
     return Source.from(
       (this._events.$push ??= new Stream<VALUE>({
@@ -109,6 +116,7 @@ export class Consumer<VALUE> implements Disposable {
   push(value: VALUE): this {
     if (this._credit > 0 && !this._queue?.size) {
       this._handler(this, value);
+      this._events.$handle?.push(value);
       this._credit--;
     } else {
       (this._queue ??= this._options.queueFactory?.() ?? new DefaultQueue()).enqueue(value);
@@ -156,6 +164,7 @@ export class Consumer<VALUE> implements Disposable {
       this._events.$dequeue?.push(value);
 
       this._handler(this, value);
+      this._events.$handle?.push(value);
       this._credit--;
     }
     return this;
@@ -210,6 +219,7 @@ export namespace Consumer {
     terminate?: (consumer: Consumer<VALUE>, reason: TerminateReason) => void;
   }
   export type Events<VALUE> = {
+    $handle?: Stream<VALUE>;
     $push?: Stream<VALUE>;
     $next?: Stream<void>;
     $drain?: Stream<void>;

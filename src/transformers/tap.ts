@@ -1,11 +1,11 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue } from "../core/types";
+import { ValueOfConsumable } from "../core/types";
 
 export class Tap<
   INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 > extends Source<VALUE> {
   constructor(
     readonly $input: INPUT,
@@ -17,8 +17,9 @@ export class Tap<
     return this.$input.consume((consumer, value) => (this.callback(value), handler(consumer, value)), options);
   }
 }
-export function tap<INPUT extends Consumable.AnyConsumable, VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>>(
-  callback: (value: VALUE) => void,
-) {
+export function tap<
+  INPUT extends Consumable.AnyConsumable,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
+>(callback: (value: VALUE) => void) {
   return ($input: INPUT) => new Tap($input, callback);
 }

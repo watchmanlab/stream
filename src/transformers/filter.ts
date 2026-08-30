@@ -2,11 +2,11 @@ import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { Stream } from "../core/stream";
-import { ExtractValue } from "../core/types";
+import { ValueOfConsumable } from "../core/types";
 
 export class Filter<
   INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
   FILTERED extends VALUE = VALUE,
 > extends Source<FILTERED> {
   constructor(
@@ -41,7 +41,7 @@ export class Filter<
 
 export function filter<
   INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
   FILTERED extends VALUE = VALUE,
 >(predicate: Filter.Predicate<VALUE, FILTERED>, complement?: (value: VALUE, index: number) => void) {
   return ($input: INPUT) => new Filter($input, predicate, complement);

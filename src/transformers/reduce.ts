@@ -1,10 +1,10 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue } from "../core/types";
+import { ValueOfConsumable } from "../core/types";
 export class Reduce<
   INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
   ACC = VALUE,
 > extends Source<ACC> {
   constructor(
@@ -39,7 +39,7 @@ export class Reduce<
 
 export function reduce<
   INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
   ACC = VALUE,
 >(acc: ACC, reducer: (acc: ACC, value: VALUE, index: number) => ACC) {
   return ($input: INPUT) => new Reduce($input, acc, reducer);

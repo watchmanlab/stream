@@ -220,6 +220,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
         next?.(stream, consumer);
       },
       terminate(stream, reason) {
+        consumableConsumer.terminate(reason);
         terminate?.(stream, reason);
       },
     });

@@ -1,12 +1,12 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue, Result as ResultType } from "../core/types";
+import { ValueOfConsumable, Result as ResultType } from "../core/types";
 
 export class Result<
   INPUT extends Consumable.AnyConsumable,
   OUTPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<OUTPUT> = ExtractValue<OUTPUT>,
+  VALUE extends ValueOfConsumable<OUTPUT> = ValueOfConsumable<OUTPUT>,
 > extends Source<ResultType<VALUE, any>> {
   constructor(
     private $input: INPUT,

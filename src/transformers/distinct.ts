@@ -1,11 +1,11 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ExtractValue } from "../core/types";
+import { ValueOfConsumable } from "../core/types";
 
 export class Distinct<
   INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
   KEY = VALUE,
 > extends Source<VALUE> {
   constructor(
@@ -68,7 +68,7 @@ export class Distinct<
 
 export function distinct<
   INPUT extends Consumable.AnyConsumable,
-  VALUE extends ExtractValue<INPUT> = ExtractValue<INPUT>,
+  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
   KEY = VALUE,
 >(keySelector?: (value: VALUE) => KEY, $flushes?: Consumable.AnyConsumable) {
   return ($input: INPUT) => new Distinct($input, keySelector, $flushes);

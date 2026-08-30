@@ -3,14 +3,16 @@ import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { Stream } from "../core/stream";
-import { Empty, ExtractValue, ZipedArray } from "../core/types";
+import { Empty, ValueOfConsumable, ZipedArray } from "../core/types";
 
 export class Zip<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [Consumable.AnyConsumable, ...Consumable.AnyConsumable[]],
 > extends Source<ZipedArray<[INPUT, ...OTHERS]>> {
   private $inputs: [INPUT, ...OTHERS];
-  private _$rest?: Stream<[ExtractValue<INPUT> | Empty, ...{ [K in keyof OTHERS]: ExtractValue<OTHERS[K]> | Empty }]>;
+  private _$rest?: Stream<
+    [ValueOfConsumable<INPUT> | Empty, ...{ [K in keyof OTHERS]: ValueOfConsumable<OTHERS[K]> | Empty }]
+  >;
   constructor($input: INPUT, $others: OTHERS) {
     super();
     this.$inputs = [$input, ...$others];

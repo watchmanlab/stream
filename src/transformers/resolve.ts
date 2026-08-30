@@ -1,11 +1,11 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import type { ExtractValue, Result } from "../core/types";
+import type { ValueOfConsumable, Result, ValueOfPromise } from "../core/types";
 
 export class Resolve<
   INPUT extends Consumable<Promise<any>>,
-  VALUE extends ExtractValue<INPUT, 1> = ExtractValue<INPUT, 1>,
+  VALUE extends ValueOfPromise<ValueOfConsumable<INPUT>> = ValueOfPromise<ValueOfConsumable<INPUT>>,
 > extends Source<Result<VALUE, any>> {
   constructor(
     readonly $input: INPUT,
