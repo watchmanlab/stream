@@ -37,7 +37,7 @@ import { index } from "./transformers/index.ts";
 import { print } from "./transformers/print.ts";
 import { pace } from "./transformers/pace.ts";
 import { buffer } from "./transformers/buffer.ts";
-import { keepLatest } from "./transformers/keep-latest.ts";
+import { latests } from "./transformers/latests.ts";
 import { delay } from "./transformers/delay.ts";
 import { context } from "./transformers/context.ts";
 import { gate } from "./transformers/gate.ts";
@@ -636,17 +636,17 @@ function bufferTest() {
 }
 // bufferTest();
 
-function keepLatestTest() {
-  const s = fromInterval(300).pipe(index()).pipe(share());
+function latestsTest() {
+  const s = fromInterval(300).pipe(index());
 
-  const buffered = s.pipe(keepLatest(2));
+  const buffered = s.pipe(latests(2));
 
   setTimeout(() => {
     buffered.pipe(print()).pipe(listen());
   }, 2000);
 }
 
-// keepLatestTest();
+latestsTest();
 
 function contextTest() {
   fromIterable([1, 2, 3, 4, 5])
