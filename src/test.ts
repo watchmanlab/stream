@@ -23,7 +23,7 @@ import { skipUntil } from "./transformers/skip-until.ts";
 import { resolve } from "./transformers/resolve.ts";
 import { passive } from "./transformers/passive.ts";
 import { zip } from "./transformers/zip.ts";
-import { dependOn } from "./transformers/depend-on.ts";
+import { scope } from "./transformers/scope.ts";
 import { tap } from "./transformers/tap.ts";
 import { merge } from "./transformers/merge.ts";
 import { replayLatest } from "./transformers/replay-latest.ts";
@@ -578,7 +578,7 @@ function dependOnTest() {
 
   fromInterval(500)
     .pipe(map(() => Math.floor(Math.random() * 10 + 1)))
-    .pipe(dependOn(s1, s2))
+    .pipe(scope(s1, s2))
     .pipe(tap(console.log))
     .pipe(listen());
 }
@@ -721,10 +721,11 @@ function findTest() {
 
 function switchTest() {
   const s1 = fromInterval(300).pipe(map(() => "a"));
-  const s2 = fromInterval(500).pipe(map(() => "b"));
-  const s3 = fromInterval(600).pipe(map(() => "c"));
+  const s2 = fromInterval(300).pipe(map(() => "b"));
+  const s3 = fromInterval(300).pipe(map(() => "c"));
+  // .pipe(scope(fromTimeout(3000)));
 
-  of(s1, s2, s3).pipe(delay(500)).pipe(switch$()).pipe(toConsole());
+  of(s1, s2, s3, 4).pipe(delay(2000)).pipe(switch$()).pipe(toConsole());
 }
 
 switchTest();

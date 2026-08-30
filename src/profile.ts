@@ -1,6 +1,6 @@
 import { Source } from "./core/source";
 import { Stream } from "./core/stream";
-import { dependOn } from "./transformers/depend-on";
+import { scope } from "./transformers/scope";
 import { filter } from "./transformers/filter";
 import { map } from "./transformers/map";
 import { passive } from "./transformers/passive";

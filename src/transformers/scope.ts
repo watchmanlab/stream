@@ -5,7 +5,7 @@ import { Source } from "../core/source";
 import { ValueOfConsumable } from "../core/types";
 import { passive } from "./passive";
 
-export class DependOn<
+export class Scope<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [other: Consumable.AnyConsumable, ...others: Consumable.AnyConsumable[]],
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
@@ -39,9 +39,9 @@ export class DependOn<
   }
 }
 
-export function dependOn<
+export function scope<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [other: Consumable.AnyConsumable, ...others: Consumable.AnyConsumable[]],
 >(...others: OTHERS) {
-  return ($input: INPUT) => new DependOn($input, others);
+  return ($input: INPUT) => new Scope($input, others);
 }
