@@ -3,7 +3,7 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ValueOfConsumable } from "../core/types";
 
-export class Debounce<
+export class Throttle<
   INPUT extends Consumable.AnyConsumable,
   MS extends number,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
@@ -21,27 +21,29 @@ export class Debounce<
 
     let timer = null as any;
 
-    return this.$input.consume(
-      (c, v) => {
-        clearTimeout(timer);
-
-        timer = setTimeout(() => {
-          handler(c, v);
-        }, ms);
-
-        c.next();
-      },
-      {
-        ...rest,
-        terminate(c, r) {
+    return this.$input
+      .consume(
+        (c, v) => {
           clearTimeout(timer);
-          terminate?.(c, r);
+
+          timer = setTimeout(() => {
+            handler(c, v);
+          }, ms);
+
+          c.next();
         },
-      },
-    );
+        {
+          ...rest,
+          terminate(c, r) {
+            clearTimeout(timer);
+            terminate?.(c, r);
+          },
+        },
+      )
+      .next();
   }
 }
 
-export function debounce<INPUT extends Consumable.AnyConsumable, MS extends number>(ms: MS) {
-  return ($input: INPUT) => new Debounce($input, ms);
+export function throttle<INPUT extends Consumable.AnyConsumable, MS extends number>(ms: MS) {
+  return ($input: INPUT) => new Throttle($input, ms);
 }

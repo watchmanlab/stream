@@ -58,6 +58,7 @@ import { switch$ } from "./transformers/switch$.ts";
 import { combine } from "./transformers/combine.ts";
 import { pump } from "./transformers/pump.ts";
 import { scan } from "./transformers/scan.ts";
+import { debounce } from "./transformers/debounce.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -754,4 +755,15 @@ function scanTest() {
     .pipe(toConsole());
 }
 
-scanTest();
+// scanTest();
+
+function debounceTest() {
+  const s = new Stream();
+  s.pipe(debounce(1000)).pipe(toConsole());
+
+  of(1, 2, 3, 4)
+    .pipe(delay(200))
+    .pipe(listen((v) => s.push(v)));
+}
+
+debounceTest();
