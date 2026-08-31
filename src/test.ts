@@ -573,7 +573,7 @@ function zipTest() {
 // [ 2, "c", false ]
 // rest [ 3, Symbol(empty), true ]
 
-function dependOnTest() {
+function scopeTest() {
   const s1 = fromTimeout(1600);
   const s2 = fromTimeout(600);
 
@@ -584,7 +584,7 @@ function dependOnTest() {
     .pipe(listen());
 }
 
-// dependOnTest();
+// scopeTest();
 
 function mergeTest() {
   const s1 = fromInterval(500).pipe(map((_, index) => `${index}S1`));
@@ -637,7 +637,7 @@ function bufferTest() {
 // bufferTest();
 
 function latestsTest() {
-  const s = fromInterval(300).pipe(index());
+  const s = fromInterval(300).pipe(index()).pipe(share());
 
   const buffered = s.pipe(latests(2));
 
@@ -646,7 +646,7 @@ function latestsTest() {
   }, 2000);
 }
 
-latestsTest();
+// latestsTest();
 
 function contextTest() {
   fromIterable([1, 2, 3, 4, 5])

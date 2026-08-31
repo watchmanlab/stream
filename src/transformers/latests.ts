@@ -8,40 +8,43 @@ export class Latests<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 > extends Source<VALUE> {
+  private queue?: DefaultSizedQueue<VALUE>;
   constructor(
-    private $input: INPUT,
-    private count: number,
+    readonly $input: INPUT,
+    count: number,
   ) {
     super();
+
+    $input
+      .consume((c, v) => {
+        (this.queue ??= new DefaultSizedQueue(count)).enqueue(v);
+        c.next();
+      })
+      .next();
   }
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
-    const { count } = this;
     const { next, terminate, ...rest } = options ?? {};
-
-    const input$ = this.$input.consume(
-      (c, v) => {
-        output$.push(v);
-      },
-      {
-        queueFactory: () => new DefaultSizedQueue(count),
-        terminate(c, r) {
-          output$.terminate(r);
-        },
-      },
-    );
 
     const output$ = new Consumer(handler, {
       ...rest,
-      next(c) {
+      next(consumer) {
         input$.next();
-        next?.(c);
+        next?.(consumer);
       },
-      terminate(c, r) {
-        input$.terminate(r);
-        terminate?.(c, r);
+      terminate(consumer, reason) {
+        input$.terminate(reason);
+        terminate?.(consumer, reason);
+      },
+    }).pushBatch([...(this.queue ?? [])]);
+
+    this.queue?.clear();
+    this.queue = undefined;
+
+    const input$ = this.$input.consume((c, v) => output$.push(v), {
+      terminate(consumer, reason) {
+        output$.terminate(reason);
       },
     });
-
     return output$;
   }
 }
