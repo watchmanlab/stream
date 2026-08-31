@@ -62,6 +62,8 @@ import { debounce } from "./transformers/debounce.ts";
 import { every } from "./transformers/every.ts";
 import { max } from "./transformers/max.ts";
 import { min } from "./transformers/min.ts";
+import { count } from "./transformers/count.ts";
+import { terminate } from "./transformers/terminate.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -787,4 +789,16 @@ function minTest() {
   of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(min()).pipe(unwrap()).pipe(toConsole());
 }
 
-minTest();
+// minTest();
+function countTest() {
+  of(1, 2, 3, 4).pipe(count()).pipe(toConsole());
+}
+
+// countTest();
+function terminateTest() {
+  of(1, 2, 3, 4)
+    .pipe(terminate((r) => console.log(r)))
+    .pipe(toConsole());
+}
+
+terminateTest();
