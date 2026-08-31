@@ -56,6 +56,8 @@ import { fromRange } from "./sources/range-source.ts";
 import { fromFunction } from "./sources/function-source.ts";
 import { switch$ } from "./transformers/switch$.ts";
 import { combine } from "./transformers/combine.ts";
+import { pump } from "./transformers/pump.ts";
+import { scan } from "./transformers/scan.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -738,3 +740,18 @@ function combineTest() {
   s1.pipe(combine(s2)).pipe(toConsole());
 }
 // combineTest();
+
+function pumpTest() {
+  const s = of(1, 2, 3).pipe(tap(console.log)).pipe(pump());
+
+  // s.pipe(toConsole());
+}
+// pumpTest();
+
+function scanTest() {
+  of(1, 2, 3, 4)
+    .pipe(scan(0, (acc, v) => acc + v))
+    .pipe(toConsole());
+}
+
+scanTest();
