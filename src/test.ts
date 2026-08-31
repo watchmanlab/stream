@@ -59,6 +59,9 @@ import { combine } from "./transformers/combine.ts";
 import { pump } from "./transformers/pump.ts";
 import { scan } from "./transformers/scan.ts";
 import { debounce } from "./transformers/debounce.ts";
+import { every } from "./transformers/every.ts";
+import { max } from "./transformers/max.ts";
+import { min } from "./transformers/min.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -767,3 +770,21 @@ function debounceTest() {
 }
 
 // debounceTest();
+
+function everyTest() {
+  of(1, 2, 3, 4)
+    .pipe(every((v) => v <= 4))
+    .pipe(toConsole());
+}
+
+// everyTest();
+function maxTest() {
+  of(1, 2, 3, 4, 2, 3, 9, 3, 2, 1).pipe(max()).pipe(unwrap()).pipe(toConsole());
+}
+
+// maxTest();
+function minTest() {
+  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(min()).pipe(unwrap()).pipe(toConsole());
+}
+
+minTest();
