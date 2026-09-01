@@ -783,12 +783,12 @@ function everyTest() {
 
 // everyTest();
 function maxTest() {
-  of(1, 2, 3, 4, 2, 3, 9, 3, 2, 1).pipe(max()).pipe(toConsole());
+  of(1, 2, 3, 4, 2, 3, 9, 3, 2, 1).pipe(max()).pipe(last()).pipe(toConsole());
 }
 
 // maxTest();
 function minTest() {
-  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(min()).pipe(toConsole());
+  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(min()).pipe(last()).pipe(toConsole());
 }
 
 // minTest();
@@ -800,10 +800,10 @@ function sumTest() {
     .pipe(last())
     .pipe(toConsole());
 }
-sumTest();
+// sumTest();
 
 function countTest() {
-  of(1, 2, 3, 4).pipe(count()).pipe(toConsole());
+  of(5, 6, 7, 8, 9).pipe(count()).pipe(last()).pipe(toConsole());
 }
 
 // countTest();

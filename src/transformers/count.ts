@@ -11,23 +11,11 @@ export class Count<INPUT extends Consumable.AnyConsumable> extends Source<number
     handler: Consumer.Handler<number>,
     options?: Consumer.Options<number> | undefined,
   ): Consumer<number> {
-    const { terminate, ...rest } = options ?? {};
-
     let count = 0;
 
-    return this.$input.consume(
-      (c, v) => {
-        count++;
-        c.next();
-      },
-      {
-        ...rest,
-        terminate(c, r) {
-          handler(c, count);
-          terminate?.(c, r);
-        },
-      },
-    );
+    return this.$input.consume((c, v) => {
+      handler(c, ++count);
+    }, options);
   }
 }
 

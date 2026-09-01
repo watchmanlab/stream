@@ -1,38 +1,26 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Result } from "../core/types";
 
-export class Max<INPUT extends Consumable<number>> extends Source<Result<number, "not-found">> {
+export class Max<INPUT extends Consumable<number>> extends Source<number> {
   constructor(private $input: INPUT) {
     super();
   }
 
   override consume(
-    handler: Consumer.Handler<Result<number, "not-found">>,
-    options?: Consumer.Options<Result<number, "not-found">> | undefined,
-  ): Consumer<Result<number, "not-found">> {
-    const { terminate, ...rest } = (options ?? {}) as Consumer.Options<any>;
-
+    handler: Consumer.Handler<number>,
+    options?: Consumer.Options<number> | undefined,
+  ): Consumer<number> {
     let max = null as number | null;
 
-    return this.$input.consume(
-      (c, v) => {
-        if (!max) {
-          max = v;
-        } else {
-          max = max < v ? v : max;
-        }
-        c.next();
-      },
-      {
-        ...rest,
-        terminate(c: Consumer<any>, r) {
-          max ? handler(c, { ok: true, value: max }) : handler(c, { ok: false, error: "not-found" });
-          terminate?.(c, r);
-        },
-      },
-    ) as never;
+    return this.$input.consume((c, v) => {
+      if (!max) {
+        max = v;
+      } else {
+        max = max < v ? v : max;
+      }
+      handler(c, max);
+    }, options);
   }
 }
 

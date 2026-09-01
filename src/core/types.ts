@@ -12,10 +12,6 @@ export class Error<const VALUE> extends globalThis.Error {
     super(typeof value === "string" ? value : "");
   }
 }
-export class Result<VALUE> {
-  private _result = Symbol.for("__result__");
-  constructor(readonly value: VALUE) {}
-}
 
 export type TerminateReason = "abort" | "complete";
 
@@ -48,13 +44,7 @@ export type ValueOfArray<T, DEPTH extends number = 0, COUNTER extends any[] = []
   : T extends Array<infer VALUE>
     ? ValueOfArray<VALUE, DEPTH, [...COUNTER, any]>
     : T;
-export type ValueOfResult<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
-  ? T extends Result<infer VALUE>
-    ? VALUE
-    : T
-  : T extends Result<infer VALUE>
-    ? ValueOfArray<VALUE, DEPTH, [...COUNTER, any]>
-    : T;
+
 export type ValueOfError<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
   ? T extends Error<infer VALUE>
     ? VALUE
