@@ -793,7 +793,7 @@ function minTest() {
 
 // minTest();
 function sumTest() {
-  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(sum()).pipe(toConsole());
+  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(sum()).pipe(last()).pipe(toConsole());
 }
 sumTest();
 function countTest() {

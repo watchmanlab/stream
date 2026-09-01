@@ -2,32 +2,32 @@ import { EMPTY } from "../core/consts";
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Empty, ValueOfConsumable, Result } from "../core/types";
+import { Empty, ValueOfConsumable } from "../core/types";
 
 export class Last<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
-> extends Source<Result<VALUE, "not-found">> {
+> extends Source<VALUE | Empty> {
   constructor(private $input: INPUT) {
     super();
   }
 
   override consume(
-    handler: Consumer.Handler<Result<VALUE, "not-found">>,
-    options?: Consumer.Options<Result<VALUE, "not-found">> | undefined,
-  ): Consumer<Result<VALUE, "not-found">> {
+    handler: Consumer.Handler<VALUE | Empty>,
+    options?: Consumer.Options<VALUE | Empty> | undefined,
+  ): Consumer<VALUE | Empty> {
     const { terminate, ...rest } = options ?? {};
-    let value: VALUE | Empty = EMPTY;
+    let last: VALUE | Empty = EMPTY;
 
     return this.$input.consume(
       (c, v) => {
-        value = v;
+        last = v;
         c.next();
       },
       {
         ...rest,
         terminate(c, r) {
-          value === EMPTY ? handler(c, { ok: false, error: "not-found" }) : handler(c, { ok: true, value });
+          handler(c, last);
           terminate?.(c, r);
         },
       },
