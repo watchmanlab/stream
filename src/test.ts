@@ -65,6 +65,7 @@ import { min } from "./transformers/min.ts";
 import { count } from "./transformers/count.ts";
 import { terminate } from "./transformers/terminate.ts";
 import { pipe } from "./transformers/pipe.ts";
+import { sum } from "./transformers/sum.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -791,6 +792,10 @@ function minTest() {
 }
 
 // minTest();
+function sumTest() {
+  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(sum()).pipe(toConsole());
+}
+// sumTest();
 function countTest() {
   of(1, 2, 3, 4).pipe(count()).pipe(toConsole());
 }
