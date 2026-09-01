@@ -12,11 +12,11 @@ export class Max<INPUT extends Consumable<number>> extends Source<Result<number,
     handler: Consumer.Handler<Result<number, "not-found">>,
     options?: Consumer.Options<Result<number, "not-found">> | undefined,
   ): Consumer<Result<number, "not-found">> {
-    const { next, terminate, ...rest } = options ?? {};
+    const { terminate, ...rest } = (options ?? {}) as Consumer.Options<any>;
 
     let max = null as number | null;
 
-    const input$ = this.$input.consume(
+    return this.$input.consume(
       (c, v) => {
         if (!max) {
           max = v;
@@ -26,26 +26,13 @@ export class Max<INPUT extends Consumable<number>> extends Source<Result<number,
         c.next();
       },
       {
-        terminate(c, r) {
-          max ? output$.push({ ok: true, value: max }) : output$.push({ ok: false, error: "not-found" });
-          output$.terminate(r);
+        ...rest,
+        terminate(c: Consumer<any>, r) {
+          max ? handler(c, { ok: true, value: max }) : handler(c, { ok: false, error: "not-found" });
+          terminate?.(c, r);
         },
       },
-    );
-
-    const output$ = new Consumer(handler, {
-      ...rest,
-      next(c) {
-        input$.next();
-        next?.(c);
-      },
-      terminate(c, r) {
-        input$.terminate(r);
-        terminate?.(c, r);
-      },
-    });
-
-    return output$;
+    ) as never;
   }
 }
 
