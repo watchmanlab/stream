@@ -7,15 +7,20 @@ import { Empty, ValueOfConsumable } from "../core/types";
 export class Last<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
-> extends Source<VALUE | Empty> {
-  constructor(private $input: INPUT) {
+  SAFE extends boolean = false,
+  OUTPUT_VALUE extends SAFE extends true ? VALUE : VALUE | Empty = SAFE extends true ? VALUE : VALUE | Empty,
+> extends Source<OUTPUT_VALUE> {
+  constructor(
+    private $input: INPUT,
+    safe = false as SAFE,
+  ) {
     super();
   }
 
   override consume(
-    handler: Consumer.Handler<VALUE | Empty>,
-    options?: Consumer.Options<VALUE | Empty> | undefined,
-  ): Consumer<VALUE | Empty> {
+    handler: Consumer.Handler<OUTPUT_VALUE>,
+    options?: Consumer.Options<OUTPUT_VALUE> | undefined,
+  ): Consumer<OUTPUT_VALUE> {
     const { terminate, ...rest } = options ?? {};
     let last: VALUE | Empty = EMPTY;
 
@@ -27,7 +32,7 @@ export class Last<
       {
         ...rest,
         terminate(c, r) {
-          handler(c, last);
+          r === "complete" ? handler(c, last as OUTPUT_VALUE) : handler(c, EMPTY as OUTPUT_VALUE);
           terminate?.(c, r);
         },
       },
@@ -35,6 +40,6 @@ export class Last<
   }
 }
 
-export function last<INPUT extends Consumable.AnyConsumable>() {
-  return ($input: INPUT) => new Last($input);
+export function last<INPUT extends Consumable.AnyConsumable, SAFE extends boolean = false>(safe = false as SAFE) {
+  return ($input: INPUT) => new Last($input, safe);
 }

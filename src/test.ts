@@ -1,4 +1,4 @@
-import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single } from "rxjs";
+import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable } from "rxjs";
 import { Consumer } from "./core/consumer.ts";
 import { Stream } from "./core/stream.ts";
 import { Source } from "./core/source";
@@ -31,7 +31,7 @@ import { share } from "./transformers/share.ts";
 import { replay } from "./transformers/replay.ts";
 import { DefaultQueue } from "./core/default-queue.ts";
 import { take } from "./transformers/take.ts";
-import { toArray } from "./transformers/to-array.ts";
+import { scanArray } from "./transformers/scan-array.ts";
 import { range } from "./transformers/range.ts";
 import { index } from "./transformers/index.ts";
 import { print } from "./transformers/print.ts";
@@ -46,7 +46,6 @@ import { listen } from "./transformers/listen.ts";
 import { first } from "./transformers/first.ts";
 import { last } from "./transformers/last.ts";
 import { tapBatch } from "./transformers/tap-batch.ts";
-import { reduce } from "./transformers/reduce.ts";
 import { safe } from "./transformers/safe.ts";
 import { distinct } from "./transformers/distinct.ts";
 import { find } from "./transformers/find.ts";
@@ -62,7 +61,7 @@ import { every } from "./transformers/every.ts";
 import { max } from "./transformers/max.ts";
 import { min } from "./transformers/min.ts";
 import { count } from "./transformers/count.ts";
-import { terminate } from "./transformers/terminate.ts";
+import { tapTerminate } from "./transformers/tap-terminate.ts";
 import { pipe } from "./transformers/pipe.ts";
 import { sum } from "./transformers/sum.ts";
 import { Error } from "./core/types.ts";
@@ -621,21 +620,26 @@ function replayLatestTest() {
 }
 // replayLatestTest();
 
-function toArrayTest() {
+function scanArrayTest() {
   fromInterval(300)
     .pipe(map((_, i) => i))
     .pipe(take(10))
-    .pipe(toArray())
+    .pipe(scanArray())
+    .pipe(last())
     .pipe(listen(console.log));
 }
 
-// toArrayTest();
+// scanArrayTest();//[ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
 
 async function rangeTest() {
-  fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"]).pipe(range(1, 2)).pipe(toArray()).pipe(listen(console.log));
+  fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"])
+    .pipe(range(1, 2))
+    .pipe(scanArray())
+    .pipe(last())
+    .pipe(toConsole());
 }
 
-// rangeTest();
+rangeTest();
 
 function paceTest() {
   fromInterval(100).pipe(index()).pipe(range(3, 3)).pipe(pace(1000)).pipe(print()).pipe(listen());
@@ -690,13 +694,6 @@ function lastTest() {
   of(1, 2, 3, 4, 5).pipe(last()).pipe(listen(console.log));
 }
 // lastTest();
-
-function reduceTest() {
-  of(1, 2, 3, 4)
-    .pipe(reduce(0, (acc, v) => acc + v))
-    .pipe(listen(console.log));
-}
-// reduceTest();
 
 function safeTest() {
   of(1, 2, 3, 4)
@@ -803,15 +800,19 @@ function sumTest() {
 // sumTest();
 
 function countTest() {
-  of(5, 6, 7, 8, 9).pipe(count()).pipe(last()).pipe(toConsole());
+  of(5, 6, 7, 8, 9)
+    .pipe(count())
+    .pipe(last(true))
+    .pipe(map((v) => v))
+    .pipe(toConsole());
 }
 
 // countTest();
-function terminateTest() {
-  of(1, 2, 3, 4).pipe(terminate()).pipe(toConsole());
+function onTerminateTest() {
+  of(1, 2, 3, 4).pipe(tapTerminate(console.log)).pipe(pump());
 }
 
-// terminateTest();
+// onTerminateTest(); //complete
 
 function pipeTest() {
   of(1, 2, 3, 4)
