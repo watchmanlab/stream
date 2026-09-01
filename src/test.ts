@@ -1,4 +1,4 @@
-import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single, pipe } from "rxjs";
+import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single } from "rxjs";
 import { Consumer } from "./core/consumer.ts";
 import { Stream } from "./core/stream.ts";
 import { Source } from "./core/source";
@@ -64,6 +64,7 @@ import { max } from "./transformers/max.ts";
 import { min } from "./transformers/min.ts";
 import { count } from "./transformers/count.ts";
 import { terminate } from "./transformers/terminate.ts";
+import { pipe } from "./transformers/pipe.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -796,9 +797,17 @@ function countTest() {
 
 // countTest();
 function terminateTest() {
-  of(1, 2, 3, 4)
-    .pipe(terminate((r) => console.log(r)))
-    .pipe(toConsole());
+  of(1, 2, 3, 4).pipe(terminate()).pipe(toConsole());
 }
 
-terminateTest();
+// terminateTest();
+
+function pipeTest() {
+  of(1, 2, 3, 4)
+    .pipe(map((v) => v * 100))
+    .pipe(share())
+    .pipe(pipe((input) => input.pipe(passive()).pipe(toConsole())))
+    .pipe(listen());
+}
+
+pipeTest();

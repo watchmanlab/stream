@@ -1,32 +1,34 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { TerminateReason, ValueOfConsumable } from "../core/types";
+import { TerminateReason } from "../core/types";
 
-export class Terminate<
-  INPUT extends Consumable.AnyConsumable,
-  VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
-> extends Source<VALUE> {
-  constructor(
-    private $input: INPUT,
-    private callback: (reason: TerminateReason) => void,
-  ) {
+export class Terminate<INPUT extends Consumable.AnyConsumable> extends Source<TerminateReason> {
+  constructor(private $input: INPUT) {
     super();
   }
 
-  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
+  override consume(
+    handler: Consumer.Handler<TerminateReason>,
+    options?: Consumer.Options<TerminateReason> | undefined,
+  ): Consumer<TerminateReason> {
     const { terminate, ...rest } = options ?? {};
-    const { callback } = this;
-    return this.$input.consume(handler, {
-      ...rest,
-      terminate(c, r) {
-        callback(r);
-        terminate?.(c, r);
+
+    return this.$input.consume(
+      (c, v) => {
+        c.next();
       },
-    });
+      {
+        ...rest,
+        terminate(c, r) {
+          handler(c, r);
+          terminate?.(c, r);
+        },
+      },
+    );
   }
 }
 
-export function terminate<INPUT extends Consumable.AnyConsumable>(callback: (reason: TerminateReason) => void) {
-  return ($input: INPUT) => new Terminate($input, callback);
+export function terminate<INPUT extends Consumable.AnyConsumable>() {
+  return ($input: INPUT) => new Terminate($input);
 }
