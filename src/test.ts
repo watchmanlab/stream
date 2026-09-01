@@ -426,23 +426,21 @@ function mapTest() {
 // mapTest();
 
 function filterTest() {
-  const filtered = fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(filter((v) => v % 2 === 0));
-
-  filtered.$complements
-    .consume((c, v) => {
-      console.log("complements", v);
-      c.next();
-    })
-    .next();
-
-  filtered
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
+  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    .pipe(filter((v) => v % 2 === 0))
+    .pipe(pipe((input) => input.$complements.pipe(toConsole("complements"))))
+    .pipe(toConsole());
 }
-// filterTest();
+filterTest();
+// complements 1
+// 2
+// complements 3
+// 4
+// complements 5
+// 6
+// complements 7
+// 8
+// complements 9
 
 async function takeUntilTest() {
   const stream = new Stream();
@@ -628,7 +626,7 @@ async function rangeTest() {
     .pipe(toConsole());
 }
 
-rangeTest();
+// rangeTest();
 
 function paceTest() {
   fromInterval(100).pipe(index()).pipe(range(3, 3)).pipe(pace(1000)).pipe(print()).pipe(listen());
