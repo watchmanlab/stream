@@ -47,8 +47,7 @@ import { first } from "./transformers/first.ts";
 import { last } from "./transformers/last.ts";
 import { tapBatch } from "./transformers/tap-batch.ts";
 import { reduce } from "./transformers/reduce.ts";
-import { unwrap } from "./transformers/unwrap.ts";
-import { result } from "./transformers/result.ts";
+import { safe } from "./transformers/safe.ts";
 import { distinct } from "./transformers/distinct.ts";
 import { find } from "./transformers/find.ts";
 import { toConsole } from "./transformers/to-console.ts";
@@ -66,6 +65,7 @@ import { count } from "./transformers/count.ts";
 import { terminate } from "./transformers/terminate.ts";
 import { pipe } from "./transformers/pipe.ts";
 import { sum } from "./transformers/sum.ts";
+import { Error } from "./core/types.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -507,10 +507,11 @@ async function skipUntilTest() {
 // skipUntilTest();
 
 function resolveTest() {
-  fromIterable([asyncValue(1), asyncValue(2), asyncValue(3)])
-    .pipe(resolve(1))
+  fromIterable([asyncValue(1), Promise.reject(2), asyncValue(3)])
+    .pipe(resolve(2))
+
     .consume((c, v) => {
-      console.log(v.value);
+      console.log(v);
       c.next();
     })
     .next();
@@ -682,11 +683,11 @@ function listenTest() {
 // listenTest();
 
 function firstTest() {
-  of(1, 2, 3, 4, 5).pipe(first()).pipe(unwrap()).pipe(listen(console.log));
+  of(1, 2, 3, 4, 5).pipe(first()).pipe(listen(console.log));
 }
 // firstTest();
 function lastTest() {
-  of(1, 2, 3, 4, 5).pipe(last()).pipe(unwrap()).pipe(listen(console.log));
+  of(1, 2, 3, 4, 5).pipe(last()).pipe(listen(console.log));
 }
 // lastTest();
 
@@ -697,21 +698,21 @@ function reduceTest() {
 }
 // reduceTest();
 
-function resultTest() {
+function safeTest() {
   of(1, 2, 3, 4)
     .pipe(
-      result(
+      safe(
         map((v) => {
           if (v === 3) throw "kechmahaja";
           return v.toFixed(2);
         }),
       ),
     )
-    .pipe(unwrap(console.log))
-    .pipe(listen(console.log));
+    .pipe(filter((v) => !(v instanceof Error)))
+    .pipe(toConsole());
 }
 
-// resultTest();
+// safeTest();
 
 function distinctTest() {
   of({ id: 1, name: "a" }, { id: 1, name: "b" }, { id: 2, name: "a" })
@@ -724,7 +725,6 @@ function distinctTest() {
 function findTest() {
   of(1, 2, 3, 4, 5)
     .pipe(find((v) => v > 3))
-    .pipe(unwrap())
     .pipe(toConsole());
 }
 
@@ -783,19 +783,19 @@ function everyTest() {
 
 // everyTest();
 function maxTest() {
-  of(1, 2, 3, 4, 2, 3, 9, 3, 2, 1).pipe(max()).pipe(unwrap()).pipe(toConsole());
+  of(1, 2, 3, 4, 2, 3, 9, 3, 2, 1).pipe(max()).pipe(toConsole());
 }
 
 // maxTest();
 function minTest() {
-  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(min()).pipe(unwrap()).pipe(toConsole());
+  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(min()).pipe(toConsole());
 }
 
 // minTest();
 function sumTest() {
   of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(sum()).pipe(toConsole());
 }
-// sumTest();
+sumTest();
 function countTest() {
   of(1, 2, 3, 4).pipe(count()).pipe(toConsole());
 }
