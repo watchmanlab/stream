@@ -4,20 +4,20 @@ import { DefaultSizedQueue } from "../core/default-sized-queue";
 import { Source } from "../core/source";
 import { ValueOfConsumable } from "../core/types";
 
-export class KeepLatest<
+export class Latests<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 > extends Source<VALUE> {
   private queue?: DefaultSizedQueue<VALUE>;
   constructor(
     readonly $input: INPUT,
-    maxSize: number,
+    count: number,
   ) {
     super();
 
     $input
       .consume((c, v) => {
-        (this.queue ??= new DefaultSizedQueue(maxSize)).enqueue(v);
+        (this.queue ??= new DefaultSizedQueue(count)).enqueue(v);
         c.next();
       })
       .next();
@@ -49,6 +49,6 @@ export class KeepLatest<
   }
 }
 
-export function keepLatest<INPUT extends Consumable.AnyConsumable>(maxSize: number) {
-  return ($input: INPUT) => new KeepLatest($input, maxSize);
+export function latests<INPUT extends Consumable.AnyConsumable>(count: number) {
+  return ($input: INPUT) => new Latests($input, count);
 }

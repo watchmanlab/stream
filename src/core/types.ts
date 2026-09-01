@@ -7,12 +7,12 @@ import type { Consumable } from "./consumable";
 export type Empty = typeof EMPTY;
 export type EmptyFunctions = typeof EMPTY_FUNCTION;
 export type EmptyThisFunctions = typeof EMPTY_THIS_FUNCTION;
-export type Result<VALUE, ERROR = any> =
-  | { ok: true; value: VALUE; error?: never }
-  | { ok: false; error: ERROR; value?: never };
-export function isResult<T, E>(object: unknown): object is Result<T, E> {
-  return object !== null && typeof object === "object" && "ok" in object && typeof object.ok === "boolean";
+export class Error<const VALUE> extends globalThis.Error {
+  constructor(readonly value: VALUE) {
+    super(typeof value === "string" ? value : "");
+  }
 }
+
 export type TerminateReason = "abort" | "complete";
 
 export type Prettify<T> = T extends { [K in keyof T]: T[K] } ? { [K in keyof T]: T[K] } : never;
@@ -42,5 +42,13 @@ export type ValueOfArray<T, DEPTH extends number = 0, COUNTER extends any[] = []
     ? VALUE
     : T
   : T extends Array<infer VALUE>
+    ? ValueOfArray<VALUE, DEPTH, [...COUNTER, any]>
+    : T;
+
+export type ValueOfError<T, DEPTH extends number = 0, COUNTER extends any[] = []> = COUNTER["length"] extends DEPTH
+  ? T extends Error<infer VALUE>
+    ? VALUE
+    : T
+  : T extends Error<infer VALUE>
     ? ValueOfArray<VALUE, DEPTH, [...COUNTER, any]>
     : T;

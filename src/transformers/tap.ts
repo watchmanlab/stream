@@ -9,17 +9,18 @@ export class Tap<
 > extends Source<VALUE> {
   constructor(
     readonly $input: INPUT,
-    private callback: (value: VALUE) => void,
+    private callback: (value: VALUE, index: number) => void,
   ) {
     super();
   }
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
-    return this.$input.consume((consumer, value) => (this.callback(value), handler(consumer, value)), options);
+    let index = 0;
+    return this.$input.consume((consumer, value) => (this.callback(value, index++), handler(consumer, value)), options);
   }
 }
 export function tap<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
->(callback: (value: VALUE) => void) {
+>(callback: (value: VALUE, index: number) => void) {
   return ($input: INPUT) => new Tap($input, callback);
 }

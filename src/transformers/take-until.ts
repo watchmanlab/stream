@@ -18,16 +18,16 @@ export class TakeUntil<
 
     const output$ = this.$input.consume(handler, {
       ...rest,
-      terminate(consumer, reason) {
-        notifier$.terminate(reason);
-        terminate?.(consumer, reason);
+      terminate(c, r) {
+        notifier$.terminate(r);
+        terminate?.(c, r);
       },
     });
 
     const notifier$ = this.$notifier
-      .consume((consumer) => {
+      .consume((c) => {
         output$.terminate("complete");
-        consumer.terminate("complete");
+        c.terminate("complete");
       })
       .next();
 

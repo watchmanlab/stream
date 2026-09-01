@@ -1,4 +1,4 @@
-import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable, single, pipe } from "rxjs";
+import { Subject, tap as rxtap, map as rxmap, filter as rxfilter, Observable } from "rxjs";
 import { Consumer } from "./core/consumer.ts";
 import { Stream } from "./core/stream.ts";
 import { Source } from "./core/source";
@@ -31,13 +31,13 @@ import { share } from "./transformers/share.ts";
 import { replay } from "./transformers/replay.ts";
 import { DefaultQueue } from "./core/default-queue.ts";
 import { take } from "./transformers/take.ts";
-import { toArray } from "./transformers/to-array.ts";
+import { scanArray } from "./transformers/scan-array.ts";
 import { range } from "./transformers/range.ts";
 import { index } from "./transformers/index.ts";
 import { print } from "./transformers/print.ts";
 import { pace } from "./transformers/pace.ts";
 import { buffer } from "./transformers/buffer.ts";
-import { keepLatest } from "./transformers/keep-latest.ts";
+import { latests } from "./transformers/latests.ts";
 import { delay } from "./transformers/delay.ts";
 import { context } from "./transformers/context.ts";
 import { gate } from "./transformers/gate.ts";
@@ -45,10 +45,7 @@ import { of } from "./sources/of-source.ts";
 import { listen } from "./transformers/listen.ts";
 import { first } from "./transformers/first.ts";
 import { last } from "./transformers/last.ts";
-import { tapBatch } from "./transformers/tap-batch.ts";
-import { reduce } from "./transformers/reduce.ts";
-import { unwrap } from "./transformers/unwrap.ts";
-import { result } from "./transformers/result.ts";
+import { safe } from "./transformers/safe.ts";
 import { distinct } from "./transformers/distinct.ts";
 import { find } from "./transformers/find.ts";
 import { toConsole } from "./transformers/to-console.ts";
@@ -56,6 +53,17 @@ import { fromRange } from "./sources/range-source.ts";
 import { fromFunction } from "./sources/function-source.ts";
 import { switch$ } from "./transformers/switch$.ts";
 import { combine } from "./transformers/combine.ts";
+import { pump } from "./transformers/pump.ts";
+import { scan } from "./transformers/scan.ts";
+import { debounce } from "./transformers/debounce.ts";
+import { every } from "./transformers/every.ts";
+import { max } from "./transformers/max.ts";
+import { min } from "./transformers/min.ts";
+import { count } from "./transformers/count.ts";
+import { tapTerminate } from "./transformers/tap-terminate.ts";
+import { tapInput } from "./transformers/tap-input.ts";
+import { sum } from "./transformers/sum.ts";
+import { Error } from "./core/types.ts";
 
 function asyncValue<T>(value: T, ms?: number) {
   return new Promise<T>((res, rej) =>
@@ -418,33 +426,12 @@ function mapTest() {
 // mapTest();
 
 function filterTest() {
-  const filtered = fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9]).pipe(filter((v) => v % 2 === 0));
-
-  filtered.$complements
-    .consume((c, v) => {
-      console.log("complements", v);
-      c.next();
-    })
-    .next();
-
-  filtered
-    .consume((c, v) => {
-      console.log(v);
-      c.next();
-    })
-    .next();
+  fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    .pipe(filter((v) => v % 2 === 0))
+    .pipe(tapInput((input) => input.$complements.pipe(toConsole("complements"))))
+    .pipe(toConsole());
 }
 // filterTest();
-
-function tapBatchTest() {
-  fromIterable([[1, 2], [3]])
-    .pipe(tapBatch((v) => console.log(v)))
-    .consume((c, v) => {
-      // console.log(v);
-      c.next();
-    })
-    .next();
-}
 
 async function takeUntilTest() {
   const stream = new Stream();
@@ -497,10 +484,11 @@ async function skipUntilTest() {
 // skipUntilTest();
 
 function resolveTest() {
-  fromIterable([asyncValue(1), asyncValue(2), asyncValue(3)])
-    .pipe(resolve(1))
+  fromIterable([asyncValue(1), Promise.reject(2), asyncValue(3)])
+    .pipe(resolve(2))
+
     .consume((c, v) => {
-      console.log(v.value);
+      console.log(v);
       c.next();
     })
     .next();
@@ -573,7 +561,7 @@ function zipTest() {
 // [ 2, "c", false ]
 // rest [ 3, Symbol(empty), true ]
 
-function dependOnTest() {
+function scopeTest() {
   const s1 = fromTimeout(1600);
   const s2 = fromTimeout(600);
 
@@ -584,7 +572,7 @@ function dependOnTest() {
     .pipe(listen());
 }
 
-// dependOnTest();
+// scopeTest();
 
 function mergeTest() {
   const s1 = fromInterval(500).pipe(map((_, index) => `${index}S1`));
@@ -610,18 +598,23 @@ function replayLatestTest() {
 }
 // replayLatestTest();
 
-function toArrayTest() {
+function scanArrayTest() {
   fromInterval(300)
     .pipe(map((_, i) => i))
     .pipe(take(10))
-    .pipe(toArray())
+    .pipe(scanArray())
+    .pipe(last())
     .pipe(listen(console.log));
 }
 
-// toArrayTest();
+// scanArrayTest();//[ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
 
 async function rangeTest() {
-  fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"]).pipe(range(1, 2)).pipe(toArray()).pipe(listen(console.log));
+  fromIterable(["a", "b", "c", "d", "e", "f", "g", "h"])
+    .pipe(range(1, 2))
+    .pipe(scanArray())
+    .pipe(last())
+    .pipe(toConsole());
 }
 
 // rangeTest();
@@ -636,17 +629,17 @@ function bufferTest() {
 }
 // bufferTest();
 
-function keepLatestTest() {
+function latestsTest() {
   const s = fromInterval(300).pipe(index()).pipe(share());
 
-  const buffered = s.pipe(keepLatest(2));
+  const buffered = s.pipe(latests(2));
 
   setTimeout(() => {
     buffered.pipe(print()).pipe(listen());
   }, 2000);
 }
 
-// keepLatestTest();
+// latestsTest();
 
 function contextTest() {
   fromIterable([1, 2, 3, 4, 5])
@@ -672,36 +665,29 @@ function listenTest() {
 // listenTest();
 
 function firstTest() {
-  of(1, 2, 3, 4, 5).pipe(first()).pipe(unwrap()).pipe(listen(console.log));
+  of(1, 2, 3, 4, 5).pipe(first()).pipe(listen(console.log));
 }
 // firstTest();
 function lastTest() {
-  of(1, 2, 3, 4, 5).pipe(last()).pipe(unwrap()).pipe(listen(console.log));
+  of(1, 2, 3, 4, 5).pipe(last()).pipe(listen(console.log));
 }
 // lastTest();
 
-function reduceTest() {
-  of(1, 2, 3, 4)
-    .pipe(reduce(0, (acc, v) => acc + v))
-    .pipe(listen(console.log));
-}
-// reduceTest();
-
-function resultTest() {
+function safeTest() {
   of(1, 2, 3, 4)
     .pipe(
-      result(
+      safe(
         map((v) => {
           if (v === 3) throw "kechmahaja";
           return v.toFixed(2);
         }),
       ),
     )
-    .pipe(unwrap(console.log))
-    .pipe(listen(console.log));
+    .pipe(filter((v) => !(v instanceof Error)))
+    .pipe(toConsole());
 }
 
-// resultTest();
+// safeTest();
 
 function distinctTest() {
   of({ id: 1, name: "a" }, { id: 1, name: "b" }, { id: 2, name: "a" })
@@ -714,7 +700,6 @@ function distinctTest() {
 function findTest() {
   of(1, 2, 3, 4, 5)
     .pipe(find((v) => v > 3))
-    .pipe(unwrap())
     .pipe(toConsole());
 }
 
@@ -738,3 +723,81 @@ function combineTest() {
   s1.pipe(combine(s2)).pipe(toConsole());
 }
 // combineTest();
+
+function pumpTest() {
+  const s = of(1, 2, 3).pipe(tap(console.log)).pipe(pump());
+
+  // s.pipe(toConsole());
+}
+// pumpTest();
+
+function scanTest() {
+  of(1, 2, 3, 4)
+    .pipe(scan(0, (acc, v) => acc + v))
+    .pipe(toConsole());
+}
+
+// scanTest();
+
+function debounceTest() {
+  const s = new Stream();
+  s.pipe(debounce(1000)).pipe(toConsole());
+
+  of(1, 2, 3, 4)
+    .pipe(delay(200))
+    .pipe(listen((v) => s.push(v)));
+}
+
+// debounceTest();
+
+function everyTest() {
+  of(1, 2, 3, 4)
+    .pipe(every((v) => v <= 4))
+    .pipe(toConsole());
+}
+
+// everyTest();
+function maxTest() {
+  of(1, 2, 3, 4, 2, 3, 9, 3, 2, 1).pipe(max()).pipe(last()).pipe(toConsole());
+}
+
+// maxTest();
+function minTest() {
+  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1).pipe(min()).pipe(last()).pipe(toConsole());
+}
+
+// minTest();
+function sumTest() {
+  of(1, 2, 3, 4, 2, 3, 9, 3, -3, 2, 1)
+    .pipe(sum())
+    .pipe(pace(100))
+    .pipe(tap((v, i) => console.log(`step ${i}:${v}`)))
+    .pipe(last())
+    .pipe(toConsole());
+}
+// sumTest();
+
+function countTest() {
+  of(5, 6, 7, 8, 9)
+    .pipe(count())
+    .pipe(last(true))
+    .pipe(map((v) => v))
+    .pipe(toConsole());
+}
+
+// countTest();
+function onTerminateTest() {
+  of(1, 2, 3, 4).pipe(tapTerminate(console.log)).pipe(pump());
+}
+
+// onTerminateTest(); //complete
+
+function tapInputTest() {
+  of(1, 2, 3, 4)
+    .pipe(map((v) => v * 100))
+    .pipe(share())
+    .pipe(tapInput((input) => input.pipe(passive()).pipe(toConsole())))
+    .pipe(listen());
+}
+
+// tapInputTest();

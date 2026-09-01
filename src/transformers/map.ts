@@ -10,14 +10,14 @@ export class Map<
 > extends Source<MAPPED> {
   constructor(
     readonly $input: INPUT,
-    private mapper: Map.Mapper<VALUE, MAPPED>,
+    private mapper: (value: VALUE, index: number) => MAPPED,
   ) {
     super();
   }
   override consume(handler: Consumer.Handler<MAPPED>, options?: Consumer.Options<MAPPED>): Consumer<MAPPED> {
     let index = 0;
 
-    return this.$input.consume((consumer, value) => handler(consumer, this.mapper(value, index++)), options);
+    return this.$input.consume((c, v) => handler(c, this.mapper(v, index++)), options);
   }
 }
 
@@ -25,10 +25,6 @@ export function map<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
   MAPPED = VALUE,
->(mapper: Map.Mapper<VALUE, MAPPED>) {
+>(mapper: (value: VALUE, index: number) => MAPPED) {
   return ($input: INPUT) => new Map($input, mapper);
-}
-
-export namespace Map {
-  export type Mapper<VALUE, MAPPED> = (value: VALUE, index: number) => MAPPED;
 }
