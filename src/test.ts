@@ -45,7 +45,6 @@ import { of } from "./sources/of-source.ts";
 import { listen } from "./transformers/listen.ts";
 import { first } from "./transformers/first.ts";
 import { last } from "./transformers/last.ts";
-import { tapBatch } from "./transformers/tap-batch.ts";
 import { safe } from "./transformers/safe.ts";
 import { distinct } from "./transformers/distinct.ts";
 import { find } from "./transformers/find.ts";
@@ -444,16 +443,6 @@ function filterTest() {
     .next();
 }
 // filterTest();
-
-function tapBatchTest() {
-  fromIterable([[1, 2], [3]])
-    .pipe(tapBatch((v) => console.log(v)))
-    .consume((c, v) => {
-      // console.log(v);
-      c.next();
-    })
-    .next();
-}
 
 async function takeUntilTest() {
   const stream = new Stream();

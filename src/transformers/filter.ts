@@ -26,14 +26,16 @@ export class Filter<
     );
   }
   consume(handler: Consumer.Handler<FILTERED>, options?: Consumer.Options<FILTERED>): Consumer<FILTERED> {
-    let index = 0;
-    return this.$input.consume((consumer, value) => {
-      if (this.predicate(value, index++)) {
-        handler(consumer, value);
+    let filteredIndex = 0;
+    let complementIndex = 0;
+
+    return this.$input.consume((c, v) => {
+      if (this.predicate(v, filteredIndex++)) {
+        handler(c, v);
       } else {
-        this._$complements?.push(value);
-        this.complement?.(value, index++);
-        consumer.next();
+        this._$complements?.push(v);
+        this.complement?.(v, complementIndex++);
+        c.next();
       }
     }, options);
   }
