@@ -1,6 +1,5 @@
 import { Consumable } from "../core/consumable";
 import { Source } from "../core/source";
-import { listen } from "./listen";
 import { print } from "./print";
 import { pump } from "./pump";
 

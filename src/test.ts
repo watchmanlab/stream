@@ -61,7 +61,7 @@ import { max } from "./transformers/max.ts";
 import { min } from "./transformers/min.ts";
 import { count } from "./transformers/count.ts";
 import { tapTerminate } from "./transformers/tap-terminate.ts";
-import { pipe } from "./transformers/pipe.ts";
+import { tapInput } from "./transformers/tap-input.ts";
 import { sum } from "./transformers/sum.ts";
 import { Error } from "./core/types.ts";
 
@@ -428,19 +428,10 @@ function mapTest() {
 function filterTest() {
   fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9])
     .pipe(filter((v) => v % 2 === 0))
-    .pipe(pipe((input) => input.$complements.pipe(toConsole("complements"))))
+    .pipe(tapInput((input) => input.$complements.pipe(toConsole("complements"))))
     .pipe(toConsole());
 }
-filterTest();
-// complements 1
-// 2
-// complements 3
-// 4
-// complements 5
-// 6
-// complements 7
-// 8
-// complements 9
+// filterTest();
 
 async function takeUntilTest() {
   const stream = new Stream();
@@ -801,12 +792,12 @@ function onTerminateTest() {
 
 // onTerminateTest(); //complete
 
-function pipeTest() {
+function tapInputTest() {
   of(1, 2, 3, 4)
     .pipe(map((v) => v * 100))
     .pipe(share())
-    .pipe(pipe((input) => input.pipe(passive()).pipe(toConsole())))
+    .pipe(tapInput((input) => input.pipe(passive()).pipe(toConsole())))
     .pipe(listen());
 }
 
-// pipeTest();
+// tapInputTest();
