@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { Stream } from "./stream";
+import { Consumer } from "./consumer";
 
 describe("Stream", () => {
   describe("push / consume", () => {
@@ -93,6 +94,22 @@ describe("Stream", () => {
       stream.consume((self, v) => self.next()).next();
       stream.push(1).push(2);
       expect(pushed).toEqual([1, 2]);
+    });
+
+    it.only("$next emits when the fastest consumer pull", () => {
+      const stream = new Stream<number>();
+      const pullers: Consumer<any>[] = [];
+      stream.$next
+        .consume((self, c) => {
+          pullers.push(c);
+          self.next();
+        })
+        .next();
+      const c1 = stream.consume((self, v) => self.next()).next();
+      const c2 = stream.consume((self, v) => self.next()).next();
+      stream.push(1).push(2);
+      expect(pullers.length).toEqual(3);
+      expect(pullers).toEqual([c1, c1, c1]);
     });
 
     it("$consumerJoin emits when a consumer subscribes", () => {
