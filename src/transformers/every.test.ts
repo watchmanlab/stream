@@ -15,7 +15,6 @@ describe("every", () => {
           return v > 0;
         }),
       )
-      .pipe(last())
       .pipe(
         listen((v) => {
           result = v;
@@ -44,10 +43,7 @@ describe("every", () => {
   it("emits true for empty stream", () => {
     let result: any;
     const stream = new Stream<number>();
-    stream
-      .pipe(every((v) => v > 0))
-      .pipe(last())
-      .pipe(listen((v) => (result = v)));
+    stream.pipe(every((v) => v > 0)).pipe(listen((v) => (result = v)));
     stream.terminate("complete");
 
     expect(result).toBe(true);
