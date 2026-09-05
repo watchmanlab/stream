@@ -2,7 +2,23 @@ import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ValueOfConsumable } from "../core/types";
+import { last } from "./last";
 
+/**
+ * Accumulates values with a reducer and emits the running accumulator after each value.
+ * pipe {@link last} after it and you get a standard `reduce` behavior
+ *
+ * @example
+ * of(1, 2, 3)
+    .pipe(scan(0, (acc, v) => acc + v))
+    .pipe(listen(console.log)); // 1, 3, 6
+
+ * @example  
+ * of(1, 2, 3)
+    .pipe(scan(0, (acc, v) => acc + v))
+    .pipe(last())
+    .pipe(listen(console.log)); // 6
+ */
 export class Scan<
   INPUT extends Consumable.AnyConsumable,
   ACC,
@@ -24,7 +40,23 @@ export class Scan<
     }, options);
   }
 }
-
+/**
+ * Accumulates values with a reducer and emits the running accumulator after each value.
+ * pipe {@link last} after it and you get a standard `reduce` behavior
+ *
+ * @param acc Initial accumulator.
+ * @param reducer `(acc, value) => acc`.
+ *
+ * @example 
+ * of(1, 2, 3)
+    .pipe(scan(0, (acc, v) => acc + v))
+    .pipe(listen(console.log)); // 1, 3, 6
+ * @example 
+ * of(1, 2, 3)
+    .pipe(scan(0, (acc, v) => acc + v))
+    .pipe(last())
+    .pipe(listen(console.log)); // 6
+ */
 export function scan<
   INPUT extends Consumable.AnyConsumable,
   ACC,

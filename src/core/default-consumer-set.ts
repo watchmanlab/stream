@@ -3,6 +3,16 @@ import { Consumer } from "./consumer";
 import { ConsumerSet } from "./consumer-set";
 import { TerminateReason } from "./types";
 
+/**
+ * Default {@link ConsumerSet} implementation.
+ *
+ * Optimises the common cases:
+ * - **0 consumers**: push is a no-op.
+ * - **1 consumer**: push calls the consumer directly (no Set overhead).
+ * - **N consumers**: push iterates a snapshot array for safe mid-iteration removal.
+ *
+ * @template VALUE The type of values broadcast to consumers.
+ */
 export class DefaultConsumerSet<VALUE> implements ConsumerSet<VALUE> {
   private _consumers?: Set<Consumer<VALUE>> | Consumer<VALUE>;
 

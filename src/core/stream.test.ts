@@ -96,7 +96,7 @@ describe("Stream", () => {
       expect(pushed).toEqual([1, 2]);
     });
 
-    it.only("$next emits when the fastest consumer pull", () => {
+    it("$next emits when the fastest consumer pull", () => {
       const stream = new Stream<number>();
       const pullers: Consumer<any>[] = [];
       stream.$next

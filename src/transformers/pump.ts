@@ -4,6 +4,12 @@ import { Source } from "../core/source";
 import { Stream } from "../core/stream";
 import { ValueOfConsumable } from "../core/types";
 
+/**
+ * Eagerly drains the upstream and trigger the consumption chain for a dormant pipeline.
+ *
+ * @example
+ *  of(1, 2, 3).pipe(map( v => v * 2)).pipe(tap(console.log)).pipe(pump());
+ */
 export class Pump<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
@@ -24,6 +30,12 @@ export class Pump<
   }
 }
 
+/**
+ * Eagerly drains the upstream and trigger the consumption chain for a dormant pipeline.
+ *
+ * @example
+ *  stream.pipe(map( v => v * 2)).pipe(tap(console.log)).pipe(pump());
+ */
 export function pump<INPUT extends Consumable.AnyConsumable>() {
   return ($input: INPUT) => new Pump($input);
 }

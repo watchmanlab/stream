@@ -1,6 +1,24 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
+/**
+ * Emits once when the given `AbortSignal` is aborted, then completes.
+ * If the signal is already aborted at subscription time, emits immediately.
+ *
+ * @example
+ * const controller = new AbortController();
+ * fromAbortSignal(controller.signal).pipe(listen(() => console.log('aborted')));
+ * controller.abort();
+ */
+/**
+ * Emits once when the given `AbortSignal` is aborted, then completes.
+ * If the signal is already aborted at subscription time, emits immediately.
+ *
+ * @example
+ * const controller = new AbortController();
+ * fromAbortSignal(controller.signal).pipe(listen(() => console.log('aborted')));
+ * controller.abort();
+ */
 export class AbortSignalSource extends Source<void> {
   constructor(private signal: AbortSignal) {
     super();
@@ -37,6 +55,14 @@ export class AbortSignalSource extends Source<void> {
   }
 }
 
+/**
+ * Creates an `AbortSignalSource`.
+ * @param signal The `AbortSignal` to observe.
+ */
+/**
+ * Creates an `AbortSignalSource`.
+ * @param signal The `AbortSignal` to observe.
+ */
 export function fromAbortSignal(signal: AbortSignal): AbortSignalSource {
   return new AbortSignalSource(signal);
 }

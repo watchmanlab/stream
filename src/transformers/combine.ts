@@ -2,9 +2,18 @@ import { EMPTY } from "../core/consts";
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Stream } from "../core/stream";
-import { Empty, ValueOfConsumable, ZipedArray } from "../core/types";
+import { ZipedArray } from "../core/types";
 
+/**
+ * Emits the value or {@link EMPTY} from each input whenever any input emits.
+ * To get the CombineLatest behvior, use `zip` and pipe `latest` to each input .
+ * Unlike `zip`, does not wait for all inputs to have a value — uses the last known value or {@link EMPTY} .
+ *
+ * @example
+ * const s1 = of(1,2,3).pipe(delay(100));
+ * const s2 = of('a','b').pipe(delay(200));
+ * s1.pipe(combine(s2)).pipe(listen(console.log));
+ */
 export class Combine<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [Consumable.AnyConsumable, ...Consumable.AnyConsumable[]],
@@ -24,20 +33,20 @@ export class Combine<
 
     const output$ = new Consumer<VALUE>(handler, {
       ...rest,
-      next(consumer) {
+      next(r) {
         consumers.forEach((entry) => {
           if (!entry.pending) {
             entry.pending = true;
             entry.consumer$.next();
           }
         });
-        next?.(consumer);
+        next?.(r);
       },
-      terminate: (consumer, reason) => {
-        consumers.forEach((entry) => entry.consumer$.terminate(reason));
+      terminate: (c, r) => {
+        consumers.forEach((entry) => entry.consumer$.terminate(r));
         consumers.length = 0;
         buffer.length = 0;
-        terminate?.(consumer, reason);
+        terminate?.(c, r);
       },
     });
 
@@ -50,8 +59,8 @@ export class Combine<
             output$.push([...buffer] as any);
           },
           {
-            terminate(consumer, reason) {
-              output$.terminate(reason);
+            terminate(c, r) {
+              output$.terminate(r);
             },
           },
         ),
@@ -63,6 +72,18 @@ export class Combine<
   }
 }
 
+/**
+ * Emits the value or {@link EMPTY} from each input whenever any input emits.
+ * To get the CombineLatest behvior, we need to pipe latests to each input.
+ * Unlike `zip`, does not wait for all inputs to have a value — uses the last known value or {@link EMPTY} .
+ *
+ * @param others Additional streams to combine with the input.
+ *
+ * @example
+ * const s1 = of(1,2,3).pipe(delay(100));
+ * const s2 = of('a','b').pipe(delay(200));
+ * s1.pipe(combine(s2)).pipe(listen(console.log));
+ */
 export function combine<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [Consumable.AnyConsumable, ...Consumable.AnyConsumable[]],

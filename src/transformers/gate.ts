@@ -3,13 +3,21 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ValueOfConsumable } from "../core/types";
 
+/**
+ * Opens or closes the stream based on a boolean control `Consumable`.
+ * `true` opens the gate (consume the $input), `false` closes it (terminates inner consumer).
+ *
+ * @example
+ * const toggle = fromInterval(3000).pipe(map((_, i) => i % 2 === 0));
+ * fromInterval(500).pipe(gate(toggle)).pipe(listen(console.log));
+ */
 export class Gate<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
 > extends Source<VALUE> {
   constructor(
     private $input: INPUT,
-    private control: Consumable<boolean>,
+    private $control: Consumable<boolean>,
   ) {
     super();
   }
@@ -20,31 +28,31 @@ export class Gate<
 
     const output$ = new Consumer<VALUE>(handler, {
       ...rest,
-      next(consumer) {
+      next(c) {
         input$?.next();
-        next?.(consumer);
+        next?.(c);
       },
-      terminate(consumer, reason) {
-        input$?.terminate(reason);
-        control$.terminate(reason);
-        terminate?.(consumer, reason);
+      terminate(c, r) {
+        input$?.terminate(r);
+        control$.terminate(r);
+        terminate?.(c, r);
       },
     });
 
-    const control$ = this.control
+    const control$ = this.$control
       .consume(
-        (self, value) => {
-          if (value) {
-            input$ = this.$input.consume((_, value) => output$.push(value)).next();
+        (c, v) => {
+          if (v) {
+            input$ = this.$input.consume((_, v) => output$.push(v)).next();
           } else {
             input$?.terminate("complete");
             input$ = undefined;
           }
-          self.next();
+          c.next();
         },
         {
-          terminate(consumer, reason) {
-            output$.terminate(reason);
+          terminate(_, r) {
+            output$.terminate(r);
           },
         },
       )
@@ -53,7 +61,16 @@ export class Gate<
     return output$;
   }
 }
-
+/**
+ * Opens or closes the stream based on a boolean control `Consumable`.
+ * `true` opens the gate (consume the $input), `false` closes it (terminates inner consumer).
+ *
+ * @param control A stream of booleans. `true` opens, `false` closes.
+ *
+ * @example
+ * const toggle = fromInterval(3000).pipe(map((_, i) => i % 2 === 0));
+ * fromInterval(500).pipe(gate(toggle)).pipe(listen(console.log));
+ */
 export function gate<INPUT extends Consumable.AnyConsumable>(control: Consumable<boolean>) {
   return ($input: INPUT) => new Gate($input, control);
 }

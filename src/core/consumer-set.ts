@@ -1,6 +1,12 @@
 import { Consumer } from "./consumer";
 import { TerminateReason } from "./types";
 
+/**
+ * A set of {@link Consumer}s that a {@link Stream} broadcasts values to.
+ * Implementations handle fan-out and lifecycle management.
+ *
+ * @template VALUE The type of values pushed to consumers.
+ */
 export interface ConsumerSet<VALUE> {
   readonly size: number;
   push(value: VALUE): void;

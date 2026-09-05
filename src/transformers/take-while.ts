@@ -3,6 +3,12 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ValueOfConsumable } from "../core/types";
 
+/**
+ * Takes values while the predicate returns `true`. Terminates on the first `false`.
+ *
+ * @example
+ * of(1, 2, 3, 4).pipe(takeWhile(v => v < 3)).pipe(listen(console.log)); // 1, 2
+ */
 export class TakeWhile<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
@@ -24,7 +30,14 @@ export class TakeWhile<
     }, options);
   }
 }
-
+/**
+ * Takes values while the predicate returns `true`. Terminates on the first `false`.
+ *
+ * @param predicate Stop condition.
+ *
+ * @example
+ * of(1, 2, 3, 4).pipe(takeWhile(v => v < 3)).pipe(listen(console.log)); // 1, 2
+ */
 export function takeWhile<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,

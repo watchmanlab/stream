@@ -1,6 +1,14 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
+/**
+ * Wraps a synchronous `Iterator` as a pull-based `Source`.
+ * Each `next()` call pulls one value from the iterator.
+ * Terminates with `"complete"` when the iterator is done.
+ *
+ * @example
+ * fromIterator([1, 2, 3].values()).pipe(listen(console.log));
+ */
 export class IteratorSource<VALUE> extends Source<VALUE> {
   constructor(private iterator: Iterator<VALUE> | (() => Iterator<VALUE>)) {
     super();
@@ -30,6 +38,10 @@ export class IteratorSource<VALUE> extends Source<VALUE> {
   }
 }
 
+/**
+ * Creates an `IteratorSource` from a synchronous iterator or iterator factory.
+ * @param iterator An `Iterator` or a factory function returning one.
+ */
 export function fromIterator<VALUE>(iterator: Iterator<VALUE> | (() => Iterator<VALUE>)): IteratorSource<VALUE> {
   return new IteratorSource(iterator);
 }

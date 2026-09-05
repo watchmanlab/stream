@@ -3,6 +3,15 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ValueOfConsumable } from "../core/types";
 
+/**
+ * Filters out duplicate values using a `Set`.
+ * Optionally accepts a `keySelector` to compare by a derived key,
+ * and a `$flushes` notifier to reset the seen-set.
+ *
+ * @example
+ * of(1, 1, 2, 2, 3).pipe(distinct()).pipe(listen(console.log)); // 1, 2, 3
+ * of({id:1},{id:1},{id:2}).pipe(distinct(v => v.id)).pipe(listen(console.log));
+ */
 export class Distinct<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
@@ -65,6 +74,18 @@ export class Distinct<
     return input$;
   }
 }
+/**
+ * Filters out duplicate values using a `Set`.
+ * Optionally accepts a `keySelector` to compare by a derived key,
+ * and a `$flushes` notifier to reset the seen-set.
+ *
+ * @param keySelector Optional function to derive the comparison key.
+ * @param $flushes Optional notifier that resets the seen-set when it emits.
+ *
+ * @example
+ * of(1, 1, 2, 2, 3).pipe(distinct()).pipe(listen(console.log)); // 1, 2, 3
+ * of({id:1},{id:1},{id:2}).pipe(distinct(v => v.id)).pipe(listen(console.log));
+ */
 
 export function distinct<
   INPUT extends Consumable.AnyConsumable,

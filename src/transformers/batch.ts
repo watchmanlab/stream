@@ -3,6 +3,13 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ValueOfConsumable } from "../core/types";
 
+/**
+ * Collects values into arrays of up to `size`. Unlike `buffer`, it does not use sliding windows.
+ * Emits any remaining values as a partial batch on stream completion.
+ *
+ * @example
+ * of(1,2,3,4,5).pipe(batch(2)).pipe(listen(console.log)); // [1,2], [3,4], [5]
+ */
 export class Batch<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
@@ -28,7 +35,6 @@ export class Batch<
           const array = [...batch];
           batch.length = 0;
           handler(consumer, array);
-          array.length = 0;
         }
       },
       {
@@ -38,7 +44,6 @@ export class Batch<
             const array = [...batch];
             batch.length = 0;
             handler(consumer, array);
-            array.length = 0;
           }
           batch.length = 0;
           terminate?.(consumer, reason);
@@ -47,7 +52,15 @@ export class Batch<
     );
   }
 }
-
+/**
+ * Collects values into arrays of up to `size`. Unlike `buffer`, it does not use sliding windows.
+ * Emits any remaining values as a partial batch on stream completion.
+ *
+ * @param size Maximum number of values per batch.
+ *
+ * @example
+ * of(1,2,3,4,5).pipe(batch(2)).pipe(listen(console.log)); // [1,2], [3,4], [5]
+ */
 export function batch<INPUT extends Consumable.AnyConsumable>(size: number) {
   return (input: INPUT) => new Batch(input, size);
 }

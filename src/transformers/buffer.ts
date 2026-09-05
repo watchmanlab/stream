@@ -1,10 +1,16 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
-import { DefaultQueue } from "../core/default-queue";
 import { Source } from "../core/source";
-
 import { ValueOfConsumable, SizedArray } from "../core/types";
 
+/**
+ * Collects values into fixed-size sliding-window arrays.
+ * A new buffer starts every `startBufferEvery` values (defaults to `size`, i.e. non-overlapping).
+ * Incomplete buffers are emitted on stream completion.
+ *
+ * @example
+ * of(1,2,3,4,5).pipe(buffer(2)).pipe(listen(console.log)); // [1,2], [3,4], [5]
+ */
 export class Buffer<
   INPUT extends Consumable.AnyConsumable,
   SIZE extends number,
@@ -22,40 +28,36 @@ export class Buffer<
     options?: Consumer.Options<SizedArray<VALUE, SIZE>>,
   ): Consumer<SizedArray<VALUE, SIZE>> {
     const { terminate, ...rest } = options ?? {};
+    const { size, startBufferEvery } = this;
 
-    const buffers = new DefaultQueue<VALUE[]>();
+    const buffers: VALUE[][] = [];
     let count = 0;
 
     return this.$input.consume(
       (self, value) => {
-        if (count++ % this.startBufferEvery === 0) buffers.enqueue([]);
+        if (count++ % startBufferEvery === 0) buffers.push([]);
 
-        let buffersSize = buffers.size;
-        // we always have at most a single buffer full a time
         for (const buffer of buffers) {
           buffer.push(value);
-          if (buffer.length === this.size) {
-            buffers.dequeue(); //result
-            handler(self, [...buffer] as SizedArray<VALUE, SIZE>);
-          }
         }
 
-        if (buffersSize === buffers.size) self.next();
+        if (buffers[0].length === size) {
+          handler(self, buffers.shift()! as SizedArray<VALUE, SIZE>);
+        } else {
+          self.next();
+        }
       },
       {
         ...rest,
         terminate(consumer, reason) {
-          if (reason === "abort") {
-            buffers.clear();
-          } else {
-            while (buffers.size > 0) {
-              const buffer = buffers.dequeue() as VALUE[];
-
+          if (reason === "complete") {
+            buffers.forEach((buffer) => {
               if (buffer.length > 0) {
-                handler(consumer, [...buffer] as never);
+                handler(consumer, buffer as never);
               }
-            }
+            });
           }
+          buffers.length = 0;
           count = 0;
           terminate?.(consumer, reason);
         },
@@ -63,7 +65,17 @@ export class Buffer<
     );
   }
 }
-
+/**
+ * Collects values into fixed-size sliding-window arrays.
+ * A new buffer starts every `startBufferEvery` values (defaults to `size`, i.e. non-overlapping).
+ * Incomplete buffers are emitted on stream completion.
+ *
+ * @param size Number of values per buffer.
+ * @param startBufferEvery How often to start a new buffer (default = `size`).
+ *
+ * @example
+ * of(1,2,3,4,5).pipe(buffer(2)).pipe(listen(console.log)); // [1,2], [3,4], [5]
+ */
 export function buffer<INPUT extends Consumable.AnyConsumable, SIZE extends number>(
   size: SIZE,
   startBufferEvery = size,
