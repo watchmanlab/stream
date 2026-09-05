@@ -2,6 +2,12 @@ import type { Empty } from "./types";
 import { EMPTY } from "./consts";
 import { Queue } from "./queue";
 
+/**
+ * Default singly-linked-list FIFO queue implementation.
+ * Used by {@link Consumer} to buffer values when no credit is available.
+ *
+ * @template VALUE The type of values stored.
+ */
 export class DefaultQueue<VALUE> implements Queue<VALUE> {
   private _head?: DefaultQueue.Node<VALUE>;
   private _tail?: DefaultQueue.Node<VALUE>;
@@ -48,6 +54,7 @@ export class DefaultQueue<VALUE> implements Queue<VALUE> {
     this._size--;
     const value = this._head.value;
     this._head = this._head.next;
+    if (!this._head) this._tail = undefined;
 
     return value;
   }

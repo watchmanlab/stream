@@ -1,6 +1,12 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
+/**
+ * Calls `fn` once per `next()` credit and emits the return value, then completes.
+ *
+ * @example
+ * fromFunction(() => Math.random()).pipe(listen(console.log));
+ */
 export class FunctionSource<VALUE> extends Source<VALUE> {
   constructor(private fn: (...args: any[]) => VALUE) {
     super();
@@ -26,6 +32,10 @@ export class FunctionSource<VALUE> extends Source<VALUE> {
   }
 }
 
+/**
+ * Creates a `FunctionSource`.
+ * @param fn Function called once to produce the emitted value.
+ */
 export function fromFunction<VALUE>(fn: (...args: any[]) => VALUE): FunctionSource<VALUE> {
   return new FunctionSource(fn);
 }

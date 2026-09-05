@@ -1,6 +1,12 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
+/**
+ * Emits a single value after `ms` milliseconds via `setTimeout`, then completes.
+ *
+ * @example
+ * fromTimeout(1000, 'done').pipe(listen(console.log));
+ */
 export class TimeoutSource<MS extends number, VALUE = void> extends Source<VALUE> {
   constructor(
     private ms: MS,
@@ -33,6 +39,11 @@ export class TimeoutSource<MS extends number, VALUE = void> extends Source<VALUE
   }
 }
 
+/**
+ * Creates a `TimeoutSource`.
+ * @param ms Delay in milliseconds.
+ * @param value Optional value to emit (defaults to `undefined`).
+ */
 export function fromTimeout<MS extends number, VALUE = void>(ms: MS, value?: VALUE): TimeoutSource<MS, VALUE> {
   return new TimeoutSource(ms, value);
 }

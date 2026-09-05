@@ -3,16 +3,17 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ValueOfConsumable } from "../core/types";
 import { passive } from "./passive";
+import { Scope, scope } from "./scope";
 
 /**
- * Terminates the stream when any of the `others` consumables `abort` or `complete`.
- * The first consumable to terminate will terminates the output.
+ * Like {@link Scope} but requires ALL notifiers to complete before terminating.
  *
  * @example
- * const lifetime = fromTimeout(5000);
- * fromInterval(500).pipe(scope(lifetime)).pipe(listen(console.log));
+ * const s1 = fromTimeout(1000);
+ * const s2 = fromTimeout(2000);
+ * fromInterval(300).pipe(scopeStrict(s1, s2)).pipe(listen(console.log)); // runs until both fire
  */
-export class Scope<
+export class ScopeStrict<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [other: Consumable.AnyConsumable, ...others: Consumable.AnyConsumable[]],
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
@@ -25,6 +26,7 @@ export class Scope<
   }
   override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE> | undefined): Consumer<VALUE> {
     const { terminate, ...rest } = options ?? {};
+    let count = this.others.length;
 
     const output$ = this.$input.consume(handler, {
       ...rest,
@@ -37,7 +39,7 @@ export class Scope<
       Source.from(other)
         .pipe(passive())
         .consume((c) => c.next(), {
-          terminate: (_, r) => output$.terminate(r),
+          terminate: (_, r) => !--count && output$.terminate(r),
         })
         .next(),
     );
@@ -46,18 +48,18 @@ export class Scope<
   }
 }
 /**
- * Terminates the stream when any of the `others` consumables `abort` or `complete`.
- * The first consumable to terminate will terminates the output.
+ * Like {@link scope} but requires ALL notifiers to complete before terminating.
  *
- * @param others One or more notifier streams. The first to emit terminates the output.
+ * @param others All notifiers must complete before the output terminates.
  *
  * @example
- * const lifetime = fromTimeout(5000);
- * fromInterval(500).pipe(scope(lifetime)).pipe(listen(console.log));
+ * const s1 = fromTimeout(1000);
+ * const s2 = fromTimeout(2000);
+ * fromInterval(300).pipe(scopeStrict(s1, s2)).pipe(listen(console.log)); // runs until both fire
  */
-export function scope<
+export function scopeStrict<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [other: Consumable.AnyConsumable, ...others: Consumable.AnyConsumable[]],
 >(...others: OTHERS) {
-  return ($input: INPUT) => new Scope($input, others);
+  return ($input: INPUT) => new ScopeStrict($input, others);
 }

@@ -1,6 +1,12 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
+/**
+ * Emits DOM events of the given type from an `EventTarget`, then never completes on its own.
+ *
+ * @example
+ * fromEventTarget(window, 'click').pipe(listen(e => console.log(e.type)));
+ */
 export class EventTargetSource<EVENT_TYPE extends keyof HTMLElementEventMap | (string & {})> extends Source<
   EVENT_TYPE extends keyof HTMLElementEventMap ? HTMLElementEventMap[EVENT_TYPE] : Event
 > {
@@ -32,6 +38,11 @@ export class EventTargetSource<EVENT_TYPE extends keyof HTMLElementEventMap | (s
     });
   }
 }
+/**
+ * Creates an `EventTargetSource`.
+ * @param target The `EventTarget` to listen on.
+ * @param eventType The event type string.
+ */
 export function fromEventTarget<EVENT_TYPE extends keyof HTMLElementEventMap | (string & {})>(
   target: EventTarget,
   eventType: EVENT_TYPE,

@@ -1,5 +1,11 @@
 import { Empty } from "./types";
 
+/**
+ * A FIFO queue interface used internally by {@link Consumer} to buffer values
+ * when no credit is available.
+ *
+ * @template VALUE The type of values stored.
+ */
 export interface Queue<VALUE> extends Iterable<VALUE>, Disposable {
   enqueue(value: VALUE): void;
   dequeue(): VALUE | Empty;

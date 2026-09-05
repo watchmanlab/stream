@@ -1,5 +1,15 @@
 import { DefaultQueue } from "./default-queue";
 
+/**
+ * A bounded FIFO queue that enforces a maximum size.
+ * When full, it drops values according to the configured `dropStrategy`:
+ * - `"oldest"` (default): dequeues the oldest value to make room.
+ * - `"newest"`: discards the incoming value.
+ *
+ * An optional `drop` callback is called for every dropped value.
+ *
+ * @template VALUE The type of values stored.
+ */
 export class DefaultSizedQueue<VALUE> extends DefaultQueue<VALUE> {
   constructor(
     private maxSize: number,

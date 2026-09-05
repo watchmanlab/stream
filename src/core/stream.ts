@@ -6,12 +6,33 @@ import { Source } from "./source";
 import { ConsumerSet } from "./consumer-set";
 import { Consumable } from "./consumable";
 
-export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIterable<VALUE> {
+/**
+ * A multicast push source that broadcasts values to all its {@link Consumer}s.
+ *
+ * `Stream` is the primary building block for hot event sources. It extends {@link Source}
+ * and exposes lifecycle event streams (`$push`, `$next`, `$consumerJoin`, etc.) as
+ * first-class `Source`s so you can observe internal stream activity without special tooling.
+ *
+ * When consuming `$next` source or providing `next` option hook these ones are triggered by the fastest {@link Consumer},
+ * so all {@link Consumer}s will get the pushed value and may buffer it if their queues are not empty or they are asynchronous  ,
+ * that's mean fastest {@link Consumer} is the dirver and the others are the followers but this can change if the fastest become slower,
+ * and we can determine/force the driver by making the other {@link Consumer}s a passive ones by piping `passive` transformer
+ *
+ * @template VALUE The type of values emitted.
+ *@param options Stream options including lifecycle hooks.
+ * @example
+ * const stream = new Stream<number>();
+ * stream.consume((consumer, value) => { console.log(value); consumer.next(); }).next();
+ * stream.pushMany(1,2,3);
+ * stream.terminate("complete");
+ */
+export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncDisposable, AsyncIterable<VALUE> {
   private _options: Stream.Options<VALUE>;
   private _events: Stream.Events<VALUE>;
   private _consumerSet: ConsumerSet<VALUE>;
   private _status: Stream.Status;
   private _initCleanup?: (reason: TerminateReason) => void;
+  private pulling = false;
 
   constructor(options?: Stream.Options<VALUE>) {
     super();
@@ -23,6 +44,18 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
 
     if (this.status === "active") this._initCleanup = this._options?.init?.(this);
   }
+  /** Terminates the stream with `"complete"` when used with the `await using` keyword. */
+  async [Symbol.asyncDispose]() {
+    await new Promise<void>((resolve) => {
+      const terminate = this._options.terminate;
+      this.setOption("terminate", (c, r) => {
+        resolve();
+        terminate?.(c, r);
+      });
+      this.terminate("complete");
+    });
+  }
+  /** Terminates the stream with `"abort"` when used with the `using` keyword. */
   [Symbol.dispose]() {
     this.terminate("abort");
   }
@@ -44,6 +77,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
   get status(): Stream.Status {
     return this._status;
   }
+  /** Emits every value passed to {@link push}. */
   get $push(): Source<VALUE> {
     return Source.from(
       (this._events.$push ??= new Stream<VALUE>({
@@ -51,6 +85,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       })),
     );
   }
+  /** Emits the fastest {@link Consumer} that called `next()`. */
   get $next(): Source<Consumer<VALUE>> {
     return Source.from(
       (this._events.$next ??= new Stream<Consumer<VALUE>>({
@@ -58,6 +93,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       })),
     );
   }
+  /** Emits every {@link Consumer} created via {@link consume}. */
   get $consumerJoin(): Source<Consumer<VALUE>> {
     return Source.from(
       (this._events.$consumerJoin ??= new Stream<Consumer<VALUE>>({
@@ -65,6 +101,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       })),
     );
   }
+  /** Emits every {@link Consumer} terminated independently or terminated by the stream termination. */
   get $consumerLeft(): Source<Consumer<VALUE>> {
     return Source.from(
       (this._events.$consumerLeft ??= new Stream<Consumer<VALUE>>({
@@ -72,6 +109,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       })),
     );
   }
+  /** Emits the first {@link Consumer} created when the stream had no consumers. */
   get $firstConsumerJoin(): Source<Consumer<VALUE>> {
     return Source.from(
       (this._events.$firstConsumerJoin ??= new Stream<Consumer<VALUE>>({
@@ -79,6 +117,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       })),
     );
   }
+  /** Emits the last {@link Consumer} to leave when the stream becomes empty. */
   get $lastConsumerLeft(): Source<Consumer<VALUE>> {
     return Source.from(
       (this._events.$lastConsumerLeft ??= new Stream<Consumer<VALUE>>({
@@ -86,6 +125,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       })),
     );
   }
+  /** Emits `void` when the stream enters the drain state. */
   get $drain(): Source<void> {
     return Source.from(
       (this._events.$drain ??= new Stream<void>({
@@ -93,44 +133,66 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
       })),
     );
   }
+  /**
+   * Emits the {@link TerminateReason} when the stream terminates.
+   * Late {@link Consumer}s created receive the reason immediately if already terminated.
+   */
   get $terminate(): Source<TerminateReason> {
     return Source.from(
       (this._events.$terminate ??= new Stream<TerminateReason>({
         lastConsumerLeft: () => (this._events.$terminate = undefined),
-        consumerJoin: (stream, consumer) => {
+        consumerJoin: (s, c) => {
           if (this._status === "abort" || this._status === "complete") {
-            consumer.push(this._status);
-            consumer.terminate(this._status);
-            stream.terminate(this._status);
+            c.push(this._status).next();
+            c.terminate(this._status);
+            s.terminate(this._status);
           }
         },
       })),
     );
   }
+  /**
+   * Broadcasts `value` to all consumers.
+   * Replaced with a no-op after termination.
+   */
   push(value: VALUE): this {
+    this.pulling = false;
     this._options.push?.(this, value);
     this._events.$push?.push(value);
     this._consumerSet.push(value);
     return this;
   }
+  /**This is for inline values to push */
   pushMany(...values: [VALUE, ...VALUE[]]): this {
     return this.pushBatch(values);
   }
+  /**This is for pushing a big set of values */
   pushBatch(values: VALUE[]): this {
     for (let i = 0; i < values.length; i++) {
       this.push(values[i]);
     }
     return this;
   }
+  /**
+   * create a new consumer for this stream.
+   * Fires `firstConsumerJoin` and `consumerJoin` lifecycle hooks.
+   *
+   * @param handler The value handler.
+   * @param options Consumer options including lifecycle hooks.
+   * @returns  - {@link Consumer}
+   */
   consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
     const { queueFactory, next, terminate, ...rest } = options ?? {};
 
     const consumer = new Consumer(handler, {
       ...rest,
       next: (consumer) => {
-        this._options.next?.(this, consumer);
-        this._events.$next?.push(consumer);
-        next?.(consumer);
+        if (!this.pulling) {
+          this.pulling = true;
+          this._options.next?.(this, consumer);
+          this._events.$next?.push(consumer);
+          next?.(consumer);
+        }
       },
 
       terminate: (consumer, reason) => {
@@ -161,6 +223,14 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
 
     return consumer;
   }
+  /**
+   * Terminates the stream.
+   *
+   * - `"abort"`: immediately stops, clears all consumer queues.
+   * - `"complete"`: drains remaining consumer queues before stopping.
+   *
+   * @param reason The termination reason.
+   */
   terminate(reason: TerminateReason): this {
     this.push = EMPTY_THIS_FUNCTION;
     this.consume = (handler, options) => new Consumer(handler, options).terminate(reason);
@@ -194,10 +264,18 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
     return this;
   }
 
+  /**
+   * Creates a `Stream` that pulls from a {@link Consumable} source.
+   * Bridges unicast sources into a multicast `Stream`, pulling from the source
+   * is triggered by the faster consumer and all consumer will get the value,
+   * so slower ones will buffer the value and consume it at their own pace.
+   *
+   * @param consumable The upstream consumable to pull from.
+   * @param options Optional stream options.
+   */
   static override from<VALUE>(consumable: Consumable<VALUE>, options?: Stream.Options<VALUE>): Stream<VALUE> {
-    const { firstConsumerJoin, push, next, terminate, ...rest } = options ?? {};
+    const { firstConsumerJoin, next, terminate, ...rest } = options ?? {};
 
-    let pulling = false;
     let consumableConsumer: Consumer<VALUE>;
 
     return new Stream({
@@ -208,15 +286,9 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncIte
         });
         firstConsumerJoin?.(stream, consumer);
       },
-      push(stream, value) {
-        pulling = false;
-        push?.(stream, value);
-      },
+
       next(stream, consumer) {
-        if (!pulling) {
-          pulling = true;
-          consumableConsumer.next();
-        }
+        consumableConsumer.next();
         next?.(stream, consumer);
       },
       terminate(stream, reason) {
@@ -231,7 +303,7 @@ export namespace Stream {
   export type AnyStream = Stream<any>;
   export type Status = "active" | "drain" | TerminateReason;
 
-  export type Options<VALUE> = {
+  export interface Options<VALUE> {
     consumerSetFactory?: () => ConsumerSet<VALUE>;
     init?: (stream: Stream<VALUE>) => undefined | ((reason: TerminateReason) => void);
     push?: (stream: Stream<VALUE>, value: VALUE) => void;
@@ -242,7 +314,7 @@ export namespace Stream {
     lastConsumerLeft?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
     drain?: (stream: Stream<VALUE>) => void;
     terminate?: (stream: Stream<VALUE>, reason: TerminateReason) => void;
-  };
+  }
 
   export type Events<VALUE> = {
     $push?: Stream<VALUE>;

@@ -4,6 +4,22 @@ import { Source } from "../core/source";
 import { Stream } from "../core/stream";
 import { ValueOfConsumable } from "../core/types";
 
+/**
+ * Passes only values that satisfy the predicate downstream.
+ * Values that fail the predicate are forwarded to the lazy `$complements` stream
+ * at zero cost if unused.
+ * `$complements` is passive relative to the `filter` , that's mean consuming `$complements`
+ * will never trigger the `filter` consumption
+ *
+ * @template INPUT The upstream consumable type.
+ * @template VALUE The upstream value type.
+ * @template FILTERED The narrowed output type (supports type guards).
+ *
+ * @example
+ * const f = of(1,2,3,4).pipe(filter(v => v % 2 === 0));
+ * f.$complements.pipe(listen(console.log)); // 1, 3
+ * f.pipe(listen(console.log));              // 2, 4
+ */
 export class Filter<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,
@@ -18,6 +34,10 @@ export class Filter<
   }
   private _$complements?: Stream<VALUE>;
 
+  /**
+   * Lazy stream of values rejected by the predicate.
+   * Only allocated when first accessed.
+   */
   get $complements(): Source<VALUE> {
     return Source.from(
       (this._$complements ??= new Stream({
@@ -40,7 +60,25 @@ export class Filter<
     }, options);
   }
 }
-
+/**
+ * Passes only values that satisfy the predicate downstream.
+ * Values that fail the predicate are forwarded to the lazy `$complements` stream
+ * at zero cost if unused.
+ * `$complements` is passive relative to the `filter` , that's mean consuming `$complements`
+ * will never trigger the `filter` consumption
+ *
+ * @template INPUT The upstream consumable type.
+ * @template VALUE The upstream value type.
+ * @template FILTERED The narrowed output type (supports type guards).
+ *
+ * @param predicate Function `(value, index) => boolean` or type guard.
+ * @param complement Optional inline callback for rejected values.
+ *
+ * @example
+ * const f = of(1,2,3,4).pipe(filter(v => v % 2 === 0));
+ * f.$complements.pipe(listen(console.log)); // 1, 3
+ * f.pipe(listen(console.log));              // 2, 4
+ */
 export function filter<
   INPUT extends Consumable.AnyConsumable,
   VALUE extends ValueOfConsumable<INPUT> = ValueOfConsumable<INPUT>,

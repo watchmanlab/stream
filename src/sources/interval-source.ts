@@ -1,6 +1,14 @@
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
+/**
+ * Emits an incrementing counter every `ms` milliseconds via `setInterval`.
+ * Never completes on its own — must be terminated externally.
+ * `NOTE:` this is a replayable source
+ *
+ * @example
+ * fromInterval(500).pipe(take(3)).pipe(listen(console.log)); // 0, 1, 2
+ */
 export class IntervalSource<MS extends number> extends Source<number> {
   constructor(private ms: MS) {
     super();
@@ -24,6 +32,10 @@ export class IntervalSource<MS extends number> extends Source<number> {
   }
 }
 
+/**
+ * Creates an `IntervalSource`.
+ * @param ms Interval in milliseconds.
+ */
 export function fromInterval<MS extends number>(ms: MS): IntervalSource<MS> {
   return new IntervalSource(ms);
 }

@@ -1,7 +1,16 @@
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-
+import { last } from "./last";
+/**
+ * Emits the running sum after each numeric value.
+ * all aggregate transformers like this one emit each step,
+ * this is useful for tracking intermediate aggregates and can even be paused at any point
+ * To get the final count, just pipe {@link last} transformer after it.
+ *
+ * @example
+ * of(1, 2, 3).pipe(sum()).pipe(last()).pipe(listen(console.log)); // 6
+ */
 export class Sum<INPUT extends Consumable<number>> extends Source<number> {
   constructor(private $input: INPUT) {
     super();
@@ -17,6 +26,15 @@ export class Sum<INPUT extends Consumable<number>> extends Source<number> {
   }
 }
 
+/**
+ * Emits the running sum after each numeric value.
+ * all aggregate transformers like this one emit each step,
+ * this is useful for tracking intermediate aggregates and can even be paused at any point
+ * To get the final count, just pipe {@link last} transformer after it.
+ *
+ * @example
+ * of(1, 2, 3).pipe(sum()).pipe(last()).pipe(listen(console.log)); // 6
+ */
 export function sum<INPUT extends Consumable<number>>() {
   return ($input: INPUT) => new Sum($input);
 }

@@ -3,6 +3,18 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 import { ValueOfConsumable, ValueOfPromise, Error } from "../core/types";
 
+/**
+ * Resolves a stream of `Promise`s with optional concurrency control.
+ * Emits resolved values or `Error<reason>` for rejections.
+ * Upstream credit is withheld until a concurrency slot is free.
+ *
+ * @example
+ * fromGenerator(function* () {
+        yield fetch("/a");
+        yield fetch("/b");
+        yield fetch("/c");
+      }).pipe(resolve(2)).pipe(listen(console.log));
+ */
 export class Resolve<
   INPUT extends Consumable<Promise<any>>,
   VALUE extends ValueOfPromise<ValueOfConsumable<INPUT>> = ValueOfPromise<ValueOfConsumable<INPUT>>,
@@ -23,34 +35,34 @@ export class Resolve<
 
     const output$ = new Consumer(handler, {
       ...rest,
-      next: (consumer) => {
+      next: (c) => {
         if (count < this.concurrency) input$.next();
-        next?.(consumer);
+        next?.(c);
       },
-      terminate(consumer, reason) {
-        input$.terminate(reason);
-        terminate?.(consumer, reason);
+      terminate(c, r) {
+        input$.terminate(r);
+        terminate?.(c, r);
       },
     });
 
     const input$ = this.$input.consume(
-      (consumer, maybePromise) => {
-        if (++count < this.concurrency) consumer.next();
-
+      (c, maybePromise) => {
         maybePromise
-          .then((value) => {
+          .then((v) => {
             count--;
-            output$.push(value);
+            output$.push(v);
           })
           .catch((error) => {
             count--;
             output$.push(new Error(error));
           })
           .finally(() => {
-            if (!count && (consumer.status === "abort" || consumer.status === "complete")) {
-              output$.terminate(consumer.status);
+            if (!count && (c.status === "abort" || c.status === "complete")) {
+              output$.terminate(c.status);
             }
           });
+
+        if (++count < this.concurrency) c.next();
       },
       {
         terminate(_, reason) {
@@ -62,7 +74,20 @@ export class Resolve<
     return output$;
   }
 }
-
+/**
+ * Resolves a stream of `Promise`s with optional concurrency control.
+ * Emits resolved values or `Error<reason>` for rejections.
+ * Upstream credit is withheld until a concurrency slot is free.
+ *
+ * @param concurrency Max number of in-flight promises (default `1`).
+ *
+ * @example
+ * fromGenerator(function* () {
+        yield fetch("/a");
+        yield fetch("/b");
+        yield fetch("/c");
+      }).pipe(resolve(2)).pipe(listen(console.log));
+ */
 export function resolve<INPUT extends Consumable<Promise<any>>>(concurrency = 1) {
   return ($input: INPUT) => new Resolve($input, concurrency);
 }
