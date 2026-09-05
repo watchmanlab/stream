@@ -13,13 +13,11 @@ import { Consumable } from "./consumable";
  * and exposes lifecycle event streams (`$push`, `$next`, `$consumerJoin`, etc.) as
  * first-class `Source`s so you can observe internal stream activity without special tooling.
  *
- * When consuming `$next` source or providing `next` option hook these ones are triggered by the fastest {@link Consumer},
+ * When consuming `$next` source or providing `next` option hook those are triggered by the fastest {@link Consumer},
  * so all {@link Consumer}s will get the pushed value and may buffer it if their queues are not empty or they are asynchronous  ,
  * that's mean fastest {@link Consumer} is the dirver and the others are the followers but this can change if the fastest become slower,
- * and we can determine/force the driver by making the other {@link Consumer}s a passive ones by piping `passive` transformer
+ * and we can determine/force the driver by making the other {@link Consumer}s passive by piping `passive` transformer
  *
- * @template VALUE The type of values emitted.
- *@param options Stream options including lifecycle hooks.
  * @example
  * const stream = new Stream<number>();
  * stream.consume((consumer, value) => { console.log(value); consumer.next(); }).next();
@@ -154,6 +152,8 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncDis
   /**
    * Broadcasts `value` to all consumers.
    * Replaced with a no-op after termination.
+   *
+   * @param value
    */
   push(value: VALUE): this {
     this.pulling = false;
@@ -162,11 +162,17 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncDis
     this._consumerSet.push(value);
     return this;
   }
-  /**This is for inline values to push */
+  /**This is for inline values to push
+   *
+   * @param values
+   */
   pushMany(...values: [VALUE, ...VALUE[]]): this {
     return this.pushBatch(values);
   }
-  /**This is for pushing a big set of values */
+  /**This is for pushing a big set of values
+   *
+   * @param values
+   */
   pushBatch(values: VALUE[]): this {
     for (let i = 0; i < values.length; i++) {
       this.push(values[i]);
@@ -229,7 +235,7 @@ export class Stream<VALUE> extends Source<VALUE> implements Disposable, AsyncDis
    * - `"abort"`: immediately stops, clears all consumer queues.
    * - `"complete"`: drains remaining consumer queues before stopping.
    *
-   * @param reason The termination reason.
+   * @param reason The termination reason `abort` or `complete`.
    */
   terminate(reason: TerminateReason): this {
     this.push = EMPTY_THIS_FUNCTION;

@@ -1,9 +1,7 @@
-import { map, Subject, Observable, mergeMap, filter, share, from, takeWhile } from "rxjs";
+import { map, Subject, Observable } from "rxjs";
 
 function getHeapSize(): number {
-  if (globalThis.gc) {
-    globalThis.gc();
-  }
+  Bun.gc(true);
   return process.memoryUsage().heapUsed;
 }
 

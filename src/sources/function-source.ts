@@ -2,7 +2,9 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
 /**
- * Calls `fn` once per `next()` credit and emits the return value, then completes.
+ * `Replayable`
+ *
+ * Calls `fn` once, emit the result then completes.
  *
  * @example
  * fromFunction(() => Math.random()).pipe(listen(console.log));
@@ -31,10 +33,15 @@ export class FunctionSource<VALUE> extends Source<VALUE> {
     );
   }
 }
-
 /**
- * Creates a `FunctionSource`.
+ * `Replayable`
+ *
+ * Calls `fn` once, emit the result then completes.
+ *
  * @param fn Function called once to produce the emitted value.
+ *
+ * @example
+ * fromFunction(() => Math.random()).pipe(listen(console.log));
  */
 export function fromFunction<VALUE>(fn: (...args: any[]) => VALUE): FunctionSource<VALUE> {
   return new FunctionSource(fn);
