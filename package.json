@@ -1,31 +1,37 @@
 {
   "name": "@soffinal/stream",
+  "description": "Multi-paradigm reactive primitives for modern applications",
   "version": "0.3.0",
-  "author": "Soffinal <smari.sofiane@gmail.com>",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/soffinal/stream.git"
-  },
+  "license": "MIT",
+  "sideEffects": false,
+  "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5.9.2"
-  },
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
   },
-  "description": "Multi-paradigm reactive primitives for modern applications",
   "files": [
     "dist",
-    "src/transformers/*.md",
     "README.md"
   ],
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "rxjs": "^7.8.2"
+  },
+  "author": "Soffinal <smari.sofiane@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soffinal/stream.git"
+  },
   "keywords": [
     "reactive",
     "streams",
@@ -33,13 +39,6 @@
     "typescript",
     "event",
     "observable",
-    "emitter",
-    "adaptive constraints"
-  ],
-  "license": "MIT",
-  "type": "module",
-  "types": "./dist/index.d.ts",
-  "dependencies": {
-    "rxjs": "^7.8.2"
-  }
+    "emitter"
+  ]
 }
