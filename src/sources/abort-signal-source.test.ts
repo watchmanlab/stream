@@ -1,6 +1,7 @@
 import { describe, it, expect, mock } from "bun:test";
 import { fromAbortSignal } from "./abort-signal-source";
 import { listen } from "../transformers/listen";
+
 describe("fromAbortSignal", () => {
   it("emit when abort signal abort", () => {
     const controller = new AbortController();

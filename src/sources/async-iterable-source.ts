@@ -1,6 +1,8 @@
 import { AsyncIteratorSource } from "./async-iterator-source";
 
 /**
+ * `Replayable`
+ *
  * Wraps an `AsyncIterable` as a pull-based `Source`.
  * A new async iterator is created per consumer.
  *
@@ -18,7 +20,15 @@ export class AsyncIterableSource<VALUE> extends AsyncIteratorSource<VALUE> {
 }
 
 /**
- * Creates an `AsyncIterableSource` from an async iterable or factory.
+ * `Replayable`
+ *
+ * Wraps an `AsyncIterable` as a pull-based `Source`.
+ * A new async iterator is created per consumer.
+ *
+ * @param asyncIterable  AsyncIterable<VALUE> | (() => AsyncIterable<VALUE>).
+ *
+ * @example
+ * fromAsyncIterable(asyncIterable).pipe(listen(console.log));
  */
 export function fromAsyncIterable<VALUE>(
   asyncIterable: AsyncIterable<VALUE> | (() => AsyncIterable<VALUE>),

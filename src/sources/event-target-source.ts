@@ -2,7 +2,8 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
 /**
- * Emits DOM events of the given type from an `EventTarget`, then never completes on its own.
+ * Emits DOM events of the given type from an `EventTarget`.
+ * Create an event listener for each consumer
  *
  * @example
  * fromEventTarget(window, 'click').pipe(listen(e => console.log(e.type)));
@@ -27,21 +28,26 @@ export class EventTargetSource<EVENT_TYPE extends keyof HTMLElementEventMap | (s
 
     return new Consumer(handler, {
       ...rest,
-      init: (consumer) => {
-        this.target.addEventListener(this.eventType, (e: any) => consumer.push(e), { signal: abortController.signal });
-        return init?.(consumer);
+      init: (c) => {
+        this.target.addEventListener(this.eventType, (e: any) => c.push(e), { signal: abortController.signal });
+        return init?.(c);
       },
-      terminate(consumer, reason) {
+      terminate(c, r) {
         abortController.abort();
-        terminate?.(consumer, reason);
+        terminate?.(c, r);
       },
     });
   }
 }
 /**
- * Creates an `EventTargetSource`.
+ * Emits DOM events of the given type from an `EventTarget`.
+ * Create an event listener for each consumer
+ *
  * @param target The `EventTarget` to listen on.
  * @param eventType The event type string.
+ *
+ * @example
+ * fromEventTarget(window, 'click').pipe(listen(e => console.log(e.type)));
  */
 export function fromEventTarget<EVENT_TYPE extends keyof HTMLElementEventMap | (string & {})>(
   target: EventTarget,

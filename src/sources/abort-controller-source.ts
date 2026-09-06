@@ -14,8 +14,14 @@ export class AbortControllerSource extends AbortSignalSource {
   }
 }
 /**
- * Creates an `AbortControllerSource`.
+ * Convenience wrapper around {@link AbortSignalSource} that accepts an `AbortController`.
+ *
  * @param controller The `AbortController` whose signal to observe.
+ *
+ * @example
+ * const controller = new AbortController();
+ * fromAbortController(controller).pipe(listen(() => console.log('aborted')));
+ * controller.abort();
  */
 export function fromAbortController(controller: AbortController): AbortControllerSource {
   return new AbortControllerSource(controller);

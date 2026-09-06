@@ -1,94 +1,342 @@
-# 🌌 [Your Library Name]
+# @soffinal/stream
 
-A lightweight, credit-driven event streaming engine for JavaScript and TypeScript.
+> Multi-paradigm reactive primitives built on a **pull-on-push** protocol.
 
-**3x Faster than RxJS. Less than 50% of the memory footprint. 100% Lazy.**
+A TypeScript reactive library with a credit-based backpressure system, zero runtime dependencies, and a composable transformer API. Every behavior lives in a transformer — the core stays dumb.
 
 ---
 
-## ⚡ Let the Code Speak
+## Install
 
-If you have used libraries like RxJS or native Node streams, you know how clunky backpressure, asynchronous loops, and stream branching can get. Here is how this engine solves complex data engineering challenges using simple, highly optimized primitives.
+```sh
+# npm
+npm install @soffinal/stream
 
-### 1. Zero-Clone Inline Stream Bifurcation (The Filter Test)
-
-Ever tried to split a stream into "passed" and "failed" buckets? In other libraries, you are forced to duplicate the source, multicast it, and run two opposite, redundant filter operations.
-
-In this engine, every `filter` has a built-in, lazy `$complements` stream. You can branch your rejected values inline within a single execution pass—with **zero overhead** if unused.
-
-```typescript
-import { fromIterable, filter, toConsole, pipe } from 'your-library';
-
-fromIterable([1, 2, 3, 4, 5])
-  .pipe(filter((v) => v % 2 === 0))
-  .pipe(pipe((input) => input.\$complements.pipe(toConsole("❌ Odd"))))
-  .pipe(toConsole("✅ Even"));
-
-// Output executing in a single interleaved pass:
-// ❌ Odd: 1
-// ✅ Even: 2
-// ❌ Odd: 3
-// ✅ Even: 4
-// ❌ Odd: 5
+# JSR
+jsr add @soffinal/stream
 ```
 
-### 2. Decoupling Math from Time (The Paced Sum Test)
+---
 
-In legacy architectures, operators like `sum()` or `reduce()` are massive "black boxes" that block your data. They hoard state, choke your timeline, and emit nothing until the stream completely ends. You can't safely throttle or sample them.
+## Core Concepts
 
-In this engine, math is split from time. `sum()` is a fast, stateless primitive that streams raw numbers. `pace()` regulates the credit economy backwards to slow the producer. `last()` acts as the final terminal collector.
+### The Three Primitives
+
+Everything is built from three concepts:
+
+- **`Stream` / `Source` / `Consumable`** — one primitive, three layers. `Consumable` is the interface: anything with a `consume` method participates in the pipeline. `Source` is the abstract base that adds `pipe` and `for await...of`. `Stream` is the concrete multicast implementation. From the user's perspective they are interchangeable.
+- **`pipe`** — the composition mechanism. `source.pipe(fn)` is just `fn(source)`. Transformers are not special — they are plain `Source`s whose constructor accepts another `Consumable` as input. `map`, `filter`, `debounce` are all just `Source` subclasses. `pipe` is the glue that passes one into the next.
+
+### The Credit System
+
+A `Consumer` only processes a value when it has **credit**. Credit is granted by calling `next()`. Values pushed without credit are queued and drained in order as credit is granted.
 
 ```typescript
-import { of, sum, pace, tap, last, toConsole } from "your-library";
+const consumer = new Consumer<number>((self, value) => {
+  console.log(value);
+  self.next(); // grant credit for the next value
+});
+consumer.next(); // grant initial credit
+consumer.push(1); // fires immediately
+consumer.push(2); // fires immediately (self.next() re-granted credit)
+```
 
+A synchronous consumer always has credit before values arrive — the queue is never touched. An async consumer buffers naturally. Backpressure is implicit and free.
+
+---
+
+## Quick Start
+
+```typescript
+import { of, fromInterval, fromIterable } from "@soffinal/stream/sources";
+import { map, filter, take, listen, share, debounce, resolve } from "@soffinal/stream/transformers";
+import { Stream, Signal, State } from "@soffinal/stream";
+
+// Basic pipeline
 of(1, 2, 3, 4, 5)
-  .pipe(sum()) // Pure math: streams updated running totals live
-  .pipe(pace(100)) // Regulates credit: slows upstream down to 100ms per element
-  .pipe(tap((v, i) => console.log(`Step ${i}: Current sum is ${v}`)))
-  .pipe(last(true)) // Time governor: holds back the final total until completion
-  .pipe(toConsole("🏆 Grand Total"));
+  .pipe(filter((v) => v % 2 === 0))
+  .pipe(map((v) => v * 10))
+  .pipe(listen(console.log)); // 20, 40
 
-// Output:
-// Step 0: Current sum is 1
-// Step 1: Current sum is 3
-// Step 2: Current sum is 6
-// Step 3: Current sum is 10
-// Step 4: Current sum is 15
-// 🏆 Grand Total: 15
+// Interval with take
+fromInterval(100).pipe(take(3)).pipe(listen(console.log)); // 0, 1, 2
+
+// for await...of
+for await (const v of fromIterable([1, 2, 3])) {
+  console.log(v);
+}
 ```
 
-### 3. Composable Concurrent Async Pipelines
+---
 
-Tired of having to use specific async operators like `mergeMap`, `switchMap`, or `filterAsync`?
+## Sources
 
-In this engine, transformers **never know about async operations**. Instead, you combine a standard `map` (evaluating a sync or async predicate), your core **Concurrency Governor (`resolve`)**, and a strict synchronous regulator. This keeps your hot-path type signatures completely pristine and highly optimized for the engine.
+| Factory                           | Description                                       |
+| --------------------------------- | ------------------------------------------------- |
+| `of(...values)`                   | Fixed list of values, then completes              |
+| `fromIterable(iterable)`          | Any `Iterable` or factory function                |
+| `fromGenerator(fn)`               | Generator function, new instance per consumer     |
+| `fromInterval(ms)`                | `setInterval` counter, never completes on its own |
+| `fromTimeout(ms, value?)`         | `setTimeout`, single value then completes         |
+| `fromRange(start, end)`           | Integer range `[start, end)`                      |
+| `fromEventTarget(target, type)`   | DOM `EventTarget` events                          |
+| `fromAbortSignal(signal)`         | Emits once when `AbortSignal` fires               |
+| `fromFunction(fn)`                | Calls `fn` once, emits result then completes      |
+| `fromAsyncIterable(iterable)`     | Any `AsyncIterable`                               |
+| `fromAsyncIterator(iterator)`     | Any `AsyncIterator`                               |
+| `fromAsyncGenerator(fn)`          | Async generator function                          |
+| `fromAbortController(controller)` | Emits once when controller is aborted             |
+| `fromGcToken(target)`             | Emits when a `WeakRef` target is GC'd             |
+
+Sources marked **replayable** create a fresh sequence per consumer.
+
+---
+
+## Streams
+
+### `Stream<VALUE>`
+
+Multicast push source with observable lifecycle events.
 
 ```typescript
-import { stream, map, resolve, filterStrict, toConsole } from "your-library";
+const stream = new Stream<number>();
+
+// Lifecycle as first-class sources
+stream.$push.pipe(listen((v) => console.log("pushed:", v)));
+stream.$firstConsumerJoin.pipe(listen(() => console.log("first consumer")));
+stream.$terminate.pipe(listen((r) => console.log("terminated:", r)));
 
 stream
-  // 1. Evaluate your predicate concurrently (Returns a Tuple/Promise)
-  .pipe(map(async (user) => [user, await checkDatabase(user.id)] as const))
+  .consume((c, v) => {
+    console.log(v);
+    c.next();
+  })
+  .next();
+stream.push(1).push(2).push(3);
+stream.terminate("complete");
+```
 
-  // 2. Drive the async lanes (Processes 4 database requests in parallel!)
-  .pipe(resolve(4))
+**Lifecycle events:** `$push`, `$next`, `$consumerJoin`, `$consumerLeft`, `$firstConsumerJoin`, `$lastConsumerLeft`, `$drain`, `$terminate`
 
-  // 3. Regulate and Flatten (Yields ONLY concrete values downstream)
-  .pipe(filterStrict())
+### `Signal<VALUE>`
 
-  .pipe(toConsole("Validated Users"));
+Auto-terminates after the first push. For one-shot events.
+
+```typescript
+const sig = new Signal<string>();
+sig.pipe(listen(console.log));
+sig.push("done"); // emits 'done', then terminates
+```
+
+### `State<VALUE>`
+
+Has a `.value` property. Setting it pushes to all consumers.
+
+```typescript
+const count = state(0);
+count.pipe(listen((v) => console.log("count:", v)));
+count.value = 1; // logs 'count: 1'
+count.value = 2; // logs 'count: 2'
 ```
 
 ---
 
-## 🛠️ The Core Secret: The Credit-Driven Economy
+## Transformers
 
-Traditional streaming libraries use a **Push-Only** model. If a source emits 10,000 items per second but your database can only write 100, your app spikes in memory or crashes unless you inject complex workarounds.
+### Filtering & Slicing
 
-This engine introduces a **Pull-on-Push Hybrid model**.
+```typescript
+filter(predicate)       // pass values matching predicate; rejected values go to .$complements
+take(n)                 // first n values then terminate
+skip(n)                 // skip first n values
+takeWhile(predicate)    // take while predicate is true
+takeUntil(notifier)     // take until notifier emits
+skipWhile(predicate)    // skip while predicate is true
+skipUntil(notifier)     // skip until notifier emits
+first(predicate?)       // first value (or first matching predicate)
+last()                  // last value on completion
+distinct(comparator?)   // skip consecutive duplicates
+```
 
-- Data flows down, but **Authority flows up**.
-- Downstream consumers grant explicit `_credit` tokens up the pipe via `consumer.next()`.
-- If a pacing operator pauses, or a concurrency lane fills up, credit allocation stops, and the upstream producer instantly freezes.
+### Transformation
 
-By treating credit routing as the structural foundation, we removed the heavy "monadic object wrapper tax" from functional programming. Raw primitives cascade down the wire completely unmapped, allowing the V8 JIT compiler to inline your loops at native hardware speeds.
+```typescript
+map(fn); // transform each value
+tap(fn); // side effect, passes value through
+tapInput(fn); // tap on the input consumer
+tapTerminate(fn); // tap on termination
+scan(seed, reducer); // running accumulator, emits each step
+scanArray(fn); // scan that accumulates into an array
+context(ctx); // wrap each value as { value, context }
+```
+
+### Flattening
+
+```typescript
+flat(depth?)            // flatten arrays
+flat$()                 // flatten inner Consumables sequentially
+switch$()               // switch to latest inner Consumable, cancel previous
+```
+
+### Combination
+
+```typescript
+merge(...others); // emit from all inputs as they arrive
+zip(...others); // pair values from all inputs into tuples
+combine(...others); // emit on any input, using last known value for others
+```
+
+### Timing
+
+```typescript
+debounce(ms); // emit after ms silence
+pace(ms); // rate-limit to one value per ms
+delay(ms); // delay each value by ms
+delayOnce(ms); // delay only the first value
+```
+
+### Windowing
+
+```typescript
+buffer(size, every?)    // sliding window arrays
+batch(size)             // non-overlapping chunks
+```
+
+### Sharing & Routing
+
+```typescript
+share(); // multicast via Stream.from
+passive(); // observe without driving the source
+gate(control$); // open/close based on boolean stream
+pump(); // eagerly drain upstream into a Stream
+latest(n); // buffer last n values for late subscribers
+```
+
+### Async
+
+```typescript
+resolve(concurrency?)   // resolve Promises, emit values or Error<reason>
+```
+
+### Error Handling
+
+```typescript
+safe(fn); // wrap pipeline in try/catch, emit Error<thrown> on throw
+```
+
+### Lifecycle
+
+```typescript
+terminate(); // emit termination reason, ignore values
+scope(...notifiers); // terminate when any notifier terminates
+scopeStrict(...notifiers); // terminate only on abort
+```
+
+### Aggregation
+
+```typescript
+sum(); // running sum
+min(); // running minimum
+max(); // running maximum
+count(); // running count
+every(predicate); // true if all values match
+range(); // [min, max] running range
+```
+
+> All aggregation operators emit running values. Pipe `last()` after them to get the final result.
+
+```typescript
+of(1, 2, 3, 4, 5)
+  .pipe(scan(0, (acc, v) => acc + v))
+  .pipe(last())
+  .pipe(listen(console.log)); // 15
+```
+
+---
+
+## Active vs Passive Consumers
+
+By default every consumer is **active** — it drives the source. When a source is shared, the fastest consumer triggers production and slower ones buffer values in their queues.
+
+Use `passive()` to observe a shared source without driving it:
+
+```typescript
+const shared = fromInterval(500).pipe(share());
+
+shared.pipe(listen((v) => console.log("main:", v))); // drives the source
+shared.pipe(passive()).pipe(listen((v) => console.log("observer:", v))); // never drives
+```
+
+---
+
+## Error Handling
+
+Errors are values. The core is error-agnostic. Use `safe` to catch throws and `resolve` to catch promise rejections:
+
+```typescript
+of(1, 2, 3)
+  .pipe(
+    safe(
+      map((v) => {
+        if (v === 2) throw "bad";
+        return v;
+      }),
+    ),
+  )
+  .pipe(filter((v) => !(v instanceof Error)))
+  .pipe(listen(console.log)); // 1, 3
+
+fromGenerator(function* () {
+  yield fetch("/a");
+  yield fetch("/b");
+})
+  .pipe(resolve(2))
+  .pipe(listen(console.log));
+```
+
+---
+
+## Termination
+
+Two modes:
+
+- `"abort"` — stop immediately, clear all queues
+- `"complete"` — drain remaining queued values, then stop
+
+Works with `using` / `await using`:
+
+```typescript
+{
+  using stream = new Stream<number>(); // abort on block exit
+}
+
+{
+  await using stream = new Stream<number>(); // complete on block exit, waits for drain
+}
+```
+
+---
+
+## Lifecycle Example
+
+```typescript
+const stream = new Stream<number>({
+  firstConsumerJoin: () => console.log("started"),
+  lastConsumerLeft: () => console.log("stopped"),
+});
+
+const c = stream
+  .consume((c, v) => {
+    console.log(v);
+    c.next();
+  })
+  .next();
+stream.push(1).push(2);
+c.terminate("abort"); // 'stopped'
+```
+
+---
+
+## License
+
+MIT

@@ -21,24 +21,25 @@ export class GCTokenSource extends Source<void> {
     const { init, ...rest } = options ?? {};
     return new Consumer(handler, {
       ...rest,
-      init: (consumer) => {
+      init: (c) => {
         const obj = this.ref.deref();
+
         if (!obj) {
-          consumer.push();
-          consumer.terminate("complete");
+          c.push();
+          c.terminate("complete");
         } else {
           this.registry = new FinalizationRegistry(() => {
-            consumer.push();
-            consumer.terminate("complete");
+            c.push();
+            c.terminate("complete");
           });
 
           this.registry.register(obj, undefined, this);
         }
 
-        const cleanup = init?.(consumer);
+        const cleanup = init?.(c);
 
-        return (reason) => {
-          cleanup?.(reason);
+        return (r) => {
+          cleanup?.(r);
           this.registry?.unregister(this);
         };
       },
@@ -47,8 +48,15 @@ export class GCTokenSource extends Source<void> {
 }
 
 /**
- * Creates a `GCTokenSource`.
+ * Emits once when the given object is garbage collected via `FinalizationRegistry`.
+ * If the object is already collected at subscription time, emits immediately.
+ *
  * @param token The object to watch for garbage collection.
+ *
+ * @example
+ * let obj: object | null = {};
+ * fromGCToken(obj).pipe(listen(() => console.log('collected')));
+ * obj = null;
  */
 export function fromGCToken(token: object): GCTokenSource {
   return new GCTokenSource(token);

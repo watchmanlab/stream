@@ -1,5 +1,7 @@
 import { IteratorSource } from "./iterator-source";
 /**
+ * `Replayable`
+ *
  * Wraps any `Iterable` as a pull-based `Source`.
  * A new iterator is created per consumer via the iterable's `Symbol.iterator`.
  *
@@ -13,8 +15,16 @@ export class IterableSource<VALUE> extends IteratorSource<VALUE> {
   }
 }
 /**
- * Creates an `IterableSource` from an iterable or iterable factory.
+ * `Replayable`
+ *
+ * Wraps any `Iterable` as a pull-based `Source`.
+ * A new iterator is created per consumer via the iterable's `Symbol.iterator`.
+ *
  * @param iterable An `Iterable` or a factory function returning one.
+ *
+ * @example
+ * fromIterable([1, 2, 3]).pipe(listen(console.log));
+ * fromIterable(() => new Set([1, 2, 3])); // factory form
  */
 export function fromIterable<VALUE>(iterable: Iterable<VALUE> | (() => Iterable<VALUE>)): IterableSource<VALUE> {
   return new IterableSource(iterable);

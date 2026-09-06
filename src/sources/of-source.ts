@@ -2,6 +2,8 @@ import { ValueOfArray } from "../core/types";
 import { fromIterable, type IterableSource } from "./iterable-source";
 
 /**
+ * `Replayable`
+ *
  * Emits a fixed list of values then completes. Shorthand for `fromIterable(values)`.
  *
  * @example

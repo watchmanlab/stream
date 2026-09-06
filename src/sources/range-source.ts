@@ -2,6 +2,8 @@ import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
 
 /**
+ * `Replayable`
+ *
  * Emits integers from `start` (inclusive) to `end` (exclusive), then completes.
  *
  * @example
@@ -33,11 +35,16 @@ export class RangeSource extends Source<number> {
     });
   }
 }
-
 /**
- * Creates a `RangeSource`.
+ * `Replayable`
+ *
+ * Emits integers from `start` (inclusive) to `end` (exclusive), then completes.
+ *
  * @param start First integer to emit (inclusive).
  * @param end Upper bound (exclusive).
+ *
+ * @example
+ * fromRange(1, 5).pipe(listen(console.log)); // 1, 2, 3, 4
  */
 export function fromRange(start: number, end: number): RangeSource {
   return new RangeSource(start, end);
