@@ -1,0 +1,86 @@
+name: Publish to NPM and JSR
+
+on:
+  push:
+    tags:
+      - "v*" # Triggers automatically when you push a version tag like v0.3.0
+
+jobs:
+  test-and-build:
+    name: Test and Compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      # Replace this step with your actual test script when you have one
+      - name: Run Credit System Tests
+        run: bun test
+
+      - name: Build Distribution Bundle
+        run: bun run build
+
+      # Temporarily store the compiled code for the next job
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-folder
+          path: dist/
+          retention-days: 1
+
+  publish-npm:
+    name: Publish to NPM Registry
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for secure, passwordless Provenance publishing
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (for NPM Publish)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: "https://npmjs.org"
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-folder
+          path: dist
+
+      # Authenticates and publishes cleanly using your NPM secret token
+      - name: Publish Package
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-jsr:
+    name: Publish to JSR Registry
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for JSR's OIDC (passwordless) authentication
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # JSR doesn't need an explicit token if using GitHub actions permissions
+      - name: Publish to JSR
+        run: bunx jsr publish

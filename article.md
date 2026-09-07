@@ -1,6 +1,6 @@
 # I Spent Two Years Building a Reactive Library. Here's What I Learned.
 
-I want to tell you about a problem that took me two years and more than three hundred iterations from scratch and from first principle to solve properly.
+I want to tell you about a problem that took me two years and more than three hundred iterations from scratch and from first principles to solve properly.
 
 Not because the problem is hard to describe — it isn't. But because every time I thought I had it, I'd discover a new wall. And the walls kept teaching me something.
 
@@ -866,7 +866,7 @@ Every piece of behavior is a transformer. The core never knew about debouncing, 
 
 ## The Principle That Survived Everything
 
-After more than three hundred iterations from scratch and from first principle, one principle survived every redesign:
+After more than three hundred iterations from scratch and from first principles, one principle survived every redesign:
 
 > **Primitives must be dumb and unbounded. Behavior lives in higher layer.**
 
@@ -895,5 +895,29 @@ Rust, Go, Swift, Kotlin, C# — the protocol fits all of them. The reentrancy gu
 The TypeScript implementation here is one expression of the protocol. The protocol itself is the idea worth keeping.
 
 ---
+
+## 🗺️ Roadmap
+
+- **Ecosystem Branding & Visual Identity** – Establish distinct brand guidelines, a dedicated documentation site, and visual asset packages to support community adoption and sponsor visibility.
+
+- **Cross-Language Protocol Implementations** – Port the core "Pull-on-Push" credit specification to other mainstream programming languages to enable native, cross-platform distributed streaming:
+  - `Rust`
+  - `Zig`
+  - `Go`
+  - `Python`
+  - `Swift`
+  - `Kotlin`
+  - `C#`
+  - `Java`
+
+- **Multithreaded Transformers (`Web-Workers` / `Worker-Threads` Integration)** – Develop native, worker-driven parallel execution pipelines. While standard 3rd-party libraries already pair seamlessly with our standard `map` + `resolve` primitives, native multithreaded handlers will unlock zero-copy data processing for heavy workloads .
+
+- **Domain-Specific Transformer Packages** – Expand the core protocol into a modular ecosystem under the `@watchmanLab` scope:
+  - `@watchmanLab/util` – A suite of common helper and utility transformers.
+  - `@watchmanLab/io` – Streamlined asynchronous file system I/O primitives.
+  - `@watchmanLab/dom` – High-performance, backpressure-aware DOM event handlers.
+  - `@watchmanLab/http` & `@watchmanLab/websocket` – Servers and Network-layer streaming for standard web protocols.
+  - `@watchmanLab/rpc` – Low-overhead Remote Procedure Call stream boundaries.
+  - `@watchmanLab/pubsub` – A masterless, highly available Pub/Sub architecture supporting agnostic transport protocols (HTTP, TCP, UDP, and Unix Domain Sockets).
 
 _`@soffinal/stream` is available on npm and JSR. TypeScript 5.x, zero runtime dependencies, ESM only._

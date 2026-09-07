@@ -5,15 +5,20 @@ await Bun.$`bun run scripts/generate-docs.ts`;
 await Bun.$`rm -rf dist`;
 
 // Build JavaScript
-await Bun.build({
+const result = await Bun.build({
   entrypoints: ["src/index.ts"],
   outdir: "./dist",
-  target: "node",
+  target: "browser",
   format: "esm",
-  sourcemap: true,
+  splitting: true,
+  sourcemap: "external",
   minify: true,
 });
 
+if (!result.success) {
+  console.error("Build failed", result.logs);
+  process.exit(1);
+}
 // Build TypeScript declarations
 await Bun.$`bunx tsc --emitDeclarationOnly --allowImportingTsExtensions --noEmit false`;
 
