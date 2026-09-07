@@ -105,7 +105,6 @@ export class Consumer<VALUE> implements Disposable, AsyncDisposable {
   push(value: VALUE): this {
     if (this._credit > 0 && !this._queue?.size) {
       this._handler(this, value);
-
       this._credit--;
     } else {
       (this._queue ??= this._options.queueFactory?.() ?? new DefaultQueue()).enqueue(value);
