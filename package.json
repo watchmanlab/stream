@@ -1,44 +1,48 @@
 {
   "name": "@soffinal/stream",
-  "description": "Multi-paradigm reactive primitives for modern applications",
   "version": "0.3.0",
-  "license": "MIT",
-  "sideEffects": false,
-  "type": "module",
+  "author": "Soffinal <smari.sofiane@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/watchmanLab/stream.git"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ],
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
   },
-  "dependencies": {
-    "rxjs": "^7.8.2"
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
   },
-  "author": "Soffinal <smari.sofiane@gmail.com>",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/soffinal/stream.git"
-  },
+  "description": "High-performance, backpressure-aware reactive primitives using the Pull-on-Push credit protocol.",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "keywords": [
     "reactive",
     "streams",
+    "backpressure",
+    "pull-on-push",
     "async",
     "typescript",
-    "event",
+    "emitter",
     "observable",
-    "emitter"
-  ]
+    "observer",
+    "pipeline",
+    "transformer",
+    "event"
+  ],
+  "license": "MIT",
+  "sideEffects": false,
+  "type": "module",
+  "types": "./dist/index.d.ts"
 }

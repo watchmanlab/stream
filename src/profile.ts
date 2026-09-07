@@ -38,11 +38,11 @@ function runMemoryProfile() {
   return pipelines.length;
 }
 
-// bun --expose-gc run profile.ts
 runMemoryProfile();
 
 // === STREAM BENCHMARK RESULTS ===
 // Total Batch Size:      5,000 pipelines of 200 stages
-// Total Heap Increase:   140.89 MB
-// Average Per Pipeline:  29,546 bytes
-// Average Per Stage:     148 bytes
+// Total Heap Increase:   216.71 MB
+// Average Per Pipeline:  45,447 bytes
+// Average Per Stage:     227 bytes
+// ===============================
