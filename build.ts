@@ -1,17 +1,13 @@
-// Generate documentation
-await Bun.$`bun run scripts/generate-docs.ts`;
-
 // Clean dist
 await Bun.$`rm -rf dist`;
 
 // Build JavaScript
 const result = await Bun.build({
-  entrypoints: ["src/index.ts"],
+  entrypoints: ["./index.ts"],
   outdir: "./dist",
-  target: "browser",
+  target: "node",
   format: "esm",
-  splitting: true,
-  sourcemap: "external",
+  sourcemap: true,
   minify: true,
 });
 
