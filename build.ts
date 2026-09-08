@@ -1,8 +1,10 @@
+import { $, build } from "bun";
+
 // Clean dist
-await Bun.$`rm -rf dist`;
+await $`rm -rf dist`;
 
 // Build JavaScript
-const result = await Bun.build({
+const result = await build({
   entrypoints: ["./index.ts"],
   outdir: "./dist",
   target: "node",
@@ -16,6 +18,6 @@ if (!result.success) {
   process.exit(1);
 }
 // Build TypeScript declarations
-await Bun.$`bunx tsc --emitDeclarationOnly --allowImportingTsExtensions --noEmit false`;
+await $`bunx tsc --emitDeclarationOnly --allowImportingTsExtensions --noEmit false`;
 
 export {};
