@@ -909,15 +909,16 @@ The TypeScript implementation here is one expression of the protocol. The protoc
   - `Kotlin`
   - `C#`
   - `Java`
+- **Core** - adding more sources,streams and transformers.
 
 - **Multithreaded Transformers (`Web-Workers` / `Worker-Threads` Integration)** – Develop native, worker-driven parallel execution pipelines. While standard 3rd-party libraries already pair seamlessly with our standard `map` + `resolve` primitives, native multithreaded handlers will unlock zero-copy data processing for heavy workloads .
 
-- **Domain-Specific Transformer Packages** – Expand the core protocol into a modular ecosystem under the `@watchmanLab` scope:
-  - `@watchmanLab/util` – A suite of common helper and utility transformers.
-  - `@watchmanLab/io` – Streamlined asynchronous file system I/O primitives.
-  - `@watchmanLab/dom` – High-performance, backpressure-aware DOM event handlers.
-  - `@watchmanLab/http` & `@watchmanLab/websocket` – Servers and Network-layer streaming for standard web protocols.
-  - `@watchmanLab/rpc` – Low-overhead Remote Procedure Call stream boundaries.
-  - `@watchmanLab/pubsub` – A masterless, highly available Pub/Sub architecture supporting agnostic transport protocols (HTTP, TCP, UDP, and Unix Domain Sockets).
+- **Domain-Specific Transformer Packages** – Expand the core protocol into a modular ecosystem under the `@watchmanlab` scope:
+  - `@watchmanlab/util` – A suite of common helper and utility transformers.
+  - `@watchmanlab/io` – Streamlined asynchronous file system I/O primitives.
+  - `@watchmanlab/dom` – High-performance, backpressure-aware DOM event handlers.
+  - `@watchmanlab/http` & `@watchmanlab/websocket` – Servers and Network-layer streaming for standard web protocols.
+  - `@watchmanlab/rpc` – Low-overhead Remote Procedure Call stream boundaries.
+  - `@watchmanlab/pubsub` – A masterless, highly available Pub/Sub architecture supporting agnostic transport protocols (HTTP, TCP, UDP, and Unix Domain Sockets).
 
-_`@soffinal/stream` is available on npm and JSR. TypeScript 5.x, zero runtime dependencies, ESM only._
+_`@watchmanlab/stream` is available on npm and JSR. TypeScript 5.x, zero runtime dependencies, ESM only._

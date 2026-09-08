@@ -3,8 +3,7 @@
     "target": "ES2021",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2021", "DOM"],
-    "types": ["bun-types"],
+    "lib": ["ESNext", "DOM"],
     "outDir": "./dist",
     "rootDir": "./",
     "declaration": true,
@@ -20,6 +19,6 @@
     "noImplicitOverride": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "build.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "include": ["src/**/*", "index.ts"],
+  "exclude": ["node_modules", "dist", "build.ts", "src/profile.ts", "**/*.test.ts"]
 }

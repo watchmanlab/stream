@@ -1,17 +1,15 @@
-// Generate documentation
-await Bun.$`bun run scripts/generate-docs.ts`;
+import { $, build } from "bun";
 
 // Clean dist
-await Bun.$`rm -rf dist`;
+await $`rm -rf dist`;
 
 // Build JavaScript
-const result = await Bun.build({
-  entrypoints: ["src/index.ts"],
+const result = await build({
+  entrypoints: ["./index.ts"],
   outdir: "./dist",
-  target: "browser",
+  target: "node",
   format: "esm",
-  splitting: true,
-  sourcemap: "external",
+  sourcemap: true,
   minify: true,
 });
 
@@ -20,6 +18,6 @@ if (!result.success) {
   process.exit(1);
 }
 // Build TypeScript declarations
-await Bun.$`bunx tsc --emitDeclarationOnly --allowImportingTsExtensions --noEmit false`;
+await $`bunx tsc --emitDeclarationOnly --allowImportingTsExtensions --noEmit false`;
 
 export {};

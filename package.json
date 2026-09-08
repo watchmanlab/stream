@@ -1,28 +1,24 @@
 {
-  "name": "@soffinal/stream",
+  "name": "@watchmanlab/stream",
+  "description": "A TypeScript reactive library that solves backpressure, async workflows, and event composition without making you think about any of that until you need to.",
   "version": "0.3.0",
   "author": "Soffinal <smari.sofiane@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/watchmanLab/stream.git"
+    "url": "git+https://github.com/watchmanlab/stream.git"
   },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5.9.2"
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
   },
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     }
   },
-  "description": "High-performance, backpressure-aware reactive primitives using the Pull-on-Push credit protocol.",
   "files": [
     "dist",
     "README.md"
@@ -42,6 +38,9 @@
     "event"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "sideEffects": false,
   "type": "module",
   "types": "./dist/index.d.ts"
