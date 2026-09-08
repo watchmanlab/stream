@@ -1,4 +1,4 @@
-# @soffinal/stream
+# @watchmanlab/stream
 
 > Multi-paradigm reactive primitives built on a **pull-on-push** protocol.
 
@@ -12,10 +12,10 @@ Zero runtime dependencies. Full TypeScript inference. Works in the browser, Node
 
 ```sh
 # npm
-npm install @soffinal/stream
+npm install @watchmanlab/stream
 
 # JSR
-jsr add @soffinal/stream
+jsr add @watchmanlab/stream
 ```
 
 ---
@@ -25,8 +25,8 @@ jsr add @soffinal/stream
 You have a button. You want to do something when it's clicked.
 
 ```typescript
-import { fromEventTarget } from "@soffinal/stream/sources";
-import { listen } from "@soffinal/stream/transformers";
+import { fromEventTarget } from "@watchmanlab/stream/sources";
+import { listen } from "@watchmanlab/stream/transformers";
 
 fromEventTarget(button, "click").pipe(listen((e) => console.log("clicked!")));
 ```
@@ -34,8 +34,8 @@ fromEventTarget(button, "click").pipe(listen((e) => console.log("clicked!")));
 Now you want to debounce it — only react after the user stops clicking for 300ms.
 
 ```typescript
-import { fromEventTarget } from "@soffinal/stream/sources";
-import { debounce, listen } from "@soffinal/stream/transformers";
+import { fromEventTarget } from "@watchmanlab/stream/sources";
+import { debounce, listen } from "@watchmanlab/stream/transformers";
 
 fromEventTarget(button, "click")
   .pipe(debounce(300))
@@ -45,8 +45,8 @@ fromEventTarget(button, "click")
 Now you want to fetch something on each click, but only keep the latest request — if a new click comes in before the previous fetch finishes, cancel it.
 
 ```typescript
-import { fromEventTarget } from "@soffinal/stream/sources";
-import { debounce, map, switch$, resolve, listen } from "@soffinal/stream/transformers";
+import { fromEventTarget } from "@watchmanlab/stream/sources";
+import { debounce, map, switch$, resolve, listen } from "@watchmanlab/stream/transformers";
 
 fromEventTarget(searchInput, "input")
   .pipe(debounce(300))
@@ -66,7 +66,7 @@ Most reactive libraries have a hidden problem: the producer controls the rate. I
 This library solves that with a **credit system**. A consumer only processes a value when it has credit. You grant credit by calling `next()` inside your handler. If no credit is available, values queue up and drain at the consumer's own pace.
 
 ```typescript
-import { Consumer } from "@soffinal/stream";
+import { Consumer } from "@watchmanlab/stream";
 
 const consumer$ = new Consumer<number>((self$, value) => {
   console.log(value);
@@ -145,9 +145,9 @@ fromEventTarget(searchInput, "input")
 ### Polling with a stop condition
 
 ```typescript
-import { fromInterval } from "@soffinal/stream/sources";
-import { map, resolve, takeUntil, listen } from "@soffinal/stream/transformers";
-import { fromTimeout } from "@soffinal/stream/sources";
+import { fromInterval } from "@watchmanlab/stream/sources";
+import { map, resolve, takeUntil, listen } from "@watchmanlab/stream/transformers";
+import { fromTimeout } from "@watchmanlab/stream/sources";
 
 fromInterval(5000)
   .pipe(map(() => fetch("/api/status")))
@@ -159,8 +159,8 @@ fromInterval(5000)
 ### Sharing a source across multiple consumers
 
 ```typescript
-import { fromInterval } from "@soffinal/stream/sources";
-import { share, listen, passive } from "@soffinal/stream/transformers";
+import { fromInterval } from "@watchmanlab/stream/sources";
+import { share, listen, passive } from "@watchmanlab/stream/transformers";
 
 const $ticker = fromInterval(1000).pipe(share());
 
@@ -176,8 +176,8 @@ $ticker.pipe(passive()).pipe(listen((v) => logTick(v)));
 ### Fetching multiple URLs with concurrency control
 
 ```typescript
-import { fromGenerator } from "@soffinal/stream/sources";
-import { resolve, listen } from "@soffinal/stream/transformers";
+import { fromGenerator } from "@watchmanlab/stream/sources";
+import { resolve, listen } from "@watchmanlab/stream/transformers";
 
 fromGenerator(function* () {
   yield fetch("/api/users");
@@ -241,8 +241,8 @@ fromInterval(100).pipe(gate(isOnline$)).pipe(listen(sendToServer));
 ### Error handling
 
 ```typescript
-import { safe, filter, listen } from "@soffinal/stream/transformers";
-import { Error } from "@soffinal/stream";
+import { safe, filter, listen } from "@watchmanlab/stream/transformers";
+import { Error } from "@watchmanlab/stream";
 
 of(1, 2, 3)
   .pipe(
@@ -675,7 +675,7 @@ fromEventTarget(sensor, "data").pipe(pace(500)).pipe(listen(process));
 - `first` and `last`: if the stream completes without emitting, or is aborted, these operators emit `EMPTY` so your downstream handler is always called
 
 ```typescript
-import { EMPTY } from "@soffinal/stream";
+import { EMPTY } from "@watchmanlab/stream";
 
 of()
   .pipe(first())

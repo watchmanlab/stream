@@ -4,7 +4,7 @@
   "author": "Soffinal <smari.sofiane@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/watchmanLab/stream.git"
+    "url": "git+https://github.com/watchmanlab/stream.git"
   },
   "publishConfig": {
     "access": "public"
