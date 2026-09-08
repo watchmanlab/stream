@@ -1,6 +1,6 @@
 {
   "name": "@watchmanlab/stream",
-  "description": "High-performance, backpressure-aware reactive primitives using the Pull-on-Push credit protocol.",
+  "description": "A TypeScript reactive library that solves backpressure, async workflows, and event composition without making you think about any of that until you need to.",
   "version": "0.3.0",
   "author": "Soffinal <smari.sofiane@gmail.com>",
   "repository": {
