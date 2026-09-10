@@ -1,14 +1,22 @@
-# I Spent Two Years Building a Reactive Library. Here's What I Learned.
+# 300+ Iterations Later: My Two-Year Journey Building a Custom Reactive Architecture.
 
-I want to tell you about a problem that took me two years and more than three hundred iterations from scratch and from first principles to solve properly.
+The journey started with an idea for a cross-platform app that uses a map as its main UI. I used MapLibre GL JS along with Svelte as the UI framework to build custom components that live inside the map's markers and popups.After finishing a working prototype, I needed a backend to serve the map vector tiles, maintain live WebSocket connections for clients, manage caching, handle in-memory operations, and take care of the database layer.
+
+The biggest problem I faced was cloud costs. A traditional infrastructure setup would require a tile provider, a database provider, a message queue provider, and several edge functions or a VPS. But even with a VPS, there are so many moving parts that require configuration, monitoring, and specific expertise—and as a solo developer on this project, I simply couldn't afford that.
+
+So, I decided to roll everything on my own. I started creating a masterless, pub/sub, multi-transport server (think of it like NATS). The goal was to let a client map stream live data to the server, which would then efficiently propagate those updates to other clients watching that specific map zone.
+
+This architectural vision demanded an ultra-efficient streaming library and a rock-solid, event-driven design. Before I could even build the pub/sub server, I realized I needed lower-level primitives. My original intention wasn't to write a full stream engine—I just wanted an elegant way to process fast chunks of event data. But as I kept stripping the mechanics down to their raw fundamentals, I ended up building my own pull-on-push streaming library from the ground up.
+
+_See the source code on [@watchmanlab/stream](https://github.com/watchmanlab/stream)._
+
+Now i want to tell you about a problem that took me two years and more than three hundred iterations, each iteration is from scratch and from first principles to solve properly.
 
 Not because the problem is hard to describe — it isn't. But because every time I thought I had it, I'd discover a new wall. And the walls kept teaching me something.
 
 The problem: **how do you connect a producer and a consumer when they run at different speeds?**
 
 That's it. That's the whole thing. Everything in reactive programming — backpressure, buffering, scheduling, error handling — is downstream of that one question.
-
----
 
 ## Start With What You Know
 
@@ -41,7 +49,10 @@ My first reactive library was push-based. Register a callback, push broadcasts t
 ```typescript
 // What I built first
 const stream = new Stream<number>();
-stream.listen((v) => console.log(v));
+stream
+  .pipe(map((v) => v * 2))
+  .pipe(filter((v) => v < 10))
+  .listen((v) => console.log(v));
 stream.push(1); // fires immediately
 ```
 
@@ -51,19 +62,30 @@ But the moment I needed to handle a slow consumer, I was stuck. The producer did
 
 ---
 
-## My Second Attempt: Async Generators
+## Another Attempt: Async Generators
 
 Eight months on this one. The code was genuinely beautiful.
 
 ```typescript
+// this is not the full implementation
+// just a snippet to illustrate the concept
+
 async function* map(source, fn) {
   for await (const value of source) {
     yield fn(value);
   }
 }
+const result = stream.pip(map((v) => v * 2));
+
+(async () => {
+  for await (const v of result) {
+    if (v === 10) break;
+    console.log(v);
+  }
+})();
 ```
 
-Lazy by default. Memory-efficient. The consumer controls the pace by simply not calling `next()` on the iterator.
+Lazy by default. Memory-efficient (maybe). The consumer controls the pace by simply not calling `next()` on the iterator.
 
 But then I needed to bridge to push sources — DOM events, WebSockets, anything that fires on its own schedule. To do that, you need a queue and a promise that resolves when the queue has something. Every value crosses an async boundary. Every transformer adds another level of nesting generators.
 
@@ -73,7 +95,9 @@ Eight months. Discarded.
 
 ---
 
-## The Insight That Changed Everything
+_... After N'th iterations from scratch where `N` is relatively a big number._
+
+## Comes the Insight That Changed Everything
 
 I kept going back to the same question: what does a consumer actually need?
 
@@ -921,4 +945,4 @@ The TypeScript implementation here is one expression of the protocol. The protoc
   - `@watchmanlab/rpc` – Low-overhead Remote Procedure Call stream boundaries.
   - `@watchmanlab/pubsub` – A masterless, highly available Pub/Sub architecture supporting agnostic transport protocols (HTTP, TCP, UDP, and Unix Domain Sockets).
 
-_`@watchmanlab/stream` is available on npm and JSR. TypeScript 5.x, zero runtime dependencies, ESM only._
+_[@watchmanlab/stream](https://github.com/watchmanlab/stream) is available on npm and JSR. zero runtime dependencies, ESM only._
