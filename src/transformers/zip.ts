@@ -22,7 +22,10 @@ export class Zip<
 > extends Source<ZipedArray<[INPUT, ...OTHERS]>> {
   private $inputs: [INPUT, ...OTHERS];
   private _$rest?: Stream<
-    [ValueOfConsumable<INPUT> | Empty, ...{ [K in keyof OTHERS]: ValueOfConsumable<OTHERS[K]> | Empty }]
+    [
+      ValueOfConsumable<INPUT> | Empty,
+      ...{ [K in keyof OTHERS]: ValueOfConsumable<OTHERS[K]> | Empty },
+    ]
   >;
   constructor($input: INPUT, $others: OTHERS) {
     super();
