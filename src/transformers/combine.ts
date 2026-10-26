@@ -2,7 +2,7 @@ import { EMPTY } from "../core/consts";
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { ZipedArray } from "../core/types";
+import { Empty, ValueOfConsumable } from "../core/types";
 
 /**
  * Emits the value or {@link EMPTY} from each input whenever any input emits.
@@ -17,7 +17,13 @@ import { ZipedArray } from "../core/types";
 export class Combine<
   INPUT extends Consumable.AnyConsumable,
   OTHERS extends [Consumable.AnyConsumable, ...Consumable.AnyConsumable[]],
-  VALUE extends ZipedArray<[INPUT, ...OTHERS]> = ZipedArray<[INPUT, ...OTHERS]>,
+  VALUE extends [
+    ValueOfConsumable<INPUT> | Empty,
+    ...{ [K in keyof OTHERS]: ValueOfConsumable<OTHERS[K]> | Empty },
+  ] = [
+    ValueOfConsumable<INPUT> | Empty,
+    ...{ [K in keyof OTHERS]: ValueOfConsumable<OTHERS[K]> | Empty },
+  ],
 > extends Source<VALUE> {
   private $inputs: [INPUT, ...OTHERS];
 
@@ -26,7 +32,10 @@ export class Combine<
     this.$inputs = [$input, ...$others];
   }
 
-  override consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+  override consume(
+    handler: Consumer.Handler<VALUE>,
+    options?: Consumer.Options<VALUE>,
+  ): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
 
     const buffer = new Array(this.$inputs.length).fill(EMPTY);
