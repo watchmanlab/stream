@@ -2,7 +2,7 @@ import { EMPTY } from "../core/consts";
 import { Consumable } from "../core/consumable";
 import { Consumer } from "../core/consumer";
 import { Source } from "../core/source";
-import { Empty, ValueOfConsumable, ZipedArray } from "../core/types";
+import { Empty, ValueOfConsumable } from "../core/types";
 
 /**
  * Emits the value or {@link EMPTY} from each input whenever any input emits.

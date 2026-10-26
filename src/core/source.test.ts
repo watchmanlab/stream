@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { Source } from "./source";
 import { Stream } from "./stream";
+import { fromIterable } from "../sources/iterable-source";
 
 describe("Source", () => {
   describe("pipe", () => {
@@ -35,6 +36,18 @@ describe("Source", () => {
       stream.push(3);
       stream.terminate("complete");
       await iter;
+      expect(results).toEqual([1, 2, 3]);
+    });
+  });
+  describe("Symbol.iterator", () => {
+    it("yields values via for-of", () => {
+      const source = fromIterable([1, 2, 3]);
+      const results: number[] = [];
+
+      for (const v of source) {
+        results.push(v);
+      }
+
       expect(results).toEqual([1, 2, 3]);
     });
   });

@@ -46,7 +46,13 @@ Now you want to fetch something on each click, but only keep the latest request 
 
 ```typescript
 import { fromEventTarget } from "@watchmanlab/stream/sources";
-import { debounce, map, switch$, resolve, listen } from "@watchmanlab/stream/transformers";
+import {
+  debounce,
+  map,
+  switch$,
+  resolve,
+  listen,
+} from "@watchmanlab/stream/transformers";
 
 fromEventTarget(searchInput, "input")
   .pipe(debounce(300))
@@ -146,7 +152,12 @@ fromEventTarget(searchInput, "input")
 
 ```typescript
 import { fromInterval } from "@watchmanlab/stream/sources";
-import { map, resolve, takeUntil, listen } from "@watchmanlab/stream/transformers";
+import {
+  map,
+  resolve,
+  takeUntil,
+  listen,
+} from "@watchmanlab/stream/transformers";
 import { fromTimeout } from "@watchmanlab/stream/sources";
 
 fromInterval(5000)
@@ -298,7 +309,9 @@ A multicast push source. Push values in, all consumers receive them. Exposes lif
 ```typescript
 const $stream = new Stream<number>();
 
-$stream.$firstConsumerJoin.pipe(listen(() => console.log("first consumer joined")));
+$stream.$firstConsumerJoin.pipe(
+  listen(() => console.log("first consumer joined")),
+);
 $stream.$lastConsumerLeft.pipe(listen(() => console.log("last consumer left")));
 $stream.$terminate.pipe(listen((r) => console.log("terminated:", r)));
 
@@ -476,7 +489,9 @@ You can also scope a pipeline to a lifetime:
 // Automatically terminates when the component unmounts
 const $unmount = new Signal<void>();
 
-fromEventTarget(window, "resize").pipe(scope($unmount)).pipe(listen(handleResize));
+fromEventTarget(window, "resize")
+  .pipe(scope($unmount))
+  .pipe(listen(handleResize));
 
 // later...
 $unmount.push(); // everything cleans up
@@ -605,7 +620,9 @@ of(1, 2, 3)
       context.total += value;
     }),
   )
-  .pipe(listen(({ value, context }) => console.log(value, "total:", context.total)));
+  .pipe(
+    listen(({ value, context }) => console.log(value, "total:", context.total)),
+  );
 ```
 
 ### `delay(0)` — microtask scheduling
@@ -648,7 +665,9 @@ The fix is to register all consumers before any of them calls `next()`, or use `
 fromInterval(100).pipe(scope($userLogout, $sessionExpiry)).pipe(listen(tick));
 
 // scopeStrict — keeps running until both tasks are done
-fromInterval(500).pipe(scopeStrict($task1Done, $task2Done)).pipe(listen(checkProgress));
+fromInterval(500)
+  .pipe(scopeStrict($task1Done, $task2Done))
+  .pipe(listen(checkProgress));
 ```
 
 ### `debounce` vs `pace`
@@ -783,6 +802,16 @@ Every `Source` is an `AsyncIterable`. You can consume any pipeline with a standa
 
 ```typescript
 for await (const value of fromIterable([1, 2, 3]).pipe(map((v) => v * 2))) {
+  console.log(value); // 2, 4, 6
+}
+```
+
+## `for..of`
+
+Every `Source` is an `Iterable`. You can consume synchronous pipelines with a standard `for..of` loop.
+
+```typescript
+for (const value of fromIterable([1, 2, 3]).pipe(map((v) => v * 2))) {
   console.log(value); // 2, 4, 6
 }
 ```

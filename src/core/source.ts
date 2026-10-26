@@ -1,5 +1,7 @@
+import { EMPTY } from "./consts";
 import { Consumable } from "./consumable";
 import { Consumer } from "./consumer";
+import { Empty } from "./types";
 
 /**
  * Abstract base class for all streams, source adapters and transformers.
@@ -22,7 +24,9 @@ import { Consumer } from "./consumer";
  *   console.log(value);
  * }
  */
-export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<VALUE> {
+export abstract class Source<VALUE>
+  implements Consumable<VALUE>, AsyncIterable<VALUE>, Iterable<VALUE>
+{
   async *[Symbol.asyncIterator]() {
     let resolve: (value: VALUE) => void;
 
@@ -41,7 +45,29 @@ export abstract class Source<VALUE> implements Consumable<VALUE>, AsyncIterable<
       consumer.terminate("complete");
     }
   }
-  abstract consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE>;
+
+  *[Symbol.iterator]() {
+    let current: VALUE | Empty = EMPTY;
+    const consumer = this.consume((_, value) => (current = value));
+
+    try {
+      while (consumer.status !== "abort" && consumer.status !== "complete") {
+        consumer.next();
+        if (current === EMPTY) break;
+        yield current;
+        current = EMPTY;
+      }
+    } catch (error) {
+      consumer.terminate("abort");
+    } finally {
+      consumer.terminate("complete");
+    }
+  }
+
+  abstract consume(
+    handler: Consumer.Handler<VALUE>,
+    options?: Consumer.Options<VALUE>,
+  ): Consumer<VALUE>;
   /**
    * Composes this source with a transformer function.
    * The transformer receives this source and returns a new output (usually another `Source`).
@@ -72,7 +98,10 @@ class SourceProxy<VALUE> extends Source<VALUE> {
   constructor(private $consumable: Consumable<VALUE>) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+  consume(
+    handler: Consumer.Handler<VALUE>,
+    options?: Consumer.Options<VALUE>,
+  ): Consumer<VALUE> {
     return this.$consumable.consume(handler, options);
   }
 }
