@@ -15,10 +15,14 @@ export class IteratorSource<VALUE> extends Source<VALUE> {
   constructor(private iterator: Iterator<VALUE> | (() => Iterator<VALUE>)) {
     super();
   }
-  consume(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>): Consumer<VALUE> {
+  consume(
+    handler: Consumer.Handler<VALUE>,
+    options?: Consumer.Options<VALUE>,
+  ): Consumer<VALUE> {
     const { next, terminate, ...rest } = options ?? {};
 
-    const iter = typeof this.iterator === "function" ? this.iterator() : this.iterator;
+    const iter =
+      typeof this.iterator === "function" ? this.iterator() : this.iterator;
 
     return new Consumer(handler, {
       ...rest,
@@ -39,6 +43,7 @@ export class IteratorSource<VALUE> extends Source<VALUE> {
     });
   }
 }
+
 /**
  * `Replayable`
  *
@@ -51,6 +56,8 @@ export class IteratorSource<VALUE> extends Source<VALUE> {
  * @example
  * fromIterator([1, 2, 3].values()).pipe(listen(console.log));
  */
-export function fromIterator<VALUE>(iterator: Iterator<VALUE> | (() => Iterator<VALUE>)): IteratorSource<VALUE> {
+export function fromIterator<VALUE>(
+  iterator: Iterator<VALUE> | (() => Iterator<VALUE>),
+): IteratorSource<VALUE> {
   return new IteratorSource(iterator);
 }

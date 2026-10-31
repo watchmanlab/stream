@@ -1,3 +1,4 @@
+import {} from "bun";
 import { describe, it, expect } from "bun:test";
 import { Source } from "./source";
 import { Stream } from "./stream";
@@ -37,6 +38,12 @@ describe("Source", () => {
       stream.terminate("complete");
       await iter;
       expect(results).toEqual([1, 2, 3]);
+    });
+    it("exit the loop for-await-of when source is done", async () => {
+      for await (const _ of fromIterable([1, 2, 3])) {
+      }
+
+      expect(true).toBe(true);
     });
   });
   describe("Symbol.iterator", () => {
