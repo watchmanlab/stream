@@ -1,7 +1,7 @@
 import { EMPTY } from "./consts";
 import { Consumable } from "./consumable";
 import { Consumer } from "./consumer";
-import { Empty } from "./types";
+import { Empty, TerminateReason } from "./types";
 
 /**
  * Abstract base class for all streams, source adapters and transformers.
@@ -27,26 +27,30 @@ import { Empty } from "./types";
 export abstract class Source<VALUE>
   implements Consumable<VALUE>, AsyncIterable<VALUE>, Iterable<VALUE>
 {
-  async *[Symbol.asyncIterator]() {
+  async *[Symbol.asyncIterator](): AsyncIterator<VALUE> {
     let resolve: (value: VALUE) => void;
+    let reject: (reason: TerminateReason) => void;
 
-    const consumer = this.consume((_, value) => resolve(value));
+    const consumer = this.consume((_, value) => resolve(value), {
+      terminate: (_, reason) => reject(reason),
+    });
 
     try {
       while (consumer.status === "active" || consumer.status === "drain") {
-        yield new Promise<VALUE>((r) => {
-          resolve = r;
+        yield new Promise<VALUE>((res, rej) => {
+          resolve = res;
+          reject = rej;
           consumer.next();
         });
       }
     } catch (e) {
-      consumer.terminate("abort");
+      if (e !== "complete") consumer.terminate("abort");
     } finally {
       consumer.terminate("complete");
     }
   }
 
-  *[Symbol.iterator]() {
+  *[Symbol.iterator](): Iterator<VALUE> {
     let current: VALUE | Empty = EMPTY;
     const consumer = this.consume((_, value) => (current = value));
 
@@ -54,7 +58,7 @@ export abstract class Source<VALUE>
       while (consumer.status !== "abort" && consumer.status !== "complete") {
         consumer.next();
         if (current === EMPTY) break;
-        yield current;
+        yield current as VALUE;
         current = EMPTY;
       }
     } catch (error) {
