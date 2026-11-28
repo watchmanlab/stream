@@ -29,50 +29,6 @@ Implements `Disposable` and `AsyncDisposable`
 new Consumer<VALUE>(handler: Consumer.Handler<VALUE>, options?: Consumer.Options<VALUE>)
 ```
 
-**Properties**
-
-| Property         | Type                        | Description                                    |
-| ---------------- | --------------------------- | ---------------------------------------------- |
-| `name`           | `string`                    | Consumer name for tracing                      |
-| `handler`        | `Consumer.Handler<VALUE>`   | Current handler (replaceable)                  |
-| `options`        | `Consumer.Options<VALUE>`   | Current options                                |
-| `status`         | `Consumer.Status`           | `"active" \| "drain" \| "complete" \| "abort"` |
-| `credit`         | `number`                    | Available credits                              |
-| `queue`          | `Queue<VALUE> \| undefined` | Internal buffer                                |
-| `inProcessValue` | `VALUE \| Empty`            | Value currently in handler                     |
-
-**Event Sources**
-
-| Source             | Emits                                          |
-| ------------------ | ---------------------------------------------- |
-| `$push`            | Every value delivered                          |
-| `$beforeConsuming` | Every value just before handler runs           |
-| `$afterConsuming`  | Every value just after handler calls `.next()` |
-| `$next`            | When queue is exhausted and credit is granted  |
-| `$drain`           | When consumer enters drain state               |
-| `$terminate`       | The termination reason                         |
-
-**Methods**
-
-| Method                | Description                                                       |
-| --------------------- | ----------------------------------------------------------------- |
-| `push(value)`         | Deliver a value; processed immediately if credit > 0, else queued |
-| `pushMany(...values)` | Push inline values                                                |
-| `pushBatch(values[])` | Push an array of values                                           |
-| `next()`              | Grant one credit                                                  |
-| `terminate(reason)`   | `"abort"` clears queue immediately; `"complete"` drains first     |
-
-**Resource management**
-
-```ts
-{
-  using consumer = new Consumer(handler);
-} // terminates "abort" on scope exit
-{
-  await using consumer = new Consumer(handler);
-} // terminates "complete" on scope exit
-```
-
 **`Consumer.Options<VALUE>`**
 
 | Option            | Type                              | Description                         |
@@ -87,23 +43,67 @@ new Consumer<VALUE>(handler: Consumer.Handler<VALUE>, options?: Consumer.Options
 | `drain`           | `(c) => void`                     | When entering drain state           |
 | `terminate`       | `(c, reason) => void`             | On termination                      |
 
+**Properties**
+
+| Property         | Type                        | Description                                    |
+| ---------------- | --------------------------- | ---------------------------------------------- |
+| `name`           | `string`                    | Consumer name for tracing                      |
+| `handler`        | `Consumer.Handler<VALUE>`   | Current handler (replaceable)                  |
+| `options`        | `Consumer.Options<VALUE>`   | Current options                                |
+| `status`         | `Consumer.Status`           | `"active" \| "drain" \| "complete" \| "abort"` |
+| `credit`         | `number`                    | Available credits                              |
+| `queue`          | `Queue<VALUE> \| undefined` | Internal buffer                                |
+| `inProcessValue` | `VALUE \| Empty`            | Value currently in handler                     |
+
+**Methods**
+
+| Method                | Description                                                       |
+| --------------------- | ----------------------------------------------------------------- |
+| `push(value)`         | Deliver a value; processed immediately if credit > 0, else queued |
+| `pushMany(...values)` | Push inline values                                                |
+| `pushBatch(values[])` | Push an array of values                                           |
+| `next()`              | Grant one credit                                                  |
+| `terminate(reason)`   | `"abort"` clears queue immediately; `"complete"` drains first     |
+
+**Event Sources**
+
+| Source             | Emits                                          |
+| ------------------ | ---------------------------------------------- |
+| `$push`            | Every value delivered                          |
+| `$beforeConsuming` | Every value just before handler runs           |
+| `$afterConsuming`  | Every value just after handler calls `.next()` |
+| `$next`            | When queue is exhausted and credit is granted  |
+| `$drain`           | When consumer enters drain state               |
+| `$terminate`       | The termination reason                         |
+
+**Resource management**
+
+```ts
+{
+  using consumer = new Consumer(handler);
+} // terminates "abort" on scope exit
+{
+  await using consumer = new Consumer(handler);
+} // terminates "complete" on scope exit
+```
+
 ---
 
 ### `Source<VALUE>` — abstract class
 
 Abstract base for all sources, streams, and transformers. Implements `Consumable<VALUE>`, `AsyncIterable<VALUE>`, and `Iterable<VALUE>`.
 
-**Properties**
-
-| Property | Type     | Description             |
-| -------- | -------- | ----------------------- |
-| `name`   | `string` | Source name for tracing |
-
 **Implements `Consumable<VALUE>`**
 
 | Method    | Signature                                     | Description                                  |
 | --------- | --------------------------------------------- | -------------------------------------------- |
 | `consume` | `consume(handler, options?): Consumer<VALUE>` | Abstract — must be implemented by subclasses |
+
+**Properties**
+
+| Property | Type     | Description             |
+| -------- | -------- | ----------------------- |
+| `name`   | `string` | Source name for tracing |
 
 **Methods**
 
@@ -137,13 +137,31 @@ const values = source.collect(3, { sync: true }); // sync
 
 ### `Stream<VALUE>` — class extends `Source<VALUE>`
 
-Multicast push/pull source. Broadcasts to all consumers.
+Multicast push/pull source. Broadcasts/yield to all consumers.
 
 **Constructor**
 
 ```ts
 new Stream<VALUE>(options?: Stream.Options<VALUE>)
 ```
+
+**`Stream.Options<VALUE>`**
+
+| Option                | Type                                                                                      | Description                                            |
+| --------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `name`                | `string`                                                                                  | Name override                                          |
+| `consumerSetFactory`  | `() => ConsumerSet<VALUE>`                                                                | Custom ConsumerSet                                     |
+| `consumerFactory`     | `(handler: Consumer.Handler<VALUE>,options?: Consumer.Options<VALUE>) => Consumer<VALUE>` | Custom Consumer fabric                                 |
+| `init`                | `(stream: Stream<VALUE>) => undefined \| ((reason: TerminateReason) => void)`             | Setup; return cleanup fn                               |
+| `push`                | `(stream: Stream<VALUE>, value: VALUE) => void`                                           | Called on every push                                   |
+| `fastestConsumerNext` | `(stream: Stream<VALUE>,consumer: Consumer<VALUE>) => void`                               | Faster consumer that call request data                 |
+| `slowestConsumerNext` | `(stream: Stream<VALUE>,consumer: Consumer<VALUE>) => void`                               | Slowest or last consumer that request data             |
+| `consumerJoin`        | `(stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void`                              | When consumer is created                               |
+| `consumerLeft`        | `(stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void`                              | When consumer terminate                                |
+| `firstConsumerJoin`   | `(stream: Stream<VALUE>,consumer: Consumer<VALUE>) => void`                               | When the first consumer is created                     |
+| `lastConsumerJoin`    | `(stream: Stream<VALUE>,consumer: Consumer<VALUE>) => void`                               | When the last consumer is terminated                   |
+| `drain`               | `(stream: Stream<VALUE>) => void`                                                         | When Stream enter drain mode via terminate("complete") |
+| `terminate`           | `(stream: Stream<VALUE>, reason: TerminateReason) => void`                                | When Stream terminate                                  |
 
 **Properties**
 
@@ -160,7 +178,6 @@ new Stream<VALUE>(options?: Stream.Options<VALUE>)
 | `$push`                | Every pushed value                        |
 | `$fastestConsumerNext` | The fastest consumer that called `next()` |
 | `$slowestConsumerNext` | The slowest consumer that called `next()` |
-| `$consumerNext`        | Any consumer that called `next()`         |
 | `$consumerJoin`        | Every new consumer                        |
 | `$consumerLeft`        | Every consumer that left                  |
 | `$firstConsumerJoin`   | When first consumer joins an empty stream |
@@ -186,6 +203,15 @@ Stream.from(consumable, options?: Stream.Options & { sourceDriver?: "slowest" | 
 
 Bridges any unicast `Consumable` into a multicast `Stream`.
 
+**Stream.FromOptions<VALUE>**
+Extends `Stream.options<VALUE>`
+
+```ts
+  {
+    sourceDriver?: SourceDriver;
+  }
+```
+
 **Resource management**
 
 ```ts
@@ -196,8 +222,6 @@ Bridges any unicast `Consumable` into a multicast `Stream`.
   await using stream = new Stream();
 } // terminates "complete"
 ```
-
-**`Stream.Options<VALUE>`** — same names as event sources without `$`, all functions.
 
 ---
 
@@ -234,6 +258,7 @@ Manages the set of consumers a `Stream` broadcasts to.
 | ------------------- | ------------------------------------------------------------------------------ |
 | `EMPTY`             | `Symbol.for("empty")` — sentinel for absence of value                          |
 | `TerminateReason`   | `"abort" \| "complete"`                                                        |
+| `SourceDriver`      | `"slowest" \| "fastest"`                                                       |
 | `Error<VALUE>`      | Typed error wrapper: `new Error(value)` — carries a value instead of a message |
 | `isConsumable(obj)` | Type guard: returns `true` if `obj` is a `Consumable`                          |
 
@@ -271,7 +296,7 @@ sig.push("done"); // emits then terminates
 
 ### `State<VALUE>` — class extends `Stream<VALUE>`
 
-A `Stream` with a `.value` property. Setting `.value` pushes to all consumers. Note: calling `.push()` directly does NOT update `.value`.
+A `Stream` with a `.value` property. Setting `.value` pushes to all consumers. Note: calling `.push()` directly does NOT update `.value` but can be useful for notifications.
 
 ```ts
 new State<VALUE>(initialValue: VALUE, options?: Stream.Options<VALUE>)

@@ -172,7 +172,12 @@ A multicast push and/or pull source that broadcasts values to all its consumers.
 
 `Stream` is your first goto when you want to dispatch events or create a custom sources.
 so its the only primitive you will work with most of the time, and you can wrap it with `Source.from()` to create a readonly source.
-You can use it as an EventEmitter and you get a **full** control on your events in a declarative way.
+
+You can use it as an EventEmitter and you get **full** control over your events in a declarative way.
+
+`Stream` can push on its own rate or consumed with the rate of the slowest or fastest consumers,and can even target a specific consumers to push in.
+
+So in a nutshell `Stream` primitive is where this library converge and built for.
 
 ```ts
 import { Stream, listen } from "watchmanrx";
@@ -190,12 +195,14 @@ stream.terminate("complete");
 const stream2 = new Stream({
   fastestConsumerNext(self, consumer) {
     //stream2 and self are the same instance
-    stream.push("hello: " + consumer.name);
+    self.push("hello: " + consumer.name);
+    //you can even target some consumers
+    if (consumer.name.startsWith("some name")) {
+      consumer.push("some value");
+    }
   },
   //and/or
   // slowestConsumerNext(stream, consumer){}
-  //and/or
-  // consumerNext(stream, consumer){}
 });
 
 stream2.pipe(take(3)).pipe(toConsole());
@@ -215,7 +222,6 @@ stream2.pipe(take(3)).pipe(toConsole());
 | `$push`                | Every pushed value                            |
 | `$fastestConsumerNext` | The fastest consumer that called `next()`     |
 | `$slowestConsumerNext` | The slowest consumer that called `next()`     |
-| `$consumerNext`        | Any consumer that called `next()`             |
 | `$consumerJoin`        | Every new consumer                            |
 | `$consumerLeft`        | Every consumer that left                      |
 | `$firstConsumerJoin`   | When the first consumer joins an empty stream |
