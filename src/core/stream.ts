@@ -1,4 +1,4 @@
-import { SourceDriver, TerminateReason } from "./types";
+import { SourceDriver, TerminateReason, ValueOfConsumable } from "./types";
 import { Consumer } from "./consumer";
 import { EMPTY_THIS_FUNCTION } from "./consts";
 import { DefaultConsumerSet } from "./default-consumer-set";
@@ -90,8 +90,9 @@ export class Stream<VALUE>
   >(
     name: NAME,
     value: Omit<Stream.Options<VALUE>, "consumerSetFactory" | "init">[NAME],
-  ) {
+  ): this {
     this._options[name] = value;
+    return this;
   }
   /**  {@link ConsumerSet} is the consumers manager*/
   get consumerSet(): ConsumerSet<VALUE> {
@@ -123,14 +124,7 @@ export class Stream<VALUE>
       })),
     );
   }
-  /** Emits any {@link Consumer} that called `next()`. */
-  get $consumerNext(): Source<Consumer<VALUE>> {
-    return Source.from(
-      (this._events.$consumerNext ??= new Stream<Consumer<VALUE>>({
-        lastConsumerLeft: () => (this._events.$consumerNext = undefined),
-      })),
-    );
-  }
+
   /** Emits every {@link Consumer} created via {@link consume}. */
   get $consumerJoin(): Source<Consumer<VALUE>> {
     return Source.from(
@@ -236,7 +230,7 @@ export class Stream<VALUE>
 
     const { next, terminate, ...rest } = options ?? {};
 
-    const consumer = new Consumer(handler, {
+    const consumerOptions: Consumer.Options<VALUE> = {
       ...rest,
       next: (consumer) => {
         if (!this.pulling) {
@@ -255,8 +249,7 @@ export class Stream<VALUE>
         } else {
           this._lastRequestConsumer = consumer;
         }
-        this._options.consumerNext?.(this, consumer);
-        this._events.$consumerNext?.push(consumer);
+
         next?.(consumer);
       },
 
@@ -283,7 +276,11 @@ export class Stream<VALUE>
 
         terminate?.(consumer, reason);
       },
-    });
+    };
+
+    const consumer =
+      this._options.consumerFactory?.(handler, consumerOptions) ??
+      new Consumer(handler, consumerOptions);
 
     this._consumerSet.add(consumer);
 
@@ -342,7 +339,7 @@ export class Stream<VALUE>
   /**
    * Creates a `Stream` that pulls from a {@link Consumable} source.
    * Bridges unicast sources into a multicast `Stream`, pulling from the source
-   * is triggered by the faster or slo consumer and all consumer will get the value,
+   * is triggered by the faster or slow consumer and all consumers will get the value,
    * so slower ones will buffer the value and consume it at their own pace.
    *
    * @param consumable The upstream consumable to pull from.
@@ -404,6 +401,10 @@ export namespace Stream {
   export interface Options<VALUE> {
     name?: string;
     consumerSetFactory?: () => ConsumerSet<VALUE>;
+    consumerFactory?: (
+      handler: Consumer.Handler<VALUE>,
+      options?: Consumer.Options<VALUE>,
+    ) => Consumer<VALUE>;
     init?: (
       stream: Stream<VALUE>,
     ) => undefined | ((reason: TerminateReason) => void);
@@ -412,7 +413,6 @@ export namespace Stream {
       stream: Stream<VALUE>,
       consumer: Consumer<VALUE>,
     ) => void;
-    consumerNext?: (stream: Stream<VALUE>, consumer: Consumer<VALUE>) => void;
     slowestConsumerNext?: (
       stream: Stream<VALUE>,
       consumer: Consumer<VALUE>,
@@ -432,19 +432,18 @@ export namespace Stream {
   }
 
   export interface FromOptions<VALUE> extends Stream.Options<VALUE> {
-    // Who drive the source
     sourceDriver?: SourceDriver;
   }
+
   export type Events<VALUE> = {
     $push?: Stream<VALUE>;
     $fastestConsumerNext?: Stream<Consumer<VALUE>>;
     $slowestConsumerNext?: Stream<Consumer<VALUE>>;
-    $drain?: Stream<void>;
-    $consumerNext?: Stream<Consumer<VALUE>>;
     $consumerJoin?: Stream<Consumer<VALUE>>;
     $consumerLeft?: Stream<Consumer<VALUE>>;
     $firstConsumerJoin?: Stream<Consumer<VALUE>>;
     $lastConsumerLeft?: Stream<Consumer<VALUE>>;
+    $drain?: Stream<void>;
     $terminate?: Stream<TerminateReason>;
   };
 }
